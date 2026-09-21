@@ -11,10 +11,12 @@ import {
   Menu,
   X,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  ArrowLeft,
+  RefreshCw
 } from 'lucide-react';
 
-export default function Navbar({ activePage, setActivePage, user, onLogout }) {
+export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
@@ -31,6 +33,24 @@ export default function Navbar({ activePage, setActivePage, user, onLogout }) {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[#E0EAF4] bg-white/95 backdrop-blur-md shadow-xs">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+       <div className="flex items-center gap-2">
+        {/* Back & Refresh (essential for standalone / home-screen app) */}
+        <button
+          onClick={onBack}
+          disabled={!canBack}
+          title="Back"
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E4EBF3] bg-[#F0F4F8] text-[#003158] hover:bg-[#E4EBF3] disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onRefresh}
+          title="Refresh data"
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E4EBF3] bg-[#F0F4F8] text-[#003158] hover:bg-[#E4EBF3]"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+
         {/* Brand Logo */}
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActivePage('dashboard')}>
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#003158] text-white shadow-md">
@@ -45,6 +65,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout }) {
             </p>
           </div>
         </div>
+       </div>
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-1 bg-[#F0F4F8] p-1 rounded-2xl border border-[#E4EBF3]">
