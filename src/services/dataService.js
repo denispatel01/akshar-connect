@@ -79,8 +79,6 @@ export const dataService = {
   loginWithPin: async (mobile, pin) => {
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
     if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return { success: true, user }; }
-    if (pin === '786109') { const u = { mobile, pin, role: 'Admin', name: 'Administrator' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
-    if (pin === '786369') { const u = { mobile, pin, role: 'Sevak', name: 'Sevak User' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 

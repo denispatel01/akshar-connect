@@ -145,10 +145,8 @@ export default function LoginPage({ onLoginSuccess }) {
               Sign in to manage your Mandal — attendance, events, seva, and devotee records in one central platform.
             </p>
 
-            <div className="mt-8 flex items-center gap-4 text-xs font-semibold text-white/60">
-              <span>🔑 Admin PIN: <strong className="text-white bg-white/10 px-2 py-0.5 rounded">786109</strong></span>
-              <span>•</span>
-              <span>⚡ Sevak PIN: <strong className="text-white bg-white/10 px-2 py-0.5 rounded">786369</strong></span>
+            <div className="mt-8 text-xs font-semibold text-white/50">
+              Use the mobile number &amp; PIN provided by your Mandal admin.
             </div>
           </div>
         </div>
@@ -251,7 +249,6 @@ export default function LoginPage({ onLoginSuccess }) {
                     <div>
                       <div className="flex justify-between items-center mb-2 px-1">
                         <span className="text-xs font-bold text-[#9BB5CB]">6-Digit PIN</span>
-                        <span className="text-[11px] text-slate-400">Admin PIN: 786109 | Sevak: 786369</span>
                       </div>
                       <PinDigitInput
                         length={6}
