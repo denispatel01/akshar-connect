@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #003158;
+  --color-primary-hover: #00223f;
+  --color-primary-light: #00436f;
+  --color-accent: #FF862A;
+  --color-accent-hover: #e06f19;
+  --color-accent-bg: rgba(255, 134, 42, 0.10);
+  --color-bg-slate: #F0F4F8;
+  --color-[#9BB5CB]: #9BB5CB;
+}
+
+@layer base {
+  body {
+    background-color: #F0F4F8;
+    color: #1E293B;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Custom Pin Input animation & styles */
+.pin-digit {
+  width: 44px;
+  height: 52px;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #003158;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E0EAF4;
+  border-radius: 1rem;
+  transition: all 0.2s ease;
+}
+
+.pin-digit:focus {
+  outline: none;
+  border-color: #003158;
+  box-shadow: 0 0 0 3px rgba(0, 49, 88, 0.12);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}

@@ -1,0 +1,8 @@
+{
+  "appId": "in.aksharmandal.aksharconnect",
+  "appName": "Akshar Connect",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

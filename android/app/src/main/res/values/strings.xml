@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Akshar Connect</string>
+    <string name="title_activity_main">Akshar Connect</string>
+    <string name="package_name">in.aksharmandal.aksharconnect</string>
+    <string name="custom_url_scheme">in.aksharmandal.aksharconnect</string>
+</resources>
