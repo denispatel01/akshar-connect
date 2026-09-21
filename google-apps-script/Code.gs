@@ -34,9 +34,30 @@ function json_(o){ return ContentService.createTextOutput(JSON.stringify(o)).set
 
 function tab_(name){
   var ss = ss_(); var sh = ss.getSheetByName(name);
-  if(!sh){ sh = ss.insertSheet(name); sh.appendRow(HEADERS[name]); }
-  else if(sh.getLastRow() === 0){ sh.appendRow(HEADERS[name]); }
+  if(!sh){
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,sh.getMaxRows(),HEADERS[name].length).setNumberFormat('@'); // force ALL as text
+    sh.appendRow(HEADERS[name]);
+  } else if(sh.getLastRow() === 0){
+    sh.getRange(1,1,sh.getMaxRows(),HEADERS[name].length).setNumberFormat('@');
+    sh.appendRow(HEADERS[name]);
+  }
   return sh;
+}
+
+/** Wipe our tabs, force text format, reseed defaults. Fixes any auto-parsed values. */
+function resetAll_(){
+  ['Users','Devotees','Sabhas','Attendance','Thoughts'].forEach(function(n){
+    var sh = ss_().getSheetByName(n);
+    if(sh){
+      sh.clear();
+      sh.getRange(1,1,sh.getMaxRows(),HEADERS[n].length).setNumberFormat('@');
+      sh.appendRow(HEADERS[n]);
+    } else { tab_(n); }
+  });
+  appendRows_('Users', SEED_USERS);
+  appendRows_('Sabhas', SEED_SABHAS);
+  appendRows_('Thoughts', SEED_THOUGHTS);
 }
 
 function ensureSheets_(){
@@ -90,6 +111,7 @@ function handle_(p){
   try{
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
     ensureSheets_();
+    if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
       sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance') });

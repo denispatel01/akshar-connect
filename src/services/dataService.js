@@ -2,7 +2,7 @@ import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } fro
 
 // ===== Live backend =====================================================
 // Replaced at build time with the deployed Apps Script /exec URL.
-const API_URL = "__AC_API_URL__";
+const API_URL = "https://script.google.com/macros/s/AKfycbw-LyYduU1mUaXwamTGPyh_TtP6pZkO3pTCPPGKMQOhUwJhFa_Z4wFzz83FYXnq9YqAnA/exec";
 const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') === 0;
 
 const SESSION_KEY = 'ac_session_v1';
@@ -77,7 +77,7 @@ export const dataService = {
 
   // ---- Auth ----
   loginWithPin: async (mobile, pin) => {
-    const user = DB.users.find(u => u.mobile === mobile && String(u.pin) === String(pin));
+    const user = DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
     if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return { success: true, user }; }
     if (pin === '786109') { const u = { mobile, pin, role: 'Admin', name: 'Administrator' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
     if (pin === '786369') { const u = { mobile, pin, role: 'Sevak', name: 'Sevak User' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
@@ -85,7 +85,7 @@ export const dataService = {
   },
 
   loginWithPassword: async (mobile, password) => {
-    const user = DB.users.find(u => u.mobile === mobile && u.password === password);
+    const user = DB.users.find(u => String(u.mobile) === String(mobile) && u.password === password);
     if (!user) throw new Error('Invalid Mobile Number or Password.');
     localStorage.setItem(SESSION_KEY, JSON.stringify(user));
     return { success: true, user };
@@ -101,7 +101,7 @@ export const dataService = {
   },
 
   completeSetup: async (mobile, password, pin) => {
-    const idx = DB.users.findIndex(u => u.mobile === mobile);
+    const idx = DB.users.findIndex(u => String(u.mobile) === String(mobile));
     const user = {
       mobile, password, pin,
       role: idx >= 0 ? DB.users[idx].role : 'Devotee',
