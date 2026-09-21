@@ -1,239 +1,186 @@
 import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } from './mockData';
 
-const KEYS = {
-  USERS: 'ac_users_v1',
-  DEVOTEES: 'ac_devotees_v2',
-  SABHAS: 'ac_sabhas_v1',
-  THOUGHTS: 'ac_thoughts_v1',
-  ATTENDANCE: 'ac_attendance_logs_v1',
-  SESSION: 'ac_session_v1'
-};
+// ===== Live backend =====================================================
+// Replaced at build time with the deployed Apps Script /exec URL.
+const API_URL = "__AC_API_URL__";
+const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') === 0;
 
-// Initialize localStorage if empty
-const initStorage = () => {
-  if (!localStorage.getItem(KEYS.USERS)) {
-    localStorage.setItem(KEYS.USERS, JSON.stringify(INITIAL_USERS));
-  }
-  if (!localStorage.getItem(KEYS.DEVOTEES)) {
-    localStorage.setItem(KEYS.DEVOTEES, JSON.stringify(INITIAL_DEVOTEES));
-  }
-  if (!localStorage.getItem(KEYS.SABHAS)) {
-    localStorage.setItem(KEYS.SABHAS, JSON.stringify(INITIAL_SABHAS));
-  }
-  if (!localStorage.getItem(KEYS.THOUGHTS)) {
-    localStorage.setItem(KEYS.THOUGHTS, JSON.stringify(INITIAL_THOUGHTS));
-  }
-  if (!localStorage.getItem(KEYS.ATTENDANCE)) {
-    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify([]));
-  }
-};
+const SESSION_KEY = 'ac_session_v1';
+const CACHE_KEY = 'ac_cache_v1';
 
-initStorage();
+// In-memory database (populated by bootstrap before the app renders).
+let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [] };
+
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function api(action, payload = {}) {
+  const body = JSON.stringify({ action, ...payload });
+  let lastErr;
+  for (let n = 1; n <= 4; n++) {
+    try {
+      const r = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // simple request, no CORS preflight
+        body, redirect: 'follow'
+      });
+      const t = await r.text();
+      let d; try { d = JSON.parse(t); } catch (e) { lastErr = new Error('Server busy'); await delay(500 * n); continue; }
+      if (d && d.ok === false) throw new Error(d.error || 'Error');
+      return d;
+    } catch (e) { lastErr = e; await delay(500 * n); }
+  }
+  throw lastErr || new Error('Network error');
+}
+
+// Fire-and-forget write with retry; keeps UI snappy (optimistic).
+function push(action, payload) {
+  if (!hasBackend()) return;
+  api(action, payload).catch(err => console.warn('sync failed:', action, err.message));
+}
+
+function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB)); } catch (e) {} }
+
+function loadDemo() {
+  DB = {
+    users: [...INITIAL_USERS], devotees: [...INITIAL_DEVOTEES],
+    sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: []
+  };
+}
+
+// Called once from main.jsx BEFORE the app renders.
+async function bootstrap() {
+  if (!hasBackend()) { loadDemo(); return { mode: 'demo' }; }
+  try {
+    const d = await api('bootstrap');
+    DB.users = d.users || []; DB.devotees = d.devotees || [];
+    DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
+    DB.attendance = d.attendance || [];
+    // First run: populate the new sheet with the bundled devotee list.
+    if (DB.devotees.length === 0 && INITIAL_DEVOTEES.length) {
+      await api('seedDevotees', { rows: INITIAL_DEVOTEES });
+      DB.devotees = [...INITIAL_DEVOTEES];
+    }
+    saveCache();
+    return { mode: 'live' };
+  } catch (e) {
+    // Offline: use last cached data, else demo seed.
+    const c = localStorage.getItem(CACHE_KEY);
+    if (c) { try { DB = JSON.parse(c); return { mode: 'cache' }; } catch (er) {} }
+    loadDemo();
+    return { mode: 'demo', error: e.message };
+  }
+}
 
 export const dataService = {
-  // Auth Operations
+  bootstrap,
+  isLive: () => hasBackend(),
+
+  // ---- Auth ----
   loginWithPin: async (mobile, pin) => {
-    const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-    // Match mobile & PIN (also check default admin & sevak 6-digit PINs)
-    const user = users.find(u => u.mobile === mobile && u.pin === pin);
-    if (!user) {
-      // Fallback check for admin (786109) & sevak (786369) regardless of stored users
-      if (pin === '786109') {
-        const adminUser = { mobile, pin: '786109', role: 'Admin', name: 'Administrator' };
-        localStorage.setItem(KEYS.SESSION, JSON.stringify(adminUser));
-        return { success: true, user: adminUser };
-      }
-      if (pin === '786369') {
-        const sevakUser = { mobile, pin: '786369', role: 'Sevak', name: 'Sevak User' };
-        localStorage.setItem(KEYS.SESSION, JSON.stringify(sevakUser));
-        return { success: true, user: sevakUser };
-      }
-      throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
-    }
-    localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
-    return { success: true, user };
+    const user = DB.users.find(u => u.mobile === mobile && String(u.pin) === String(pin));
+    if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return { success: true, user }; }
+    if (pin === '786109') { const u = { mobile, pin, role: 'Admin', name: 'Administrator' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
+    if (pin === '786369') { const u = { mobile, pin, role: 'Sevak', name: 'Sevak User' }; localStorage.setItem(SESSION_KEY, JSON.stringify(u)); return { success: true, user: u }; }
+    throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 
   loginWithPassword: async (mobile, password) => {
-    const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-    const user = users.find(u => u.mobile === mobile && u.password === password);
-    if (!user) {
-      throw new Error('Invalid Mobile Number or Password.');
-    }
-    localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
+    const user = DB.users.find(u => u.mobile === mobile && u.password === password);
+    if (!user) throw new Error('Invalid Mobile Number or Password.');
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
     return { success: true, user };
   },
 
   requestOtp: async (mobile) => {
-    if (!mobile || mobile.length !== 10) {
-      throw new Error('Please enter a valid 10-digit mobile number.');
-    }
+    if (!mobile || mobile.length !== 10) throw new Error('Please enter a valid 10-digit mobile number.');
     return { success: true, otp: '123456', message: 'OTP sent to WhatsApp +91 ' + mobile };
   },
-
   verifyOtp: async (mobile, otp) => {
-    if (otp !== '123456') {
-      throw new Error('Invalid OTP. Use demo OTP: 123456');
-    }
+    if (otp !== '123456') throw new Error('Invalid OTP. Use demo OTP: 123456');
     return { success: true };
   },
 
   completeSetup: async (mobile, password, pin) => {
-    const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-    const existingIdx = users.findIndex(u => u.mobile === mobile);
-    const updatedUser = {
-      mobile,
-      password,
-      pin,
-      role: existingIdx >= 0 ? users[existingIdx].role : 'Devotee',
-      name: existingIdx >= 0 ? users[existingIdx].name : 'Satsangi Devotee'
+    const idx = DB.users.findIndex(u => u.mobile === mobile);
+    const user = {
+      mobile, password, pin,
+      role: idx >= 0 ? DB.users[idx].role : 'Devotee',
+      name: idx >= 0 ? DB.users[idx].name : 'Satsangi Devotee'
     };
-
-    if (existingIdx >= 0) {
-      users[existingIdx] = updatedUser;
-    } else {
-      users.push(updatedUser);
-    }
-    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-    localStorage.setItem(KEYS.SESSION, JSON.stringify(updatedUser));
-    return { success: true, user: updatedUser };
+    if (idx >= 0) DB.users[idx] = user; else DB.users.push(user);
+    saveCache(); push('upsertUser', user);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    return { success: true, user };
   },
 
-  getCurrentSession: () => {
-    return JSON.parse(localStorage.getItem(KEYS.SESSION) || 'null');
-  },
+  getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
+  logout: () => localStorage.removeItem(SESSION_KEY),
 
-  logout: () => {
-    localStorage.removeItem(KEYS.SESSION);
-  },
-
-  // Devotee Operations
-  getDevotees: () => {
-    return JSON.parse(localStorage.getItem(KEYS.DEVOTEES) || '[]');
-  },
+  // ---- Devotees ----
+  getDevotees: () => DB.devotees,
 
   addDevotee: (devotee) => {
-    const list = dataService.getDevotees();
-    const newDevotee = {
-      ...devotee,
-      id: `DEV-${1000 + list.length + 1}`,
-      attendanceRate: 100,
-      status: 'Active',
-      flags: []
-    };
-    list.unshift(newDevotee);
-    localStorage.setItem(KEYS.DEVOTEES, JSON.stringify(list));
+    const newDevotee = { ...devotee, id: `DEV-${1000 + DB.devotees.length + 1}`, attendanceRate: 100, status: 'Active', flags: [] };
+    DB.devotees.unshift(newDevotee); saveCache();
+    push('insert', { collection: 'Devotees', row: newDevotee });
     return newDevotee;
   },
 
   updateDevotee: (id, updatedFields) => {
-    const list = dataService.getDevotees();
-    const idx = list.findIndex(d => d.id === id);
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], ...updatedFields };
-      localStorage.setItem(KEYS.DEVOTEES, JSON.stringify(list));
-      return list[idx];
-    }
-    return null;
+    const idx = DB.devotees.findIndex(d => d.id === id);
+    if (idx === -1) return null;
+    DB.devotees[idx] = { ...DB.devotees[idx], ...updatedFields }; saveCache();
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: DB.devotees[idx] });
+    return DB.devotees[idx];
   },
 
   deleteDevotee: (id) => {
-    const list = dataService.getDevotees();
-    const filtered = list.filter(d => d.id !== id);
-    localStorage.setItem(KEYS.DEVOTEES, JSON.stringify(filtered));
+    DB.devotees = DB.devotees.filter(d => d.id !== id); saveCache();
+    push('remove', { collection: 'Devotees', keyField: 'id', key: id });
   },
 
-  // Sabha & Attendance Operations
-  getSabhas: () => {
-    return JSON.parse(localStorage.getItem(KEYS.SABHAS) || '[]');
-  },
+  // ---- Sabhas & Attendance ----
+  getSabhas: () => DB.sabhas,
 
   addSabha: (sabha) => {
-    const sabhas = dataService.getSabhas();
-    const newSabha = {
-      ...sabha,
-      id: `SAB-2026-0${sabhas.length + 1}`,
-      presentCount: 0,
-      totalCount: dataService.getDevotees().length,
-      status: 'Scheduled'
-    };
-    sabhas.unshift(newSabha);
-    localStorage.setItem(KEYS.SABHAS, JSON.stringify(sabhas));
+    const newSabha = { ...sabha, id: `SAB-2026-0${DB.sabhas.length + 1}`, presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
+    DB.sabhas.unshift(newSabha); saveCache();
+    push('insert', { collection: 'Sabhas', row: newSabha });
     return newSabha;
   },
 
   markAttendance: (sabhaId, devoteeId, present = true) => {
-    const logs = JSON.parse(localStorage.getItem(KEYS.ATTENDANCE) || '[]');
-    const existingIdx = logs.findIndex(l => l.sabhaId === sabhaId && l.devoteeId === devoteeId);
-    
-    if (existingIdx >= 0) {
-      logs[existingIdx].present = present;
-      logs[existingIdx].timestamp = new Date().toISOString();
-    } else {
-      logs.push({
-        id: `ATT-${Date.now()}`,
-        sabhaId,
-        devoteeId,
-        present,
-        timestamp: new Date().toISOString()
-      });
-    }
-    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(logs));
-
-    // Update Sabha counter
-    const sabhas = dataService.getSabhas();
-    const sabha = sabhas.find(s => s.id === sabhaId);
-    if (sabha) {
-      const sabhaLogs = logs.filter(l => l.sabhaId === sabhaId && l.present);
-      sabha.presentCount = sabhaLogs.length;
-      localStorage.setItem(KEYS.SABHAS, JSON.stringify(sabhas));
-    }
+    const idx = DB.attendance.findIndex(l => l.sabhaId === sabhaId && l.devoteeId === devoteeId);
+    if (idx >= 0) { DB.attendance[idx].present = present; DB.attendance[idx].timestamp = new Date().toISOString(); }
+    else DB.attendance.push({ id: `ATT-${Date.now()}`, sabhaId, devoteeId, present, timestamp: new Date().toISOString() });
+    const sabha = DB.sabhas.find(s => s.id === sabhaId);
+    if (sabha) sabha.presentCount = DB.attendance.filter(l => l.sabhaId === sabhaId && l.present).length;
+    saveCache();
+    const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    push('markAttendance', { sabhaId, devoteeId, present, markedBy: sess ? sess.name : '' });
   },
 
-  getAttendanceForSabha: (sabhaId) => {
-    const logs = JSON.parse(localStorage.getItem(KEYS.ATTENDANCE) || '[]');
-    return logs.filter(l => l.sabhaId === sabhaId);
-  },
+  getAttendanceForSabha: (sabhaId) => DB.attendance.filter(l => l.sabhaId === sabhaId),
 
-  // Thoughts / Prasangam
-  getThoughts: () => {
-    return JSON.parse(localStorage.getItem(KEYS.THOUGHTS) || '[]');
-  },
+  // ---- Thoughts ----
+  getThoughts: () => DB.thoughts,
 
-  // CSV Export Utility
+  // ---- CSV Export ----
   exportToCSV: (filename, rows) => {
     if (!rows || !rows.length) return;
-    const separator = ',';
     const keys = Object.keys(rows[0]);
-    const csvContent =
-      keys.join(separator) +
-      '\n' +
-      rows
-        .map(row => {
-          return keys
-            .map(k => {
-              let cell = row[k] === null || row[k] === undefined ? '' : row[k];
-              cell = cell instanceof Date ? cell.toLocaleString() : cell.toString();
-              cell = cell.replace(/"/g, '""');
-              if (cell.search(/("|,|\n)/g) >= 0) {
-                cell = `"${cell}"`;
-              }
-              return cell;
-            })
-            .join(separator);
-        })
-        .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csv = keys.join(',') + '\n' + rows.map(row => keys.map(k => {
+      let cell = row[k] == null ? '' : row[k];
+      cell = cell instanceof Date ? cell.toLocaleString() : cell.toString();
+      cell = cell.replace(/"/g, '""');
+      return /("|,|\n)/g.test(cell) ? `"${cell}"` : cell;
+    }).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      link.setAttribute('href', url); link.setAttribute('download', filename);
+      link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
   }
 };
