@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','mobile','mandal','wing','area','city','bloodGroup','dob','occupation','attendanceRate','status','familyId','relation','gender','type'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Thoughts:   ['id','author','thought','date']
@@ -117,6 +117,13 @@ function handle_(p){
       sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance') });
     if(action==='seedDevotees'){
       if(readAll_('Devotees').length===0) appendRows_('Devotees', p.rows||[]);
+      return json_({ ok:true, count:readAll_('Devotees').length });
+    }
+    if(action==='replaceDevotees'){
+      var sh=tab_('Devotees'); sh.clear();
+      sh.getRange(1,1,sh.getMaxRows(),HEADERS.Devotees.length).setNumberFormat('@');
+      sh.appendRow(HEADERS.Devotees);
+      appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
     }
     if(action==='insert'){ appendRows_(p.collection, [p.row]); return json_({ ok:true, row:p.row }); }
