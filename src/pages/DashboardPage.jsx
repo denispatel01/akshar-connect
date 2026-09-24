@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Users,
   TrendingUp,
@@ -8,11 +8,14 @@ import {
   PhoneCall,
   Home,
   Award,
-  ShieldCheck
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
+import { isBirthdayToday, upcomingBirthdays, birthdayLabel, birthdayDate } from '../utils/birthdays';
 
 export default function DashboardPage({ setActivePage, user }) {
   const [devotees, setDevotees] = useState([]);
@@ -32,9 +35,23 @@ export default function DashboardPage({ setActivePage, user }) {
     thought: 'Ekta, Samp, and Suhradbhav are the true ornaments of a Satsangi.',
     date: '2026-09-19',
   };
-  const thoughtDateLabel = displayThoughtDate(todaysThought.date);
+  const birthdaysToday = devotees.filter(d => isBirthdayToday(d.dob));
+  const upcoming = upcomingBirthdays(devotees, 30).slice(0, 8); // today + next 30 days
 
-  const birthdaysToday = devotees.filter(d => d.flags?.includes('Birthday Today'));
+  // Thought slider — all thoughts, starting on today's rotating pick.
+  const thoughtSlides = thoughts.length ? thoughts : [todaysThought];
+  const thoughtScrollRef = useRef(null);
+  useEffect(() => {
+    const el = thoughtScrollRef.current;
+    if (!el) return;
+    const idx = Math.max(0, thoughtSlides.indexOf(picked.thought));
+    const child = el.children[idx];
+    if (child) el.scrollLeft = child.offsetLeft - el.offsetLeft;
+  }, [thoughts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const slideThought = (dir) => {
+    const el = thoughtScrollRef.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
+  };
 
   const statCardCls =
     'rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md hover:border-[#003158]/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
@@ -127,19 +144,80 @@ export default function DashboardPage({ setActivePage, user }) {
         </button>
       </div>
 
-      {/* Thought of the Day Banner */}
+      {/* Upcoming Birthdays */}
+      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs">
+        <div className="flex items-center justify-between mb-4 gap-3">
+          <h2 className="text-base font-bold text-[#003158] flex items-center gap-2">
+            <Cake className="h-5 w-5 text-purple-600" /> Upcoming Birthdays
+          </h2>
+          <button onClick={() => openDevotees('upcomingBirthdays')} className="text-xs font-bold text-[#FF862A] hover:underline shrink-0">
+            View all
+          </button>
+        </div>
+        {upcoming.length === 0 ? (
+          <p className="text-sm font-semibold text-[#9BB5CB]">No birthdays in the next 30 days.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {upcoming.map(({ devotee, info }) => (
+              <button
+                key={devotee.id}
+                onClick={() => openDevotees('upcomingBirthdays')}
+                className={`flex items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left transition-all hover:shadow-sm ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-[#F0F4F8] bg-[#F8FAFC] hover:border-[#E4EBF3]'}`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 ${info.isToday ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
+                    <Cake className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#003158] truncate">{devotee.name}</p>
+                    <p className="text-[11px] text-slate-400">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
+                  </div>
+                </div>
+                <span className={`text-[11px] font-bold shrink-0 ${info.isToday ? 'text-purple-700' : 'text-purple-600'}`}>{birthdayLabel(info)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Today's Inspiration — swipeable slider */}
       <div className="rounded-3xl border border-[#E0EAF4] bg-white shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
-        <div className="flex-1 p-6">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold uppercase tracking-widest text-[#FF862A] mb-2">
-            <span className="flex items-center gap-2">
+        <div className="flex-1 p-6 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
               <Sparkles className="h-4 w-4" /> Today's Inspiration
             </span>
-            <span className="text-[#9BB5CB] font-semibold normal-case tracking-normal">{thoughtDateLabel}</span>
-            <span className="text-[#003158]/70">• {todaysThought.author}</span>
+            {thoughtSlides.length > 1 && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => slideThought(-1)} aria-label="Previous thought"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E4EBF3] text-[#003158] hover:bg-[#F0F4F8]">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button onClick={() => slideThought(1)} aria-label="Next thought"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E4EBF3] text-[#003158] hover:bg-[#F0F4F8]">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
-          <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
-            "{todaysThought.thought}"
-          </p>
+
+          <div ref={thoughtScrollRef}
+            className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {thoughtSlides.map((t, i) => (
+              <div key={i} className="snap-center shrink-0 w-full pr-1">
+                <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
+                  "{t.thought}"
+                </p>
+                <p className="mt-3 text-xs font-semibold text-[#9BB5CB]">
+                  <span className="text-[#003158]/70">{t.author}</span>
+                  {t.date ? <span> · {displayThoughtDate(t.date)}</span> : null}
+                </p>
+              </div>
+            ))}
+          </div>
+          {thoughtSlides.length > 1 && (
+            <p className="mt-3 text-[11px] font-semibold text-[#B7C4D2]">Swipe or use the arrows to read more thoughts →</p>
+          )}
         </div>
         <img
           src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}

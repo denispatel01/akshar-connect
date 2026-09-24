@@ -4,6 +4,7 @@ import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
+import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import {
   hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
   PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
@@ -47,8 +48,13 @@ const PRESET_META = {
   },
   birthdays: {
     tags: [],
-    match: (d) => d.flags?.includes('Birthday Today'),
+    match: (d) => isBirthdayToday(d.dob),
     banner: "Showing devotees with a birthday today",
+  },
+  upcomingBirthdays: {
+    tags: [],
+    match: (d) => isBirthdayWithin(d.dob, 30),
+    banner: "Showing devotees with a birthday in the next 30 days",
   },
 };
 
