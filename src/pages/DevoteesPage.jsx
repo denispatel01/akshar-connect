@@ -6,12 +6,12 @@ import { hasAnyTag } from '../services/devoteeSchema';
 
 // Profile tabs -> [field, label]
 const TABS = {
-  Personal: [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  Contact: [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
-  Education: [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
-  Profession: [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  Satsang: [['yuvakType','Yuvak Type'],['ambrish','Ambrish'],['familyId','Family ID'],['relation','Relation'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Type']],
-  System: [['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
+  'Personal': [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
+  'Contact & Address': [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
+  'Education': [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
+  'Profession': [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
+  'Satsang & Follow-up': [['yuvakType','Yuvak Type'],['ambrish','Ambrish'],['familyId','Family ID'],['relation','Relation'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Type']],
+  'System': [['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
 };
 const ALL_FIELDS = Object.values(TABS).flat();
 
@@ -253,32 +253,33 @@ export default function DevoteesPage({ user }) {
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-1 px-4 pt-3 overflow-x-auto border-b border-[#F0F4F8]">
-              {Object.keys(TABS).map((t) => (
-                <button key={t} onClick={() => setActiveTab(t)}
-                  className={'whitespace-nowrap px-3 py-2 text-xs font-bold rounded-t-lg ' + (activeTab === t ? 'text-[#003158] border-b-2 border-[#003158]' : 'text-[#9BB5CB] hover:text-[#003158]')}>{t}</button>
-              ))}
-            </div>
-
-            {/* Body */}
-            <div className="p-6 overflow-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                {TABS[activeTab].map(([f, label]) => (
-                  <div key={f}>
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">{label}</div>
-                    {editing ? (
-                      <input
-                        type={f === 'dob' || f === 'anniversary' ? 'date' : 'text'}
-                        value={editData[f] ?? ''}
-                        onChange={(e) => setEditData({ ...editData, [f]: e.target.value })}
-                        className="w-full rounded-xl border border-[#E0EAF4] p-2 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
-                    ) : (
-                      <div className="text-sm font-semibold text-[#003158] break-words">{val(selectedDevotee[f])}</div>
-                    )}
+            {/* Body — all sections shown together */}
+            <div className="p-6 overflow-auto space-y-6">
+              {Object.entries(TABS).map(([section, fields]) => (
+                <div key={section}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="h-4 w-1 rounded-full bg-[#FF862A]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#003158]">{section}</h3>
+                    <span className="flex-1 h-px bg-[#F0F4F8]" />
                   </div>
-                ))}
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    {fields.map(([f, label]) => (
+                      <div key={f}>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">{label}</div>
+                        {editing ? (
+                          <input
+                            type={f === 'dob' || f === 'anniversary' ? 'date' : 'text'}
+                            value={editData[f] ?? ''}
+                            onChange={(e) => setEditData({ ...editData, [f]: e.target.value })}
+                            className="w-full rounded-xl border border-[#E0EAF4] p-2 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+                        ) : (
+                          <div className="text-sm font-semibold text-[#003158] break-words">{val(selectedDevotee[f])}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               {/* Tags */}
               <div className="mt-6 pt-5 border-t border-[#F0F4F8]">
