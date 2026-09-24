@@ -35,7 +35,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const [showSetupSecret, setShowSetupSecret] = useState(false);
 
   const isMobileValid = mobile.length === 10;
-  const isPinValid = pin.length >= 4 && pin.length <= 6;
+  const isPinValid = pin.length === 6;
 
   const handleMobileChange = (e) => {
     setMobile(e.target.value.replace(/\D/g, ''));
@@ -53,7 +53,7 @@ export default function LoginPage({ onLoginSuccess }) {
       if (authType === 'pin') {
         if (!isPinValid) {
           setLoading(false);
-          return setErrorMessage('Enter your PIN (4–6 digits)');
+          return setErrorMessage('Enter your 6-digit PIN');
         }
         const res = await dataService.loginWithPin(mobile, pin);
         onLoginSuccess(res.user);
@@ -292,7 +292,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || (authType === 'pin' && !isPinValid)}
                     className="w-full rounded-2xl bg-[#003158] py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50"
                   >
                     {loading ? 'Authenticating...' : 'Sign In →'}

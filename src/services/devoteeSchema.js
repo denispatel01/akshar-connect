@@ -19,7 +19,16 @@ export const PROFESSIONS = ['Job', 'Business', 'Retired', 'Homemaker', 'Student'
 export const MARITAL_STATUS = ['Single', 'Married', 'Engaged'];
 export const RELATIONS = ['Self', 'Head', 'Father', 'Mother', 'Son', 'Daughter', 'Brother', 'Sister', 'Spouse', 'Wife', 'Other'];
 export const YUVAK_TYPES = ['Ambrish', 'Yuvak', 'Bal', 'New'];
+/** Primary = head of family; Family = other member linked to that family ID. */
+export const FAMILY_RECORD_TYPES = ['Primary', 'Family'];
 export const STATUSES = ['Active', 'Inactive', 'Moved', 'Deceased'];
+
+export function formatFamilyRecordType(value) {
+  if (!value) return '';
+  if (value === 'Primary') return 'Primary member (head of family)';
+  if (value === 'Family') return 'Other family member';
+  return value;
+}
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
 // ---- Field sections --------------------------------------------------------
@@ -77,7 +86,7 @@ export const DEVOTEE_SECTIONS = [
       { key: 'familyId',           label: 'Family ID',           type: 'text' },
       { key: 'relation',           label: 'Relation to Family Head', type: 'select', options: RELATIONS },
       { key: 'yuvakType',          label: 'Yuvak Type',          type: 'select', options: YUVAK_TYPES, isNew: true },
-      { key: 'ambrish',            label: 'Ambrish',             type: 'text' },
+      { key: 'type',               label: 'Family membership',   type: 'select', options: FAMILY_RECORD_TYPES },
       { key: 'followupKaryakarta', label: 'Follow-up Karyakarta', type: 'text', isNew: true },
       { key: 'followupKaryakartaMobile', label: 'Follow-up Karyakarta Mobile', type: 'tel', isNew: true },
       { key: 'reference',          label: 'Reference / Introduced By', type: 'text' },

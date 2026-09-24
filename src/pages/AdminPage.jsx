@@ -25,7 +25,7 @@ export default function AdminPage({ user }) {
     const mobile = String(form.mobile || '').trim();
     const pin = String(form.pin || '').trim();
     if (!/^\d{10}$/.test(mobile)) { setFormErr('Mobile must be exactly 10 digits.'); return; }
-    if (!/^\d{4,6}$/.test(pin)) { setFormErr('PIN must be 4-6 digits.'); return; }
+    if (!/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
     dataService.addUser({ mobile, name: form.name.trim(), pin, role: form.role });
     setUsers([...dataService.getUsers()]);
     setForm(emptyForm);
@@ -86,7 +86,7 @@ export default function AdminPage({ user }) {
               <input
                 type="text" inputMode="numeric" maxLength={6} value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
-                placeholder="4-6 digit PIN" required
+                placeholder="6-digit PIN" required
                 className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>

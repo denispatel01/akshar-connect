@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import AutoResizeTextarea from '../components/AutoResizeTextarea';
+import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import {
   hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
-  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS
+  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
+  FAMILY_RECORD_TYPES, formatFamilyRecordType
 } from '../services/devoteeSchema';
 
 // Profile tabs -> [field, label]
@@ -13,10 +16,12 @@ const TABS = {
   'Contact & Address': [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education': [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession': [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang & Follow-up': [['yuvakType','Yuvak Type'],['ambrish','Ambrish'],['familyId','Family ID'],['relation','Relation'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Type']],
-  'System': [['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
+  'Satsang & Follow-up': [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Family membership']],
+  'System': [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
 };
 const ALL_FIELDS = Object.values(TABS).flat();
+const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
+const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
 
 const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
 
@@ -25,14 +30,29 @@ const FIELD_OPTIONS = {
   gender: GENDERS, bloodGroup: BLOOD_GROUPS, maritalStatus: MARITAL_STATUS,
   area: AREAS, qualification: QUALIFICATIONS, educationStatus: EDUCATION_STATUS,
   profession: PROFESSIONS, relation: RELATIONS, yuvakType: YUVAK_TYPES,
-  status: STATUSES, wing: WINGS,
+  status: STATUSES, wing: WINGS, type: FAMILY_RECORD_TYPES,
 };
 // Fields that should render as textarea
 const TEXTAREA_FIELDS = new Set(['address', 'notes']);
 // Fields that allow both dropdown + manual entry (datalist pattern)
 const DATALIST_FIELDS = new Set(['area']);
 
-export default function DevoteesPage({ user }) {
+const PRESET_META = {
+  total: { tags: [], match: () => true, banner: 'Showing all devotees' },
+  ambrish: { tags: ['ambrish'], match: () => true, banner: 'Showing devotees tagged Ambrish' },
+  families: {
+    tags: [],
+    match: (d) => d.type === 'Primary',
+    banner: 'Showing primary members (head of each family)',
+  },
+  birthdays: {
+    tags: [],
+    match: (d) => d.flags?.includes('Birthday Today'),
+    banner: "Showing devotees with a birthday today",
+  },
+};
+
+export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPreset }) {
   const [devotees, setDevotees] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -43,17 +63,32 @@ export default function DevoteesPage({ user }) {
   const [editData, setEditData] = useState({});
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
+  const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
+  const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
 
-  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', gender:'', dob:'',
+  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'', dob:'',
     bloodGroup:'', maritalStatus:'', profession:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
     address:'', education:'', occupation:'' };
   const [formData, setFormData] = useState(blankForm);
 
   useEffect(() => { loadDevotees(); }, []);
+
+  useEffect(() => {
+    if (!devoteesPreset || !PRESET_META[devoteesPreset]) return;
+    const { tags } = PRESET_META[devoteesPreset];
+    setSelectedTags(tags);
+    setSearchQuery('');
+    setShowTagFilter(devoteesPreset === 'ambrish');
+  }, [devoteesPreset]);
+
   const loadDevotees = () => setDevotees([...dataService.getDevotees()]);
+
+  const presetMeta = devoteesPreset ? PRESET_META[devoteesPreset] : null;
+  const presetMatch = presetMeta?.match ?? (() => true);
 
   const canEdit = user?.role === 'Admin' || user?.role === 'Sevak';
 
@@ -63,27 +98,67 @@ export default function DevoteesPage({ user }) {
       || String(d.mobile || '').includes(searchQuery)
       || (d.city || '').toLowerCase().includes(q)
       || (d.mandal || '').toLowerCase().includes(q);
-    return matchesSearch && hasAnyTag(d, selectedTags);
+    return matchesSearch && hasAnyTag(d, selectedTags) && presetMatch(d);
   });
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     const name = formData.name || [formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' ');
     if (!name || !formData.mobile) return;
-    dataService.addDevotee({ ...formData, name });
-    loadDevotees(); setShowAddModal(false); setFormData(blankForm);
+    const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
+    setSaving(true);
+    try {
+      await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
+      loadDevotees();
+      setShowAddModal(false);
+      setFormData(blankForm);
+      setAddWhatsappSameAsMobile(false);
+      await alertDevoteeCreated(name);
+    } catch (err) {
+      loadDevotees();
+      await alertDevoteeSaveFailed(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openProfile = (d) => { setSelectedDevotee(d); setActiveTab('Personal'); setEditing(false); };
 
   const startEdit = () => {
     const seed = {}; ALL_FIELDS.forEach(([f]) => seed[f] = selectedDevotee[f] ?? '');
-    setEditData(seed); setEditing(true);
+    setEditData(seed);
+    const mob = String(selectedDevotee.mobile || '');
+    const wa = String(selectedDevotee.whatsapp || '');
+    setWhatsappSameAsMobile(Boolean(mob && wa === mob));
+    setEditing(true);
   };
-  const saveEdit = () => {
-    const name = [editData.firstName, editData.middleName, editData.lastName].filter(Boolean).join(' ') || selectedDevotee.name;
-    const updated = dataService.updateDevotee(selectedDevotee.id, { ...editData, name });
-    setSelectedDevotee(updated); setEditing(false); loadDevotees();
+
+  const buildSavePayload = () => {
+    const payload = { ...editData };
+    READ_ONLY_FIELDS.forEach((f) => { delete payload[f]; });
+    payload.id = selectedDevotee.id;
+    payload.familyId = selectedDevotee.familyId;
+    if (whatsappSameAsMobile) payload.whatsapp = payload.mobile ?? selectedDevotee.mobile;
+    payload.name = [payload.firstName, payload.middleName, payload.lastName].filter(Boolean).join(' ')
+      || selectedDevotee.name;
+    return payload;
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    const displayName = buildSavePayload().name;
+    try {
+      const updated = await dataService.updateDevoteeAndSync(selectedDevotee.id, buildSavePayload());
+      setSelectedDevotee(updated);
+      setEditing(false);
+      loadDevotees();
+      await alertDevoteeSaved(displayName);
+    } catch (err) {
+      loadDevotees();
+      await alertDevoteeSaveFailed(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleProfileTag = (key, nextOn) => {
@@ -96,14 +171,32 @@ export default function DevoteesPage({ user }) {
     if (window.confirm('Delete this devotee record?')) { dataService.deleteDevotee(id); loadDevotees(); setSelectedDevotee(null); }
   };
 
-  const val = (v) => (v === undefined || v === null || v === '') ? '—' : v;
+  const val = (v, fieldKey) => {
+    if (v === undefined || v === null || v === '') return '—';
+    if (fieldKey === 'type') return formatFamilyRecordType(v);
+    return v;
+  };
 
   const inputCls = 'w-full rounded-xl border border-[#E0EAF4] p-2 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]';
 
   // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
   const renderEditField = (f, data, setData) => {
+    if (READ_ONLY_FIELDS.has(f)) {
+      return (
+        <div className="rounded-xl border border-[#E4EBF3] bg-[#F0F4F8] px-3 py-2 text-sm font-semibold text-[#003158] break-words">
+          {val(data[f], f)}
+        </div>
+      );
+    }
     const value = data[f] ?? '';
-    const onChange = (e) => setData({ ...data, [f]: e.target.value });
+    const onChange = (e) => {
+      const next = e.target.value;
+      if (f === 'mobile' && whatsappSameAsMobile) {
+        setData({ ...data, mobile: next, whatsapp: next });
+      } else {
+        setData({ ...data, [f]: next });
+      }
+    };
     const options = FIELD_OPTIONS[f];
 
     // Datalist fields (dropdown + manual entry combo)
@@ -120,16 +213,24 @@ export default function DevoteesPage({ user }) {
     }
     // Pure select dropdown
     if (options) {
+      const labelFor = (o) => (f === 'type' ? formatFamilyRecordType(o) : o);
       return (
         <select value={value} onChange={onChange} className={inputCls + ' bg-white'}>
           <option value="">— Select —</option>
-          {options.map(o => <option key={o} value={o}>{o}</option>)}
+          {options.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
         </select>
       );
     }
-    // Textarea fields
+    // Textarea fields (auto-grow; no trimming)
     if (TEXTAREA_FIELDS.has(f)) {
-      return <textarea value={value} onChange={onChange} rows={2} className={inputCls + ' resize-none'} />;
+      return (
+        <AutoResizeTextarea
+          value={value}
+          onChange={onChange}
+          minRows={f === 'address' ? 3 : 2}
+          className={inputCls}
+        />
+      );
     }
     // Date fields
     if (f === 'dob' || f === 'anniversary' || f === 'dateOfJoining') {
@@ -137,7 +238,32 @@ export default function DevoteesPage({ user }) {
     }
     // Tel fields
     if (f === 'mobile' || f === 'whatsapp' || f === 'secondaryMobile' || f === 'followupKaryakartaMobile') {
-      return <input type="tel" inputMode="numeric" value={value} onChange={onChange} className={inputCls} />;
+      const onTelChange = (e) => {
+        const next = e.target.value.replace(/\D/g, '');
+        if (f === 'mobile' && whatsappSameAsMobile) setData({ ...data, mobile: next, whatsapp: next });
+        else setData({ ...data, [f]: next });
+      };
+      return (
+        <div className="space-y-1">
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={value}
+            onChange={onTelChange}
+            disabled={f === 'whatsapp' && whatsappSameAsMobile}
+            className={inputCls + (f === 'whatsapp' && whatsappSameAsMobile ? ' bg-[#F0F4F8] opacity-80' : '')}
+          />
+          {f === 'whatsapp' && (
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#9BB5CB] cursor-pointer hover:text-[#003158] w-fit">
+              <input type="checkbox" checked={whatsappSameAsMobile} onChange={(e) => {
+                setWhatsappSameAsMobile(e.target.checked);
+                if (e.target.checked) setData(prev => ({ ...prev, whatsapp: prev.mobile }));
+              }} className="rounded text-[#003158] focus:ring-[#003158]" />
+              Same as mobile
+            </label>
+          )}
+        </div>
+      );
     }
     // Email
     if (f === 'email') {
@@ -153,7 +279,12 @@ export default function DevoteesPage({ user }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#003158]">Devotee Directory</h1>
-          <p className="text-sm font-medium text-[#9BB5CB]">{devotees.length} members · view profiles, edit details, generate QR passes.</p>
+          <p className="text-sm font-medium text-[#9BB5CB]">
+            {filteredDevotees.length === devotees.length
+              ? `${devotees.length} members`
+              : `${filteredDevotees.length} of ${devotees.length} members`}
+            {' '}· view profiles, edit details, generate QR passes.
+          </p>
         </div>
         {canEdit && (
           <button onClick={() => { setFormData(blankForm); setShowAddModal(true); }}
@@ -162,6 +293,21 @@ export default function DevoteesPage({ user }) {
           </button>
         )}
       </div>
+
+      {presetMeta && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#003158]/20 bg-[#003158]/5 px-4 py-3">
+          <p className="text-xs font-bold text-[#003158]">{presetMeta.banner}</p>
+          {onClearDevoteesPreset && (
+            <button
+              type="button"
+              onClick={() => { onClearDevoteesPreset(); setSelectedTags([]); setShowTagFilter(false); }}
+              className="text-xs font-bold text-[#FF862A] hover:underline"
+            >
+              Clear dashboard filter
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -207,7 +353,7 @@ export default function DevoteesPage({ user }) {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredDevotees.slice(0, 300).map((devotee) => (
+        {filteredDevotees.map((devotee) => (
           <div key={devotee.id} className="rounded-3xl border border-[#E4EBF3] bg-white p-5 shadow-xs hover:border-[#003158] hover:shadow-md">
             <div className="flex items-start gap-4">
               <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
@@ -239,7 +385,9 @@ export default function DevoteesPage({ user }) {
           </div>
         ))}
       </div>
-      {filteredDevotees.length > 300 && <p className="text-center text-xs text-[#9BB5CB]">Showing first 300 of {filteredDevotees.length}. Refine your search to see more.</p>}
+      {filteredDevotees.length === 0 && (
+        <p className="text-center text-sm font-semibold text-[#9BB5CB] py-12">No devotees match this view.</p>
+      )}
 
       {/* Add Devotee Modal */}
       {showAddModal && (
@@ -258,11 +406,31 @@ export default function DevoteesPage({ user }) {
                 ))}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-bold text-[#003158] mb-1">Mobile *</label>
-                  <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e)=>setFormData({...formData,mobile:e.target.value.replace(/\D/g,'')})}
-                    className={inputCls + ' text-xs p-2.5'} /></div>
+                <div>
+                  <label className="block text-xs font-bold text-[#003158] mb-1">Mobile *</label>
+                  <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setFormData({ ...formData, mobile: val, ...(addWhatsappSameAsMobile ? { whatsapp: val } : {}) });
+                  }} className={inputCls + ' text-xs p-2.5'} />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-[#003158]">WhatsApp</label>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#9BB5CB] cursor-pointer hover:text-[#003158]">
+                      <input type="checkbox" checked={addWhatsappSameAsMobile} onChange={(e) => {
+                        setAddWhatsappSameAsMobile(e.target.checked);
+                        if (e.target.checked) setFormData(prev => ({ ...prev, whatsapp: prev.mobile }));
+                      }} className="rounded text-[#003158] focus:ring-[#003158]" />
+                      Same as mobile
+                    </label>
+                  </div>
+                  <input maxLength={10} inputMode="numeric" value={formData.whatsapp || ''} disabled={addWhatsappSameAsMobile} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })}
+                    className={inputCls + ' text-xs p-2.5 ' + (addWhatsappSameAsMobile ? 'bg-[#F0F4F8] opacity-80' : '')} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Date of Birth</label>
-                  <input type="date" value={formData.dob} onChange={(e)=>setFormData({...formData,dob:e.target.value})}
+                  <input type="date" value={formData.dob} onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                     className={inputCls + ' text-xs p-2.5'} /></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -291,8 +459,8 @@ export default function DevoteesPage({ user }) {
                     className={inputCls + ' text-xs p-2.5'} /></div>
               </div>
               <div><label className="block text-xs font-bold text-[#003158] mb-1">Address</label>
-                <textarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} rows={2}
-                  className={inputCls + ' text-xs p-2.5 resize-none'} /></div>
+                <AutoResizeTextarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} minRows={2}
+                  className={inputCls + ' text-xs p-2.5'} /></div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Area</label>
                   <input list="dl-add-area" value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} className={inputCls + ' text-xs p-2.5'} />
@@ -352,7 +520,7 @@ export default function DevoteesPage({ user }) {
                     {editing ? (
                       renderEditField(f, editData, setEditData)
                     ) : (
-                      <div className="text-sm font-semibold text-[#003158] break-words">{val(selectedDevotee[f])}</div>
+                      <div className="text-sm font-semibold text-[#003158] break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
                     )}
                   </div>
                 ))}

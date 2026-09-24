@@ -21,7 +21,7 @@ var HEADERS = {
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
 
 var SEED_USERS = [
-  { mobile:'9924598434', pin:'17853', password:'', role:'Admin', name:'Denis Patel' }
+  { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' }
 ];
 var SEED_SABHAS = [
   { id:'SAB-2026-01', title:'Weekly Yuva Sabha - Samskara & Seva', date:'2026-09-20', time:'06:00 PM', venue:'Akshar Hall, Ahmedabad', presentCount:0, totalCount:0, status:'Scheduled' }

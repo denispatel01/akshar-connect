@@ -9,7 +9,7 @@ const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') 
 const SESSION_KEY = 'ac_session_v1';
 const CACHE_KEY = 'ac_cache_v1';
 
-const ADMIN_SEED = { mobile:'9924598434', pin:'17853', password:'', role:'Admin', name:'Denis Patel' };
+const ADMIN_SEED = { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' };
 
 // In-memory database (populated by bootstrap before the app renders).
 let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [] };
@@ -55,10 +55,12 @@ function hydrateSync() {
         sabhas: parsed.sabhas || [], thoughts: parsed.thoughts || [],
         attendance: parsed.attendance || [], followups: parsed.followups || [],
       };
+      ensureSeedAdminPin_();
       return 'cache';
     }
   } catch (e) { /* fall through to bundled */ }
   loadDemo();
+  ensureSeedAdminPin_();
   return 'bundled';
 }
 
@@ -67,6 +69,16 @@ function loadDemo() {
     users: [...INITIAL_USERS], devotees: INITIAL_DEVOTEES.map(normalizeDevotee),
     sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: [], followups: []
   };
+}
+
+/** Keep seed admin PIN in sync (e.g. after changing ADMIN_SEED or old 5-digit cache). */
+function ensureSeedAdminPin_() {
+  const idx = DB.users.findIndex(u => String(u.mobile) === ADMIN_SEED.mobile);
+  if (idx < 0) return;
+  if (String(DB.users[idx].pin) === String(ADMIN_SEED.pin)) return;
+  DB.users[idx] = { ...DB.users[idx], pin: ADMIN_SEED.pin };
+  saveCache();
+  push('upsertUser', DB.users[idx]);
 }
 
 // Called once from main.jsx BEFORE the app renders.
@@ -87,6 +99,7 @@ async function bootstrap() {
       try { await api('upsertUser', ADMIN_SEED); } catch (e) { /* non-fatal */ }
       DB.users.push({ ...ADMIN_SEED });
     }
+    ensureSeedAdminPin_();
     saveCache();
     return { mode: 'live' };
   } catch (e) {
@@ -179,6 +192,38 @@ export const dataService = {
     DB.devotees[idx] = merged; saveCache();
     push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
     return merged;
+  },
+
+  /** Save devotee and wait for live sheet sync (for user-facing success/error alerts). */
+  updateDevoteeAndSync: async (id, updatedFields) => {
+    const idx = DB.devotees.findIndex(d => d.id === id);
+    if (idx === -1) throw new Error('Devotee record not found.');
+    const prev = DB.devotees[idx];
+    const merged = normalizeDevotee({ ...prev, ...updatedFields, updatedOn: new Date().toISOString() });
+    DB.devotees[idx] = merged;
+    saveCache();
+    if (hasBackend()) {
+      await api('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
+    }
+    return merged;
+  },
+
+  addDevoteeAndSync: async (devotee) => {
+    const nextNum = DB.devotees.length + 1;
+    const now = new Date().toISOString();
+    const newDevotee = normalizeDevotee({
+      ...devotee,
+      id: `HPP-${nextNum}`,
+      attendanceRate: devotee.attendanceRate ?? 0,
+      status: devotee.status || 'Active',
+      createdOn: now, updatedOn: now,
+    });
+    DB.devotees.unshift(newDevotee);
+    saveCache();
+    if (hasBackend()) {
+      await api('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
+    }
+    return newDevotee;
   },
 
   // Assign/unassign a single tag; returns the updated devotee.

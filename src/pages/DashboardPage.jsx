@@ -28,6 +28,11 @@ export default function DashboardPage({ setActivePage, user }) {
 
   const birthdaysToday = devotees.filter(d => d.flags?.includes('Birthday Today'));
 
+  const statCardCls =
+    'rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md hover:border-[#003158]/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
+
+  const openDevotees = (devoteesPreset) => setActivePage('devotees', { devoteesPreset });
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
       {/* Welcome Banner */}
@@ -67,7 +72,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md">
+        <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Total Devotees</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#003158]/10 text-[#003158]">
@@ -76,11 +81,11 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-[#003158]">{totalDevotees}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1 flex items-center gap-1">
-            <TrendingUp className="h-3 w-3" /> Active Satsangi database
+            <TrendingUp className="h-3 w-3" /> Tap to open full directory
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md">
+        <button type="button" onClick={() => openDevotees('ambrish')} className={statCardCls} title="View Ambrish devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Ambrish</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
@@ -88,10 +93,10 @@ export default function DashboardPage({ setActivePage, user }) {
             </div>
           </div>
           <p className="text-2xl font-extrabold text-[#003158]">{ambrishCount}</p>
-          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tagged Ambrish devotees</p>
-        </div>
+          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
+        </button>
 
-        <div className="rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md">
+        <button type="button" onClick={() => openDevotees('families')} className={statCardCls} title="View family heads">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Families</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -99,10 +104,10 @@ export default function DashboardPage({ setActivePage, user }) {
             </div>
           </div>
           <p className="text-2xl font-extrabold text-[#003158]">{familiesCount}</p>
-          <p className="text-[11px] font-semibold text-emerald-600 mt-1">Distinct family units</p>
-        </div>
+          <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
+        </button>
 
-        <div className="rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md">
+        <button type="button" onClick={() => openDevotees('birthdays')} className={statCardCls} title="View birthdays today">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Today's Birthdays</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
@@ -110,8 +115,8 @@ export default function DashboardPage({ setActivePage, user }) {
             </div>
           </div>
           <p className="text-2xl font-extrabold text-[#003158]">{birthdaysToday.length}</p>
-          <p className="text-[11px] font-semibold text-purple-600 mt-1">Devotee celebrations</p>
-        </div>
+          <p className="text-[11px] font-semibold text-purple-600 mt-1">Tap to view celebrating today</p>
+        </button>
       </div>
 
       {/* Thought of the Day Banner */}

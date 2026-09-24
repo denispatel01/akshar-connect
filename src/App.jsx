@@ -16,6 +16,8 @@ export default function App() {
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
+  /** Set from dashboard stat cards: total | ambrish | families | birthdays */
+  const [devoteesPreset, setDevoteesPreset] = useState(null);
 
   // When the background live-refresh finishes, re-read fresh data into the pages.
   useEffect(() => {
@@ -25,10 +27,16 @@ export default function App() {
   }, []);
 
   // Navigate with history tracking
-  const navigate = (page) => {
-    if (page === activePage) return;
-    setHistory((h) => [...h, activePage]);
-    setActivePage(page);
+  const navigate = (page, options) => {
+    if (page === activePage && !options?.devoteesPreset) return;
+    if (page !== activePage) {
+      setHistory((h) => [...h, activePage]);
+      setActivePage(page);
+    }
+    if (page === 'devotees') {
+      if (options?.devoteesPreset) setDevoteesPreset(options.devoteesPreset);
+      else if (!options?.keepDevoteesPreset) setDevoteesPreset(null);
+    }
   };
 
   const goBack = () => {
@@ -77,7 +85,13 @@ export default function App() {
 
       <main className="flex-1 pb-12" key={refreshKey}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} />}
-        {activePage === 'devotees' && <DevoteesPage user={user} />}
+        {activePage === 'devotees' && (
+          <DevoteesPage
+            user={user}
+            devoteesPreset={devoteesPreset}
+            onClearDevoteesPreset={() => setDevoteesPreset(null)}
+          />
+        )}
         {activePage === 'followups' && <FollowupsPage user={user} />}
         {activePage === 'email' && <ComingSoonPage title="Email & Messaging" />}
         {activePage === 'admin' && <AdminPage user={user} />}
