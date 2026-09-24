@@ -24,18 +24,16 @@ The backend lives in `google-apps-script/` (`Code.gs` + `appsscript.json`).
 > same URL working, redeploy the **same** deployment (don't create a new one), otherwise
 > update `API_URL` in `src/services/dataService.js` with the new `/exec` URL and rebuild.
 
-**Using clasp** (run in a terminal, from the `google-apps-script/` folder):
+**Using clasp** — already configured (`.clasp.json` holds the real Script ID, and the
+live web-app deployment id is recorded below). To ship a backend change:
 ```bash
 cd google-apps-script
-clasp login                       # opens Google OAuth in your browser (one time)
+clasp push -f                     # uploads Code.gs + appsscript.json
+clasp deploy -i AKfycbw-LyYduU1mUaXwamTGPyh_TtP6pZkO3pTCPPGKMQOhUwJhFa_Z4wFzz83FYXnq9YqAnA -d "your note"
 ```
-Put your Script ID into `google-apps-script/.clasp.json` (replace `PASTE_YOUR_APPS_SCRIPT_ID_HERE`).
-Find it in the Apps Script editor URL: `https://script.google.com/.../projects/<SCRIPT_ID>/edit`.
-```bash
-clasp push                        # uploads Code.gs + appsscript.json
-clasp deploy -i <DEPLOYMENT_ID>   # redeploy the EXISTING web-app deployment (keeps the URL)
-```
-Find `<DEPLOYMENT_ID>` with `clasp deployments`.
+That redeploys the **existing** web-app deployment, so the `/exec` URL in `dataService.js`
+never changes. (`clasp deployments` lists them; the one above is the live one, `@HEAD` is a test.)
+If clasp isn't logged in on a new machine: `clasp login` (opens Google OAuth in the browser).
 
 **Or without clasp:** open the Apps Script editor, paste the contents of `Code.gs`, Save,
 then **Deploy → Manage deployments → (edit the existing one) → Version: New version → Deploy**.
