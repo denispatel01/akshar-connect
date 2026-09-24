@@ -17,7 +17,8 @@ export const QUALIFICATIONS = ['10th', '12th', 'Diploma', 'ITI', 'Bachelor', 'Ma
 export const EDUCATION_STATUS = ['Pursuing', 'Completed'];
 export const PROFESSIONS = ['Job', 'Business', 'Retired', 'Homemaker', 'Student'];
 export const MARITAL_STATUS = ['Single', 'Married', 'Engaged'];
-export const RELATIONS = ['Self', 'Head', 'Father', 'Mother', 'Son', 'Daughter', 'Brother', 'Sister', 'Spouse', 'Other'];
+export const RELATIONS = ['Self', 'Head', 'Father', 'Mother', 'Son', 'Daughter', 'Brother', 'Sister', 'Spouse', 'Wife', 'Other'];
+export const YUVAK_TYPES = ['Ambrish', 'Yuvak', 'Bal', 'New'];
 export const STATUSES = ['Active', 'Inactive', 'Moved', 'Deceased'];
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
@@ -75,7 +76,10 @@ export const DEVOTEE_SECTIONS = [
     fields: [
       { key: 'familyId',           label: 'Family ID',           type: 'text' },
       { key: 'relation',           label: 'Relation to Family Head', type: 'select', options: RELATIONS },
+      { key: 'yuvakType',          label: 'Yuvak Type',          type: 'select', options: YUVAK_TYPES, isNew: true },
+      { key: 'ambrish',            label: 'Ambrish',             type: 'text' },
       { key: 'followupKaryakarta', label: 'Follow-up Karyakarta', type: 'text', isNew: true },
+      { key: 'followupKaryakartaMobile', label: 'Follow-up Karyakarta Mobile', type: 'tel', isNew: true },
       { key: 'reference',          label: 'Reference / Introduced By', type: 'text' },
       { key: 'tags',               label: 'Tags',                type: 'tags', isNew: true },
     ],

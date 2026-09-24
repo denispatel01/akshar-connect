@@ -7,10 +7,11 @@ import { hasAnyTag } from '../services/devoteeSchema';
 // Profile tabs -> [field, label]
 const TABS = {
   Personal: [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  Contact: [['mobile','Mobile'],['secondaryMobile','Secondary Mobile'],['whatsapp','WhatsApp'],['email','Email']],
-  Address: [['address','Address'],['area','Area'],['city','City'],['mandal','Mandal']],
-  'Education & Job': [['education','Education'],['occupation','Occupation']],
-  Family: [['familyId','Family ID'],['relation','Relation'],['reference','Reference'],['ambrish','Ambrish'],['gharNo','Ghar No.'],['type','Type']],
+  Contact: [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
+  Education: [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
+  Profession: [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
+  Satsang: [['yuvakType','Yuvak Type'],['ambrish','Ambrish'],['familyId','Family ID'],['relation','Relation'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Type']],
+  System: [['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
 };
 const ALL_FIELDS = Object.values(TABS).flat();
 
