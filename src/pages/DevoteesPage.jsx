@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save } from 'lucide-react';
+import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -355,32 +355,67 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filteredDevotees.map((devotee) => (
           <div key={devotee.id} className="rounded-3xl border border-[#E4EBF3] bg-white p-5 shadow-xs hover:border-[#003158] hover:shadow-md">
-            <div className="flex items-start gap-4">
-              <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
-                alt={devotee.name} className="h-14 w-14 rounded-2xl object-cover border border-[#E4EBF3]" />
-              <div className="min-w-0 flex-1">
-                {devotee.wing && <span className="text-[10px] font-bold text-[#FF862A] uppercase tracking-wider block">{devotee.wing}</span>}
-                <h3 className="text-base font-bold text-[#003158] truncate">{devotee.name}</h3>
-                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3 text-[#9BB5CB]" /> {val(devotee.mobile)}</p>
-                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3 text-[#9BB5CB]" /> {[devotee.area, devotee.city].filter(Boolean).join(', ') || val('')}</p>
+            <div className="flex flex-col h-full justify-between">
+              <div>
+                <div className="flex items-start gap-4">
+                  <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
+                    alt={devotee.name} className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover border border-[#E4EBF3]" />
+                  <div className="min-w-0 flex-1">
+                    {devotee.wing && <span className="text-[10px] font-bold text-[#FF862A] uppercase tracking-wider block mb-0.5">{devotee.wing}</span>}
+                    <h3 className="text-base font-bold text-[#003158] leading-tight truncate">{devotee.name}</h3>
+                    
+                    {/* Compact flex grid for details */}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.mobile}>
+                        <Phone className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
+                        <span className="truncate">{val(devotee.mobile)}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.city}>
+                        <MapPin className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
+                        <span className="truncate">{[devotee.area, devotee.city].filter(Boolean).join(', ') || val('')}</span>
+                      </p>
+                      
+                      {devotee.bloodGroup && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={`Blood Group: ${devotee.bloodGroup}`}>
+                          <Droplet className="h-3 w-3 shrink-0 text-red-400" />
+                          <span className="truncate">{devotee.bloodGroup}</span>
+                        </p>
+                      )}
+                      {(devotee.profession || devotee.education) && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.profession || devotee.education}>
+                          <Briefcase className="h-3 w-3 shrink-0 text-amber-500" />
+                          <span className="truncate">{devotee.profession || devotee.education}</span>
+                        </p>
+                      )}
+                      {devotee.followupKaryakarta && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`}>
+                          <User className="h-3 w-3 shrink-0 text-blue-500" />
+                          <span className="truncate">{devotee.followupKaryakarta}</span>
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Tags flow smoothly after details */}
+                    {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {devotee.tags.slice(0, 3).map((key) => (
+                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
+                        ))}
+                        {devotee.tags.length > 3 && (
+                          <span className="rounded-full bg-[#F0F4F8] px-2 py-0.5 text-[10px] font-bold text-[#003158]">+{devotee.tags.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {devotee.tags.slice(0, 3).map((key) => (
-                  <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
-                ))}
-                {devotee.tags.length > 3 && (
-                  <span className="rounded-full bg-[#F0F4F8] px-2 py-0.5 text-[10px] font-bold text-[#003158]">+{devotee.tags.length - 3}</span>
-                )}
-              </div>
-            )}
             <div className="mt-4 pt-3 border-t border-[#F0F4F8] flex items-center justify-between">
               <span className="text-[11px] font-bold text-[#003158] bg-[#F0F4F8] px-2.5 py-1 rounded-full">{devotee.id}</span>
               <div className="flex items-center gap-2">
                 <button onClick={() => setQrModalDevotee(devotee)} title="QR Pass" className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A] hover:bg-amber-100"><QrCode className="h-4 w-4" /></button>
                 <button onClick={() => openProfile(devotee)} className="rounded-xl border border-[#E4EBF3] px-3 py-1 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">View Profile</button>
               </div>
+            </div>
             </div>
           </div>
         ))}
