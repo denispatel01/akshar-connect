@@ -1,9 +1,7 @@
 // Initial Database state for Akshar Connect App
 
 export const INITIAL_USERS = [
-  { mobile: "9876543210", pin: "786109", password: "adminpassword", role: "Admin", name: "Administrator" },
-  { mobile: "9876543211", pin: "786369", password: "sevakpassword", role: "Sevak", name: "Jignesh Sevak" },
-  { mobile: "9876543212", pin: "123456", password: "devoteepassword", role: "Devotee", name: "Amit Patel" },
+  { mobile: "9924598434", pin: "17853", password: "", role: "Admin", name: "Denis Patel" },
 ];
 
 export const INITIAL_DEVOTEES = [

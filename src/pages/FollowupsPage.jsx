@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   PhoneCall, Phone, Users2, ArrowLeft, Search, Filter, X, Check,
-  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight
+  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
@@ -15,8 +15,14 @@ const OUTCOME_STYLE = {
   '': 'bg-white text-slate-500 border-[#E4EBF3]',
 };
 const AUDIENCE_CAP = 250;
+const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani'];
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha' });
 
 export default function FollowupsPage({ user }) {
+  const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventForm, setEventForm] = useState(emptyEventForm());
   const [events, setEvents] = useState([]);
   const [devotees, setDevotees] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -39,6 +45,21 @@ export default function FollowupsPage({ user }) {
   };
 
   const contacted = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
+
+  const submitEvent = (e) => {
+    e.preventDefault();
+    if (!eventForm.title.trim()) return;
+    dataService.addSabha({
+      title: eventForm.title.trim(),
+      date: eventForm.date,
+      time: eventForm.time,
+      venue: eventForm.venue,
+      type: eventForm.type,
+    });
+    setEvents(dataService.getEvents());
+    setShowEventModal(false);
+    setEventForm(emptyEventForm());
+  };
 
   const save = (devId, patch) => {
     const rec = dataService.saveFollowup(selectedEvent.id, devId, { ...(fmap[devId] || {}), ...patch });
@@ -89,18 +110,28 @@ export default function FollowupsPage({ user }) {
   if (!selectedEvent) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[#003158]">Event Follow-ups</h1>
-          <p className="text-sm font-medium text-[#9BB5CB]">
-            Pick an event to run a follow-up drive — call, meet, or message devotees and track who is coming.
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#003158]">Event Follow-ups</h1>
+            <p className="text-sm font-medium text-[#9BB5CB]">
+              Pick an event to run a follow-up drive — call, meet, or message devotees and track who is coming.
+            </p>
+          </div>
+          {canManage && (
+            <button
+              onClick={() => { setEventForm(emptyEventForm()); setShowEventModal(true); }}
+              className="flex shrink-0 items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-[#e06f19] active:scale-95"
+            >
+              <Plus className="h-4 w-4" /> New Event
+            </button>
+          )}
         </div>
 
         {events.length === 0 && (
           <div className="rounded-3xl border border-dashed border-[#CBD8E6] bg-white p-10 text-center">
             <CalendarCheck className="mx-auto h-8 w-8 text-[#9BB5CB]" />
             <p className="mt-2 text-sm font-semibold text-[#003158]">No events yet</p>
-            <p className="text-xs text-slate-400">Create a Sabha in “Sabhas &amp; Attendance” — it becomes an event here.</p>
+            <p className="text-xs text-slate-400">Use “+ New Event” to create a Sabha — it becomes an event here.</p>
           </div>
         )}
 
@@ -124,6 +155,64 @@ export default function FollowupsPage({ user }) {
             );
           })}
         </div>
+
+        {showEventModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#003158]">New Event</h2>
+                <button onClick={() => setShowEventModal(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E4EBF3] text-slate-400 hover:text-[#003158]">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <form onSubmit={submitEvent} className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Title *</label>
+                  <input required value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="e.g. Weekly Satsang Sabha"
+                    className="w-full rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Date</label>
+                    <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Time</label>
+                    <input value={eventForm.time} onChange={e => setEventForm(f => ({ ...f, time: e.target.value }))}
+                      placeholder="06:00 PM"
+                      className="w-full rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Venue</label>
+                  <input value={eventForm.venue} onChange={e => setEventForm(f => ({ ...f, venue: e.target.value }))}
+                    placeholder="e.g. Mandir Hall"
+                    className="w-full rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Type</label>
+                  <select value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value }))}
+                    className="w-full rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]">
+                    {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setShowEventModal(false)}
+                    className="rounded-2xl border border-[#E0EAF4] bg-white px-4 py-2.5 text-sm font-bold text-[#9BB5CB] hover:text-[#003158]">
+                    Cancel
+                  </button>
+                  <button type="submit"
+                    className="rounded-2xl bg-[#003158] px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00264a] active:scale-95">
+                    Create Event
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

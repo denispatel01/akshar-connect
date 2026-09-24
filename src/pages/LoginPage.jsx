@@ -35,7 +35,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const [showSetupSecret, setShowSetupSecret] = useState(false);
 
   const isMobileValid = mobile.length === 10;
-  const isPinValid = pin.length === 6;
+  const isPinValid = pin.length >= 4 && pin.length <= 6;
 
   const handleMobileChange = (e) => {
     setMobile(e.target.value.replace(/\D/g, ''));
@@ -53,7 +53,7 @@ export default function LoginPage({ onLoginSuccess }) {
       if (authType === 'pin') {
         if (!isPinValid) {
           setLoading(false);
-          return setErrorMessage('Enter all 6 PIN digits');
+          return setErrorMessage('Enter your PIN (4–6 digits)');
         }
         const res = await dataService.loginWithPin(mobile, pin);
         onLoginSuccess(res.user);
@@ -127,7 +127,7 @@ export default function LoginPage({ onLoginSuccess }) {
         {/* Left Side Hero Banner - Desktop */}
         <div className="relative hidden overflow-hidden lg:block lg:w-[48%] xl:w-1/2 bg-[#001F3D]">
           <img
-            src="/images/swamiji-pray.jpg"
+            src={`${import.meta.env.BASE_URL}images/swamiji-pray.jpg`}
             alt="Swamiji offering prayers"
             className="absolute inset-0 z-0 h-full w-full object-cover object-center"
             loading="lazy"
@@ -162,7 +162,7 @@ export default function LoginPage({ onLoginSuccess }) {
           {/* Header Branding */}
           <div className="relative flex flex-shrink-0 flex-col items-center justify-center gap-2 px-4 pb-2 pt-6 sm:pt-8">
             <img
-              src="/images/logo.webp"
+              src={`${import.meta.env.BASE_URL}images/logo.webp`}
               alt="Akshar Connect — Connecting Devotees with Divinity"
               className="h-16 w-auto max-w-[240px] object-contain sm:h-20"
             />
@@ -174,7 +174,7 @@ export default function LoginPage({ onLoginSuccess }) {
           {/* Mobile / tablet devotional banner (desktop uses the side hero instead) */}
           <div className="relative mx-4 mt-2 flex-shrink-0 overflow-hidden rounded-3xl shadow-sm ring-1 ring-black/5 lg:hidden">
             <img
-              src="/images/quote-rajipo.webp"
+              src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}
               alt="Kariye aej kam jema Taro Rajipo"
               className="h-36 w-full object-cover object-center sm:h-44"
               loading="lazy"
@@ -200,7 +200,7 @@ export default function LoginPage({ onLoginSuccess }) {
                         authType === 'pin' ? 'bg-white text-[#003158] shadow-sm' : 'text-[#9BB5CB]'
                       }`}
                     >
-                      <KeyRound className="h-4 w-4" /> 6-Digit PIN
+                      <KeyRound className="h-4 w-4" /> PIN
                     </button>
                     <button
                       type="button"
@@ -261,7 +261,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     /* 6-Digit PIN Input */
                     <div>
                       <div className="flex justify-between items-center mb-2 px-1">
-                        <span className="text-xs font-bold text-[#9BB5CB]">6-Digit PIN</span>
+                        <span className="text-xs font-bold text-[#9BB5CB]">PIN</span>
                       </div>
                       <PinDigitInput
                         length={6}

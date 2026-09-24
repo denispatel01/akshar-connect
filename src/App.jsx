@@ -3,11 +3,9 @@ import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import DevoteesPage from './pages/DevoteesPage';
-import SabhasPage from './pages/SabhasPage';
 import FollowupsPage from './pages/FollowupsPage';
-import QrScannerPage from './pages/QrScannerPage';
-import ReportsPage from './pages/ReportsPage';
 import AdminPage from './pages/AdminPage';
+import ComingSoonPage from './pages/ComingSoonPage';
 import { dataService } from './services/dataService';
 
 export default function App() {
@@ -76,11 +74,12 @@ export default function App() {
       <main className="flex-1 pb-12" key={refreshKey}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} />}
         {activePage === 'devotees' && <DevoteesPage user={user} />}
-        {activePage === 'sabhas' && <SabhasPage user={user} />}
         {activePage === 'followups' && <FollowupsPage user={user} />}
-        {activePage === 'qr-scanner' && <QrScannerPage />}
-        {activePage === 'reports' && <ReportsPage />}
+        {activePage === 'email' && <ComingSoonPage title="Email & Messaging" />}
         {activePage === 'admin' && <AdminPage user={user} />}
+        {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
+        {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
+        {activePage === 'reports' && <ComingSoonPage title="Reports & Export" />}
       </main>
     </div>
   );

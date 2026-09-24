@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 export default function AdminPage({ user }) {
@@ -10,10 +10,27 @@ export default function AdminPage({ user }) {
   const bundledCount = dataService.bundledDevoteeCount();
   const isAdmin = user?.role === 'Admin';
 
+  const emptyForm = { mobile: '', name: '', pin: '', role: 'Devotee' };
+  const [form, setForm] = useState(emptyForm);
+  const [formErr, setFormErr] = useState('');
+  const [formMsg, setFormMsg] = useState('');
+
   useEffect(() => {
-    const u = JSON.parse(localStorage.getItem('ac_users_v1') || '[]');
-    setUsers(u);
+    setUsers([...dataService.getUsers()]);
   }, []);
+
+  const handleAddUser = (e) => {
+    e.preventDefault();
+    setFormErr(''); setFormMsg('');
+    const mobile = String(form.mobile || '').trim();
+    const pin = String(form.pin || '').trim();
+    if (!/^\d{10}$/.test(mobile)) { setFormErr('Mobile must be exactly 10 digits.'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { setFormErr('PIN must be 4-6 digits.'); return; }
+    dataService.addUser({ mobile, name: form.name.trim(), pin, role: form.role });
+    setUsers([...dataService.getUsers()]);
+    setForm(emptyForm);
+    setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
+  };
 
   const handleImport = async () => {
     if (!window.confirm(
@@ -39,26 +56,67 @@ export default function AdminPage({ user }) {
         </p>
       </div>
 
-      {/* Access Codes Card */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#003158] uppercase tracking-wider">
-          <KeyRound className="h-4 w-4 text-[#FF862A]" /> Current System PIN Access Codes
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
-            <span className="text-xs font-bold text-red-600 block">Admin Access PIN</span>
-            <p className="text-3xl font-extrabold text-[#003158] mt-1 tracking-widest">109</p>
-            <p className="text-[11px] text-slate-500 mt-1">Full system administration and database access</p>
+      {/* User Management Card (Admin only) */}
+      {isAdmin && (
+        <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#003158] uppercase tracking-wider">
+            <UserPlus className="h-4 w-4 text-[#FF862A]" /> User Management
           </div>
-
-          <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
-            <span className="text-xs font-bold text-amber-600 block">Sevak Access PIN</span>
-            <p className="text-3xl font-extrabold text-[#003158] mt-1 tracking-widest">369</p>
-            <p className="text-[11px] text-slate-500 mt-1">Attendance marking & devotee directory access</p>
-          </div>
+          <form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">Mobile Number</label>
+              <input
+                type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
+                onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
+                placeholder="10-digit mobile" required
+                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">Name</label>
+              <input
+                type="text" value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Full name" required
+                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">PIN</label>
+              <input
+                type="text" inputMode="numeric" maxLength={6} value={form.pin}
+                onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
+                placeholder="4-6 digit PIN" required
+                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">Role</label>
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+              >
+                <option value="Admin">Admin</option>
+                <option value="Sevak">Sevak</option>
+                <option value="Devotee">Devotee</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+              <button type="submit"
+                className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
+                <UserPlus className="h-4 w-4" /> Add / Update User
+              </button>
+              {formErr && <span className="text-xs font-bold text-red-600">{formErr}</span>}
+              {formMsg && (
+                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4" /> {formMsg}
+                </span>
+              )}
+            </div>
+          </form>
         </div>
-      </div>
+      )}
 
       {/* Devotee Database Card */}
       <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs space-y-4">
@@ -108,7 +166,7 @@ export default function AdminPage({ user }) {
             <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8]">
               <div>
                 <p className="text-xs font-bold text-[#003158]">{u.name || 'User'} ({u.mobile})</p>
-                <p className="text-[10px] text-slate-400">PIN: {u.pin} • Password: ••••••••</p>
+                <p className="text-[10px] text-slate-400">PIN: •••• • Password: ••••••••</p>
               </div>
 
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${

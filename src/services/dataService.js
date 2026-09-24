@@ -9,6 +9,8 @@ const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') 
 const SESSION_KEY = 'ac_session_v1';
 const CACHE_KEY = 'ac_cache_v1';
 
+const ADMIN_SEED = { mobile:'9924598434', pin:'17853', password:'', role:'Admin', name:'Denis Patel' };
+
 // In-memory database (populated by bootstrap before the app renders).
 let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [] };
 
@@ -61,6 +63,11 @@ async function bootstrap() {
       await api('seedDevotees', { rows: INITIAL_DEVOTEES.map(r => toBackendRow(normalizeDevotee(r))) });
       DB.devotees = INITIAL_DEVOTEES.map(normalizeDevotee);
     }
+    // Ensure the seed admin account exists on the live sheet.
+    if (!DB.users.some(u => String(u.mobile) === ADMIN_SEED.mobile)) {
+      try { await api('upsertUser', ADMIN_SEED); } catch (e) { /* non-fatal */ }
+      DB.users.push({ ...ADMIN_SEED });
+    }
     saveCache();
     return { mode: 'live' };
   } catch (e) {
@@ -110,6 +117,17 @@ export const dataService = {
     saveCache(); push('upsertUser', user);
     localStorage.setItem(SESSION_KEY, JSON.stringify(user));
     return { success: true, user };
+  },
+
+  getUsers: () => DB.users,
+
+  addUser: (u) => {
+    const user = { mobile:String(u.mobile||'').trim(), pin:String(u.pin||'').trim(), password:u.password||'', role:u.role||'Devotee', name:u.name||'Satsangi Devotee' };
+    const idx = DB.users.findIndex(x=>String(x.mobile)===user.mobile);
+    if(idx>=0) DB.users[idx]=user; else DB.users.push(user);
+    saveCache();
+    push('upsertUser', user);
+    return user;
   },
 
   getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
