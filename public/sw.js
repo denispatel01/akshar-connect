@@ -1,15 +1,16 @@
 /* Akshar Connect service worker — simple, safe offline support */
 const CACHE_NAME = 'akshar-connect-v1';
+const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
-  '/',
-  '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-192.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/favicon-32.png',
+  BASE,
+  BASE + 'manifest.webmanifest',
+  BASE + 'favicon.svg',
+  BASE + 'icons/icon-192.png',
+  BASE + 'icons/icon-512.png',
+  BASE + 'icons/icon-maskable-192.png',
+  BASE + 'icons/icon-maskable-512.png',
+  BASE + 'icons/apple-touch-icon.png',
+  BASE + 'icons/favicon-32.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -72,7 +73,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         } catch (err) {
           const cached = await caches.match(request);
-          return cached || (await caches.match('/')) || Response.error();
+          return cached || (await caches.match(BASE)) || Response.error();
         }
       })()
     );
