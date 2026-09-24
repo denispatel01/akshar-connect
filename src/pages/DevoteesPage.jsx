@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -72,6 +72,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
@@ -98,14 +99,33 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
 
   const canEdit = user?.role === 'Admin' || user?.role === 'Sevak';
 
+  // Count members per family (to show a "Family (N)" chip on head cards).
+  const familySizes = useMemo(() => {
+    const m = {};
+    devotees.forEach((d) => { if (d.familyId) m[d.familyId] = (m[d.familyId] || 0) + 1; });
+    return m;
+  }, [devotees]);
+
+  // Plain browsing (no query/tag/preset) lists heads only — family members are
+  // hidden until you open their family or search for them.
+  const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !devoteesPreset;
+
   const filteredDevotees = devotees.filter((d) => {
+    if (familyFilter) return d.familyId === familyFilter; // family view: every member
+    if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
     const q = searchQuery.toLowerCase();
     const matchesSearch = (d.name || '').toLowerCase().includes(q)
       || String(d.mobile || '').includes(searchQuery)
+      || (d.address || '').toLowerCase().includes(q)
       || (d.city || '').toLowerCase().includes(q)
       || (d.mandal || '').toLowerCase().includes(q);
     return matchesSearch && hasAnyTag(d, selectedTags) && presetMatch(d);
   });
+
+  const familyName = familyFilter
+    ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
+        || devotees.find((d) => d.familyId === familyFilter)?.name || familyFilter)
+    : '';
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -358,6 +378,22 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
         </div>
       )}
 
+      {familyFilter && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#003158]/20 bg-[#EAF0F7] px-4 py-2.5">
+          <p className="text-sm font-bold text-[#003158] flex items-center gap-2 min-w-0">
+            <Users className="h-4 w-4 shrink-0" />
+            <span className="truncate">{familyName}'s family · {filteredDevotees.length} members</span>
+          </p>
+          <button onClick={() => setFamilyFilter(null)} className="text-xs font-bold text-[#FF862A] hover:underline shrink-0">
+            Back to all
+          </button>
+        </div>
+      )}
+
+      <p className="text-xs font-semibold text-[#9BB5CB]">
+        Showing {filteredDevotees.length}{isPlainBrowse ? ' family heads (open a family to see its members)' : ' devotees'}
+      </p>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filteredDevotees.map((devotee) => (
           <div key={devotee.id} className="rounded-3xl border border-[#E4EBF3] bg-white p-5 shadow-xs hover:border-[#003158] hover:shadow-md">
@@ -370,34 +406,42 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
                     {devotee.wing && <span className="text-[10px] font-bold text-[#FF862A] uppercase tracking-wider block mb-0.5">{devotee.wing}</span>}
                     <h3 className="text-base font-bold text-[#003158] leading-tight truncate">{devotee.name}</h3>
                     
-                    {/* Compact flex grid for details */}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.mobile}>
+                    {/* Priority details: contact, address, karyakarta, area */}
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={devotee.mobile}>
                         <Phone className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
                         <span className="truncate">{val(devotee.mobile)}</span>
                       </p>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.city}>
+                      {devotee.address && (
+                        <p className="text-[11px] text-slate-600 flex items-start gap-1.5" title={devotee.address}>
+                          <Home className="h-3 w-3 shrink-0 text-[#9BB5CB] mt-0.5" />
+                          <span className="line-clamp-2">{devotee.address}</span>
+                        </p>
+                      )}
+                      <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={[devotee.area, devotee.city].filter(Boolean).join(', ')}>
                         <MapPin className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
                         <span className="truncate">{[devotee.area, devotee.city].filter(Boolean).join(', ') || val('')}</span>
                       </p>
-                      
-                      {devotee.bloodGroup && (
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={`Blood Group: ${devotee.bloodGroup}`}>
-                          <Droplet className="h-3 w-3 shrink-0 text-red-400" />
-                          <span className="truncate">{devotee.bloodGroup}</span>
-                        </p>
-                      )}
-                      {(devotee.profession || devotee.education) && (
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={devotee.profession || devotee.education}>
-                          <Briefcase className="h-3 w-3 shrink-0 text-amber-500" />
-                          <span className="truncate">{devotee.profession || devotee.education}</span>
-                        </p>
-                      )}
                       {devotee.followupKaryakarta && (
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate max-w-full" title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`}>
+                        <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`}>
                           <User className="h-3 w-3 shrink-0 text-blue-500" />
                           <span className="truncate">{devotee.followupKaryakarta}</span>
                         </p>
+                      )}
+                      {(devotee.bloodGroup || devotee.profession || devotee.education) && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-slate-400">
+                          {devotee.profession || devotee.education ? (
+                            <span className="flex items-center gap-1 truncate max-w-full" title={devotee.profession || devotee.education}>
+                              <Briefcase className="h-3 w-3 shrink-0 text-amber-500" />
+                              <span className="truncate">{devotee.profession || devotee.education}</span>
+                            </span>
+                          ) : null}
+                          {devotee.bloodGroup && (
+                            <span className="flex items-center gap-1" title={`Blood Group: ${devotee.bloodGroup}`}>
+                              <Droplet className="h-3 w-3 shrink-0 text-red-400" /> {devotee.bloodGroup}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                     
@@ -415,9 +459,18 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
                   </div>
                 </div>
               </div>
-            <div className="mt-4 pt-3 border-t border-[#F0F4F8] flex items-center justify-between">
-              <span className="text-[11px] font-bold text-[#003158] bg-[#F0F4F8] px-2.5 py-1 rounded-full">{devotee.id}</span>
-              <div className="flex items-center gap-2">
+            <div className="mt-4 pt-3 border-t border-[#F0F4F8] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[11px] font-bold text-[#003158] bg-[#F0F4F8] px-2.5 py-1 rounded-full shrink-0">{devotee.id}</span>
+                {!familyFilter && devotee.familyId && familySizes[devotee.familyId] > 1 && (
+                  <button onClick={() => { setFamilyFilter(devotee.familyId); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    title="View family members"
+                    className="flex items-center gap-1 rounded-full bg-[#EAF0F7] px-2.5 py-1 text-[11px] font-bold text-[#003158] hover:bg-[#dbe6f2] shrink-0">
+                    <Users className="h-3 w-3" /> Family ({familySizes[devotee.familyId]})
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => setQrModalDevotee(devotee)} title="QR Pass" className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A] hover:bg-amber-100"><QrCode className="h-4 w-4" /></button>
                 <button onClick={() => openProfile(devotee)} className="rounded-xl border border-[#E4EBF3] px-3 py-1 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">View Profile</button>
               </div>

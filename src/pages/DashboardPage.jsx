@@ -10,16 +10,39 @@ import {
   Award,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  Phone,
+  MapPin,
+  User,
+  MessageSquare
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { tagLabel, tagChipStyle } from '../services/tagCatalog';
 
 import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
 import { isBirthdayToday, upcomingBirthdays, birthdayLabel, birthdayDate } from '../utils/birthdays';
 
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function fullDob(dob) {
+  if (!dob) return '—';
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return dob;
+  return `${d.getDate()} ${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()}`;
+}
+function birthdayWaLink(d) {
+  const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
+  if (!num) return null;
+  const to = num.length === 10 ? '91' + num : num;
+  const first = d.firstName || (d.name || '').split(' ')[0] || '';
+  const msg = encodeURIComponent(`Jai Swaminarayan ${first}! 🎂🎉 Aapne Janmadin ni khoob khoob shubhkaamnao. Prabhu Shreeji Maharaj ane Guruhari aapne sada sukhi ane satsangmay rakhe. 🙏`);
+  return `https://wa.me/${to}?text=${msg}`;
+}
+
 export default function DashboardPage({ setActivePage, user }) {
   const [devotees, setDevotees] = useState([]);
   const [thoughts, setThoughts] = useState([]);
+  const [expandedBday, setExpandedBday] = useState(null);
 
   useEffect(() => {
     setDevotees(dataService.getDevotees());
@@ -157,25 +180,62 @@ export default function DashboardPage({ setActivePage, user }) {
         {upcoming.length === 0 ? (
           <p className="text-sm font-semibold text-[#9BB5CB]">No birthdays in the next 30 days.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {upcoming.map(({ devotee, info }) => (
-              <button
-                key={devotee.id}
-                onClick={() => openDevotees('upcomingBirthdays')}
-                className={`flex items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left transition-all hover:shadow-sm ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-[#F0F4F8] bg-[#F8FAFC] hover:border-[#E4EBF3]'}`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 ${info.isToday ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
-                    <Cake className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#003158] truncate">{devotee.name}</p>
-                    <p className="text-[11px] text-slate-400">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
-                  </div>
+          <div className="space-y-2">
+            {upcoming.map(({ devotee, info }) => {
+              const open = expandedBday === devotee.id;
+              const wa = birthdayWaLink(devotee);
+              return (
+                <div key={devotee.id}
+                  className={`rounded-2xl border transition-all ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-[#F0F4F8] bg-[#F8FAFC]'} ${open ? 'shadow-sm' : ''}`}>
+                  {/* header row (tap to expand) */}
+                  <button
+                    onClick={() => setExpandedBday(open ? null : devotee.id)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 ${info.isToday ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
+                        <Cake className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[#003158] truncate">{devotee.name}</p>
+                        <p className="text-[11px] text-slate-400">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[11px] font-bold ${info.isToday ? 'text-purple-700' : 'text-purple-600'}`}>{birthdayLabel(info)}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#9BB5CB] transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {/* expanded details */}
+                  {open && (
+                    <div className="px-3 pb-3 pt-1 border-t border-black/5 space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+                        <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {fullDob(devotee.dob)}</p>
+                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0" /> {devotee.mobile || '—'}</p>
+                        {devotee.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
+                        {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
+                      </div>
+                      {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {devotee.tags.slice(0, 5).map((k) => (
+                            <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>
+                          ))}
+                        </div>
+                      )}
+                      {wa ? (
+                        <a href={wa} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
+                          <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
+                        </a>
+                      ) : (
+                        <p className="text-[11px] font-semibold text-slate-400">No mobile number on file to send a WhatsApp wish.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <span className={`text-[11px] font-bold shrink-0 ${info.isToday ? 'text-purple-700' : 'text-purple-600'}`}>{birthdayLabel(info)}</span>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
