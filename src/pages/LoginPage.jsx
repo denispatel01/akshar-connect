@@ -122,7 +122,7 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#F0F4F8]">
+    <div className="flex min-h-[100dvh] flex-col overflow-y-auto bg-[#F0F4F8]">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Side Hero Banner - Desktop */}
         <div className="relative hidden overflow-hidden lg:block lg:w-[48%] xl:w-1/2 bg-[#001F3D]">

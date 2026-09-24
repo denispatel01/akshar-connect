@@ -48,6 +48,24 @@
   box-shadow: 0 0 0 3px rgba(0, 49, 88, 0.12);
 }
 
+/* Responsive pin digits for narrow screens */
+@media (max-width: 374px) {
+  .pin-digit {
+    width: 38px;
+    height: 46px;
+    font-size: 1.1rem;
+  }
+}
+
+/* Hide scrollbar but keep scroll functional (used for tab bars) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* iOS safe area padding for standalone PWA */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

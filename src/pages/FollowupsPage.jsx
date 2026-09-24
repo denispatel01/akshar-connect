@@ -158,7 +158,7 @@ export default function FollowupsPage({ user }) {
 
         {showEventModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl max-h-[85vh] overflow-y-auto">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#003158]">New Event</h2>
                 <button onClick={() => setShowEventModal(false)}
@@ -272,7 +272,7 @@ export default function FollowupsPage({ user }) {
         </div>
 
         {showTagPanel && (
-          <div className="rounded-2xl border border-[#E0EAF4] bg-white p-4 space-y-3">
+          <div className="rounded-2xl border border-[#E0EAF4] bg-white p-4 space-y-3 max-h-[40vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-[#003158]">Target audience by tag — showing devotees with ANY selected tag</p>
               {selectedTags.length > 0 && (

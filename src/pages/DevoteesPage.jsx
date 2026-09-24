@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
-import { hasAnyTag } from '../services/devoteeSchema';
+import {
+  hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
+  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS
+} from '../services/devoteeSchema';
 
 // Profile tabs -> [field, label]
 const TABS = {
@@ -14,6 +17,20 @@ const TABS = {
   'System': [['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
 };
 const ALL_FIELDS = Object.values(TABS).flat();
+
+const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
+
+// Map field keys to dropdown options (from devoteeSchema) for smart rendering
+const FIELD_OPTIONS = {
+  gender: GENDERS, bloodGroup: BLOOD_GROUPS, maritalStatus: MARITAL_STATUS,
+  area: AREAS, qualification: QUALIFICATIONS, educationStatus: EDUCATION_STATUS,
+  profession: PROFESSIONS, relation: RELATIONS, yuvakType: YUVAK_TYPES,
+  status: STATUSES, wing: WINGS,
+};
+// Fields that should render as textarea
+const TEXTAREA_FIELDS = new Set(['address', 'notes']);
+// Fields that allow both dropdown + manual entry (datalist pattern)
+const DATALIST_FIELDS = new Set(['area']);
 
 export default function DevoteesPage({ user }) {
   const [devotees, setDevotees] = useState([]);
@@ -31,7 +48,7 @@ export default function DevoteesPage({ user }) {
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
 
   const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', gender:'', dob:'',
-    bloodGroup:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
+    bloodGroup:'', maritalStatus:'', profession:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
     address:'', education:'', occupation:'' };
   const [formData, setFormData] = useState(blankForm);
 
@@ -80,6 +97,56 @@ export default function DevoteesPage({ user }) {
   };
 
   const val = (v) => (v === undefined || v === null || v === '') ? '—' : v;
+
+  const inputCls = 'w-full rounded-xl border border-[#E0EAF4] p-2 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]';
+
+  // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
+  const renderEditField = (f, data, setData) => {
+    const value = data[f] ?? '';
+    const onChange = (e) => setData({ ...data, [f]: e.target.value });
+    const options = FIELD_OPTIONS[f];
+
+    // Datalist fields (dropdown + manual entry combo)
+    if (DATALIST_FIELDS.has(f) && options) {
+      const listId = `dl-${f}`;
+      return (
+        <>
+          <input list={listId} value={value} onChange={onChange} className={inputCls} />
+          <datalist id={listId}>
+            {options.map(o => <option key={o} value={o} />)}
+          </datalist>
+        </>
+      );
+    }
+    // Pure select dropdown
+    if (options) {
+      return (
+        <select value={value} onChange={onChange} className={inputCls + ' bg-white'}>
+          <option value="">— Select —</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+    // Textarea fields
+    if (TEXTAREA_FIELDS.has(f)) {
+      return <textarea value={value} onChange={onChange} rows={2} className={inputCls + ' resize-none'} />;
+    }
+    // Date fields
+    if (f === 'dob' || f === 'anniversary' || f === 'dateOfJoining') {
+      return <input type="date" value={value} onChange={onChange} className={inputCls} />;
+    }
+    // Tel fields
+    if (f === 'mobile' || f === 'whatsapp' || f === 'secondaryMobile' || f === 'followupKaryakartaMobile') {
+      return <input type="tel" inputMode="numeric" value={value} onChange={onChange} className={inputCls} />;
+    }
+    // Email
+    if (f === 'email') {
+      return <input type="email" value={value} onChange={onChange} className={inputCls} />;
+    }
+    // Default text
+    return <input type="text" value={value} onChange={onChange} className={inputCls} />;
+  };
+
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
@@ -177,54 +244,64 @@ export default function DevoteesPage({ user }) {
       {/* Add Devotee Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl max-h-[85vh] overflow-auto">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-5 sm:p-6 shadow-2xl max-h-[85vh] overflow-auto">
             <div className="flex items-center justify-between border-b border-[#E0EAF4] pb-4 mb-4">
               <h2 className="text-lg font-bold text-[#003158]">Add New Devotee</h2>
               <button onClick={() => setShowAddModal(false)} className="text-[#9BB5CB] hover:text-[#003158]"><X className="h-5 w-5" /></button>
             </div>
             <form onSubmit={handleCreateSubmit} className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name']].map(([f,l]) => (
                   <div key={f}><label className="block text-xs font-bold text-[#003158] mb-1">{l}</label>
                     <input value={formData[f]} onChange={(e)=>setFormData({...formData,[f]:e.target.value})}
-                      className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                      className={inputCls + ' text-xs p-2.5'} /></div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Mobile *</label>
-                  <input required maxLength={10} value={formData.mobile} onChange={(e)=>setFormData({...formData,mobile:e.target.value.replace(/\D/g,'')})}
-                    className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                  <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e)=>setFormData({...formData,mobile:e.target.value.replace(/\D/g,'')})}
+                    className={inputCls + ' text-xs p-2.5'} /></div>
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Date of Birth</label>
                   <input type="date" value={formData.dob} onChange={(e)=>setFormData({...formData,dob:e.target.value})}
-                    className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                    className={inputCls + ' text-xs p-2.5'} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Gender</label>
-                  <select value={formData.gender} onChange={(e)=>setFormData({...formData,gender:e.target.value})} className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none">
-                    <option value="">—</option><option>Male</option><option>Female</option></select></div>
+                  <select value={formData.gender} onChange={(e)=>setFormData({...formData,gender:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-white'}>
+                    <option value="">— Select —</option>{GENDERS.map(o=><option key={o}>{o}</option>)}</select></div>
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Blood Group</label>
-                  <input value={formData.bloodGroup} onChange={(e)=>setFormData({...formData,bloodGroup:e.target.value})} placeholder="e.g. B+"
-                    className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                  <select value={formData.bloodGroup} onChange={(e)=>setFormData({...formData,bloodGroup:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-white'}>
+                    <option value="">— Select —</option>{BLOOD_GROUPS.map(o=><option key={o}>{o}</option>)}</select></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block text-xs font-bold text-[#003158] mb-1">Marital Status</label>
+                  <select value={formData.maritalStatus || ''} onChange={(e)=>setFormData({...formData,maritalStatus:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-white'}>
+                    <option value="">— Select —</option>{MARITAL_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
+                <div><label className="block text-xs font-bold text-[#003158] mb-1">Profession</label>
+                  <select value={formData.profession || ''} onChange={(e)=>setFormData({...formData,profession:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-white'}>
+                    <option value="">— Select —</option>{PROFESSIONS.map(o=><option key={o}>{o}</option>)}</select></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Education</label>
                   <input value={formData.education} onChange={(e)=>setFormData({...formData,education:e.target.value})}
-                    className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                    placeholder="e.g. B.Tech Computer"
+                    className={inputCls + ' text-xs p-2.5'} /></div>
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Occupation</label>
                   <input value={formData.occupation} onChange={(e)=>setFormData({...formData,occupation:e.target.value})}
-                    className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                    className={inputCls + ' text-xs p-2.5'} /></div>
               </div>
               <div><label className="block text-xs font-bold text-[#003158] mb-1">Address</label>
-                <input value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})}
-                  className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
-              <div className="grid grid-cols-3 gap-3">
+                <textarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} rows={2}
+                  className={inputCls + ' text-xs p-2.5 resize-none'} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Area</label>
-                  <input value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                  <input list="dl-add-area" value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} className={inputCls + ' text-xs p-2.5'} />
+                  <datalist id="dl-add-area">{AREAS.map(o=><option key={o} value={o} />)}</datalist></div>
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">City</label>
-                  <input value={formData.city} onChange={(e)=>setFormData({...formData,city:e.target.value})} className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none focus:border-[#003158]" /></div>
+                  <input value={formData.city} onChange={(e)=>setFormData({...formData,city:e.target.value})} className={inputCls + ' text-xs p-2.5'} /></div>
                 <div><label className="block text-xs font-bold text-[#003158] mb-1">Wing</label>
-                  <select value={formData.wing} onChange={(e)=>setFormData({...formData,wing:e.target.value})} className="w-full rounded-xl border border-[#E0EAF4] p-2.5 text-xs font-semibold outline-none">
-                    <option>Yuva Wing</option><option>Kishore Wing</option><option>Bal Wing</option><option>Seniors Wing</option></select></div>
+                  <select value={formData.wing} onChange={(e)=>setFormData({...formData,wing:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-white'}>
+                    {WINGS.map(o=><option key={o}>{o}</option>)}</select></div>
               </div>
               <button type="submit" className="w-full rounded-2xl bg-[#003158] py-3 text-xs font-bold text-white shadow-md hover:bg-[#00223f] mt-2">Save Devotee</button>
             </form>
@@ -235,89 +312,91 @@ export default function DevoteesPage({ user }) {
       {/* Profile Modal (tabbed + edit) */}
       {selectedDevotee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl relative max-h-[88vh] flex flex-col">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
             <button onClick={() => { setSelectedDevotee(null); setEditing(false); }} className="absolute right-4 top-4 text-[#9BB5CB] hover:text-[#003158] z-10"><X className="h-5 w-5" /></button>
 
             {/* Header */}
-            <div className="flex items-center gap-4 p-6 pb-4 border-b border-[#F0F4F8]">
+            <div className="flex items-center gap-3 p-4 sm:p-6 sm:pb-4 border-b border-[#F0F4F8]">
               <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(selectedDevotee.name||'?')}
-                alt={selectedDevotee.name} className="h-20 w-20 rounded-3xl object-cover border-2 border-[#003158] shadow-md" />
-              <div className="min-w-0">
-                <h2 className="text-xl font-bold text-[#003158] truncate">{selectedDevotee.name}</h2>
-                <p className="text-sm text-slate-500">{val(selectedDevotee.mobile)}</p>
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {selectedDevotee.wing && <span className="text-[11px] font-bold text-[#FF862A] bg-amber-50 px-2.5 py-0.5 rounded-full">{selectedDevotee.wing}</span>}
-                  {selectedDevotee.mandal && <span className="text-[11px] font-semibold text-[#003158] bg-[#F0F4F8] px-2.5 py-0.5 rounded-full">{selectedDevotee.mandal}</span>}
-                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">{selectedDevotee.id}</span>
+                alt={selectedDevotee.name} className="h-14 w-14 sm:h-20 sm:w-20 rounded-2xl sm:rounded-3xl object-cover border-2 border-[#003158] shadow-md shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base sm:text-xl font-bold text-[#003158] truncate">{selectedDevotee.name}</h2>
+                <p className="text-xs sm:text-sm text-slate-500">{val(selectedDevotee.mobile)}</p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-[#003158] bg-[#F0F4F8] px-2 py-0.5 rounded-full">{selectedDevotee.area}</span>}
+                  {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-[#003158] bg-[#F0F4F8] px-2 py-0.5 rounded-full">{selectedDevotee.mandal}</span>}
+                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{selectedDevotee.id}</span>
                 </div>
               </div>
             </div>
 
-            {/* Body — all sections shown together */}
-            <div className="p-6 overflow-auto space-y-6">
-              {Object.entries(TABS).map(([section, fields]) => (
-                <div key={section}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="h-4 w-1 rounded-full bg-[#FF862A]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#003158]">{section}</h3>
-                    <span className="flex-1 h-px bg-[#F0F4F8]" />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                    {fields.map(([f, label]) => (
-                      <div key={f}>
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">{label}</div>
-                        {editing ? (
-                          <input
-                            type={f === 'dob' || f === 'anniversary' ? 'date' : 'text'}
-                            value={editData[f] ?? ''}
-                            onChange={(e) => setEditData({ ...editData, [f]: e.target.value })}
-                            className="w-full rounded-xl border border-[#E0EAF4] p-2 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
-                        ) : (
-                          <div className="text-sm font-semibold text-[#003158] break-words">{val(selectedDevotee[f])}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            {/* Scrollable Tab Bar */}
+            <div className="flex overflow-x-auto no-scrollbar gap-1 px-4 sm:px-6 py-2 border-b border-[#F0F4F8] bg-[#FAFBFC]">
+              {Object.keys(TABS).map((tab) => (
+                <button key={tab} onClick={() => setActiveTab(tab)}
+                  className={'shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ' +
+                    (activeTab === tab
+                      ? 'bg-[#003158] text-white shadow-sm'
+                      : 'text-[#9BB5CB] hover:text-[#003158] hover:bg-[#F0F4F8]')}>
+                  {tab}
+                </button>
               ))}
+            </div>
 
-              {/* Tags */}
-              <div className="mt-6 pt-5 border-t border-[#F0F4F8]">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-2">Tags</div>
-                {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedDevotee.tags.map((key) => (
-                      <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
-                    ))}
+            {/* Body — filtered by active tab */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                {(TABS[activeTab] || []).map(([f, label]) => (
+                  <div key={f}>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">{label}</div>
+                    {editing ? (
+                      renderEditField(f, editData, setEditData)
+                    ) : (
+                      <div className="text-sm font-semibold text-[#003158] break-words">{val(selectedDevotee[f])}</div>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm font-semibold text-[#9BB5CB]">No tags yet.</p>
-                )}
-
-                {canEdit && (
-                  <div className="mt-4 space-y-4">
-                    <p className="text-[11px] font-bold text-[#9BB5CB]">Tap a tag to add or remove it.</p>
-                    {tagsByCategory().map(({ category, tags }) => (
-                      <div key={category.key}>
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#003158] mb-2">{category.label}</div>
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map((t) => {
-                            const active = (selectedDevotee.tags || []).includes(t.key);
-                            return (
-                              <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                style={active ? tagChipStyle(t.key) : undefined}
-                                className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
-                                  (active ? '' : 'border border-[#E4EBF3] bg-white text-[#9BB5CB] hover:border-[#003158] hover:text-[#003158]')}>
-                                {t.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
+
+              {/* Tags section — show only on the last tab (System) */}
+              {activeTab === 'System' && (
+                <div className="mt-4 pt-4 border-t border-[#F0F4F8]">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-2">Tags</div>
+                  {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedDevotee.tags.map((key) => (
+                        <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm font-semibold text-[#9BB5CB]">No tags yet.</p>
+                  )}
+
+                  {canEdit && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-[11px] font-bold text-[#9BB5CB]">Tap a tag to add or remove it.</p>
+                      {tagsByCategory().map(({ category, tags }) => (
+                        <div key={category.key}>
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-[#003158] mb-2">{category.label}</div>
+                          <div className="flex flex-wrap gap-2">
+                            {tags.map((t) => {
+                              const active = (selectedDevotee.tags || []).includes(t.key);
+                              return (
+                                <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                  style={active ? tagChipStyle(t.key) : undefined}
+                                  className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
+                                    (active ? '' : 'border border-[#E4EBF3] bg-white text-[#9BB5CB] hover:border-[#003158] hover:text-[#003158]')}>
+                                  {t.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer actions */}

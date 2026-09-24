@@ -210,7 +210,7 @@ export default function SabhasPage({ user }) {
       {/* Schedule Sabha Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#E0EAF4] pb-4 mb-4">
               <h2 className="text-lg font-bold text-[#003158]">Schedule Sabha</h2>
               <button onClick={() => setShowCreateModal(false)} className="text-[#9BB5CB] hover:text-[#003158]">
