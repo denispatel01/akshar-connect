@@ -1,4 +1,5 @@
 import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } from './mockData';
+import { normalizeDevotee, toBackendRow, withTag } from './devoteeSchema';
 
 // ===== Live backend =====================================================
 // Replaced at build time with the deployed Apps Script /exec URL.
@@ -42,7 +43,7 @@ function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB))
 
 function loadDemo() {
   DB = {
-    users: [...INITIAL_USERS], devotees: [...INITIAL_DEVOTEES],
+    users: [...INITIAL_USERS], devotees: INITIAL_DEVOTEES.map(normalizeDevotee),
     sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: []
   };
 }
@@ -52,20 +53,20 @@ async function bootstrap() {
   if (!hasBackend()) { loadDemo(); return { mode: 'demo' }; }
   try {
     const d = await api('bootstrap');
-    DB.users = d.users || []; DB.devotees = d.devotees || [];
+    DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
     DB.attendance = d.attendance || [];
     // First run: populate the new sheet with the bundled devotee list.
     if (DB.devotees.length === 0 && INITIAL_DEVOTEES.length) {
-      await api('seedDevotees', { rows: INITIAL_DEVOTEES });
-      DB.devotees = [...INITIAL_DEVOTEES];
+      await api('seedDevotees', { rows: INITIAL_DEVOTEES.map(r => toBackendRow(normalizeDevotee(r))) });
+      DB.devotees = INITIAL_DEVOTEES.map(normalizeDevotee);
     }
     saveCache();
     return { mode: 'live' };
   } catch (e) {
     // Offline: use last cached data, else demo seed.
     const c = localStorage.getItem(CACHE_KEY);
-    if (c) { try { DB = JSON.parse(c); return { mode: 'cache' }; } catch (er) {} }
+    if (c) { try { DB = JSON.parse(c); DB.devotees = (DB.devotees || []).map(normalizeDevotee); return { mode: 'cache' }; } catch (er) {} }
     loadDemo();
     return { mode: 'demo', error: e.message };
   }
@@ -116,26 +117,55 @@ export const dataService = {
 
   // ---- Devotees ----
   getDevotees: () => DB.devotees,
+  getDevoteeById: (id) => DB.devotees.find(d => d.id === id) || null,
 
   addDevotee: (devotee) => {
-    const newDevotee = { ...devotee, id: `DEV-${1000 + DB.devotees.length + 1}`, attendanceRate: 100, status: 'Active', flags: [] };
+    const nextNum = DB.devotees.length + 1;
+    const now = new Date().toISOString();
+    const newDevotee = normalizeDevotee({
+      ...devotee,
+      id: `HPP-${nextNum}`,
+      attendanceRate: devotee.attendanceRate ?? 0,
+      status: devotee.status || 'Active',
+      createdOn: now, updatedOn: now,
+    });
     DB.devotees.unshift(newDevotee); saveCache();
-    push('insert', { collection: 'Devotees', row: newDevotee });
+    push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
     return newDevotee;
   },
 
   updateDevotee: (id, updatedFields) => {
     const idx = DB.devotees.findIndex(d => d.id === id);
     if (idx === -1) return null;
-    DB.devotees[idx] = { ...DB.devotees[idx], ...updatedFields }; saveCache();
-    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: DB.devotees[idx] });
-    return DB.devotees[idx];
+    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString() });
+    DB.devotees[idx] = merged; saveCache();
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
+    return merged;
+  },
+
+  // Assign/unassign a single tag; returns the updated devotee.
+  setDevoteeTag: (id, tagKey, on) => {
+    const d = DB.devotees.find(x => x.id === id);
+    if (!d) return null;
+    return dataService.updateDevotee(id, { tags: withTag(d.tags, tagKey, on) });
   },
 
   deleteDevotee: (id) => {
     DB.devotees = DB.devotees.filter(d => d.id !== id); saveCache();
     push('remove', { collection: 'Devotees', keyField: 'id', key: id });
   },
+
+  // Admin: replace ALL devotees (live sheet + memory) with the bundled merged
+  // dataset. Destructive — overwrites the Devotees tab. Returns the new count.
+  importBundledDevotees: async () => {
+    const normalized = INITIAL_DEVOTEES.map(normalizeDevotee);
+    if (hasBackend()) {
+      await api('replaceDevotees', { rows: normalized.map(toBackendRow) });
+    }
+    DB.devotees = normalized; saveCache();
+    return DB.devotees.length;
+  },
+  bundledDevoteeCount: () => INITIAL_DEVOTEES.length,
 
   // ---- Sabhas & Attendance ----
   getSabhas: () => DB.sabhas,

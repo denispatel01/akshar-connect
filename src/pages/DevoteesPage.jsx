@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
+import { hasAnyTag } from '../services/devoteeSchema';
 
 // Profile tabs -> [field, label]
 const TABS = {
@@ -21,6 +23,11 @@ export default function DevoteesPage({ user }) {
   const [activeTab, setActiveTab] = useState('Personal');
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [showTagFilter, setShowTagFilter] = useState(false);
+
+  const toggleFilterTag = (key) => setSelectedTags((prev) =>
+    prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
 
   const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', gender:'', dob:'',
     bloodGroup:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
@@ -34,10 +41,11 @@ export default function DevoteesPage({ user }) {
 
   const filteredDevotees = devotees.filter((d) => {
     const q = searchQuery.toLowerCase();
-    return (d.name || '').toLowerCase().includes(q)
+    const matchesSearch = (d.name || '').toLowerCase().includes(q)
       || String(d.mobile || '').includes(searchQuery)
       || (d.city || '').toLowerCase().includes(q)
       || (d.mandal || '').toLowerCase().includes(q);
+    return matchesSearch && hasAnyTag(d, selectedTags);
   });
 
   const handleCreateSubmit = (e) => {
@@ -58,6 +66,12 @@ export default function DevoteesPage({ user }) {
     const name = [editData.firstName, editData.middleName, editData.lastName].filter(Boolean).join(' ') || selectedDevotee.name;
     const updated = dataService.updateDevotee(selectedDevotee.id, { ...editData, name });
     setSelectedDevotee(updated); setEditing(false); loadDevotees();
+  };
+
+  const toggleProfileTag = (key, nextOn) => {
+    const updated = dataService.setDevoteeTag(selectedDevotee.id, key, nextOn);
+    if (updated) setSelectedDevotee(updated);
+    loadDevotees();
   };
 
   const handleDelete = (id) => {
@@ -81,12 +95,48 @@ export default function DevoteesPage({ user }) {
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#9BB5CB]" />
-        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search by name, mobile, city, or mandal..."
-          className="w-full rounded-2xl border border-[#E0EAF4] bg-white pl-10 pr-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#9BB5CB]" />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, mobile, city, or mandal..."
+            className="w-full rounded-2xl border border-[#E0EAF4] bg-white pl-10 pr-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
+        </div>
+        <button onClick={() => setShowTagFilter((s) => !s)}
+          className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
+            (selectedTags.length ? 'border-[#003158] bg-[#003158] text-white' : 'border-[#E0EAF4] bg-white text-[#003158] hover:bg-[#F0F4F8]')}>
+          <Filter className="h-4 w-4" /> Filter by tag{selectedTags.length ? ` (${selectedTags.length})` : ''}
+        </button>
       </div>
+
+      {showTagFilter && (
+        <div className="rounded-3xl border border-[#E4EBF3] bg-white p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-[#9BB5CB]">Showing devotees with ANY selected tag.</p>
+            {selectedTags.length > 0 && (
+              <button onClick={() => setSelectedTags([])} className="text-xs font-bold text-[#FF862A] hover:underline">Clear</button>
+            )}
+          </div>
+          {tagsByCategory().map(({ category, tags }) => (
+            <div key={category.key}>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#003158] mb-2">{category.label}</div>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((t) => {
+                  const active = selectedTags.includes(t.key);
+                  return (
+                    <button key={t.key} onClick={() => toggleFilterTag(t.key)}
+                      style={active ? tagChipStyle(t.key) : undefined}
+                      className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
+                        (active ? '' : 'border border-[#E4EBF3] bg-white text-[#9BB5CB] hover:border-[#003158] hover:text-[#003158]')}>
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filteredDevotees.slice(0, 300).map((devotee) => (
@@ -101,6 +151,16 @@ export default function DevoteesPage({ user }) {
                 <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3 text-[#9BB5CB]" /> {[devotee.area, devotee.city].filter(Boolean).join(', ') || val('')}</p>
               </div>
             </div>
+            {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {devotee.tags.slice(0, 3).map((key) => (
+                  <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
+                ))}
+                {devotee.tags.length > 3 && (
+                  <span className="rounded-full bg-[#F0F4F8] px-2 py-0.5 text-[10px] font-bold text-[#003158]">+{devotee.tags.length - 3}</span>
+                )}
+              </div>
+            )}
             <div className="mt-4 pt-3 border-t border-[#F0F4F8] flex items-center justify-between">
               <span className="text-[11px] font-bold text-[#003158] bg-[#F0F4F8] px-2.5 py-1 rounded-full">{devotee.id}</span>
               <div className="flex items-center gap-2">
@@ -217,6 +277,44 @@ export default function DevoteesPage({ user }) {
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Tags */}
+              <div className="mt-6 pt-5 border-t border-[#F0F4F8]">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-2">Tags</div>
+                {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedDevotee.tags.map((key) => (
+                      <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-[#9BB5CB]">No tags yet.</p>
+                )}
+
+                {canEdit && (
+                  <div className="mt-4 space-y-4">
+                    <p className="text-[11px] font-bold text-[#9BB5CB]">Tap a tag to add or remove it.</p>
+                    {tagsByCategory().map(({ category, tags }) => (
+                      <div key={category.key}>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#003158] mb-2">{category.label}</div>
+                        <div className="flex flex-wrap gap-2">
+                          {tags.map((t) => {
+                            const active = (selectedDevotee.tags || []).includes(t.key);
+                            return (
+                              <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                style={active ? tagChipStyle(t.key) : undefined}
+                                className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
+                                  (active ? '' : 'border border-[#E4EBF3] bg-white text-[#9BB5CB] hover:border-[#003158] hover:text-[#003158]')}>
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

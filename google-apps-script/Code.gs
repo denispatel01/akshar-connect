@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','followupKaryakarta','photo','notes','createdOn','updatedOn','updatedBy'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Thoughts:   ['id','author','thought','date']
@@ -60,9 +60,30 @@ function resetAll_(){
   appendRows_('Thoughts', SEED_THOUGHTS);
 }
 
+/**
+ * Non-destructive schema migration: widen an existing tab so it has every
+ * column in HEADERS[name], and refresh the header row. New columns are simply
+ * appended (blank for existing rows); column 1..N positions are unchanged, so
+ * no data is lost. Safe to run on every request.
+ */
+function migrateHeaders_(name){
+  var sh = ss_().getSheetByName(name); if(!sh) return;
+  var need = HEADERS[name].length;
+  var maxCols = sh.getMaxColumns();
+  if(maxCols < need) sh.insertColumnsAfter(maxCols, need - maxCols);
+  var lastCol = sh.getLastColumn();
+  var cur = lastCol > 0 ? sh.getRange(1,1,1,Math.max(lastCol,need)).getValues()[0] : [];
+  var changed = lastCol < need;
+  for(var i=0;i<need && !changed;i++){ if(String(cur[i]==null?'':cur[i]) !== HEADERS[name][i]) changed = true; }
+  if(changed){
+    sh.getRange(1,1,sh.getMaxRows(),need).setNumberFormat('@'); // keep all-text
+    sh.getRange(1,1,1,need).setValues([HEADERS[name]]);
+  }
+}
+
 function ensureSheets_(){
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Thoughts'].forEach(function(n){ tab_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Thoughts'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
