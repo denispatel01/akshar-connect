@@ -5,6 +5,7 @@ import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
+import { scoreMatch, dateSearchForms } from '../utils/search';
 import {
   hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
   PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
@@ -110,17 +111,34 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   // hidden until you open their family or search for them.
   const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !devoteesPreset;
 
-  const filteredDevotees = devotees.filter((d) => {
-    if (familyFilter) return d.familyId === familyFilter; // family view: every member
-    if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = (d.name || '').toLowerCase().includes(q)
-      || String(d.mobile || '').includes(searchQuery)
-      || (d.address || '').toLowerCase().includes(q)
-      || (d.city || '').toLowerCase().includes(q)
-      || (d.mandal || '').toLowerCase().includes(q);
-    return matchesSearch && hasAnyTag(d, selectedTags) && presetMatch(d);
-  });
+  // Build the lowercased searchable text for a devotee (name, contacts, address,
+  // area, dob variants, karyakarta, tags…).
+  const searchText = (d) => [
+    d.name, d.firstName, d.middleName, d.lastName,
+    d.mobile, d.whatsapp, d.secondaryMobile,
+    d.address, d.area, d.city, d.mandal,
+    dateSearchForms(d.dob), d.yuvakType, d.followupKaryakarta,
+    d.education, d.profession, d.reference,
+    ...((d.tags || []).map(tagLabel)),
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  const query = searchQuery.trim();
+  const filteredDevotees = useMemo(() => {
+    let base = devotees.filter((d) => {
+      if (familyFilter) return d.familyId === familyFilter; // family view: every member
+      if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
+      return hasAnyTag(d, selectedTags) && presetMatch(d);
+    });
+    if (query) {
+      base = base
+        .map((d) => ({ d, s: scoreMatch(searchText(d), d.name || '', query) }))
+        .filter((x) => x.s >= 0)
+        .sort((a, b) => b.s - a.s) // exact first, then partial, then fuzzy
+        .map((x) => x.d);
+    }
+    return base;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devotees, query, selectedTags, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -339,7 +357,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#9BB5CB]" />
           <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, mobile, city, or mandal..."
+            placeholder="Search name, mobile, address, area, DOB — any order"
             className="w-full rounded-2xl border border-[#E0EAF4] bg-white pl-10 pr-4 py-2.5 text-sm font-semibold text-[#003158] outline-none focus:border-[#003158]" />
         </div>
         <button onClick={() => setShowTagFilter((s) => !s)}

@@ -15,7 +15,8 @@ import {
   Phone,
   MapPin,
   User,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagLabel, tagChipStyle } from '../services/tagCatalog';
@@ -23,12 +24,12 @@ import { tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
 import { isBirthdayToday, upcomingBirthdays, birthdayLabel, birthdayDate } from '../utils/birthdays';
 
-const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-function fullDob(dob) {
+const MONTHS_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dobShort(dob) {
   if (!dob) return '—';
   const d = new Date(dob);
   if (isNaN(d.getTime())) return dob;
-  return `${d.getDate()} ${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_ABBR[d.getMonth()]}-${d.getFullYear()}`;
 }
 function birthdayWaLink(d) {
   const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
@@ -43,6 +44,7 @@ export default function DashboardPage({ setActivePage, user }) {
   const [devotees, setDevotees] = useState([]);
   const [thoughts, setThoughts] = useState([]);
   const [expandedBday, setExpandedBday] = useState(null);
+  const [showTodayBdays, setShowTodayBdays] = useState(false);
 
   useEffect(() => {
     setDevotees(dataService.getDevotees());
@@ -155,7 +157,7 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
         </button>
 
-        <button type="button" onClick={() => openDevotees('birthdays')} className={statCardCls} title="View birthdays today">
+        <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Today's Birthdays</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
@@ -211,7 +213,7 @@ export default function DashboardPage({ setActivePage, user }) {
                   {open && (
                     <div className="px-3 pb-3 pt-1 border-t border-black/5 space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
-                        <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {fullDob(devotee.dob)}</p>
+                        <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(devotee.dob)}</p>
                         <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0" /> {devotee.mobile || '—'}</p>
                         {devotee.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
                         {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
@@ -308,6 +310,62 @@ export default function DashboardPage({ setActivePage, user }) {
           </button>
         </div>
       </div>
+
+      {/* Today's Birthdays modal */}
+      {showTodayBdays && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" onClick={() => setShowTodayBdays(false)}>
+          <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl max-h-[88vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[#F0F4F8] p-5">
+              <h2 className="text-lg font-bold text-[#003158] flex items-center gap-2">
+                <Cake className="h-5 w-5 text-purple-600" /> Today's Birthdays
+                <span className="text-sm font-bold text-purple-600">({birthdaysToday.length})</span>
+              </h2>
+              <button onClick={() => setShowTodayBdays(false)} className="text-[#9BB5CB] hover:text-[#003158]"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3">
+              {birthdaysToday.length === 0 ? (
+                <p className="text-sm font-semibold text-[#9BB5CB] text-center py-8">No devotee has a birthday today.</p>
+              ) : (
+                birthdaysToday.map((d) => {
+                  const wa = birthdayWaLink(d);
+                  return (
+                    <div key={d.id} className="rounded-2xl border border-purple-200 bg-purple-50/50 p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white shrink-0"><Cake className="h-5 w-5" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#003158] truncate">{d.name}</p>
+                          <p className="text-[11px] font-semibold text-purple-600">🎂 Turning {new Date().getFullYear() - new Date(d.dob).getFullYear()} today</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+                        <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(d.dob)}</p>
+                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0" /> {d.mobile || '—'}</p>
+                        {d.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0 mt-0.5" /> <span>{d.address}{d.area ? `, ${d.area}` : ''}</span></p>}
+                        {d.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {d.followupKaryakarta}</p>}
+                      </div>
+                      {Array.isArray(d.tags) && d.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {d.tags.slice(0, 6).map((k) => (
+                            <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>
+                          ))}
+                        </div>
+                      )}
+                      {wa ? (
+                        <a href={wa} target="_blank" rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
+                          <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
+                        </a>
+                      ) : (
+                        <p className="mt-2 text-[11px] font-semibold text-slate-400">No mobile number on file to send a WhatsApp wish.</p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
