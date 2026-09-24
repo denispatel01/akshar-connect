@@ -278,30 +278,30 @@ export const INITIAL_DEVOTEES = [
     "id": "HPP-6"
   },
   {
-    "firstName": "Tarak",
-    "middleName": "Ashishbhai",
+    "firstName": "Ashishbhai",
+    "middleName": "Bipinbhai",
     "lastName": "Makwana",
-    "name": "Tarak Ashishbhai Makwana",
+    "name": "Ashishbhai Bipinbhai Makwana",
     "gender": "Male",
-    "dob": "2013-01-07",
+    "dob": "1979-11-04",
     "mobile": "9974079708",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "B4-1202, Nebula Nakshatra, Jahangirpura",
+    "address": "B-4-1202, Nakshatra Nebula Residency, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "AMNS International School (Std. 7)",
+    "education": "B.COM",
     "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
-    "occupation": "STUDENT",
-    "profession": "Student",
-    "professionField": "Student",
+    "occupation": "JOB",
+    "profession": "Job",
+    "professionField": "Hospital Product - Sales Manager",
     "companyName": "",
-    "maritalStatus": "Single",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -313,8 +313,8 @@ export const INITIAL_DEVOTEES = [
     "reference": "Ashishbhai",
     "ambrish": "",
     "yuvakType": "Yuvak",
-    "followupKaryakarta": "Digesh (Denis) Nileshbhai Parekh",
-    "followupKaryakartaMobile": "9099070865",
+    "followupKaryakarta": "Nirdoshbhai Vinodbhai Patel",
+    "followupKaryakartaMobile": "7265813984",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [],
@@ -370,28 +370,28 @@ export const INITIAL_DEVOTEES = [
   {
     "firstName": "Tarak",
     "middleName": "Ashishbhai",
-    "lastName": "Makavana",
-    "name": "Tarak Ashishbhai Makavana",
+    "lastName": "Makwana",
+    "name": "Tarak Ashishbhai Makwana",
     "gender": "",
     "dob": "2013-01-07",
-    "mobile": "",
+    "mobile": "9974079708",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "B4-1202, Nebula Nakshatra, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
+    "education": "AMNS International School (Std. 7)",
     "qualification": "",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "STUDENT",
+    "profession": "Student",
+    "professionField": "Student",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -400,11 +400,11 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM002",
     "relation": "Son",
     "type": "Family",
-    "reference": "Digeshbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Digesh (Denis) Nileshbhai Parekh",
+    "followupKaryakartaMobile": "9099070865",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [],
@@ -509,24 +509,24 @@ export const INITIAL_DEVOTEES = [
     "name": "Bipinbhai Bhanubhai Makavana",
     "gender": "",
     "dob": "1955-04-01",
-    "mobile": "",
+    "mobile": "8780455806",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "B-4-1202, Nakshatra Nebula Residency, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "10",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "RETIRED",
+    "profession": "Retired",
+    "professionField": "RETIRED",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -535,11 +535,11 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM002",
     "relation": "Father",
     "type": "Family",
-    "reference": "Digeshbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Nirdoshbhai Vinodbhai Patel",
+    "followupKaryakartaMobile": "7265813984",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [],
@@ -1238,7 +1238,7 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "B.COM",
+    "education": "B.COM LLB",
     "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
@@ -1255,9 +1255,9 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM007",
     "relation": "Self",
     "type": "Primary",
-    "reference": "Rakeshkaka",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "New",
+    "yuvakType": "Yuvak",
     "followupKaryakarta": "Nirdoshbhai Vinodbhai Patel",
     "followupKaryakartaMobile": "7265813984",
     "dateOfJoining": "2026-03-18",
@@ -4193,12 +4193,12 @@ export const INITIAL_DEVOTEES = [
     "id": "HPP-93"
   },
   {
-    "firstName": "Shubhambhai",
-    "middleName": "Milanbhai",
+    "firstName": "Milanbhai",
+    "middleName": "Rasiklal",
     "lastName": "Bhatt",
-    "name": "Shubhambhai Milanbhai Bhatt",
+    "name": "Milanbhai Rasiklal Bhatt",
     "gender": "Male",
-    "dob": "2011-03-05",
+    "dob": "1981-03-18",
     "mobile": "9769113491",
     "whatsapp": "",
     "secondaryMobile": "",
@@ -4208,15 +4208,15 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "10",
-    "qualification": "10th",
+    "education": "B com",
+    "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
-    "occupation": "Study",
-    "profession": "Student",
-    "professionField": "Study",
+    "occupation": "Business",
+    "profession": "Business",
+    "professionField": "Photography",
     "companyName": "",
-    "maritalStatus": "Single",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -4227,14 +4227,13 @@ export const INITIAL_DEVOTEES = [
     "type": "Primary",
     "reference": "Ashishbhai",
     "ambrish": "Yes",
-    "yuvakType": "Bal",
+    "yuvakType": "Ambrish",
     "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
     "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-14",
     "createdBy": "GBM Import",
     "tags": [
-      "ambrish",
-      "bal-sabha"
+      "ambrish"
     ],
     "status": "Active",
     "attendanceRate": 0,
@@ -4292,24 +4291,24 @@ export const INITIAL_DEVOTEES = [
     "name": "Shubhambhai Milanbhai Bhatt",
     "gender": "",
     "dob": "2011-03-05",
-    "mobile": "",
+    "mobile": "9769113491",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "D-2 1002, Rama Residency, Ugat Canal Road, Jahangirabad",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "10",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Study",
+    "profession": "Student",
+    "professionField": "Study",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -4318,14 +4317,16 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM030",
     "relation": "Son",
     "type": "Family",
-    "reference": "Milanbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-14",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "bal-sabha"
+    ],
     "status": "Active",
     "attendanceRate": 0,
     "id": "HPP-96"
@@ -11400,12 +11401,12 @@ export const INITIAL_DEVOTEES = [
     "id": "HPP-253"
   },
   {
-    "firstName": "Aman",
-    "middleName": "Harshadlal",
+    "firstName": "Harshadbhai",
+    "middleName": "Jashvantlal",
     "lastName": "Jadav",
-    "name": "Aman Harshadlal Jadav",
+    "name": "Harshadbhai Jashvantlal Jadav",
     "gender": "Male",
-    "dob": "1994-08-28",
+    "dob": "1963-01-06",
     "mobile": "7874645926",
     "whatsapp": "",
     "secondaryMobile": "",
@@ -11415,13 +11416,13 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "B.COM",
-    "qualification": "Bachelor",
+    "education": "10",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
     "occupation": "JOB",
     "profession": "Job",
-    "professionField": "Accountant",
+    "professionField": "Diamond",
     "companyName": "",
     "maritalStatus": "Married",
     "bloodGroup": "",
@@ -11490,51 +11491,6 @@ export const INITIAL_DEVOTEES = [
     "id": "HPP-255"
   },
   {
-    "firstName": "Harshadbhai",
-    "middleName": "jashvantlal",
-    "lastName": "jadav",
-    "name": "Harshadbhai jashvantlal jadav",
-    "gender": "",
-    "dob": "1963-01-06",
-    "mobile": "",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "",
-    "qualification": "",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
-    "companyName": "",
-    "maritalStatus": "",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "FAM093",
-    "relation": "Father",
-    "type": "Family",
-    "reference": "Nirdoshbhai",
-    "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
-    "dateOfJoining": "2026-03-07",
-    "createdBy": "GBM Import",
-    "tags": [],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-256"
-  },
-  {
     "firstName": "Ritaben",
     "middleName": "Harshadlal",
     "lastName": "jadav",
@@ -11577,7 +11533,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-257"
+    "id": "HPP-256"
   },
   {
     "firstName": "Vineshbhai",
@@ -11622,7 +11578,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-258"
+    "id": "HPP-257"
   },
   {
     "firstName": "Tushar",
@@ -11667,7 +11623,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-259"
+    "id": "HPP-258"
   },
   {
     "firstName": "Jyotiben",
@@ -11712,7 +11668,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-260"
+    "id": "HPP-259"
   },
   {
     "firstName": "Kalpeshbhai",
@@ -11757,7 +11713,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-261"
+    "id": "HPP-260"
   },
   {
     "firstName": "Vinaben",
@@ -11802,7 +11758,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-262"
+    "id": "HPP-261"
   },
   {
     "firstName": "Rameshbhai",
@@ -11847,7 +11803,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-263"
+    "id": "HPP-262"
   },
   {
     "firstName": "Devbhai",
@@ -11892,7 +11848,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-264"
+    "id": "HPP-263"
   },
   {
     "firstName": "Shilaben",
@@ -11937,7 +11893,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-265"
+    "id": "HPP-264"
   },
   {
     "firstName": "Dravya",
@@ -11984,7 +11940,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-266"
+    "id": "HPP-265"
   },
   {
     "firstName": "Ranjitbhai",
@@ -12029,7 +11985,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-267"
+    "id": "HPP-266"
   },
   {
     "firstName": "Hansaben",
@@ -12074,7 +12030,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-268"
+    "id": "HPP-267"
   },
   {
     "firstName": "Dev",
@@ -12087,20 +12043,20 @@ export const INITIAL_DEVOTEES = [
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "B4-203, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "9",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Student",
+    "profession": "Student",
+    "professionField": "Student",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -12111,15 +12067,17 @@ export const INITIAL_DEVOTEES = [
     "type": "Primary",
     "reference": "Nirdoshbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Tarak Ashishbhai Makwana",
+    "followupKaryakartaMobile": "9974079708",
     "dateOfJoining": "2026-03-23",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "bal-sabha"
+    ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-269"
+    "id": "HPP-268"
   },
   {
     "firstName": "Amitaben",
@@ -12164,7 +12122,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-270"
+    "id": "HPP-269"
   },
   {
     "firstName": "Jeetbhai",
@@ -12209,7 +12167,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-271"
+    "id": "HPP-270"
   },
   {
     "firstName": "Sagarbhai",
@@ -12254,7 +12212,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-272"
+    "id": "HPP-271"
   },
   {
     "firstName": "Vibha",
@@ -12299,7 +12257,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-273"
+    "id": "HPP-272"
   },
   {
     "firstName": "Gitaben",
@@ -12344,7 +12302,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-274"
+    "id": "HPP-273"
   },
   {
     "firstName": "Hasmukhbhai",
@@ -12389,7 +12347,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-275"
+    "id": "HPP-274"
   },
   {
     "firstName": "Bhagvanbhai",
@@ -12434,7 +12392,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-276"
+    "id": "HPP-275"
   },
   {
     "firstName": "Muktaben",
@@ -12479,7 +12437,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-277"
+    "id": "HPP-276"
   },
   {
     "firstName": "Manthan",
@@ -12524,7 +12482,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-278"
+    "id": "HPP-277"
   },
   {
     "firstName": "Sangitaben",
@@ -12569,7 +12527,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-279"
+    "id": "HPP-278"
   },
   {
     "firstName": "Tirth",
@@ -12577,25 +12535,25 @@ export const INITIAL_DEVOTEES = [
     "lastName": "Variya",
     "name": "Tirth Hasmukhbhai Variya",
     "gender": "",
-    "dob": "2014-08-04",
-    "mobile": "",
+    "dob": "2014-10-04",
+    "mobile": "9978150536",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "C4-1304, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
+    "education": "6",
     "qualification": "",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Student",
+    "profession": "Student",
+    "professionField": "Student",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -12604,17 +12562,19 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM099",
     "relation": "Son",
     "type": "Family",
-    "reference": "Nirdoshbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Tarak Ashishbhai Makwana",
+    "followupKaryakartaMobile": "9974079708",
     "dateOfJoining": "2026-03-23",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "bal-sabha"
+    ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-280"
+    "id": "HPP-279"
   },
   {
     "firstName": "Pravinbhai",
@@ -12659,7 +12619,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-281"
+    "id": "HPP-280"
   },
   {
     "firstName": "Gitaben",
@@ -12704,7 +12664,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-282"
+    "id": "HPP-281"
   },
   {
     "firstName": "Devanshi",
@@ -12749,7 +12709,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-283"
+    "id": "HPP-282"
   },
   {
     "firstName": "Darshvi",
@@ -12794,7 +12754,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-284"
+    "id": "HPP-283"
   },
   {
     "firstName": "Gauravbhai",
@@ -12839,7 +12799,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-285"
+    "id": "HPP-284"
   },
   {
     "firstName": "Chaitali",
@@ -12884,7 +12844,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-286"
+    "id": "HPP-285"
   },
   {
     "firstName": "Viha",
@@ -12929,7 +12889,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-287"
+    "id": "HPP-286"
   },
   {
     "firstName": "Herishbhai",
@@ -12974,7 +12934,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-288"
+    "id": "HPP-287"
   },
   {
     "firstName": "Amitbhai",
@@ -13019,7 +12979,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-289"
+    "id": "HPP-288"
   },
   {
     "firstName": "Hetansh",
@@ -13028,24 +12988,24 @@ export const INITIAL_DEVOTEES = [
     "name": "Hetansh Amitbhai Barot",
     "gender": "",
     "dob": "2010-10-30",
-    "mobile": "",
+    "mobile": "9726830473",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "B4-701, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "11",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Student",
+    "profession": "Student",
+    "professionField": "Student",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -13054,17 +13014,19 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM102",
     "relation": "Son",
     "type": "Family",
-    "reference": "Nirdoshbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Tarak Ashishbhai Makwana",
+    "followupKaryakartaMobile": "9974079708",
     "dateOfJoining": "2026-03-23",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "bal-sabha"
+    ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-290"
+    "id": "HPP-289"
   },
   {
     "firstName": "Bhaveshi",
@@ -13109,7 +13071,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-291"
+    "id": "HPP-290"
   },
   {
     "firstName": "Bhagvatiben",
@@ -13154,7 +13116,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-292"
+    "id": "HPP-291"
   },
   {
     "firstName": "Krunalbhai",
@@ -13199,7 +13161,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-293"
+    "id": "HPP-292"
   },
   {
     "firstName": "Roshaniben",
@@ -13244,7 +13206,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-294"
+    "id": "HPP-293"
   },
   {
     "firstName": "Viralbhai",
@@ -13289,7 +13251,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-295"
+    "id": "HPP-294"
   },
   {
     "firstName": "Chhayaben",
@@ -13334,7 +13296,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-296"
+    "id": "HPP-295"
   },
   {
     "firstName": "Sarasvatiben",
@@ -13379,7 +13341,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-297"
+    "id": "HPP-296"
   },
   {
     "firstName": "Naksh",
@@ -13424,7 +13386,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-298"
+    "id": "HPP-297"
   },
   {
     "firstName": "Hasmukhbhai",
@@ -13469,7 +13431,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-299"
+    "id": "HPP-298"
   },
   {
     "firstName": "Nainaben",
@@ -13514,7 +13476,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-300"
+    "id": "HPP-299"
   },
   {
     "firstName": "Dipakbhai",
@@ -13559,7 +13521,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-301"
+    "id": "HPP-300"
   },
   {
     "firstName": "Varshaben",
@@ -13604,7 +13566,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-302"
+    "id": "HPP-301"
   },
   {
     "firstName": "Behnaben",
@@ -13649,7 +13611,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-303"
+    "id": "HPP-302"
   },
   {
     "firstName": "Parvatiben",
@@ -13694,7 +13656,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-304"
+    "id": "HPP-303"
   },
   {
     "firstName": "Nimishaben",
@@ -13739,7 +13701,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-305"
+    "id": "HPP-304"
   },
   {
     "firstName": "Jasuben",
@@ -13784,7 +13746,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-306"
+    "id": "HPP-305"
   },
   {
     "firstName": "Felish",
@@ -13829,7 +13791,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-307"
+    "id": "HPP-306"
   },
   {
     "firstName": "Bhaviniben",
@@ -13874,7 +13836,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-308"
+    "id": "HPP-307"
   },
   {
     "firstName": "Vishalbhai",
@@ -13919,7 +13881,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-309"
+    "id": "HPP-308"
   },
   {
     "firstName": "Nevil",
@@ -13964,7 +13926,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-310"
+    "id": "HPP-309"
   },
   {
     "firstName": "Preet",
@@ -14009,7 +13971,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-311"
+    "id": "HPP-310"
   },
   {
     "firstName": "Anilbhai",
@@ -14054,7 +14016,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-312"
+    "id": "HPP-311"
   },
   {
     "firstName": "Nisha",
@@ -14099,7 +14061,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-313"
+    "id": "HPP-312"
   },
   {
     "firstName": "Sandipbhai",
@@ -14144,7 +14106,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-314"
+    "id": "HPP-313"
   },
   {
     "firstName": "Nileshbhai",
@@ -14189,7 +14151,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-315"
+    "id": "HPP-314"
   },
   {
     "firstName": "Aarti",
@@ -14234,7 +14196,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-316"
+    "id": "HPP-315"
   },
   {
     "firstName": "Rinkesh",
@@ -14279,7 +14241,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-317"
+    "id": "HPP-316"
   },
   {
     "firstName": "Navinbhai",
@@ -14324,7 +14286,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-318"
+    "id": "HPP-317"
   },
   {
     "firstName": "Shivani",
@@ -14369,7 +14331,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-319"
+    "id": "HPP-318"
   },
   {
     "firstName": "Ilaben",
@@ -14414,7 +14376,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-320"
+    "id": "HPP-319"
   },
   {
     "firstName": "Yashbhai",
@@ -14459,7 +14421,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-321"
+    "id": "HPP-320"
   },
   {
     "firstName": "Naginbhai",
@@ -14504,7 +14466,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-322"
+    "id": "HPP-321"
   },
   {
     "firstName": "Deviben",
@@ -14549,7 +14511,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-323"
+    "id": "HPP-322"
   },
   {
     "firstName": "Vibhitiben",
@@ -14594,7 +14556,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-324"
+    "id": "HPP-323"
   },
   {
     "firstName": "Prerak",
@@ -14641,7 +14603,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-325"
+    "id": "HPP-324"
   },
   {
     "firstName": "Namrtaben",
@@ -14686,7 +14648,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-326"
+    "id": "HPP-325"
   },
   {
     "firstName": "Jayshriben",
@@ -14731,7 +14693,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-327"
+    "id": "HPP-326"
   },
   {
     "firstName": "Hemantbhai",
@@ -14776,7 +14738,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-328"
+    "id": "HPP-327"
   },
   {
     "firstName": "Alpaben",
@@ -14821,7 +14783,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-329"
+    "id": "HPP-328"
   },
   {
     "firstName": "Prisha",
@@ -14866,7 +14828,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-330"
+    "id": "HPP-329"
   },
   {
     "firstName": "Sarvambhai",
@@ -14911,7 +14873,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-331"
+    "id": "HPP-330"
   },
   {
     "firstName": "Ruhi",
@@ -14956,7 +14918,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-332"
+    "id": "HPP-331"
   },
   {
     "firstName": "Ratanben",
@@ -15001,15 +14963,15 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-333"
+    "id": "HPP-332"
   },
   {
-    "firstName": "Girishbhai",
-    "middleName": "Mohanbhai",
+    "firstName": "Jenishbhai",
+    "middleName": "Girishbhai",
     "lastName": "Bodiwala",
-    "name": "Girishbhai Mohanbhai Bodiwala",
+    "name": "Jenishbhai Girishbhai Bodiwala",
     "gender": "Male",
-    "dob": "1964-08-24",
+    "dob": "1993-01-24",
     "mobile": "9925802360",
     "whatsapp": "",
     "secondaryMobile": "",
@@ -15019,13 +14981,13 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "8",
+    "education": "10",
     "qualification": "10th",
     "educationStatus": "",
     "school": "",
     "occupation": "BUISSNESS",
     "profession": "Business",
-    "professionField": "Pan masala shop",
+    "professionField": "Bahumali - Xerox Shop",
     "companyName": "",
     "maritalStatus": "Married",
     "bloodGroup": "",
@@ -15046,7 +15008,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-334"
+    "id": "HPP-333"
   },
   {
     "firstName": "Mitaliben",
@@ -15091,7 +15053,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-335"
+    "id": "HPP-334"
   },
   {
     "firstName": "Bhavnaben",
@@ -15136,33 +15098,33 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-336"
+    "id": "HPP-335"
   },
   {
     "firstName": "Girishbhai",
-    "middleName": "mohanbhai",
-    "lastName": "bodiwala",
-    "name": "Girishbhai mohanbhai bodiwala",
+    "middleName": "Mohanbhai",
+    "lastName": "Bodiwala",
+    "name": "Girishbhai Mohanbhai Bodiwala",
     "gender": "",
     "dob": "1964-08-24",
-    "mobile": "",
+    "mobile": "9925802360",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "B-403, Vaishnodevi Heights, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "8",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "BUISSNESS",
+    "profession": "Business",
+    "professionField": "Pan masala shop",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -15171,17 +15133,17 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM115",
     "relation": "Father",
     "type": "Family",
-    "reference": "Prerakbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Prerakbhai Madanlal Ariwala",
+    "followupKaryakartaMobile": "9327755455",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-337"
+    "id": "HPP-336"
   },
   {
     "firstName": "Akshit",
@@ -15194,20 +15156,20 @@ export const INITIAL_DEVOTEES = [
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "G-103, Vaishnodevi Township, Jahangirabad, Surat",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "BE MECHANICAL, MBA",
+    "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "JOB",
+    "profession": "Job",
+    "professionField": "Supply Chain Management at AMNS",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -15218,15 +15180,15 @@ export const INITIAL_DEVOTEES = [
     "type": "Primary",
     "reference": "Prerakbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Prerakbhai Madanlal Ariwala",
+    "followupKaryakartaMobile": "9327755455",
     "dateOfJoining": "2026-03-12",
     "createdBy": "GBM Import",
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-338"
+    "id": "HPP-337"
   },
   {
     "firstName": "Diptiben",
@@ -15271,7 +15233,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-339"
+    "id": "HPP-338"
   },
   {
     "firstName": "Yogeshbhai",
@@ -15316,7 +15278,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-340"
+    "id": "HPP-339"
   },
   {
     "firstName": "Mehulbhai",
@@ -15361,7 +15323,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-341"
+    "id": "HPP-340"
   },
   {
     "firstName": "Kajalben",
@@ -15406,7 +15368,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-342"
+    "id": "HPP-341"
   },
   {
     "firstName": "Bhadreshbhai",
@@ -15451,7 +15413,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-343"
+    "id": "HPP-342"
   },
   {
     "firstName": "Daxaben",
@@ -15496,7 +15458,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-344"
+    "id": "HPP-343"
   },
   {
     "firstName": "Vrajesh",
@@ -15541,7 +15503,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-345"
+    "id": "HPP-344"
   },
   {
     "firstName": "Bhumika",
@@ -15586,7 +15548,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-346"
+    "id": "HPP-345"
   },
   {
     "firstName": "Raavi",
@@ -15631,7 +15593,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-347"
+    "id": "HPP-346"
   },
   {
     "firstName": "Ritik",
@@ -15676,7 +15638,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-348"
+    "id": "HPP-347"
   },
   {
     "firstName": "Smitbhai",
@@ -15721,52 +15683,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-349"
-  },
-  {
-    "firstName": "Smitbhai",
-    "middleName": "Mehulbhai",
-    "lastName": "Pastagiya",
-    "name": "Smitbhai Mehulbhai Pastagiya",
-    "gender": "",
-    "dob": "2007-03-17",
-    "mobile": "",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "",
-    "qualification": "",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
-    "companyName": "",
-    "maritalStatus": "",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "FAM119",
-    "relation": "Son",
-    "type": "Family",
-    "reference": "Prerakbhai",
-    "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
-    "dateOfJoining": "2026-03-16",
-    "createdBy": "GBM Import",
-    "tags": [],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-350"
+    "id": "HPP-348"
   },
   {
     "firstName": "Kinjalben",
@@ -15811,7 +15728,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-351"
+    "id": "HPP-349"
   },
   {
     "firstName": "Hareshbhai",
@@ -15856,7 +15773,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-352"
+    "id": "HPP-350"
   },
   {
     "firstName": "Vilasben",
@@ -15901,7 +15818,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-353"
+    "id": "HPP-351"
   },
   {
     "firstName": "Rajubhai",
@@ -15946,7 +15863,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-354"
+    "id": "HPP-352"
   },
   {
     "firstName": "Babubhai",
@@ -15991,7 +15908,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-355"
+    "id": "HPP-353"
   },
   {
     "firstName": "Chetana",
@@ -16036,7 +15953,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-356"
+    "id": "HPP-354"
   },
   {
     "firstName": "Kajal",
@@ -16081,7 +15998,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-357"
+    "id": "HPP-355"
   },
   {
     "firstName": "Dharmeshbhai",
@@ -16126,7 +16043,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-358"
+    "id": "HPP-356"
   },
   {
     "firstName": "Batukbhai",
@@ -16171,7 +16088,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-359"
+    "id": "HPP-357"
   },
   {
     "firstName": "Hiralben",
@@ -16216,7 +16133,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-360"
+    "id": "HPP-358"
   },
   {
     "firstName": "Nimishaben",
@@ -16261,7 +16178,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-361"
+    "id": "HPP-359"
   },
   {
     "firstName": "Aarvi",
@@ -16306,7 +16223,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-362"
+    "id": "HPP-360"
   },
   {
     "firstName": "Bhaveshbhai",
@@ -16351,7 +16268,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-363"
+    "id": "HPP-361"
   },
   {
     "firstName": "Vraj",
@@ -16396,14 +16313,59 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-364"
+    "id": "HPP-362"
+  },
+  {
+    "firstName": "Nileshbhai",
+    "middleName": "Dineshchandra",
+    "lastName": "Chapaneriya",
+    "name": "Nileshbhai Dineshchandra Chapaneriya",
+    "gender": "Male",
+    "dob": "1976-04-17",
+    "mobile": "9925625600",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "33, Nakshatra Villa, Vaishnodevi Canal Road, Jahangirabad",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "B.COM LLB",
+    "qualification": "Bachelor",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "BUISSNESS",
+    "profession": "Business",
+    "professionField": "Specs Wholesale - Blinkers",
+    "companyName": "",
+    "maritalStatus": "Married",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "FAM122",
+    "relation": "Self",
+    "type": "Primary",
+    "reference": "Ashishbhai",
+    "ambrish": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Prerakbhai Madanlal Ariwala",
+    "followupKaryakartaMobile": "9327755455",
+    "dateOfJoining": "2026-03-26",
+    "createdBy": "GBM Import",
+    "tags": [],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-363"
   },
   {
     "firstName": "Dineseshchandra",
     "middleName": "Chabildas",
     "lastName": "Chapaneriya",
     "name": "Dineseshchandra Chabildas Chapaneriya",
-    "gender": "Male",
+    "gender": "",
     "dob": "1948-04-08",
     "mobile": "9925625600",
     "whatsapp": "",
@@ -16429,8 +16391,8 @@ export const INITIAL_DEVOTEES = [
     "photo": "",
     "notes": "",
     "familyId": "FAM122",
-    "relation": "Self",
-    "type": "Primary",
+    "relation": "Father",
+    "type": "Family",
     "reference": "Ashishbhai",
     "ambrish": "",
     "yuvakType": "Yuvak",
@@ -16441,52 +16403,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-365"
-  },
-  {
-    "firstName": "Dineseshchandra",
-    "middleName": "Chabildas",
-    "lastName": "Chapaneriya",
-    "name": "Dineseshchandra Chabildas Chapaneriya",
-    "gender": "",
-    "dob": "1948-04-08",
-    "mobile": "",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "",
-    "qualification": "",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
-    "companyName": "",
-    "maritalStatus": "",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "FAM122",
-    "relation": "Father",
-    "type": "Family",
-    "reference": "Prerakbhai",
-    "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
-    "dateOfJoining": "2026-03-26",
-    "createdBy": "GBM Import",
-    "tags": [],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-366"
+    "id": "HPP-364"
   },
   {
     "firstName": "Manuben",
@@ -16531,7 +16448,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-367"
+    "id": "HPP-365"
   },
   {
     "firstName": "Simaben",
@@ -16576,15 +16493,15 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-368"
+    "id": "HPP-366"
   },
   {
-    "firstName": "Premal",
-    "middleName": "priyankkumar",
+    "firstName": "Priyankkumar",
+    "middleName": "Navneetbhai",
     "lastName": "Mistry",
-    "name": "Premal priyankkumar Mistry",
+    "name": "Priyankkumar Navneetbhai Mistry",
     "gender": "Male",
-    "dob": "2013-04-24",
+    "dob": "1986-02-27",
     "mobile": "9998476060",
     "whatsapp": "",
     "secondaryMobile": "",
@@ -16594,15 +16511,15 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "8",
-    "qualification": "10th",
+    "education": "B com",
+    "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
-    "occupation": "Study",
-    "profession": "Student",
-    "professionField": "Study",
+    "occupation": "Job",
+    "profession": "Job",
+    "professionField": "Solar EPC - Manager",
     "companyName": "",
-    "maritalStatus": "Single",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -16613,18 +16530,17 @@ export const INITIAL_DEVOTEES = [
     "type": "Primary",
     "reference": "Ashishbhai",
     "ambrish": "Yes",
-    "yuvakType": "Bal",
+    "yuvakType": "Ambrish",
     "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
     "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [
-      "ambrish",
-      "bal-sabha"
+      "ambrish"
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-369"
+    "id": "HPP-367"
   },
   {
     "firstName": "Tejal",
@@ -16669,7 +16585,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-370"
+    "id": "HPP-368"
   },
   {
     "firstName": "Premal",
@@ -16678,24 +16594,24 @@ export const INITIAL_DEVOTEES = [
     "name": "Premal priyankkumar Mistry",
     "gender": "",
     "dob": "2013-04-24",
-    "mobile": "",
+    "mobile": "9998476060",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "358- Sundarvan Societ, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "8",
+    "qualification": "10th",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Study",
+    "profession": "Student",
+    "professionField": "Study",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -16704,17 +16620,19 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM123",
     "relation": "Son",
     "type": "Family",
-    "reference": "Priyankbhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "bal-sabha"
+    ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-371"
+    "id": "HPP-369"
   },
   {
     "firstName": "Anami",
@@ -16759,7 +16677,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-372"
+    "id": "HPP-370"
   },
   {
     "firstName": "Viralbhai",
@@ -16804,7 +16722,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-373"
+    "id": "HPP-371"
   },
   {
     "firstName": "Param",
@@ -16849,7 +16767,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-374"
+    "id": "HPP-372"
   },
   {
     "firstName": "Dhyani",
@@ -16894,7 +16812,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-375"
+    "id": "HPP-373"
   },
   {
     "firstName": "Mayank",
@@ -16939,7 +16857,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-376"
+    "id": "HPP-374"
   },
   {
     "firstName": "Meetaliben",
@@ -16984,7 +16902,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-377"
+    "id": "HPP-375"
   },
   {
     "firstName": "Sanchi",
@@ -17029,7 +16947,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-378"
+    "id": "HPP-376"
   },
   {
     "firstName": "Daxaben",
@@ -17074,7 +16992,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-379"
+    "id": "HPP-377"
   },
   {
     "firstName": "Kamleshbhai",
@@ -17119,7 +17037,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-380"
+    "id": "HPP-378"
   },
   {
     "firstName": "Bhavanaben",
@@ -17164,7 +17082,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-381"
+    "id": "HPP-379"
   },
   {
     "firstName": "Shirishbhai",
@@ -17209,7 +17127,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-382"
+    "id": "HPP-380"
   },
   {
     "firstName": "Vijyetaben",
@@ -17254,7 +17172,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-383"
+    "id": "HPP-381"
   },
   {
     "firstName": "Divya",
@@ -17299,7 +17217,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-384"
+    "id": "HPP-382"
   },
   {
     "firstName": "Reyan",
@@ -17344,7 +17262,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-385"
+    "id": "HPP-383"
   },
   {
     "firstName": "Manharbhai",
@@ -17389,7 +17307,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-386"
+    "id": "HPP-384"
   },
   {
     "firstName": "Pannaben",
@@ -17434,7 +17352,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-387"
+    "id": "HPP-385"
   },
   {
     "firstName": "Hemnatbhai",
@@ -17479,7 +17397,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-388"
+    "id": "HPP-386"
   },
   {
     "firstName": "Mayaben",
@@ -17524,7 +17442,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-389"
+    "id": "HPP-387"
   },
   {
     "firstName": "Dax",
@@ -17569,7 +17487,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-390"
+    "id": "HPP-388"
   },
   {
     "firstName": "Rudra",
@@ -17614,7 +17532,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-391"
+    "id": "HPP-389"
   },
   {
     "firstName": "Ruchirbhai",
@@ -17659,7 +17577,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-392"
+    "id": "HPP-390"
   },
   {
     "firstName": "Bhaktiben",
@@ -17704,7 +17622,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-393"
+    "id": "HPP-391"
   },
   {
     "firstName": "Ankit",
@@ -17749,7 +17667,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-394"
+    "id": "HPP-392"
   },
   {
     "firstName": "Saralaben",
@@ -17794,7 +17712,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-395"
+    "id": "HPP-393"
   },
   {
     "firstName": "Rameshbhai",
@@ -17839,7 +17757,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-396"
+    "id": "HPP-394"
   },
   {
     "firstName": "Chirag",
@@ -17884,7 +17802,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-397"
+    "id": "HPP-395"
   },
   {
     "firstName": "Ramilaben",
@@ -17929,7 +17847,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-398"
+    "id": "HPP-396"
   },
   {
     "firstName": "Sanvi",
@@ -17974,7 +17892,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-399"
+    "id": "HPP-397"
   },
   {
     "firstName": "Sonali",
@@ -18019,7 +17937,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-400"
+    "id": "HPP-398"
   },
   {
     "firstName": "Rajeshbhai",
@@ -18064,7 +17982,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-401"
+    "id": "HPP-399"
   },
   {
     "firstName": "Isha",
@@ -18109,7 +18027,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-402"
+    "id": "HPP-400"
   },
   {
     "firstName": "Nidhi",
@@ -18154,7 +18072,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-403"
+    "id": "HPP-401"
   },
   {
     "firstName": "Keshvi",
@@ -18199,7 +18117,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-404"
+    "id": "HPP-402"
   },
   {
     "firstName": "Zeel",
@@ -18244,7 +18162,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-405"
+    "id": "HPP-403"
   },
   {
     "firstName": "Bankim",
@@ -18289,7 +18207,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-406"
+    "id": "HPP-404"
   },
   {
     "firstName": "Jigishaben",
@@ -18334,7 +18252,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-407"
+    "id": "HPP-405"
   },
   {
     "firstName": "Aditi",
@@ -18379,7 +18297,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-408"
+    "id": "HPP-406"
   },
   {
     "firstName": "Bhanuben",
@@ -18424,7 +18342,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-409"
+    "id": "HPP-407"
   },
   {
     "firstName": "Chiragbhai",
@@ -18469,7 +18387,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-410"
+    "id": "HPP-408"
   },
   {
     "firstName": "Dimple",
@@ -18514,7 +18432,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-411"
+    "id": "HPP-409"
   },
   {
     "firstName": "Mira",
@@ -18559,7 +18477,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-412"
+    "id": "HPP-410"
   },
   {
     "firstName": "Maharsh",
@@ -18604,7 +18522,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-413"
+    "id": "HPP-411"
   },
   {
     "firstName": "Prakashbhai",
@@ -18649,7 +18567,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-414"
+    "id": "HPP-412"
   },
   {
     "firstName": "Rekhaben",
@@ -18694,7 +18612,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-415"
+    "id": "HPP-413"
   },
   {
     "firstName": "Heenaben",
@@ -18739,7 +18657,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-416"
+    "id": "HPP-414"
   },
   {
     "firstName": "Ridhisha",
@@ -18784,7 +18702,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-417"
+    "id": "HPP-415"
   },
   {
     "firstName": "Ravibhai",
@@ -18829,7 +18747,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-418"
+    "id": "HPP-416"
   },
   {
     "firstName": "Apexa",
@@ -18874,7 +18792,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-419"
+    "id": "HPP-417"
   },
   {
     "firstName": "Dhruvansh",
@@ -18919,7 +18837,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-420"
+    "id": "HPP-418"
   },
   {
     "firstName": "Bhavanaben",
@@ -18964,7 +18882,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-421"
+    "id": "HPP-419"
   },
   {
     "firstName": "Ranjitbhai",
@@ -19009,7 +18927,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-422"
+    "id": "HPP-420"
   },
   {
     "firstName": "Sharmishtha",
@@ -19054,7 +18972,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-423"
+    "id": "HPP-421"
   },
   {
     "firstName": "Chintankumar",
@@ -19099,7 +19017,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-424"
+    "id": "HPP-422"
   },
   {
     "firstName": "Mantra",
@@ -19144,7 +19062,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-425"
+    "id": "HPP-423"
   },
   {
     "firstName": "Khandudas",
@@ -19189,7 +19107,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-426"
+    "id": "HPP-424"
   },
   {
     "firstName": "Jayshreeben",
@@ -19234,7 +19152,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-427"
+    "id": "HPP-425"
   },
   {
     "firstName": "Nileshbhai",
@@ -19279,7 +19197,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-428"
+    "id": "HPP-426"
   },
   {
     "firstName": "Bhumiben",
@@ -19324,7 +19242,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-429"
+    "id": "HPP-427"
   },
   {
     "firstName": "Sangitaben",
@@ -19369,7 +19287,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-430"
+    "id": "HPP-428"
   },
   {
     "firstName": "Yashvi",
@@ -19414,7 +19332,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-431"
+    "id": "HPP-429"
   },
   {
     "firstName": "Chestha",
@@ -19459,7 +19377,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-432"
+    "id": "HPP-430"
   },
   {
     "firstName": "Dhruvil",
@@ -19504,7 +19422,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-433"
+    "id": "HPP-431"
   },
   {
     "firstName": "Ketanbhai",
@@ -19549,7 +19467,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-434"
+    "id": "HPP-432"
   },
   {
     "firstName": "Bhumika",
@@ -19594,7 +19512,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-435"
+    "id": "HPP-433"
   },
   {
     "firstName": "Arpit",
@@ -19639,7 +19557,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-436"
+    "id": "HPP-434"
   },
   {
     "firstName": "Viyana",
@@ -19684,7 +19602,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-437"
+    "id": "HPP-435"
   },
   {
     "firstName": "Jigneshbhai",
@@ -19729,7 +19647,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-438"
+    "id": "HPP-436"
   },
   {
     "firstName": "Pinky",
@@ -19774,7 +19692,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-439"
+    "id": "HPP-437"
   },
   {
     "firstName": "Viral",
@@ -19819,7 +19737,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-440"
+    "id": "HPP-438"
   },
   {
     "firstName": "Jayntibhai",
@@ -19864,7 +19782,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-441"
+    "id": "HPP-439"
   },
   {
     "firstName": "Vandnaben",
@@ -19909,7 +19827,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-442"
+    "id": "HPP-440"
   },
   {
     "firstName": "Ramilaben",
@@ -19954,7 +19872,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-443"
+    "id": "HPP-441"
   },
   {
     "firstName": "Sarvam",
@@ -19999,7 +19917,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-444"
+    "id": "HPP-442"
   },
   {
     "firstName": "Mayurbhai",
@@ -20044,7 +19962,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-445"
+    "id": "HPP-443"
   },
   {
     "firstName": "Hetalben",
@@ -20089,7 +20007,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-446"
+    "id": "HPP-444"
   },
   {
     "firstName": "Sneh",
@@ -20134,7 +20052,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-447"
+    "id": "HPP-445"
   },
   {
     "firstName": "Tanay",
@@ -20179,7 +20097,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-448"
+    "id": "HPP-446"
   },
   {
     "firstName": "Veenaben",
@@ -20224,7 +20142,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-449"
+    "id": "HPP-447"
   },
   {
     "firstName": "Nayanaben",
@@ -20269,7 +20187,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-450"
+    "id": "HPP-448"
   },
   {
     "firstName": "Prakashbhai",
@@ -20314,7 +20232,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-451"
+    "id": "HPP-449"
   },
   {
     "firstName": "Kashmiraben",
@@ -20359,7 +20277,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-452"
+    "id": "HPP-450"
   },
   {
     "firstName": "Ankit",
@@ -20404,7 +20322,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-453"
+    "id": "HPP-451"
   },
   {
     "firstName": "Jagrutiben",
@@ -20449,7 +20367,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-454"
+    "id": "HPP-452"
   },
   {
     "firstName": "Khushbu",
@@ -20494,7 +20412,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-455"
+    "id": "HPP-453"
   },
   {
     "firstName": "Misha",
@@ -20539,7 +20457,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-456"
+    "id": "HPP-454"
   },
   {
     "firstName": "Vyana",
@@ -20584,7 +20502,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-457"
+    "id": "HPP-455"
   },
   {
     "firstName": "Anjali",
@@ -20629,7 +20547,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-458"
+    "id": "HPP-456"
   },
   {
     "firstName": "Dharmeshbhai",
@@ -20674,7 +20592,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-459"
+    "id": "HPP-457"
   },
   {
     "firstName": "Mamtaben",
@@ -20719,7 +20637,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-460"
+    "id": "HPP-458"
   },
   {
     "firstName": "Dhruv",
@@ -20764,7 +20682,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-461"
+    "id": "HPP-459"
   },
   {
     "firstName": "Somya",
@@ -20809,33 +20727,33 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-462"
+    "id": "HPP-460"
   },
   {
-    "firstName": "Ravi",
-    "middleName": "Ashwinbhai",
+    "firstName": "Vachan",
+    "middleName": "Ravi",
     "lastName": "Papoliwala",
-    "name": "Ravi Ashwinbhai Papoliwala",
+    "name": "Vachan Ravi Papoliwala",
     "gender": "Male",
-    "dob": "1992-04-18",
+    "dob": "2020-02-03",
     "mobile": "9662627576",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "B-402, Shubham Heights, Ugat Canal Road, Jahangirpura",
+    "address": "B-402, Shubham Heights, Ugat Canal Road, Jahangirabad",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "B.E. (Electronics)",
-    "qualification": "Bachelor",
+    "education": "1",
+    "qualification": "",
     "educationStatus": "",
     "school": "",
-    "occupation": "BUSINESS",
-    "profession": "Business",
-    "professionField": "Robotics Academy (STEAMzy)",
+    "occupation": "Study",
+    "profession": "Student",
+    "professionField": "Study",
     "companyName": "",
-    "maritalStatus": "Married",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -20845,19 +20763,18 @@ export const INITIAL_DEVOTEES = [
     "relation": "Self",
     "type": "Primary",
     "reference": "Ashishbhai",
-    "ambrish": "Yes",
-    "yuvakType": "Ambrish",
-    "followupKaryakarta": "Digesh (Denis) Arvindbhai Patel",
-    "followupKaryakartaMobile": "9924598434",
+    "ambrish": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-07",
     "createdBy": "GBM Import",
     "tags": [
-      "bal-sabha",
-      "ambrish"
+      "bal-sabha"
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-463"
+    "id": "HPP-461"
   },
   {
     "firstName": "Ashvinbhai",
@@ -20902,7 +20819,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-464"
+    "id": "HPP-462"
   },
   {
     "firstName": "Upasana",
@@ -20947,7 +20864,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-465"
+    "id": "HPP-463"
   },
   {
     "firstName": "Seema",
@@ -20992,7 +20909,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-466"
+    "id": "HPP-464"
   },
   {
     "firstName": "Vachan",
@@ -21037,7 +20954,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-467"
+    "id": "HPP-465"
   },
   {
     "firstName": "Vijay",
@@ -21082,7 +20999,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-468"
+    "id": "HPP-466"
   },
   {
     "firstName": "Pritiben",
@@ -21127,7 +21044,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-469"
+    "id": "HPP-467"
   },
   {
     "firstName": "Dhara",
@@ -21172,7 +21089,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-470"
+    "id": "HPP-468"
   },
   {
     "firstName": "Shashiprabha",
@@ -21217,7 +21134,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-471"
+    "id": "HPP-469"
   },
   {
     "firstName": "Shambhu",
@@ -21262,7 +21179,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-472"
+    "id": "HPP-470"
   },
   {
     "firstName": "Shriya",
@@ -21307,7 +21224,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-473"
+    "id": "HPP-471"
   },
   {
     "firstName": "Rahul",
@@ -21352,7 +21269,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-474"
+    "id": "HPP-472"
   },
   {
     "firstName": "Nitaben",
@@ -21397,7 +21314,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-475"
+    "id": "HPP-473"
   },
   {
     "firstName": "Kumarkantbhai",
@@ -21444,7 +21361,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-476"
+    "id": "HPP-474"
   },
   {
     "firstName": "Dipikaben",
@@ -21489,7 +21406,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-477"
+    "id": "HPP-475"
   },
   {
     "firstName": "Avani",
@@ -21534,7 +21451,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-478"
+    "id": "HPP-476"
   },
   {
     "firstName": "Lataben",
@@ -21579,7 +21496,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-479"
+    "id": "HPP-477"
   },
   {
     "firstName": "Dhyey",
@@ -21624,7 +21541,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-480"
+    "id": "HPP-478"
   },
   {
     "firstName": "Manishbhai",
@@ -21669,7 +21586,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-481"
+    "id": "HPP-479"
   },
   {
     "firstName": "Devangiben",
@@ -21714,7 +21631,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-482"
+    "id": "HPP-480"
   },
   {
     "firstName": "Mitansh",
@@ -21759,7 +21676,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-483"
+    "id": "HPP-481"
   },
   {
     "firstName": "Shreya",
@@ -21804,7 +21721,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-484"
+    "id": "HPP-482"
   },
   {
     "firstName": "Bharatbhai",
@@ -21817,20 +21734,20 @@ export const INITIAL_DEVOTEES = [
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "C-702, Ramji residency, Opposite to the Veer savarkar heights, Ugat Canal Road, Jahangirabad",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
+    "education": "3",
     "qualification": "",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Job",
+    "profession": "Job",
+    "professionField": "RETIRED",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Married",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -21840,16 +21757,18 @@ export const INITIAL_DEVOTEES = [
     "relation": "Self",
     "type": "Primary",
     "reference": "Ravibhai",
-    "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "ambrish": "Yes",
+    "yuvakType": "Ambrish",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-14",
     "createdBy": "GBM Import",
-    "tags": [],
+    "tags": [
+      "ambrish"
+    ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-485"
+    "id": "HPP-483"
   },
   {
     "firstName": "Deepikaben",
@@ -21894,7 +21813,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-486"
+    "id": "HPP-484"
   },
   {
     "firstName": "Kapilaben",
@@ -21939,7 +21858,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-487"
+    "id": "HPP-485"
   },
   {
     "firstName": "Pinkeshbhai",
@@ -21952,7 +21871,7 @@ export const INITIAL_DEVOTEES = [
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "D-1103, Time Galaxy",
+    "address": "D-1103, Time Galaxy, Ugat Canal Road, Jahangirabad",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
@@ -21974,9 +21893,9 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM156",
     "relation": "Self",
     "type": "Primary",
-    "reference": "Dharmeshbhai Modi",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "New",
+    "yuvakType": "Yuvak",
     "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
     "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-18",
@@ -21984,7 +21903,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-488"
+    "id": "HPP-486"
   },
   {
     "firstName": "Jenishbhai",
@@ -21993,24 +21912,24 @@ export const INITIAL_DEVOTEES = [
     "name": "Jenishbhai Kamleshbhai Ganjawala",
     "gender": "",
     "dob": "2001-03-21",
-    "mobile": "",
+    "mobile": "7600993800",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "",
+    "address": "D-1103, Time Galaxy, Ugat Canal Road, Jahangirabad",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "",
-    "qualification": "",
+    "education": "Diploma Mechanical",
+    "qualification": "Diploma",
     "educationStatus": "",
     "school": "",
-    "occupation": "",
-    "profession": "",
-    "professionField": "",
+    "occupation": "Job",
+    "profession": "Job",
+    "professionField": "Planning - Engineer",
     "companyName": "",
-    "maritalStatus": "",
+    "maritalStatus": "Single",
     "bloodGroup": "",
     "anniversary": "",
     "areaRoute": "",
@@ -22019,17 +21938,17 @@ export const INITIAL_DEVOTEES = [
     "familyId": "FAM156",
     "relation": "Brother",
     "type": "Family",
-    "reference": "Ravibhai",
+    "reference": "Ashishbhai",
     "ambrish": "",
-    "yuvakType": "",
-    "followupKaryakarta": "",
-    "followupKaryakartaMobile": "",
+    "yuvakType": "Yuvak",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
     "dateOfJoining": "2026-03-18",
     "createdBy": "GBM Import",
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-489"
+    "id": "HPP-487"
   },
   {
     "firstName": "Kamleshbhai",
@@ -22074,7 +21993,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-490"
+    "id": "HPP-488"
   },
   {
     "firstName": "Sangitaben",
@@ -22119,7 +22038,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-491"
+    "id": "HPP-489"
   },
   {
     "firstName": "Krunalbhai",
@@ -22164,7 +22083,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-492"
+    "id": "HPP-490"
   },
   {
     "firstName": "Mamtaben",
@@ -22209,7 +22128,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-493"
+    "id": "HPP-491"
   },
   {
     "firstName": "Vivan",
@@ -22254,7 +22173,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-494"
+    "id": "HPP-492"
   },
   {
     "firstName": "Kusumben",
@@ -22299,7 +22218,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-495"
+    "id": "HPP-493"
   },
   {
     "firstName": "Kamleshbhai",
@@ -22344,7 +22263,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-496"
+    "id": "HPP-494"
   },
   {
     "firstName": "Satishbhai",
@@ -22389,7 +22308,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-497"
+    "id": "HPP-495"
   },
   {
     "firstName": "Niravbhai",
@@ -22434,7 +22353,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-498"
+    "id": "HPP-496"
   },
   {
     "firstName": "Piyushbhai",
@@ -22479,7 +22398,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-499"
+    "id": "HPP-497"
   },
   {
     "firstName": "Pallaviben",
@@ -22524,7 +22443,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-500"
+    "id": "HPP-498"
   },
   {
     "firstName": "Yash",
@@ -22569,7 +22488,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-501"
+    "id": "HPP-499"
   },
   {
     "firstName": "Ajaybhai",
@@ -22614,7 +22533,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-502"
+    "id": "HPP-500"
   },
   {
     "firstName": "Shitalben",
@@ -22659,7 +22578,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-503"
+    "id": "HPP-501"
   },
   {
     "firstName": "Bhadresh",
@@ -22704,7 +22623,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-504"
+    "id": "HPP-502"
   },
   {
     "firstName": "Kanti",
@@ -22751,7 +22670,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-505"
+    "id": "HPP-503"
   },
   {
     "firstName": "Yogesh",
@@ -22796,52 +22715,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-506"
-  },
-  {
-    "firstName": "Akshit",
-    "middleName": "Yogeshbhai",
-    "lastName": "Panchal",
-    "name": "Akshit Yogeshbhai Panchal",
-    "gender": "",
-    "dob": "1998-06-20",
-    "mobile": "9624837102",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "G-103, Vaishnodevi Township, Jahangirabad, Surat",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "BE MECHANICAL, MBA",
-    "qualification": "Bachelor",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "JOB",
-    "profession": "Job",
-    "professionField": "Supply Chain Management at AMNS",
-    "companyName": "",
-    "maritalStatus": "Married",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Ashishbhai",
-    "ambrish": "",
-    "yuvakType": "Yuvak",
-    "followupKaryakarta": "Prerakbhai Madanlal Ariwala",
-    "followupKaryakartaMobile": "9327755455",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-507"
+    "id": "HPP-504"
   },
   {
     "firstName": "Hasmukh",
@@ -22886,52 +22760,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-508"
-  },
-  {
-    "firstName": "Jenishbhai",
-    "middleName": "Kamleshbhai",
-    "lastName": "Ganjawala",
-    "name": "Jenishbhai Kamleshbhai Ganjawala",
-    "gender": "",
-    "dob": "2001-03-21",
-    "mobile": "7600993800",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "D-1103, Time Galaxy",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "BE Mechanical",
-    "qualification": "Bachelor",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "Job",
-    "profession": "Job",
-    "professionField": "Planning - Engineer",
-    "companyName": "",
-    "maritalStatus": "Single",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Dharmeshbhai Modi",
-    "ambrish": "",
-    "yuvakType": "New",
-    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
-    "followupKaryakartaMobile": "9662627576",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-509"
+    "id": "HPP-505"
   },
   {
     "firstName": "Ashwinbhai",
@@ -22978,54 +22807,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-510"
-  },
-  {
-    "firstName": "Bharatbhai",
-    "middleName": "Balubhai",
-    "lastName": "Bakariwala",
-    "name": "Bharatbhai Balubhai Bakariwala",
-    "gender": "",
-    "dob": "1950-04-08",
-    "mobile": "7984460965",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "C-702, Ramji residency, Opposite to the Veer savarkar heights, Ugat Canal Road, Jahangirabad",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "3",
-    "qualification": "",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "Job",
-    "profession": "Job",
-    "professionField": "RETIRED",
-    "companyName": "",
-    "maritalStatus": "Married",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Ashishbhai",
-    "ambrish": "Yes",
-    "yuvakType": "Ambrish",
-    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
-    "followupKaryakartaMobile": "9662627576",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [
-      "ambrish"
-    ],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-511"
+    "id": "HPP-506"
   },
   {
     "firstName": "Karanbhai",
@@ -23070,31 +22852,31 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-512"
+    "id": "HPP-507"
   },
   {
-    "firstName": "Bipinbhai",
-    "middleName": "Bhanubhai",
-    "lastName": "Makavana",
-    "name": "Bipinbhai Bhanubhai Makavana",
+    "firstName": "Aman",
+    "middleName": "Harshadlal",
+    "lastName": "Jadav",
+    "name": "Aman Harshadlal Jadav",
     "gender": "",
-    "dob": "1955-04-01",
-    "mobile": "8780455806",
+    "dob": "1994-08-28",
+    "mobile": "7874645926",
     "whatsapp": "",
     "secondaryMobile": "",
     "email": "",
-    "address": "B-4-1202, Nakshatra Nebula Residency, Jahangirpura",
+    "address": "C-303, Sangini residency, Jahangirpura",
     "area": "",
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "10",
-    "qualification": "10th",
+    "education": "B.COM",
+    "qualification": "Bachelor",
     "educationStatus": "",
     "school": "",
-    "occupation": "RETIRED",
-    "profession": "Retired",
-    "professionField": "RETIRED",
+    "occupation": "JOB",
+    "profession": "Job",
+    "professionField": "Accountant",
     "companyName": "",
     "maritalStatus": "Married",
     "bloodGroup": "",
@@ -23115,54 +22897,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-513"
-  },
-  {
-    "firstName": "Tirth",
-    "middleName": "Hasmukhbhai",
-    "lastName": "Variya",
-    "name": "Tirth Hasmukhbhai Variya",
-    "gender": "",
-    "dob": "2014-10-04",
-    "mobile": "9978150536",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "C4-1304, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "6",
-    "qualification": "",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "Student",
-    "profession": "Student",
-    "professionField": "Student",
-    "companyName": "",
-    "maritalStatus": "Single",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Ashishbhai",
-    "ambrish": "",
-    "yuvakType": "Bal",
-    "followupKaryakarta": "Tarak Ashishbhai Makwana",
-    "followupKaryakartaMobile": "9974079708",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [
-      "bal-sabha"
-    ],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-514"
+    "id": "HPP-508"
   },
   {
     "firstName": "Aarush",
@@ -23209,7 +22944,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-515"
+    "id": "HPP-509"
   },
   {
     "firstName": "Jainil",
@@ -23256,7 +22991,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-516"
+    "id": "HPP-510"
   },
   {
     "firstName": "Jeet",
@@ -23303,54 +23038,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-517"
-  },
-  {
-    "firstName": "Dev",
-    "middleName": "Ashokbhai",
-    "lastName": "Patel",
-    "name": "Dev Ashokbhai Patel",
-    "gender": "",
-    "dob": "2012-09-29",
-    "mobile": "8511106370",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "B4-203, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "9",
-    "qualification": "10th",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "Student",
-    "profession": "Student",
-    "professionField": "Student",
-    "companyName": "",
-    "maritalStatus": "Single",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Ashishbhai",
-    "ambrish": "",
-    "yuvakType": "Bal",
-    "followupKaryakarta": "Tarak Ashishbhai Makwana",
-    "followupKaryakartaMobile": "9974079708",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [
-      "bal-sabha"
-    ],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-518"
+    "id": "HPP-511"
   },
   {
     "firstName": "Rudra",
@@ -23397,54 +23085,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-519"
-  },
-  {
-    "firstName": "Hetansh",
-    "middleName": "Amitbhai",
-    "lastName": "Barot",
-    "name": "Hetansh Amitbhai Barot",
-    "gender": "",
-    "dob": "2010-10-30",
-    "mobile": "9726830473",
-    "whatsapp": "",
-    "secondaryMobile": "",
-    "email": "",
-    "address": "B4-701, Nebula Nakshatra, Dandi Road, Jahangirpura, Surat",
-    "area": "",
-    "city": "Surat",
-    "mandal": "Adajan",
-    "wing": "",
-    "education": "11",
-    "qualification": "10th",
-    "educationStatus": "",
-    "school": "",
-    "occupation": "Student",
-    "profession": "Student",
-    "professionField": "Student",
-    "companyName": "",
-    "maritalStatus": "Single",
-    "bloodGroup": "",
-    "anniversary": "",
-    "areaRoute": "",
-    "photo": "",
-    "notes": "",
-    "familyId": "",
-    "relation": "",
-    "type": "",
-    "reference": "Ashishbhai",
-    "ambrish": "",
-    "yuvakType": "Bal",
-    "followupKaryakarta": "Tarak Ashishbhai Makwana",
-    "followupKaryakartaMobile": "9974079708",
-    "dateOfJoining": "",
-    "createdBy": "AksharConnect Import",
-    "tags": [
-      "bal-sabha"
-    ],
-    "status": "Active",
-    "attendanceRate": 0,
-    "id": "HPP-520"
+    "id": "HPP-512"
   },
   {
     "firstName": "Swar",
@@ -23491,7 +23132,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-521"
+    "id": "HPP-513"
   },
   {
     "firstName": "Saurya",
@@ -23538,7 +23179,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-522"
+    "id": "HPP-514"
   },
   {
     "firstName": "Daivik",
@@ -23585,7 +23226,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-523"
+    "id": "HPP-515"
   },
   {
     "firstName": "Herish",
@@ -23632,7 +23273,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-524"
+    "id": "HPP-516"
   },
   {
     "firstName": "Pratik",
@@ -23679,7 +23320,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-525"
+    "id": "HPP-517"
   },
   {
     "firstName": "Ramesh",
@@ -23726,7 +23367,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-526"
+    "id": "HPP-518"
   },
   {
     "firstName": "Piyushbhai",
@@ -23771,7 +23412,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-527"
+    "id": "HPP-519"
   },
   {
     "firstName": "Abhibhai",
@@ -23816,7 +23457,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-528"
+    "id": "HPP-520"
   },
   {
     "firstName": "Nimit bhai",
@@ -23863,7 +23504,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-529"
+    "id": "HPP-521"
   },
   {
     "firstName": "Nikunj",
@@ -23908,7 +23549,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-530"
+    "id": "HPP-522"
   },
   {
     "firstName": "Vinodbhai",
@@ -23955,7 +23596,52 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-531"
+    "id": "HPP-523"
+  },
+  {
+    "firstName": "Rakeshbhai",
+    "middleName": "Vinod bhai",
+    "lastName": "Madhvani",
+    "name": "Rakeshbhai Vinod bhai Madhvani",
+    "gender": "",
+    "dob": "1963-02-15",
+    "mobile": "9924347007",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "A104, Twin Tower, Adajan",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "B.com",
+    "qualification": "Bachelor",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "Business",
+    "profession": "Business",
+    "professionField": "Grossory shop",
+    "companyName": "",
+    "maritalStatus": "Single",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "",
+    "relation": "",
+    "type": "",
+    "reference": "Ashishbhai",
+    "ambrish": "",
+    "yuvakType": "yuvak",
+    "followupKaryakarta": "Ankit Viniodchadra Modi",
+    "followupKaryakartaMobile": "9537019855",
+    "dateOfJoining": "",
+    "createdBy": "AksharConnect Import",
+    "tags": [],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-524"
   },
   {
     "firstName": "Neel",
@@ -23974,7 +23660,7 @@ export const INITIAL_DEVOTEES = [
     "mandal": "Adajan",
     "wing": "",
     "education": "S.S.C",
-    "qualification": "Bachelor",
+    "qualification": "",
     "educationStatus": "",
     "school": "",
     "occupation": "Student",
@@ -24002,7 +23688,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-532"
+    "id": "HPP-525"
   },
   {
     "firstName": "Jatinbhai",
@@ -24049,7 +23735,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-533"
+    "id": "HPP-526"
   },
   {
     "firstName": "Harsh",
@@ -24096,7 +23782,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-534"
+    "id": "HPP-527"
   },
   {
     "firstName": "Dhanush",
@@ -24143,7 +23829,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-535"
+    "id": "HPP-528"
   },
   {
     "firstName": "Yaksh",
@@ -24190,7 +23876,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-536"
+    "id": "HPP-529"
   },
   {
     "firstName": "Daksh",
@@ -24237,7 +23923,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-537"
+    "id": "HPP-530"
   },
   {
     "firstName": "Krishna",
@@ -24284,15 +23970,15 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-538"
+    "id": "HPP-531"
   },
   {
-    "firstName": "Dhiraj",
+    "firstName": "Bhavesh",
     "middleName": "Thakorbhai",
     "lastName": "Vatvani",
-    "name": "Dhiraj Thakorbhai Vatvani",
+    "name": "Bhavesh Thakorbhai Vatvani",
     "gender": "",
-    "dob": "2013-08-18",
+    "dob": "2011-08-11",
     "mobile": "9624281977",
     "whatsapp": "",
     "secondaryMobile": "",
@@ -24302,7 +23988,7 @@ export const INITIAL_DEVOTEES = [
     "city": "Surat",
     "mandal": "Adajan",
     "wing": "",
-    "education": "9th",
+    "education": "8th",
     "qualification": "",
     "educationStatus": "",
     "school": "",
@@ -24331,7 +24017,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-539"
+    "id": "HPP-532"
   },
   {
     "firstName": "Prince",
@@ -24378,7 +24064,54 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-540"
+    "id": "HPP-533"
+  },
+  {
+    "firstName": "Dhiraj",
+    "middleName": "Thakorbhai",
+    "lastName": "Vatvani",
+    "name": "Dhiraj Thakorbhai Vatvani",
+    "gender": "",
+    "dob": "2013-08-18",
+    "mobile": "9624281977",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "503, C-Auranga, Veer Savarkar Heights, Jahangirabad",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "9th",
+    "qualification": "",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "Study",
+    "profession": "Student",
+    "professionField": "NA",
+    "companyName": "",
+    "maritalStatus": "Single",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "",
+    "relation": "",
+    "type": "",
+    "reference": "Ashishbhai",
+    "ambrish": "",
+    "yuvakType": "Bal",
+    "followupKaryakarta": "Ankit Vinodchandra Modi",
+    "followupKaryakartaMobile": "9537019855",
+    "dateOfJoining": "",
+    "createdBy": "AksharConnect Import",
+    "tags": [
+      "bal-sabha"
+    ],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-534"
   },
   {
     "firstName": "Jay",
@@ -24425,7 +24158,54 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-541"
+    "id": "HPP-535"
+  },
+  {
+    "firstName": "Ravi",
+    "middleName": "Ashwinbhai",
+    "lastName": "Papoliwala",
+    "name": "Ravi Ashwinbhai Papoliwala",
+    "gender": "",
+    "dob": "1992-04-18",
+    "mobile": "9662627576",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "B-402, Shubham Heights, Ugat Canal Road, Jahangirpura",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "B.E. (Electronics)",
+    "qualification": "Bachelor",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "BUSINESS",
+    "profession": "Business",
+    "professionField": "Robotics Academy (STEAMzy)",
+    "companyName": "",
+    "maritalStatus": "Married",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "",
+    "relation": "",
+    "type": "",
+    "reference": "Ashishbhai",
+    "ambrish": "Yes",
+    "yuvakType": "Ambrish",
+    "followupKaryakarta": "Digesh (Denis) Arvindbhai Patel",
+    "followupKaryakartaMobile": "9924598434",
+    "dateOfJoining": "",
+    "createdBy": "AksharConnect Import",
+    "tags": [
+      "ambrish"
+    ],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-536"
   },
   {
     "firstName": "Ankit",
@@ -24472,7 +24252,7 @@ export const INITIAL_DEVOTEES = [
     ],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-542"
+    "id": "HPP-537"
   },
   {
     "firstName": "Rajeshbhai",
@@ -24517,7 +24297,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-543"
+    "id": "HPP-538"
   },
   {
     "firstName": "Pravinbhai",
@@ -24562,7 +24342,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-544"
+    "id": "HPP-539"
   },
   {
     "firstName": "Mehulbhai",
@@ -24607,7 +24387,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-545"
+    "id": "HPP-540"
   },
   {
     "firstName": "Heenaben",
@@ -24652,7 +24432,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-546"
+    "id": "HPP-541"
   },
   {
     "firstName": "Priti Ben",
@@ -24697,7 +24477,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-547"
+    "id": "HPP-542"
   },
   {
     "firstName": "Lataben Rathod",
@@ -24742,7 +24522,97 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-548"
+    "id": "HPP-543"
+  },
+  {
+    "firstName": "Pinkeshbhai",
+    "middleName": "",
+    "lastName": "Ganjawala",
+    "name": "Pinkeshbhai Ganjawala",
+    "gender": "",
+    "dob": "",
+    "mobile": "8490904282",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "D-1103, Time Galaxy",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "",
+    "qualification": "",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "",
+    "profession": "",
+    "professionField": "",
+    "companyName": "",
+    "maritalStatus": "",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "",
+    "relation": "",
+    "type": "",
+    "reference": "Dharmeshbhai Modi",
+    "ambrish": "",
+    "yuvakType": "New",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
+    "dateOfJoining": "",
+    "createdBy": "AksharConnect Import",
+    "tags": [],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-544"
+  },
+  {
+    "firstName": "Jenishbhai",
+    "middleName": "",
+    "lastName": "Ganjawala",
+    "name": "Jenishbhai Ganjawala",
+    "gender": "",
+    "dob": "2001-03-21",
+    "mobile": "7600993800",
+    "whatsapp": "",
+    "secondaryMobile": "",
+    "email": "",
+    "address": "D-1103, Time Galaxy",
+    "area": "",
+    "city": "Surat",
+    "mandal": "Adajan",
+    "wing": "",
+    "education": "BE Mechanical",
+    "qualification": "Bachelor",
+    "educationStatus": "",
+    "school": "",
+    "occupation": "",
+    "profession": "",
+    "professionField": "",
+    "companyName": "",
+    "maritalStatus": "",
+    "bloodGroup": "",
+    "anniversary": "",
+    "areaRoute": "",
+    "photo": "",
+    "notes": "",
+    "familyId": "",
+    "relation": "",
+    "type": "",
+    "reference": "Dharmeshbhai Modi",
+    "ambrish": "",
+    "yuvakType": "New",
+    "followupKaryakarta": "Ravibhai Ashvinbhai Papoliwala",
+    "followupKaryakartaMobile": "9662627576",
+    "dateOfJoining": "",
+    "createdBy": "AksharConnect Import",
+    "tags": [],
+    "status": "Active",
+    "attendanceRate": 0,
+    "id": "HPP-545"
   },
   {
     "firstName": "Parthbhai",
@@ -24787,7 +24657,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-549"
+    "id": "HPP-546"
   },
   {
     "firstName": "Kamleshbhai Oza",
@@ -24832,7 +24702,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-550"
+    "id": "HPP-547"
   },
   {
     "firstName": "Sandipbhai",
@@ -24877,7 +24747,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-551"
+    "id": "HPP-548"
   },
   {
     "firstName": "Vijaybhai",
@@ -24922,7 +24792,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-552"
+    "id": "HPP-549"
   },
   {
     "firstName": "Bhaveshbhai",
@@ -24967,7 +24837,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-553"
+    "id": "HPP-550"
   },
   {
     "firstName": "Sujal",
@@ -25012,7 +24882,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-554"
+    "id": "HPP-551"
   },
   {
     "firstName": "Utsavbhai Cousine",
@@ -25057,7 +24927,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-555"
+    "id": "HPP-552"
   },
   {
     "firstName": "Ashishbhai",
@@ -25102,7 +24972,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-556"
+    "id": "HPP-553"
   },
   {
     "firstName": "Pranavbhai",
@@ -25147,7 +25017,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-557"
+    "id": "HPP-554"
   },
   {
     "firstName": "Priyaben",
@@ -25192,7 +25062,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-558"
+    "id": "HPP-555"
   },
   {
     "firstName": "Manojbhai Dahisar",
@@ -25237,7 +25107,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-559"
+    "id": "HPP-556"
   },
   {
     "firstName": "Navinbhai",
@@ -25282,7 +25152,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-560"
+    "id": "HPP-557"
   },
   {
     "firstName": "Rakeshbhai",
@@ -25327,7 +25197,7 @@ export const INITIAL_DEVOTEES = [
     "tags": [],
     "status": "Active",
     "attendanceRate": 0,
-    "id": "HPP-561"
+    "id": "HPP-558"
   }
 ];
 
