@@ -7,7 +7,7 @@ import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import {
   hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
   PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
-  FAMILY_RECORD_TYPES, formatFamilyRecordType
+  FAMILY_RECORD_TYPES, formatFamilyRecordType, formatFamilyMembershipContext
 } from '../services/devoteeSchema';
 
 // Profile tabs -> [field, label]
@@ -491,6 +491,11 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
                 <h2 className="text-base sm:text-xl font-bold text-[#003158] truncate">{selectedDevotee.name}</h2>
                 <p className="text-xs sm:text-sm text-slate-500">{val(selectedDevotee.mobile)}</p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {selectedDevotee.type && (
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full" title="Family membership">
+                      {formatFamilyMembershipContext(selectedDevotee.name, selectedDevotee.type)}
+                    </span>
+                  )}
                   {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-[#003158] bg-[#F0F4F8] px-2 py-0.5 rounded-full">{selectedDevotee.area}</span>}
                   {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-[#003158] bg-[#F0F4F8] px-2 py-0.5 rounded-full">{selectedDevotee.mandal}</span>}
                   <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{selectedDevotee.id}</span>
@@ -515,7 +520,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
             <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                 {(TABS[activeTab] || []).map(([f, label]) => (
-                  <div key={f}>
+                  <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
                     <div className="text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">{label}</div>
                     {editing ? (
                       renderEditField(f, editData, setEditData)

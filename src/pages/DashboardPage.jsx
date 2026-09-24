@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
+import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
+
 export default function DashboardPage({ setActivePage, user }) {
   const [devotees, setDevotees] = useState([]);
   const [thoughts, setThoughts] = useState([]);
@@ -24,7 +26,13 @@ export default function DashboardPage({ setActivePage, user }) {
   const totalDevotees = devotees.length;
   const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish')).length;
   const familiesCount = new Set(devotees.map(d => d.familyId).filter(Boolean)).size;
-  const todaysThought = thoughts[0] || { author: 'Mahant Swami Maharaj', thought: 'Ekta and Samp bring peace and spiritual growth.' };
+  const picked = pickRotatingThought(thoughts);
+  const todaysThought = picked.thought || {
+    author: 'Mahant Swami Maharaj',
+    thought: 'Ekta, Samp, and Suhradbhav are the true ornaments of a Satsangi.',
+    date: '2026-09-19',
+  };
+  const thoughtDateLabel = displayThoughtDate(todaysThought.date);
 
   const birthdaysToday = devotees.filter(d => d.flags?.includes('Birthday Today'));
 
@@ -122,8 +130,12 @@ export default function DashboardPage({ setActivePage, user }) {
       {/* Thought of the Day Banner */}
       <div className="rounded-3xl border border-[#E0EAF4] bg-white shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
         <div className="flex-1 p-6">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A] mb-2">
-            <Sparkles className="h-4 w-4" /> Today's Inspiration • {todaysThought.author}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold uppercase tracking-widest text-[#FF862A] mb-2">
+            <span className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" /> Today's Inspiration
+            </span>
+            <span className="text-[#9BB5CB] font-semibold normal-case tracking-normal">{thoughtDateLabel}</span>
+            <span className="text-[#003158]/70">• {todaysThought.author}</span>
           </div>
           <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
             "{todaysThought.thought}"

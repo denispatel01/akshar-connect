@@ -14,7 +14,7 @@ Watch progress in the repo's **Actions** tab. When it finishes, open on your iPh
 To install as an app: Safari **Share → Add to Home Screen** — it uses the Akshar Connect
 temple icon and opens full-screen.
 
-Admin login: mobile **9924598434**, PIN **17853**.
+Admin login: mobile **9924598434**, PIN **170853**.
 
 ## 2. Backend → Google Apps Script (via clasp)
 
@@ -41,6 +41,6 @@ then **Deploy → Manage deployments → (edit the existing one) → Version: Ne
 ### After redeploying the backend
 - The new sheet columns (`tags`, education/profession fields, `Followups` tab, `Sabhas.type`)
   are created automatically on the next app load (non-destructive migration).
-- The admin account **9924598434 / 17853** is auto-ensured on load.
+- The admin account **9924598434 / 170853** is auto-ensured on load.
 - To push the merged 561-devotee dataset into the live sheet: log in as admin →
   **Admin Settings → Devotee Database → “Load merged data into live database”**.

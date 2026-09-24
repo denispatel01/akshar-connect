@@ -29,6 +29,15 @@ export function formatFamilyRecordType(value) {
   if (value === 'Family') return 'Other family member';
   return value;
 }
+
+/** Short line for profile header — e.g. "Digesh is the primary member (head of family)". */
+export function formatFamilyMembershipContext(devoteeName, type) {
+  if (!type) return '';
+  const first = String(devoteeName || 'This devotee').trim().split(/\s+/)[0] || 'This devotee';
+  if (type === 'Primary') return `${first} is the primary member (head of family)`;
+  if (type === 'Family') return `${first} is a member of a linked family`;
+  return formatFamilyRecordType(type);
+}
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
 // ---- Field sections --------------------------------------------------------

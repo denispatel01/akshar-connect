@@ -25234,17 +25234,4 @@ export const INITIAL_SABHAS = [
   }
 ];
 
-export const INITIAL_THOUGHTS = [
-  {
-    id: "TH-1",
-    author: "Mahant Swami Maharaj",
-    thought: "Ekta, Samp, and Suhradbhav are the true ornaments of a Satsangi.",
-    date: "2026-09-19"
-  },
-  {
-    id: "TH-2",
-    author: "Pramukh Swami Maharaj",
-    thought: "In the joy of others lies our own. In the progress of others lies our own.",
-    date: "2026-09-18"
-  }
-];
+export { INITIAL_THOUGHTS } from './thoughtsSeed';
