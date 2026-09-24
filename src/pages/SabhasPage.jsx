@@ -15,7 +15,8 @@ export default function SabhasPage({ user }) {
     title: '',
     date: new Date().toISOString().split('T')[0],
     time: '06:00 PM',
-    venue: 'Akshar Hall, Ahmedabad'
+    venue: 'Akshar Hall, Ahmedabad',
+    type: 'Sabha'
   });
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function SabhasPage({ user }) {
       title: '',
       date: new Date().toISOString().split('T')[0],
       time: '06:00 PM',
-      venue: 'Akshar Hall, Ahmedabad'
+      venue: 'Akshar Hall, Ahmedabad',
+      type: 'Sabha'
     });
   };
 
@@ -251,15 +253,27 @@ export default function SabhasPage({ user }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#003158] mb-1">Venue</label>
-                <input
-                  type="text"
-                  value={newSabha.venue}
-                  onChange={(e) => setNewSabha({ ...newSabha, venue: e.target.value })}
-                  placeholder="e.g. Akshar Hall"
-                  className="w-full rounded-2xl border border-[#E0EAF4] p-3 text-xs font-semibold outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#003158] mb-1">Venue</label>
+                  <input
+                    type="text"
+                    value={newSabha.venue}
+                    onChange={(e) => setNewSabha({ ...newSabha, venue: e.target.value })}
+                    placeholder="e.g. Akshar Hall"
+                    className="w-full rounded-2xl border border-[#E0EAF4] p-3 text-xs font-semibold outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#003158] mb-1">Type</label>
+                  <select
+                    value={newSabha.type}
+                    onChange={(e) => setNewSabha({ ...newSabha, type: e.target.value })}
+                    className="w-full rounded-2xl border border-[#E0EAF4] p-3 text-xs font-semibold outline-none bg-white"
+                  >
+                    {['Sabha', 'Seva', 'Event', 'Padhramani'].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
 
               <button

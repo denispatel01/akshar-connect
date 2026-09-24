@@ -11,10 +11,14 @@
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
   Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','followupKaryakarta','photo','notes','createdOn','updatedOn','updatedBy'],
-  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status'],
+  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
+  Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date']
 };
+
+// Columns stored/returned as booleans (coerced on read).
+var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
 
 var SEED_USERS = [
   { mobile:'9876543210', pin:'786109', password:'adminpassword', role:'Admin',   name:'Administrator' },
@@ -47,7 +51,7 @@ function tab_(name){
 
 /** Wipe our tabs, force text format, reseed defaults. Fixes any auto-parsed values. */
 function resetAll_(){
-  ['Users','Devotees','Sabhas','Attendance','Thoughts'].forEach(function(n){
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts'].forEach(function(n){
     var sh = ss_().getSheetByName(n);
     if(sh){
       sh.clear();
@@ -83,7 +87,7 @@ function migrateHeaders_(name){
 
 function ensureSheets_(){
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Thoughts'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -100,7 +104,10 @@ function readAll_(name){
   for(var i=0;i<v.length;i++){
     var o={}; var blank=true;
     for(var c=0;c<head.length;c++){ var val=v[i][c]; if(val!=='' && val!==null) blank=false; o[head[c]]= (val===null?'':val); }
-    if(!blank) { o.present = (o.present===true||o.present==='true'||o.present==='TRUE'); out.push(o); }
+    if(!blank){
+      for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } }
+      out.push(o);
+    }
   }
   return out;
 }
@@ -135,7 +142,7 @@ function handle_(p){
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
-      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance') });
+      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups') });
     if(action==='seedDevotees'){
       if(readAll_('Devotees').length===0) appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
@@ -160,6 +167,7 @@ function handle_(p){
       return json_({ ok:true });
     }
     if(action==='markAttendance') return doMark_(p);
+    if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
@@ -182,6 +190,29 @@ function doMark_(p){
     var srn=findRow_('Sabhas','id',p.sabhaId);
     if(srn>0){ var pc=HEADERS.Sabhas.indexOf('presentCount')+1; tab_('Sabhas').getRange(srn,pc).setValue(atts.length); }
     return json_({ ok:true, presentCount:atts.length });
+  } finally { lock.releaseLock(); }
+}
+
+function doSaveFollowup_(p){
+  var lock=LockService.getScriptLock(); lock.waitLock(20000);
+  try{
+    var sh=tab_('Followups');
+    var H=HEADERS.Followups;
+    var last=sh.getLastRow(); var found=-1;
+    if(last>=2){ var v=sh.getRange(2,1,last-1,H.length).getValues();
+      for(var i=0;i<v.length;i++){ if(String(v[i][1])===String(p.eventId) && String(v[i][2])===String(p.devoteeId)){ found=i+2; break; } } }
+    var now=new Date().toISOString();
+    var row={
+      id: (found>0 ? (sh.getRange(found,1).getValue()||('FUP-'+Date.now())) : ('FUP-'+Date.now())),
+      eventId:p.eventId, devoteeId:p.devoteeId,
+      assignedTo:p.assignedTo||'',
+      call:(p.call===true||p.call==='true'), inPerson:(p.inPerson===true||p.inPerson==='true'), message:(p.message===true||p.message==='true'),
+      outcome:p.outcome||'', remark:p.remark||'',
+      contactedOn:now, contactedBy:p.contactedBy||''
+    };
+    if(found>0){ sh.getRange(found,1,1,H.length).setValues([rowFromObj_('Followups',row)]); }
+    else appendRows_('Followups',[row]);
+    return json_({ ok:true, row:row });
   } finally { lock.releaseLock(); }
 }
 

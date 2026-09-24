@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  PhoneCall,
   QrCode,
   FileSpreadsheet,
   Settings,
@@ -23,6 +24,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'devotees', label: 'Devotees', icon: Users },
     { id: 'sabhas', label: 'Sabhas & Attendance', icon: CalendarCheck },
+    ...(user?.role === 'Admin' || user?.role === 'Sevak'
+      ? [{ id: 'followups', label: 'Follow-ups', icon: PhoneCall }]
+      : []),
     { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     ...(user?.role === 'Admin' || user?.role === 'Sevak'

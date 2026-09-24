@@ -10,7 +10,7 @@ const SESSION_KEY = 'ac_session_v1';
 const CACHE_KEY = 'ac_cache_v1';
 
 // In-memory database (populated by bootstrap before the app renders).
-let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [] };
+let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [] };
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -44,7 +44,7 @@ function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB))
 function loadDemo() {
   DB = {
     users: [...INITIAL_USERS], devotees: INITIAL_DEVOTEES.map(normalizeDevotee),
-    sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: []
+    sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: [], followups: []
   };
 }
 
@@ -55,7 +55,7 @@ async function bootstrap() {
     const d = await api('bootstrap');
     DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
-    DB.attendance = d.attendance || [];
+    DB.attendance = d.attendance || []; DB.followups = d.followups || [];
     // First run: populate the new sheet with the bundled devotee list.
     if (DB.devotees.length === 0 && INITIAL_DEVOTEES.length) {
       await api('seedDevotees', { rows: INITIAL_DEVOTEES.map(r => toBackendRow(normalizeDevotee(r))) });
@@ -66,7 +66,7 @@ async function bootstrap() {
   } catch (e) {
     // Offline: use last cached data, else demo seed.
     const c = localStorage.getItem(CACHE_KEY);
-    if (c) { try { DB = JSON.parse(c); DB.devotees = (DB.devotees || []).map(normalizeDevotee); return { mode: 'cache' }; } catch (er) {} }
+    if (c) { try { DB = JSON.parse(c); DB.devotees = (DB.devotees || []).map(normalizeDevotee); DB.followups = DB.followups || []; return { mode: 'cache' }; } catch (er) {} }
     loadDemo();
     return { mode: 'demo', error: e.message };
   }
@@ -171,7 +171,7 @@ export const dataService = {
   getSabhas: () => DB.sabhas,
 
   addSabha: (sabha) => {
-    const newSabha = { ...sabha, id: `SAB-2026-0${DB.sabhas.length + 1}`, presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
+    const newSabha = { ...sabha, id: `SAB-2026-0${DB.sabhas.length + 1}`, type: sabha.type || 'Sabha', presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
     DB.sabhas.unshift(newSabha); saveCache();
     push('insert', { collection: 'Sabhas', row: newSabha });
     return newSabha;
@@ -189,6 +189,51 @@ export const dataService = {
   },
 
   getAttendanceForSabha: (sabhaId) => DB.attendance.filter(l => l.sabhaId === sabhaId),
+
+  // ---- Event Follow-ups ----
+  // Events = Sabhas (each carries a `type`). One follow-up per (event, devotee).
+  getEvents: () => DB.sabhas,
+  getFollowups: () => DB.followups,
+  getFollowupsForEvent: (eventId) => DB.followups.filter(f => f.eventId === eventId),
+  getFollowup: (eventId, devoteeId) => DB.followups.find(f => f.eventId === eventId && f.devoteeId === devoteeId) || null,
+
+  // Upsert a follow-up (channels/outcome/remark/assignment) for one devotee.
+  saveFollowup: (eventId, devoteeId, fields) => {
+    const idx = DB.followups.findIndex(f => f.eventId === eventId && f.devoteeId === devoteeId);
+    const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    const base = idx >= 0 ? DB.followups[idx]
+      : { id: `FUP-${Date.now()}-${devoteeId}`, eventId, devoteeId, assignedTo: '', call: false, inPerson: false, message: false, outcome: '', remark: '' };
+    const rec = { ...base, ...fields, contactedOn: new Date().toISOString(), contactedBy: sess ? sess.name : '' };
+    if (idx >= 0) DB.followups[idx] = rec; else DB.followups.push(rec);
+    saveCache();
+    push('saveFollowup', {
+      eventId, devoteeId, assignedTo: rec.assignedTo,
+      call: rec.call, inPerson: rec.inPerson, message: rec.message,
+      outcome: rec.outcome, remark: rec.remark, contactedBy: rec.contactedBy,
+    });
+    return rec;
+  },
+
+  // A follow-up counts as "contacted" if any channel is ticked or an outcome is set.
+  isContacted: (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome)),
+
+  // Summary counts for an event over an audience (array of devotee ids).
+  followupSummary: (eventId, audienceIds) => {
+    const ids = audienceIds || DB.devotees.map(d => d.id);
+    const map = {};
+    DB.followups.filter(f => f.eventId === eventId).forEach(f => { map[f.devoteeId] = f; });
+    const s = { total: ids.length, contacted: 0, coming: 0, notComing: 0, maybe: 0, pending: 0 };
+    ids.forEach(id => {
+      const f = map[id];
+      if (f && (f.call || f.inPerson || f.message || f.outcome)) s.contacted++; else s.pending++;
+      if (f) {
+        if (f.outcome === 'Coming') s.coming++;
+        else if (f.outcome === 'Not Coming') s.notComing++;
+        else if (f.outcome === 'Maybe') s.maybe++;
+      }
+    });
+    return s;
+  },
 
   // ---- Thoughts ----
   getThoughts: () => DB.thoughts,
