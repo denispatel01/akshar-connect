@@ -38,6 +38,13 @@ export default function DashboardPage({ setActivePage, user }) {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-[#003158] p-6 text-white shadow-lg sm:p-8">
+        <img
+          src="/images/swamiji-jode.webp"
+          alt="Jode cho Maharaj"
+          className="absolute inset-y-0 right-0 z-0 hidden h-full w-1/2 object-cover object-[center_25%] opacity-90 sm:block"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 z-0 hidden bg-gradient-to-r from-[#003158] via-[#003158]/95 to-[#003158]/30 sm:block" />
         <div
           className="absolute -right-10 -top-10 h-64 w-64 rounded-full opacity-20 z-0"
           style={{ background: 'radial-gradient(circle, rgba(255,134,42,1) 0%, transparent 70%)' }}
@@ -114,13 +121,21 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Thought of the Day Banner */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs relative overflow-hidden">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A] mb-2">
-          <Sparkles className="h-4 w-4" /> Today's Inspiration • {todaysThought.author}
+      <div className="rounded-3xl border border-[#E0EAF4] bg-white shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
+        <div className="flex-1 p-6">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A] mb-2">
+            <Sparkles className="h-4 w-4" /> Today's Inspiration • {todaysThought.author}
+          </div>
+          <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
+            "{todaysThought.thought}"
+          </p>
         </div>
-        <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
-          "{todaysThought.thought}"
-        </p>
+        <img
+          src="/images/quote-rajipo.webp"
+          alt="Kariye aej kaam jema Taro Rajipo"
+          className="h-40 w-full object-cover object-center sm:h-auto sm:w-64 sm:rounded-r-3xl"
+          loading="lazy"
+        />
       </div>
 
       {/* Quick Actions & Recent Sabhas Grid */}

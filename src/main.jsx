@@ -27,3 +27,12 @@ dataService.bootstrap().finally(() => {
     </StrictMode>,
   )
 })
+
+// Register the service worker for PWA / offline support.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // ignore registration failures — app still works without the SW
+    })
+  })
+}

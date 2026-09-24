@@ -126,11 +126,17 @@ export default function LoginPage({ onLoginSuccess }) {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Side Hero Banner - Desktop */}
         <div className="relative hidden overflow-hidden lg:block lg:w-[48%] xl:w-1/2 bg-[#001F3D]">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#001F3D] via-[#002A50]/70 to-transparent z-10" />
+          <img
+            src="/images/swamiji-pray.jpg"
+            alt="Swamiji offering prayers"
+            className="absolute inset-0 z-0 h-full w-full object-cover object-center"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#001F3D] via-[#001F3D]/75 to-[#001F3D]/25 z-10" />
           <div
-            className="absolute inset-0 z-0 opacity-60"
+            className="absolute inset-0 z-10 opacity-70"
             style={{
-              background: 'radial-gradient(ellipse 80% 80% at 20% 90%, rgba(255,134,42,0.35) 0%, transparent 70%)'
+              background: 'radial-gradient(ellipse 80% 80% at 20% 90%, rgba(200,100,43,0.35) 0%, transparent 70%)'
             }}
           />
           <div className="absolute inset-x-0 bottom-0 z-20 p-10 xl:p-14">
@@ -154,21 +160,28 @@ export default function LoginPage({ onLoginSuccess }) {
         {/* Right Side Login Form Container */}
         <div className="relative flex h-full flex-1 flex-col overflow-y-auto bg-white">
           {/* Header Branding */}
-          <div className="relative flex flex-shrink-0 items-center justify-center gap-3 px-4 pb-2 pt-6 sm:pt-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#003158] text-white shadow-lg">
-              <Sparkles className="h-6 w-6 text-[#FF862A]" />
-            </div>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-[#9BB5CB] block">
-                Akshar Satsang Mandal Presents
-              </span>
-              <h1 className="font-display text-2xl font-bold text-[#003158] leading-tight">
-                Akshar Connect
-              </h1>
-            </div>
+          <div className="relative flex flex-shrink-0 flex-col items-center justify-center gap-2 px-4 pb-2 pt-6 sm:pt-8">
+            <img
+              src="/images/logo.webp"
+              alt="Akshar Connect — Connecting Devotees with Divinity"
+              className="h-16 w-auto max-w-[240px] object-contain sm:h-20"
+            />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[#9BB5CB] block text-center">
+              Akshar Satsang Mandal
+            </span>
           </div>
 
-          <div className="relative mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-6 py-8 sm:px-10">
+          {/* Mobile / tablet devotional banner (desktop uses the side hero instead) */}
+          <div className="relative mx-4 mt-2 flex-shrink-0 overflow-hidden rounded-3xl shadow-sm ring-1 ring-black/5 lg:hidden">
+            <img
+              src="/images/quote-rajipo.webp"
+              alt="Kariye aej kam jema Taro Rajipo"
+              className="h-36 w-full object-cover object-center sm:h-44"
+              loading="lazy"
+            />
+          </div>
+
+          <div className="relative mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-6 py-6 sm:px-10">
             {/* MAIN LOGIN MODE */}
             {mode === MODE.MAIN && (
               <>
