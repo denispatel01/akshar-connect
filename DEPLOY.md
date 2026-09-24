@@ -3,14 +3,11 @@
 ## 1. Frontend → GitHub Pages (test on iPhone Safari)
 
 The app is configured to host at **https://denispatel01.github.io/akshar-connect/**
-(Vite `base: '/akshar-connect/'`, and a GitHub Actions workflow at `.github/workflows/deploy.yml`).
+(Vite `base: '/akshar-connect/'`). The workflow `.github/workflows/deploy.yml` builds on
+every push to `main` and publishes `dist/` to the **`gh-pages`** branch — which is already
+your repo's Pages source, so **no settings change is needed**.
 
-**One-time setup** (in the GitHub repo, browser):
-1. Go to **Settings → Pages**.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
-
-After that, every push to `main` auto-builds and deploys. Watch progress in the repo's
-**Actions** tab. When it finishes, open on your iPhone Safari:
+Watch progress in the repo's **Actions** tab. When it finishes, open on your iPhone Safari:
 
 > https://denispatel01.github.io/akshar-connect/
 
