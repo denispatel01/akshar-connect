@@ -14,8 +14,28 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Akshar Connect" />
     <title>Akshar Connect</title>
+    <style>
+      #ac-splash{position:fixed;inset:0;z-index:9999;background:#001a33;display:flex;align-items:flex-end;justify-content:center;transition:opacity .45s ease}
+      #ac-splash.ac-hide{opacity:0;pointer-events:none}
+      #ac-splash .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+      #ac-splash .grad{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,20,45,.35) 0%,rgba(0,20,45,.55) 55%,rgba(0,20,45,.92) 100%)}
+      #ac-splash .fg{position:relative;text-align:center;color:#fff;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:11vh}
+      #ac-splash .sp{width:38px;height:38px;border:4px solid rgba(255,255,255,.25);border-top-color:#FF862A;border-radius:50%;animation:acspin .9s linear infinite}
+      #ac-splash .t1{font-size:22px;font-weight:800;letter-spacing:.3px}
+      #ac-splash .t2{font-size:13px;opacity:.85;font-weight:600}
+      @keyframes acspin{to{transform:rotate(360deg)}}
+    </style>
   </head>
   <body>
+    <div id="ac-splash">
+      <img class="bg" src="images/hari-prabodham.webp" alt="" />
+      <div class="grad"></div>
+      <div class="fg">
+        <div class="sp"></div>
+        <div class="t1">Akshar Connect</div>
+        <div class="t2">Jai Swaminarayan…</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

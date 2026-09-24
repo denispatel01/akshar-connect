@@ -9,15 +9,19 @@ import ComingSoonPage from './pages/ComingSoonPage';
 import { dataService } from './services/dataService';
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  // Restore the saved session synchronously so a returning user goes straight
+  // to the app — no re-login, no flash of the sign-in screen.
+  const [user, setUser] = useState(() => dataService.getCurrentSession());
   const [activePage, setActivePage] = useState('dashboard');
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
 
+  // When the background live-refresh finishes, re-read fresh data into the pages.
   useEffect(() => {
-    const sessionUser = dataService.getCurrentSession();
-    if (sessionUser) setUser(sessionUser);
+    const onRefreshed = () => setRefreshKey((k) => k + 1);
+    window.addEventListener('ac-data-refreshed', onRefreshed);
+    return () => window.removeEventListener('ac-data-refreshed', onRefreshed);
   }, []);
 
   // Navigate with history tracking

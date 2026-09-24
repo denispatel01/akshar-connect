@@ -43,6 +43,25 @@ function push(action, payload) {
 
 function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB)); } catch (e) {} }
 
+// Synchronously populate DB from the local cache (or the bundled dataset) so the
+// app can render INSTANTLY without waiting for the network. Returns the source.
+function hydrateSync() {
+  try {
+    const c = localStorage.getItem(CACHE_KEY);
+    if (c) {
+      const parsed = JSON.parse(c);
+      DB = {
+        users: parsed.users || [], devotees: (parsed.devotees || []).map(normalizeDevotee),
+        sabhas: parsed.sabhas || [], thoughts: parsed.thoughts || [],
+        attendance: parsed.attendance || [], followups: parsed.followups || [],
+      };
+      return 'cache';
+    }
+  } catch (e) { /* fall through to bundled */ }
+  loadDemo();
+  return 'bundled';
+}
+
 function loadDemo() {
   DB = {
     users: [...INITIAL_USERS], devotees: INITIAL_DEVOTEES.map(normalizeDevotee),
@@ -81,6 +100,7 @@ async function bootstrap() {
 
 export const dataService = {
   bootstrap,
+  hydrateSync,
   isLive: () => hasBackend(),
 
   // ---- Auth ----
