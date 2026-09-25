@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
@@ -933,11 +934,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       )}
 
-      {/* Profile Modal (tabbed + edit) */}
-      {selectedDevotee && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
+      {/* Profile Modal (tabbed + edit) — portal to document.body to escape main's animation stacking context */}
+      {selectedDevotee && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
           <div className="w-full max-w-2xl sm:rounded-3xl rounded-t-3xl bg-surface shadow-2xl relative flex flex-col"
-            style={{ height: 'calc(100dvh - env(safe-area-inset-top, 20px) - 12px)', maxHeight: '820px' }}>
+            style={{
+              height: 'calc(100dvh - env(safe-area-inset-top, 44px))',
+              maxHeight: '820px',
+            }}>
             <style>{`
               @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
               @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
@@ -1100,7 +1104,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
             {/* Footer actions */}
             {canEdit && (
-              <div className="flex items-center gap-2 p-4 border-t border-border-light shrink-0">
+              <div className="flex items-center gap-2 px-4 pt-3 border-t border-border-light shrink-0"
+                style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
                 {editing ? (
                   <>
                     <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Save className="h-4 w-4" /> Save Changes</button>
@@ -1118,10 +1123,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             )}
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* QR Modal */}
-      {qrModalDevotee && (
+      {qrModalDevotee && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-2xl text-center relative">
             <button onClick={() => setQrModalDevotee(null)} className="absolute right-4 top-4 text-text-muted hover:text-text-main"><X className="h-5 w-5" /></button>
@@ -1134,7 +1139,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <p className="text-[11px] text-slate-400 mt-1">Scan at sabha entry for instant attendance</p>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
