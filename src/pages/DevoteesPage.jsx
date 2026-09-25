@@ -31,6 +31,12 @@ const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
 
 const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
 
+// Display a full name as first + last only (drop middle name(s)) for compact labels.
+const firstLastName = (full) => {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length <= 2 ? parts.join(' ') : `${parts[0]} ${parts[parts.length - 1]}`;
+};
+
 // Map field keys to dropdown options (from devoteeSchema) for smart rendering
 const FIELD_OPTIONS = {
   gender: GENDERS, bloodGroup: BLOOD_GROUPS, maritalStatus: MARITAL_STATUS,
@@ -659,7 +665,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <select value={filterKaryakarta} onChange={e => setFilterKaryakarta(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
               <option value="">All Karyakartas</option>
-              {uniqueKaryakartas.map(k => <option key={k}>{k}</option>)}
+              {uniqueKaryakartas.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
             </select>
             <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
