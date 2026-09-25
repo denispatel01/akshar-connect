@@ -21,6 +21,62 @@ const isYuva = (d) => {
   return age !== '' && age >= 15 && age <= 45;
 };
 
+// Defined at module scope (NOT inside ReportsPage) so their identity is stable
+// across renders — otherwise a state change on click remounts the list and the
+// first click is lost, forcing a double-click.
+function Card({ title, count, icon: Icon, color, onClick, hint }) {
+  return (
+    <div onClick={onClick}
+      className={`bg-surface rounded-3xl p-5 border shadow-sm flex items-start gap-4 transition-all ${onClick ? 'cursor-pointer border-primary/30 hover:border-primary hover:shadow-md active:scale-[.99]' : 'border-border-light'}`}>
+      <div className={`p-3 rounded-2xl ${color}`}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-text-muted mb-1 truncate">{title}</p>
+        <p className="text-2xl font-black text-text-main leading-none">{count}</p>
+        {hint && <p className="text-[10px] font-semibold text-primary mt-1.5">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+function StatList({ title, data, icon: Icon, isComplex, onRowClick }) {
+  const sorted = Object.entries(data).sort((a, b) => {
+    const aVal = isComplex ? a[1].devotees : a[1];
+    const bVal = isComplex ? b[1].devotees : b[1];
+    return bVal - aVal;
+  });
+  return (
+    <div className="bg-surface rounded-3xl border border-border-light shadow-sm overflow-hidden flex flex-col h-full animate-fade-in">
+      <div className="px-5 py-4 border-b border-border-light flex items-center gap-2 bg-bg-base">
+        <Icon className="h-4 w-4 text-primary" />
+        <h3 className="font-bold text-text-main">{title}</h3>
+      </div>
+      <div className="p-2 flex-1 overflow-auto max-h-[300px]">
+        {sorted.length > 0 ? (
+          <ul className="space-y-1">
+            {sorted.map(([key, val]) => (
+              <li key={key} onClick={() => onRowClick && onRowClick(key)} className={`flex justify-between items-center px-3 py-2 hover:bg-bg-base rounded-xl transition-colors ${onRowClick ? 'cursor-pointer hover:border-primary/30 border border-transparent' : ''}`}>
+                <span className="text-sm font-semibold text-text-main truncate pr-4">{key}</span>
+                {isComplex ? (
+                  <div className="flex gap-1">
+                    <span className="text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-md" title="Devotees">{val.devotees} D</span>
+                    <span className="text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-md" title="Families">{val.families.size} F</span>
+                  </div>
+                ) : (
+                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">{val}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-text-muted p-4 text-center">No data available.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsPage({ setActivePage }) {
   const devotees = dataService.getDevotees();
 
@@ -108,57 +164,6 @@ export default function ReportsPage({ setActivePage }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const Card = ({ title, count, icon: Icon, color, onClick, hint }) => (
-    <div onClick={onClick}
-      className={`bg-surface rounded-3xl p-5 border shadow-sm flex items-start gap-4 transition-all ${onClick ? 'cursor-pointer border-primary/30 hover:border-primary hover:shadow-md active:scale-[.99]' : 'border-border-light'}`}>
-      <div className={`p-3 rounded-2xl ${color}`}>
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-text-muted mb-1 truncate">{title}</p>
-        <p className="text-2xl font-black text-text-main leading-none">{count}</p>
-        {hint && <p className="text-[10px] font-semibold text-primary mt-1.5">{hint}</p>}
-      </div>
-    </div>
-  );
-
-  const StatList = ({ title, data, icon: Icon, isComplex, onRowClick }) => {
-    const sorted = Object.entries(data).sort((a, b) => {
-      const aVal = isComplex ? a[1].devotees : a[1];
-      const bVal = isComplex ? b[1].devotees : b[1];
-      return bVal - aVal;
-    });
-    return (
-      <div className="bg-surface rounded-3xl border border-border-light shadow-sm overflow-hidden flex flex-col h-full animate-fade-in">
-        <div className="px-5 py-4 border-b border-border-light flex items-center gap-2 bg-bg-base">
-          <Icon className="h-4 w-4 text-primary" />
-          <h3 className="font-bold text-text-main">{title}</h3>
-        </div>
-        <div className="p-2 flex-1 overflow-auto max-h-[300px]">
-          {sorted.length > 0 ? (
-            <ul className="space-y-1">
-              {sorted.map(([key, val]) => (
-                <li key={key} onClick={() => onRowClick && onRowClick(key)} className={`flex justify-between items-center px-3 py-2 hover:bg-bg-base rounded-xl transition-colors ${onRowClick ? 'cursor-pointer hover:border-primary/30 border border-transparent' : ''}`}>
-                  <span className="text-sm font-semibold text-text-main truncate pr-4">{key}</span>
-                  {isComplex ? (
-                    <div className="flex gap-1">
-                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-md" title="Devotees">{val.devotees} D</span>
-                      <span className="text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-md" title="Families">{val.families.size} F</span>
-                    </div>
-                  ) : (
-                    <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">{val}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-text-muted p-4 text-center">No data available.</p>
-          )}
-        </div>
-      </div>
-    );
   };
 
   return (
