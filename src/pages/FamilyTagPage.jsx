@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck, UserCheck, User, Calendar, MapPin } from 'lucide-react';
+import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck, UserCheck, User, Calendar, MapPin, Filter } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys, TAG_CATEGORIES } from '../services/tagCatalog';
 import { alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -10,6 +10,12 @@ const dobShort = (dob) => {
   const [y, m, d] = dob.split('-');
   const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m - 1];
   return `${d}-${mon}-${y}`;
+};
+
+// Display a full name as first + last only (drop middle name(s)) for compact labels.
+const firstLastName = (full) => {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length <= 2 ? parts.join(' ') : `${parts[0]} ${parts[parts.length - 1]}`;
 };
 
 export default function FamilyTagPage({ user }) {
@@ -26,6 +32,23 @@ export default function FamilyTagPage({ user }) {
       .sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     [devotees]
   );
+
+  // ── filter dropdown options ────────────────────────────────────────────────
+  const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
+  const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
+  const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
+
+  // ── filter state ───────────────────────────────────────────────────────────
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterKaryakarta, setFilterKaryakarta] = useState('');
+  const [filterArea, setFilterArea] = useState('');
+  const [filterWing, setFilterWing] = useState('');
+  const [filterBlood, setFilterBlood] = useState('');
+  const [filterGender, setFilterGender] = useState('');
+  const [filterType, setFilterType] = useState(''); // '' = heads only (default) | Family | all
+  const [selectedTags, setSelectedTags] = useState([]);
+  const toggleFilterTag = (key) => setSelectedTags(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  const anyFilterActive = selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing || filterType;
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -44,17 +67,28 @@ export default function FamilyTagPage({ user }) {
 
   // ── derived list ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    if (!search.trim()) return primaryDevotees;
-    const q = search.toLowerCase();
-    return primaryDevotees.filter(d =>
-      (d.name || '').toLowerCase().includes(q) ||
-      (d.area || '').toLowerCase().includes(q) ||
-      (d.mobile || '').includes(q) ||
-      (d.reference || '').toLowerCase().includes(q) ||
-      (d.followupKaryakarta || '').toLowerCase().includes(q) ||
-      (d.address || '').toLowerCase().includes(q)
-    );
-  }, [primaryDevotees, search]);
+    const q = search.trim().toLowerCase();
+    return devotees
+      .filter(d => {
+        // membership filter — default '' shows only family heads (Self)
+        if (filterType === '' && !(d.type === 'Primary' || !d.type)) return false;
+        if (filterType === 'Family' && d.type !== 'Family') return false;
+        // filterType === 'all' → everyone
+        if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
+        if (filterArea && d.area !== filterArea) return false;
+        if (filterWing && d.wing !== filterWing) return false;
+        if (filterBlood && d.bloodGroup !== filterBlood) return false;
+        if (filterGender && d.gender !== filterGender) return false;
+        if (selectedTags.length && !selectedTags.every(t => (d.tags || []).includes(t))) return false;
+        if (q) {
+          const hay = [d.name, d.area, d.mobile, d.reference, d.followupKaryakarta, d.address]
+            .map(x => String(x || '').toLowerCase()).join(' ');
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [devotees, search, filterType, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, selectedTags]);
 
   // ── selection helpers ─────────────────────────────────────────────────────
   const toggleId = (id) => setSelectedIds(prev => {
@@ -192,20 +226,90 @@ export default function FamilyTagPage({ user }) {
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
-        <input
-          type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search family head by name, area, mobile…"
-          className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary"
-        />
-        {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3.5 top-3 text-text-muted hover:text-text-main">
-            <X className="h-4 w-4" />
-          </button>
-        )}
+      {/* Search + Filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, area, mobile…"
+            className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3.5 top-3 text-text-muted hover:text-text-main">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <button onClick={() => setShowFilters(s => !s)}
+          className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold shrink-0 ' +
+            (anyFilterActive ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+          <Filter className="h-4 w-4" /> Filters{anyFilterActive ? ' (Active)' : ''}
+        </button>
       </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <select value={filterArea} onChange={e => setFilterArea(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Areas</option>
+              {uniqueAreas.map(a => <option key={a}>{a}</option>)}
+            </select>
+            <select value={filterKaryakarta} onChange={e => setFilterKaryakarta(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Karyakartas</option>
+              {uniqueKaryakartas.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
+            </select>
+            <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Genders</option>
+              <option>Male</option><option>Female</option>
+            </select>
+            <select value={filterBlood} onChange={e => setFilterBlood(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Blood Groups</option>
+              {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b}>{b}</option>)}
+            </select>
+            <select value={filterWing} onChange={e => setFilterWing(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Wings</option>
+              {uniqueWings.map(w => <option key={w}>{w}</option>)}
+            </select>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">Family Heads (Self)</option>
+              <option value="Family">Family Members</option>
+              <option value="all">All Members</option>
+            </select>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Filter by Tags</p>
+            <div className="flex flex-wrap gap-1.5">
+              {tagsByCategory().flatMap(({ tags }) => tags).map((t) => {
+                const active = selectedTags.includes(t.key);
+                return (
+                  <button key={t.key} onClick={() => toggleFilterTag(t.key)}
+                    style={active ? tagChipStyle(t.key) : undefined}
+                    className={'rounded-full px-3 py-1 text-[11px] font-bold border transition-all ' +
+                      (active ? '' : 'border-border-light bg-bg-base text-text-muted hover:border-primary/50 hover:text-text-main')}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {anyFilterActive && (
+            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); setFilterType(''); }}
+              className="text-xs font-bold text-red-500 hover:underline">
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Selection toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-light bg-surface px-4 py-3">
