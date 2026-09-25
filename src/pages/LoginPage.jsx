@@ -43,7 +43,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
   const isMobileValid = mobile.length === 10;
   const isPinValid = pin.length === 6;
-  const isDobValid = dobDay.length === 2 && dobMonth.length === 2 && dobYear.length === 2;
+  const isDobValid = dobDay.length === 2 && dobMonth.length === 2 && dobYear.length === 4;
 
   const handleMobileChange = (e) => {
     setMobile(e.target.value.replace(/\D/g, ''));
@@ -55,7 +55,7 @@ export default function LoginPage({ onLoginSuccess }) {
     e.preventDefault();
     setErrorMessage('');
     if (!isMobileValid) return setErrorMessage('Enter a valid 10-digit mobile number');
-    if (!isDobValid) return setErrorMessage('Enter your complete date of birth (DD MM YY)');
+    if (!isDobValid) return setErrorMessage('Enter your complete date of birth (DD-MM-YYYY)');
     setLoading(true);
     try {
       const dobStr = `${dobDay}${dobMonth}${dobYear}`;
@@ -334,10 +334,10 @@ export default function LoginPage({ onLoginSuccess }) {
                           onChange={e => { setDobMonth(e.target.value.replace(/\D/g,'')); setErrorMessage(''); }}
                           placeholder="MM" className="w-14 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
                         <span className="text-text-muted font-bold">-</span>
-                        <input type="text" inputMode="numeric" maxLength={2} value={dobYear}
+                        <input type="text" inputMode="numeric" maxLength={4} value={dobYear}
                           onChange={e => { setDobYear(e.target.value.replace(/\D/g,'')); setErrorMessage(''); }}
-                          placeholder="YY" className="w-14 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
-                        <span className="text-xs text-text-muted ml-1">e.g. 01-12-95</span>
+                          placeholder="YYYY" className="w-20 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
+                        <span className="text-xs text-text-muted ml-1">e.g. 01-12-1995</span>
                       </div>
                     </div>
 

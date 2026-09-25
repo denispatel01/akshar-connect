@@ -136,17 +136,20 @@ export const dataService = {
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 
-  // Devotee self-login: mobile + DOB formatted as ddMMyy (e.g. 011295 for 01-Dec-1995)
+  // Devotee self-login: mobile + DOB. Password is the date of birth in
+  // dd-MM-yyyy (e.g. 01121995). A 2-digit year (ddMMyy) is still accepted.
   loginWithDob: async (mobile, dob) => {
     // Find matching devotee record
     const devotee = DB.devotees.find(d => String(d.mobile) === String(mobile));
     if (!devotee) throw new Error('No devotee found with this mobile number.');
-    // DOB stored as YYYY-MM-DD; derive ddMMyy
     if (!devotee.dob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
+    // DOB stored as YYYY-MM-DD → build the accepted ddMMyyyy / ddMMyy forms.
     const [y, m, d] = devotee.dob.split('-');
-    const expected = `${d}${m}${y.slice(2)}`; // ddMMyy
-    if (String(dob).replace(/\D/g, '') !== expected)
-      throw new Error('Incorrect date of birth. Use format DD-MM-YY (e.g. 01-12-95).');
+    const entered = String(dob).replace(/\D/g, '');
+    const expectedFull  = `${d}${m}${y}`;          // ddMMyyyy
+    const expectedShort = `${d}${m}${y.slice(2)}`; // ddMMyy (legacy)
+    if (entered !== expectedFull && entered !== expectedShort)
+      throw new Error('Incorrect date of birth. Use format DD-MM-YYYY (e.g. 01-12-1995).');
     // Build a session user object for the devotee
     const sessionUser = {
       mobile: String(mobile),
