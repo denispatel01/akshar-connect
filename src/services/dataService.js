@@ -82,6 +82,43 @@ function ensureSeedAdminPin_() {
 }
 
 // Called once from main.jsx BEFORE the app renders.
+// People (first + last) who — together with their whole family — are "Old".
+// Everyone else is "New". Used once by the bootstrap classification.
+const OLD_PEOPLE = [
+  ['Hemant', 'Ahir'], ['Hasmukh', 'Chandegara'], ['Suketu', 'Thakor'], ['Vrajesh', 'Panchal'],
+  ['Pratik', 'Patel'], ['Ashwin', 'Patel'], ['Aman', 'Jadav'], ['Prerak', 'Ariwala'],
+  ['Nirdosh', 'Patel'], ['Ashish', 'Makwana'], ['Rigal', 'Patel'], ['Girish', 'Bodiwala'],
+  ['Jenish', 'Bodiwala'], ['Nanu', 'Ahir'], ['Bhadresh', 'Gandhi'], ['Mehul', 'Gandhi'],
+  ['Akshit', 'Panchal'], ['Yogesh', 'Panchal'], ['Yogesh', 'Bhagat'], ['Kanti', 'Sakarwala'],
+  ['Nilesh', 'Champaneriya'], ['Digesh', 'Patel'], ['Priyank', 'Mistry'], ['Milan', 'Bhatt'],
+  ['Ravi', 'Papoliwala'],
+];
+
+// Normalize a name part: lowercase, drop honorific suffixes, keep letters only.
+const normName_ = (s) => String(s || '').toLowerCase().replace(/bhai|kumar/g, '').replace(/[^a-z]/g, '');
+
+function firstLast_(dv) {
+  const parts = String(dv.name || '').trim().split(/\s+/).filter(Boolean);
+  const first = dv.firstName || parts[0] || '';
+  const last = dv.lastName || (parts.length > 1 ? parts[parts.length - 1] : '');
+  return [normName_(first), normName_(last)];
+}
+
+// First names match if equal or one is a prefix of the other (handles
+// "Priyank" vs "Priyankkumar", "Digesh" vs "Digesh (Denis)").
+const firstMatch_ = (a, b) => a && b && (a === b || a.startsWith(b) || b.startsWith(a));
+
+// Returns the Set of familyIds that should be marked Old.
+function classifyOldFamilies_(devotees) {
+  const old = OLD_PEOPLE.map(([f, l]) => [normName_(f), normName_(l)]);
+  const families = new Set();
+  devotees.forEach((dv) => {
+    const [f, l] = firstLast_(dv);
+    if (old.some(([of, ol]) => l === ol && firstMatch_(f, of))) families.add(dv.familyId || dv.id);
+  });
+  return families;
+}
+
 async function bootstrap() {
   if (!hasBackend()) { loadDemo(); return { mode: 'demo' }; }
   try {
@@ -100,6 +137,19 @@ async function bootstrap() {
       return rawKeys.length !== cleaned.length || rawKeys.some(k => !cleaned.includes(k));
     });
     if (needsTagPurge && DB.devotees.length) {
+      try { await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) }); } catch (e) { /* non-fatal */ }
+    }
+    // One-time Old/New classification. Runs only while some devotee still has a
+    // blank oldNew (i.e. before this has ever been applied). The listed people
+    // and everyone in their family are marked Old; everyone else New. Once every
+    // record has a value it never runs again, and new devotees default to New.
+    const needsOldNew = DB.devotees.length && (d.devotees || []).some(r => !String(r.oldNew || '').trim());
+    if (needsOldNew) {
+      const oldFamilyIds = classifyOldFamilies_(DB.devotees);
+      DB.devotees = DB.devotees.map(dv => normalizeDevotee({
+        ...dv,
+        oldNew: oldFamilyIds.has(dv.familyId || dv.id) ? 'Old' : 'New',
+      }));
       try { await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) }); } catch (e) { /* non-fatal */ }
     }
     // First run: populate the new sheet with the bundled devotee list.
@@ -219,6 +269,7 @@ export const dataService = {
       id: `HPP-${nextNum}`,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
+      oldNew: devotee.oldNew || 'New', // newly added devotees default to New
       createdOn: now, updatedOn: now, createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System',
     });
     DB.devotees.unshift(newDevotee); saveCache();
@@ -263,6 +314,7 @@ export const dataService = {
       familyId,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
+      oldNew: devotee.oldNew || 'New', // newly added devotees default to New
       createdOn: now, updatedOn: now,
     });
     DB.devotees.unshift(newDevotee);
