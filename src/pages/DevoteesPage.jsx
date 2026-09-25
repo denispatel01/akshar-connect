@@ -21,7 +21,7 @@ const TABS = {
   'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['type','Family membership']],
+  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['type','Family membership']],
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
@@ -102,6 +102,22 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
+
+  // Family heads (primary members) — used to link a family member to their head.
+  const familyHeads = useMemo(() => devotees
+    .filter(d => d.type === 'Primary' || !d.type)
+    .map(d => ({ name: d.name, familyId: d.familyId || d.id, id: d.id, area: d.area }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '')), [devotees]);
+  const headNameByFamilyId = useMemo(() => {
+    const m = new Map();
+    familyHeads.forEach(h => m.set(h.familyId, h.name));
+    return m;
+  }, [familyHeads]);
+  const familyHeadLabel = (fid) => {
+    if (!fid) return '—';
+    const nm = headNameByFamilyId.get(fid);
+    return nm ? `${nm} · ${fid}` : fid;
+  };
 
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
   // Karyakarta picker: real devotees tagged 'karyakarta' (exact names), merged with any
@@ -336,7 +352,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const payload = { ...editData };
     READ_ONLY_FIELDS.forEach((f) => { delete payload[f]; });
     payload.id = selectedDevotee.id;
-    payload.familyId = selectedDevotee.familyId;
+    payload.familyId = editData.familyId ?? selectedDevotee.familyId;
     if (whatsappSameAsMobile) payload.whatsapp = payload.mobile ?? selectedDevotee.mobile;
     payload.name = [payload.firstName, payload.middleName, payload.lastName].filter(Boolean).join(' ')
       || selectedDevotee.name;
@@ -381,6 +397,23 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
   const renderEditField = (f, data, setData) => {
+    // Family Head picker — link this devotee to a head of family (sets familyId + membership type).
+    if (f === 'familyId') {
+      return (
+        <div>
+          <select value={data.familyId || ''} onChange={(e) => {
+            const fid = e.target.value;
+            const h = familyHeads.find(x => x.familyId === fid);
+            const isSelf = h && h.id === selectedDevotee?.id;
+            setData({ ...data, familyId: fid, ...(fid ? { type: isSelf ? 'Primary' : 'Family' } : {}) });
+          }} className={inputCls + ' bg-surface'}>
+            <option value="">— Select head of family —</option>
+            {familyHeads.map(h => <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>)}
+          </select>
+          <p className="mt-1 text-[10px] font-semibold text-text-muted">Links this devotee to the chosen head's family. Choosing another person marks them a Family member.</p>
+        </div>
+      );
+    }
     if (READ_ONLY_FIELDS.has(f)) {
       return (
         <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-sm font-semibold text-text-main break-words">
@@ -1089,7 +1122,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       {editing ? (
                         renderEditField(f, editData, setEditData)
                       ) : (
-                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
+                          {f === 'familyId' ? familyHeadLabel(selectedDevotee.familyId) : val(selectedDevotee[f], f)}
+                        </div>
                       )}
                     </div>
                   ))}
