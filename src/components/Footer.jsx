@@ -37,9 +37,8 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="md:col-span-1">
-            <div className="inline-flex items-center gap-2.5 rounded-2xl bg-surface/95 px-3 py-2 shadow-sm">
-              <img src={`${BASE}icons/icon-192.png`} alt="Akshar Connect" className="h-9 w-9 rounded-xl" />
-              <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="h-6 w-auto max-w-[150px] object-contain" />
+            <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-md w-full">
+              <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="w-full h-auto object-contain" />
             </div>
             <p className="mt-3 text-sm font-semibold text-white/90">Adajan Satsang Mandal</p>
             <p className="text-xs text-white/60 leading-relaxed mt-1">

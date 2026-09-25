@@ -249,10 +249,13 @@ export const dataService = {
     }
   },
 
-  setDevoteeTag: (id, tagKey, on) => {
+  setDevoteeTag: (id, tagKey, on, exclusiveKeys = []) => {
     const d = DB.devotees.find(x => x.id === id);
     if (!d) return null;
-    return dataService.updateDevotee(id, { tags: withTag(d.tags, tagKey, on) });
+    let tags = withTag(d.tags, tagKey, on);
+    // Remove mutually exclusive siblings when turning this tag on
+    if (on) exclusiveKeys.forEach(k => { tags = withTag(tags, k, false); });
+    return dataService.updateDevotee(id, { tags });
   },
 
   deleteDevotee: (id) => {

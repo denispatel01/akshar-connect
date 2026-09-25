@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
-import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
+import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, dateSearchForms } from '../utils/search';
 import EmptyState from '../components/EmptyState';
@@ -91,9 +91,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [saving, setSaving] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [showBulkTagModal, setShowBulkTagModal] = useState(false);
-  const [bulkTagsToAdd, setBulkTagsToAdd] = useState([]);
-  const [bulkTagsToRemove, setBulkTagsToRemove] = useState([]);
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
 
@@ -223,6 +220,34 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   const openProfile = (d) => { setSelectedDevotee(d); setActiveTab('Personal'); setEditing(false); };
 
+  // --- Profile tab swipe navigation ---
+  const TAB_KEYS = Object.keys(TABS);
+  const [slideDir, setSlideDir] = useState(0); // -1 left, 1 right (for animation)
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
+  const goToTab = (dir) => {
+    const idx = TAB_KEYS.indexOf(activeTab);
+    const next = idx + dir;
+    if (next < 0 || next >= TAB_KEYS.length) return;
+    setSlideDir(dir);
+    setActiveTab(TAB_KEYS[next]);
+  };
+  const onBodyTouchStart = (e) => {
+    if (editing) return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const onBodyTouchEnd = (e) => {
+    if (editing || touchStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      goToTab(dx < 0 ? 1 : -1);
+    }
+  };
+
   // Open a specific devotee's profile when navigated here from another screen.
   useEffect(() => {
     if (!openDevoteeId) return;
@@ -270,7 +295,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
   const toggleProfileTag = (key, nextOn) => {
-    const updated = dataService.setDevoteeTag(selectedDevotee.id, key, nextOn);
+    const exclusiveKeys = nextOn ? getMutuallyExclusiveKeys(key) : [];
+    const updated = dataService.setDevoteeTag(selectedDevotee.id, key, nextOn, exclusiveKeys);
     if (updated) setSelectedDevotee(updated);
     loadDevotees();
   };
@@ -454,7 +480,65 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             )}
 
             <div className="flex gap-2">
-               <button onClick={() => window.print()} title="Print / PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors">
+               <button onClick={() => {
+                 const now = new Date();
+                 const dateStr = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+                 const filterDesc = searchQuery ? `Search: "${searchQuery}"` : selectedTags.length ? `Tags: ${selectedTags.join(', ')}` : filterKaryakarta ? `Karyakarta: ${filterKaryakarta}` : familyFilter ? `Family: ${familyFilter}` : 'All Devotees';
+                 const rows = filteredDevotees.map((d, i) => `
+                   <tr>
+                     <td>${i + 1}</td>
+                     <td>${d.id || ''}</td>
+                     <td class="name">${d.name || ''}</td>
+                     <td>${d.mobile || ''}</td>
+                     <td>${d.area || ''}</td>
+                     <td>${d.gender || ''}</td>
+                     <td>${d.dob ? d.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : ''}</td>
+                     <td>${d.bloodGroup || ''}</td>
+                     <td>${d.yuvakType || ''}</td>
+                     <td>${d.followupKaryakarta || ''}</td>
+                     <td>${Array.isArray(d.tags) && d.tags.length ? d.tags.map(k => tagLabel(k)).join(', ') : ''}</td>
+                   </tr>`).join('');
+                 const win = window.open('', '_blank');
+                 win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Akshar Connect – Devotee Directory</title><style>
+                   *{margin:0;padding:0;box-sizing:border-box}
+                   body{font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px}
+                   .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #003158;padding-bottom:10px;margin-bottom:12px}
+                   .header-left h1{font-size:16px;font-weight:700;color:#003158}
+                   .header-left p{font-size:9px;color:#555;margin-top:2px}
+                   .header-right{text-align:right;font-size:9px;color:#555}
+                   .meta{display:flex;gap:20px;margin-bottom:10px;font-size:9px;color:#444;background:#f4f7fb;padding:6px 10px;border-radius:6px}
+                   .meta strong{color:#003158}
+                   table{width:100%;border-collapse:collapse;font-size:9px}
+                   thead tr{background:#003158;color:#fff}
+                   thead th{padding:6px 5px;text-align:left;font-weight:600;white-space:nowrap}
+                   tbody tr:nth-child(even){background:#f4f7fb}
+                   tbody tr:hover{background:#e8eff8}
+                   td{padding:5px 5px;border-bottom:1px solid #e4eaf3;vertical-align:top}
+                   td.name{font-weight:600;color:#003158}
+                   .footer{margin-top:14px;border-top:1px solid #ddd;padding-top:8px;display:flex;justify-content:space-between;font-size:8px;color:#888}
+                   @page{margin:14mm 10mm;size:A4 landscape}
+                   @media print{body{padding:0}}
+                 </style></head><body>
+                   <div class="header">
+                     <div class="header-left">
+                       <h1>Akshar Connect — Devotee Directory</h1>
+                       <p>Adajan Satsang Mandal · Swaminarayan Hariprabodham Foundation, Adajan, Surat</p>
+                     </div>
+                     <div class="header-right">Printed: ${dateStr}<br/>Jai Swaminarayan 🙏</div>
+                   </div>
+                   <div class="meta"><span><strong>Filter:</strong> ${filterDesc}</span><span><strong>Total:</strong> ${filteredDevotees.length} devotees</span></div>
+                   <table>
+                     <thead><tr>
+                       <th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th>Area</th>
+                       <th>Gender</th><th>DOB</th><th>Blood</th><th>Type</th><th>Karyakarta</th><th>Tags</th>
+                     </tr></thead>
+                     <tbody>${rows}</tbody>
+                   </table>
+                   <div class="footer"><span>Akshar Connect · akshar-connect.web.app</span><span>Confidential — for internal satsang use only</span></div>
+                   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
+                 </body></html>`);
+                 win.document.close();
+               }} title="Print / PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors">
                  <Printer className="h-4 w-4" />
                </button>
                <button onClick={() => {
@@ -478,6 +562,66 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       </div>
       
+      {/* Filter Panel */}
+      {showTagFilter && (
+        <div className="rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
+          {/* Dropdowns row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <select value={filterArea} onChange={e => setFilterArea(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Areas</option>
+              {uniqueAreas.map(a => <option key={a}>{a}</option>)}
+            </select>
+            <select value={filterKaryakarta} onChange={e => setFilterKaryakarta(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Karyakartas</option>
+              {uniqueKaryakartas.map(k => <option key={k}>{k}</option>)}
+            </select>
+            <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Genders</option>
+              <option>Male</option><option>Female</option>
+            </select>
+            <select value={filterBlood} onChange={e => setFilterBlood(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Blood Groups</option>
+              {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b}>{b}</option>)}
+            </select>
+            <select value={filterWing} onChange={e => setFilterWing(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Wings</option>
+              {uniqueWings.map(w => <option key={w}>{w}</option>)}
+            </select>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Filter by Tags</p>
+            <div className="flex flex-wrap gap-1.5">
+              {tagsByCategory().flatMap(({ tags }) => tags).map((t) => {
+                const active = selectedTags.includes(t.key);
+                return (
+                  <button key={t.key} onClick={() => toggleFilterTag(t.key)}
+                    style={active ? tagChipStyle(t.key) : undefined}
+                    className={'rounded-full px-3 py-1 text-[11px] font-bold border transition-all ' +
+                      (active ? '' : 'border-border-light bg-bg-base text-text-muted hover:border-primary/50 hover:text-text-main')}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Clear all */}
+          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing) && (
+            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); }}
+              className="text-xs font-bold text-red-500 hover:underline">
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
       {selectMode && (
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 animate-slide-up">
           <div className="flex items-center gap-4">
@@ -489,12 +633,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               {selectedIds.size === filteredDevotees.length ? 'Deselect All' : 'Select All'}
             </button>
           </div>
-          <button 
-            disabled={selectedIds.size === 0}
-            onClick={() => setShowBulkTagModal(true)}
-            className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">
-            Apply Tags
-          </button>
         </div>
       )}
 
@@ -590,18 +728,24 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 </div>
               </div>
 
-              {/* Expanded inline details */}
+              {/* Expanded inline details — same Row style as above, aligned under the avatar */}
               {expanded && (
-                <div className="mt-3 rounded-2xl bg-bg-base border border-border-light p-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[11.5px] animate-slide-up">
-                  {[devotee.area, devotee.city].filter(Boolean).length > 0 && (
-                    <p className="flex items-center gap-1.5 text-text-main"><MapPin className="h-3 w-3 text-text-muted shrink-0" /> {[devotee.area, devotee.city].filter(Boolean).join(', ')}</p>
-                  )}
-                  {devotee.gender && <p className="flex items-center gap-1.5 text-text-main"><User className="h-3 w-3 text-text-muted shrink-0" /> {devotee.gender}</p>}
-                  {(devotee.profession || devotee.education) && <p className="flex items-center gap-1.5 text-text-main col-span-2"><Briefcase className="h-3 w-3 text-amber-500 shrink-0" /> <span className="truncate">{[devotee.profession, devotee.education].filter(Boolean).join(' · ')}</span></p>}
-                  {devotee.bloodGroup && <p className="flex items-center gap-1.5 text-text-main"><Droplet className="h-3 w-3 text-red-400 shrink-0" /> {devotee.bloodGroup}</p>}
-                  {devotee.yuvakType && <p className="flex items-center gap-1.5 text-text-main"><GraduationCap className="h-3 w-3 text-emerald-500 shrink-0" /> {devotee.yuvakType}</p>}
-                  {devotee.followupKaryakartaMobile && <p className="flex items-center gap-1.5 text-text-main col-span-2"><Phone className="h-3 w-3 text-blue-500 shrink-0" /> Karyakarta: {devotee.followupKaryakartaMobile}</p>}
-                  {devotee.reference && <p className="flex items-center gap-1.5 text-text-main col-span-2 truncate"><Users className="h-3 w-3 text-text-muted shrink-0" /> Ref: {devotee.reference}</p>}
+                <div className="flex gap-3.5 animate-slide-up mt-1">
+                  {/* Spacer aligns content under the text column, matching avatar width */}
+                  <div className="h-14 w-14 sm:h-16 sm:w-16 shrink-0" />
+                  <div className="flex-1 min-w-0 border-t border-border-light pt-2.5 space-y-1.5">
+                    {[devotee.area, devotee.city].filter(Boolean).length > 0 && (
+                      <Row icon={MapPin} color="bg-slate-100 text-slate-500" text={[devotee.area, devotee.city].filter(Boolean).join(', ')} />
+                    )}
+                    {devotee.gender && <Row icon={User} color="bg-slate-100 text-slate-500" text={devotee.gender} />}
+                    {(devotee.profession || devotee.education) && (
+                      <Row icon={Briefcase} color="bg-amber-50 text-amber-500" text={[devotee.profession, devotee.education].filter(Boolean).join(' · ')} />
+                    )}
+                    {devotee.bloodGroup && <Row icon={Droplet} color="bg-red-50 text-red-400" text={devotee.bloodGroup} />}
+                    {devotee.yuvakType && <Row icon={GraduationCap} color="bg-emerald-50 text-emerald-500" text={devotee.yuvakType} />}
+                    {devotee.followupKaryakartaMobile && <Row icon={Phone} color="bg-blue-50 text-blue-500" text={`Karyakarta: ${devotee.followupKaryakartaMobile}`} />}
+                    {devotee.reference && <Row icon={Users} color="bg-slate-100 text-slate-500" text={`Ref: ${devotee.reference}`} />}
+                  </div>
                 </div>
               )}
 
@@ -638,65 +782,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       )}
 
       
-      {showBulkTagModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-surface p-5 sm:p-6 shadow-2xl">
-            <h2 className="text-xl font-black text-text-main mb-1">Bulk Update Tags</h2>
-            <p className="text-sm font-medium text-text-muted mb-4">Assign or remove tags for {selectedIds.size} selected devotees.</p>
-            
-            <div className="max-h-[50vh] overflow-auto mb-4 border border-border-light rounded-2xl p-4 bg-bg-base">
-              {tagsByCategory().map(({ category, tags }) => (
-                <div key={category.key} className="mb-4 last:mb-0">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-text-main mb-2">{category.label}</div>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((t) => {
-                      const isAdd = bulkTagsToAdd.includes(t.key);
-                      const isRem = bulkTagsToRemove.includes(t.key);
-                      
-                      return (
-                        <button key={t.key} 
-                          onClick={() => {
-                            if (isAdd) { setBulkTagsToAdd(p => p.filter(x => x !== t.key)); setBulkTagsToRemove(p => [...p, t.key]); }
-                            else if (isRem) { setBulkTagsToRemove(p => p.filter(x => x !== t.key)); }
-                            else { setBulkTagsToAdd(p => [...p, t.key]); }
-                          }}
-                          className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all border ${isAdd ? 'border-primary bg-primary text-white' : isRem ? 'border-red-500 bg-red-50 text-red-600 line-through' : 'border-border-light bg-surface text-text-muted hover:border-primary/50'}`}>
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="flex justify-end gap-3">
-              <button onClick={() => { setShowBulkTagModal(false); setBulkTagsToAdd([]); setBulkTagsToRemove([]); }} className="rounded-xl px-4 py-2 text-sm font-bold text-text-muted hover:bg-bg-base">Cancel</button>
-              <button 
-                disabled={saving || (bulkTagsToAdd.length === 0 && bulkTagsToRemove.length === 0)}
-                onClick={async () => {
-                  setSaving(true);
-                  try {
-                    await dataService.bulkUpdateTagsAndSync(Array.from(selectedIds), bulkTagsToAdd, bulkTagsToRemove);
-                    loadDevotees();
-                    setShowBulkTagModal(false);
-                    setSelectMode(false);
-                    setSelectedIds(new Set());
-                    setBulkTagsToAdd([]);
-                    setBulkTagsToRemove([]);
-                  } catch (e) {
-                    alert('Error updating tags: ' + e.message);
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-primary-hover shadow-sm disabled:opacity-50">
-                {saving ? 'Updating...' : 'Update Tags'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Devotee Modal */}
       {showAddModal && (
@@ -790,44 +875,69 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       {selectedDevotee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-2xl rounded-3xl bg-surface shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
-            <button onClick={() => { setSelectedDevotee(null); setEditing(false); }} className="absolute right-4 top-4 text-text-muted hover:text-text-main z-10"><X className="h-5 w-5" /></button>
+            <style>{`@keyframes acSlideL{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}@keyframes acSlideR{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}`}</style>
 
-            {/* Header */}
-            <div className="flex items-center gap-3 p-4 sm:p-6 sm:pb-4 border-b border-border-light">
-              <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(selectedDevotee.name||'?')}
-                alt={selectedDevotee.name} className="h-14 w-14 sm:h-20 sm:w-20 rounded-2xl sm:rounded-3xl object-cover border-2 border-primary shadow-md shrink-0" />
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base sm:text-xl font-bold text-text-main truncate">{selectedDevotee.name}</h2>
-                <p className="text-xs sm:text-sm text-slate-500">{val(selectedDevotee.mobile)}</p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  {selectedDevotee.type && (
-                    <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full" title="Family membership">
-                      {formatFamilyMembershipContext(selectedDevotee.name, selectedDevotee.type)}
-                    </span>
+            {/* Header — gradient band */}
+            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6">
+              <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
+                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white hover:bg-white/30 backdrop-blur-sm transition-colors z-10">
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-4 pr-12">
+                <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=ffffff&color=003158&bold=true&name='+encodeURIComponent(selectedDevotee.name||'?')}
+                  alt={selectedDevotee.name} className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl sm:rounded-3xl object-cover border-2 border-white/40 shadow-lg shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight break-words">{selectedDevotee.name}</h2>
+                  {val(selectedDevotee.mobile) !== '—' && (
+                    <a href={`tel:${selectedDevotee.mobile}`}
+                      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs sm:text-sm font-semibold text-white hover:bg-white/25 transition-colors">
+                      <Phone className="h-3.5 w-3.5" /> {val(selectedDevotee.mobile)}
+                    </a>
                   )}
-                  {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-text-main bg-bg-base px-2 py-0.5 rounded-full">{selectedDevotee.area}</span>}
-                  {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-text-main bg-bg-base px-2 py-0.5 rounded-full">{selectedDevotee.mandal}</span>}
-                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{selectedDevotee.id}</span>
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                {selectedDevotee.type && (
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full" title="Family membership">
+                    {formatFamilyMembershipContext(selectedDevotee.name, selectedDevotee.type)}
+                  </span>
+                )}
+                {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
+                {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.mandal}</span>}
+                <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-white px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
               </div>
             </div>
 
-            {/* Scrollable Tab Bar */}
-            <div className="flex overflow-x-auto no-scrollbar gap-1 px-4 sm:px-6 py-2 border-b border-border-light bg-[#FAFBFC]">
-              {Object.keys(TABS).map((tab) => (
-                <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={'shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ' +
-                    (activeTab === tab
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
-                  {tab}
-                </button>
-              ))}
+            {/* Tab Bar with slide arrows */}
+            <div className="flex items-center gap-1 border-b border-border-light bg-[#FAFBFC] px-2 sm:px-4">
+              <button onClick={() => goToTab(-1)} disabled={TAB_KEYS.indexOf(activeTab) === 0}
+                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="flex flex-1 overflow-x-auto no-scrollbar gap-1 py-2">
+                {TAB_KEYS.map((tab) => (
+                  <button key={tab} onClick={() => { setSlideDir(TAB_KEYS.indexOf(tab) > TAB_KEYS.indexOf(activeTab) ? 1 : -1); setActiveTab(tab); }}
+                    className={'shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ' +
+                      (activeTab === tab
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => goToTab(1)} disabled={TAB_KEYS.indexOf(activeTab) === TAB_KEYS.length - 1}
+                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent">
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
 
-            {/* Body — filtered by active tab */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            {/* Body — filtered by active tab, swipeable */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4"
+              onTouchStart={onBodyTouchStart} onTouchEnd={onBodyTouchEnd}>
+              <div key={activeTab} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3"
+                style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .22s ease` }}>
                 {(TABS[activeTab] || []).map(([f, label]) => (
                   <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
                     <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
@@ -855,26 +965,63 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   )}
 
                   {canEdit && (
-                    <div className="mt-4 space-y-4">
+                    <div className="mt-4 space-y-5">
                       <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it.</p>
-                      {tagsByCategory().map(({ category, tags }) => (
-                        <div key={category.key}>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-main mb-2">{category.label}</div>
-                          <div className="flex flex-wrap gap-2">
-                            {tags.map((t) => {
-                              const active = (selectedDevotee.tags || []).includes(t.key);
-                              return (
-                                <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                  style={active ? tagChipStyle(t.key) : undefined}
-                                  className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
-                                    (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
-                                  {t.label}
-                                </button>
-                              );
-                            })}
+                      {tagsByCategory().map(({ category, tags }) => {
+                        // group tags within this category by their mutuallyExclusiveGroup
+                        const groups = [];
+                        const seen = new Set();
+                        tags.forEach(t => {
+                          if (t.mutuallyExclusiveGroup && !seen.has(t.mutuallyExclusiveGroup)) {
+                            seen.add(t.mutuallyExclusiveGroup);
+                            groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: tags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
+                          } else if (!t.mutuallyExclusiveGroup) {
+                            groups.push({ type: 'single', tags: [t] });
+                          }
+                        });
+                        return (
+                          <div key={category.key}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: category.color.dot }} />
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-text-main">{category.label}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {groups.map((g, gi) =>
+                                g.type === 'mutex' ? (
+                                  // Radio-style pill group with a subtle bracket
+                                  <span key={gi} className="inline-flex items-center rounded-full border border-dashed border-border-light gap-0.5 p-0.5" title="Only one may be active">
+                                    {g.tags.map(t => {
+                                      const active = (selectedDevotee.tags || []).includes(t.key);
+                                      return (
+                                        <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                          style={active ? tagChipStyle(t.key) : undefined}
+                                          title={t.desc}
+                                          className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
+                                            (active ? '' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
+                                          {t.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </span>
+                                ) : (
+                                  g.tags.map(t => {
+                                    const active = (selectedDevotee.tags || []).includes(t.key);
+                                    return (
+                                      <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                        style={active ? tagChipStyle(t.key) : undefined}
+                                        title={t.desc}
+                                        className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
+                                          (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
+                                        {t.label}
+                                      </button>
+                                    );
+                                  })
+                                )
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
