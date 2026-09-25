@@ -189,6 +189,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const isDevotee = user?.role === 'Devotee';
   const canEdit   = user?.role === 'Admin' || user?.role === 'Sevak';
   const canDelete = user?.role === 'Admin'; // Sevak and Devotee cannot delete
+  // A devotee may edit their OWN profile (fields only — tags stay admin-only).
+  const isOwnProfile = isDevotee && !!selectedDevotee && String(selectedDevotee.id) === String(user?.devoteeId);
+  const canEditProfile = canEdit || isOwnProfile;
 
   // Devotee: restrict visible records to their own family only
   const devoteeFamily = useMemo(() => {
@@ -1203,7 +1206,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </div>
 
             {/* Footer actions — safe-area handled by the overlay padding now */}
-            {canEdit && (
+            {canEditProfile && (
               <div className="flex items-center gap-2 px-4 py-3.5 border-t border-border-light bg-surface shrink-0">
                 {editing ? (
                   <>
