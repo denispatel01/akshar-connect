@@ -21,7 +21,7 @@ const TABS = {
   'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Family membership']],
+  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['type','Family membership']],
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
@@ -97,6 +97,19 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
 
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
+  // Karyakarta picker: real devotees tagged 'karyakarta' (exact names), merged with any
+  // names already used as a follow-up karyakarta — so the name always matches the Devotees tab.
+  const karyakartaOptions = useMemo(() => {
+    const tagged = devotees.filter(d => (d.tags || []).includes('karyakarta')).map(d => d.name).filter(Boolean);
+    return [...new Set([...tagged, ...uniqueKaryakartas])].sort((a, b) => a.localeCompare(b));
+  }, [devotees, uniqueKaryakartas]);
+  // Look up a karyakarta devotee by exact name → auto-fill their mobile from the Devotees tab.
+  const devoteeByName = useMemo(() => {
+    const m = new Map();
+    devotees.forEach(d => { if (d.name) m.set(d.name.trim().toLowerCase(), d); });
+    return m;
+  }, [devotees]);
+  const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
   const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
@@ -104,9 +117,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
 
-  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'', dob:'',
-    bloodGroup:'', maritalStatus:'', profession:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
-    address:'', education:'', occupation:'' };
+  const todayISO = new Date().toISOString().slice(0, 10);
+  // New yuvak defaults: a new record is a Primary family head (self), male, joining today.
+  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'Male', dob:'',
+    bloodGroup:'', maritalStatus:'', profession:'', wing:'Yuva Wing', area:'', city:'Surat',
+    address:'', education:'', occupation:'', followupKaryakarta:'', followupKaryakartaMobile:'',
+    type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
 
   useEffect(() => { loadDevotees(); }, []);
@@ -175,7 +191,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const searchText = (d) => [
     d.name, d.firstName, d.middleName, d.lastName,
     d.mobile, d.whatsapp, d.secondaryMobile,
-    d.address, d.area, d.city, d.mandal,
+    d.address, d.area, d.city,
     dateSearchForms(d.dob), d.yuvakType, d.followupKaryakarta,
     d.education, d.profession, d.reference,
     ...((d.tags || []).map(tagLabel)),
@@ -219,12 +235,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
     setSaving(true);
     try {
-      await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
+      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
       loadDevotees();
       setShowAddModal(false);
       setFormData(blankForm);
       setAddWhatsappSameAsMobile(false);
       await alertDevoteeCreated(name);
+      // Open the new devotee immediately so the auto-generated Family ID shows without a manual refresh.
+      if (created) openProfile(created);
     } catch (err) {
       loadDevotees();
       await alertDevoteeSaveFailed(err.message);
@@ -373,14 +391,18 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
     // Dropdown with manual entry fallback
     if (COMBO_FIELDS.has(f)) {
-      const listOptions = f === 'followupKaryakarta' ? uniqueKaryakartas : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
+      const listOptions = f === 'followupKaryakarta' ? karyakartaOptions : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
       const isManual = manualOverride[f];
+      // Selecting a follow-up karyakarta also auto-fills their mobile from the Devotees tab.
+      const comboOnChange = f === 'followupKaryakarta'
+        ? (e) => { const name = e.target.value; setData({ ...data, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || data.followupKaryakartaMobile || '' }); }
+        : onChange;
       return (
         <div>
           {isManual ? (
-            <input value={value} onChange={onChange} className={inputCls} placeholder="Type manually..." />
+            <input value={value} onChange={comboOnChange} className={inputCls} placeholder="Type manually..." />
           ) : (
-            <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
+            <select value={value} onChange={comboOnChange} className={inputCls + ' bg-surface'}>
               <option value="">- Select -</option>
               {listOptions.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -928,6 +950,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   <select value={formData.wing} onChange={(e)=>setFormData({...formData,wing:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
                     {WINGS.map(o=><option key={o}>{o}</option>)}</select></div>
               </div>
+              {/* Follow-up Karyakarta — pick from existing karyakartas; mobile auto-fills from their record */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block text-xs font-bold text-text-main mb-1">Follow-up Karyakarta</label>
+                  <input list="dl-add-karyakarta" value={formData.followupKaryakarta || ''}
+                    onChange={(e) => { const name = e.target.value; setFormData({ ...formData, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : formData.followupKaryakartaMobile) }); }}
+                    placeholder="Type or select a karyakarta"
+                    className={inputCls + ' text-xs p-2.5'} />
+                  <datalist id="dl-add-karyakarta">{karyakartaOptions.map(o=><option key={o} value={o} />)}</datalist></div>
+                <div><label className="block text-xs font-bold text-text-main mb-1">Karyakarta Mobile</label>
+                  <input maxLength={10} inputMode="numeric" value={formData.followupKaryakartaMobile || ''}
+                    onChange={(e) => setFormData({ ...formData, followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })}
+                    placeholder="Auto-fills on select"
+                    className={inputCls + ' text-xs p-2.5'} /></div>
+              </div>
               <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-md hover:bg-[#00223f] mt-2">Save Devotee</button>
             </form>
           </div>
@@ -988,7 +1024,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   </span>
                 )}
                 {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
-                {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.mandal}</span>}
                 <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-white px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
               </div>
             </div>

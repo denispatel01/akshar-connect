@@ -236,9 +236,15 @@ export const dataService = {
   addDevoteeAndSync: async (devotee) => {
     const nextNum = DB.devotees.length + 1;
     const now = new Date().toISOString();
+    const id = `HPP-${nextNum}`;
+    // A primary member (family head) is their own family — auto-generate the
+    // Family ID from their own record ID so it's populated immediately.
+    const isPrimary = devotee.type === 'Primary' || !devotee.type;
+    const familyId = devotee.familyId || (isPrimary ? id : '');
     const newDevotee = normalizeDevotee({
       ...devotee,
-      id: `HPP-${nextNum}`,
+      id,
+      familyId,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
       createdOn: now, updatedOn: now,
