@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, MessageSquare } from 'lucide-react';
+import { Search, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, MessageSquare } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -88,6 +88,11 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkTagModal, setShowBulkTagModal] = useState(false);
+  const [bulkTagsToAdd, setBulkTagsToAdd] = useState([]);
+  const [bulkTagsToRemove, setBulkTagsToRemove] = useState([]);
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
 
@@ -508,8 +513,24 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
             );
             return (
             <div key={devotee.id}
-              onClick={() => openProfile(devotee)}
-              className="group flex flex-col rounded-3xl border border-border-light bg-surface p-4 sm:p-5 shadow-[0_1px_3px_rgba(16,40,80,0.05)] transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_28px_rgba(16,40,80,0.12)]">
+              onClick={() => {
+              if (selectMode) {
+                const newSet = new Set(selectedIds);
+                if (newSet.has(devotee.id)) newSet.delete(devotee.id);
+                else newSet.add(devotee.id);
+                setSelectedIds(newSet);
+              } else {
+                openProfile(devotee);
+              }
+            }}
+              className={`relative group flex flex-col rounded-3xl border p-4 sm:p-5 shadow-[0_1px_3px_rgba(16,40,80,0.05)] transition-all duration-200 cursor-pointer hover:-translate-y-0.5 ${selectedIds.has(devotee.id) ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border-light bg-surface hover:border-primary/30 hover:shadow-[0_10px_28px_rgba(16,40,80,0.12)]'}`}>
+              {selectMode && (
+                <div className="absolute top-4 right-4 z-10">
+                  <div className={`flex h-6 w-6 items-center justify-center rounded-md border ${selectedIds.has(devotee.id) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface'}`}>
+                    {selectedIds.has(devotee.id) && <CheckSquare className="h-4 w-4" />}
+                  </div>
+                </div>
+              )}
               <div className="flex items-start gap-3.5">
                 <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
                   alt={devotee.name} className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover ring-2 ring-[#EAF0F7] group-hover:ring-[#003158]/20 transition" />
@@ -583,6 +604,67 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
           title="No devotees found" 
           description={searchQuery || selectedTags.length ? "Try adjusting your search query or filters." : "Your directory is empty."}
         />
+      )}
+
+      
+      {showBulkTagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-surface p-5 sm:p-6 shadow-2xl">
+            <h2 className="text-xl font-black text-text-main mb-1">Bulk Update Tags</h2>
+            <p className="text-sm font-medium text-text-muted mb-4">Assign or remove tags for {selectedIds.size} selected devotees.</p>
+            
+            <div className="max-h-[50vh] overflow-auto mb-4 border border-border-light rounded-2xl p-4 bg-bg-base">
+              {tagsByCategory().map(({ category, tags }) => (
+                <div key={category.key} className="mb-4 last:mb-0">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-text-main mb-2">{category.label}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((t) => {
+                      const isAdd = bulkTagsToAdd.includes(t.key);
+                      const isRem = bulkTagsToRemove.includes(t.key);
+                      
+                      return (
+                        <button key={t.key} 
+                          onClick={() => {
+                            if (isAdd) { setBulkTagsToAdd(p => p.filter(x => x !== t.key)); setBulkTagsToRemove(p => [...p, t.key]); }
+                            else if (isRem) { setBulkTagsToRemove(p => p.filter(x => x !== t.key)); }
+                            else { setBulkTagsToAdd(p => [...p, t.key]); }
+                          }}
+                          className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all border ${isAdd ? 'border-primary bg-primary text-white' : isRem ? 'border-red-500 bg-red-50 text-red-600 line-through' : 'border-border-light bg-surface text-text-muted hover:border-primary/50'}`}>
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setShowBulkTagModal(false); setBulkTagsToAdd([]); setBulkTagsToRemove([]); }} className="rounded-xl px-4 py-2 text-sm font-bold text-text-muted hover:bg-bg-base">Cancel</button>
+              <button 
+                disabled={saving || (bulkTagsToAdd.length === 0 && bulkTagsToRemove.length === 0)}
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await dataService.bulkUpdateTagsAndSync(Array.from(selectedIds), bulkTagsToAdd, bulkTagsToRemove);
+                    loadDevotees();
+                    setShowBulkTagModal(false);
+                    setSelectMode(false);
+                    setSelectedIds(new Set());
+                    setBulkTagsToAdd([]);
+                    setBulkTagsToRemove([]);
+                  } catch (e) {
+                    alert('Error updating tags: ' + e.message);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-primary-hover shadow-sm disabled:opacity-50">
+                {saving ? 'Updating...' : 'Update Tags'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Devotee Modal */}

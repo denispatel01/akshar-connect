@@ -227,6 +227,28 @@ export const dataService = {
   },
 
   // Assign/unassign a single tag; returns the updated devotee.
+  bulkUpdateTagsAndSync: async (ids, tagsToAdd, tagsToRemove) => {
+    const now = new Date().toISOString();
+    const user = JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System';
+    const toSync = [];
+    ids.forEach(id => {
+      const idx = DB.devotees.findIndex(d => d.id === id);
+      if (idx !== -1) {
+        let tags = DB.devotees[idx].tags || [];
+        tags = [...new Set([...tags, ...tagsToAdd])];
+        tags = tags.filter(t => !tagsToRemove.includes(t));
+        DB.devotees[idx] = normalizeDevotee({ ...DB.devotees[idx], tags, updatedOn: now, updatedBy: user });
+        toSync.push(DB.devotees[idx]);
+      }
+    });
+    saveCache();
+    if (hasBackend()) {
+       for (const d of toSync) {
+         await api('update', { collection: 'Devotees', keyField: 'id', key: d.id, row: toBackendRow(d) });
+       }
+    }
+  },
+
   setDevoteeTag: (id, tagKey, on) => {
     const d = DB.devotees.find(x => x.id === id);
     if (!d) return null;
