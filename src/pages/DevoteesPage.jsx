@@ -937,14 +937,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       {selectedDevotee && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
           <div className="w-full max-w-2xl sm:rounded-3xl rounded-t-3xl bg-surface shadow-2xl relative flex flex-col"
-            style={{ maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 16px)', height: 'auto' }}>
+            style={{ height: 'calc(100dvh - env(safe-area-inset-top, 20px) - 12px)', maxHeight: '820px' }}>
             <style>{`
               @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
               @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
             `}</style>
 
             {/* Header — gradient band */}
-            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6">
+            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6 shrink-0">
               <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
                 className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white hover:bg-white/30 backdrop-blur-sm transition-colors z-10">
                 <X className="h-5 w-5" />
@@ -1100,7 +1100,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
             {/* Footer actions */}
             {canEdit && (
-              <div className="flex items-center gap-2 p-4 border-t border-border-light">
+              <div className="flex items-center gap-2 p-4 border-t border-border-light shrink-0">
                 {editing ? (
                   <>
                     <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Save className="h-4 w-4" /> Save Changes</button>
