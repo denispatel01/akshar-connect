@@ -177,7 +177,7 @@ export default function DashboardPage({ setActivePage, user }) {
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4 gap-3">
           <h2 className="text-base font-bold text-text-main flex items-center gap-2">
-            <Cake className="h-5 w-5 text-purple-600" /> Upcoming Birthdays
+            <Cake className="h-5 w-5 text-rose-500" /> Upcoming Birthdays
           </h2>
           <button onClick={() => openDevotees('upcomingBirthdays')} className="text-xs font-bold text-[#FF862A] hover:underline shrink-0">
             View all
@@ -192,35 +192,35 @@ export default function DashboardPage({ setActivePage, user }) {
               const wa = birthdayWaLink(devotee);
               return (
                 <div key={devotee.id}
-                  className={`rounded-2xl border transition-all ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-border-light bg-[#F8FAFC]'} ${open ? 'shadow-sm' : ''}`}>
+                  className={`rounded-2xl border transition-all ${info.isToday ? 'border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10' : 'border-border-light bg-bg-base'} ${open ? 'shadow-sm' : ''}`}>
                   {/* header row (tap to expand) */}
                   <button
                     onClick={() => setExpandedBday(open ? null : devotee.id)}
                     className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 ${info.isToday ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 ${info.isToday ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300'}`}>
                         <Cake className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-text-main truncate">{devotee.name}</p>
-                        <p className="text-[11px] text-slate-400">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
+                        <p className="text-[11px] text-text-muted">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[11px] font-bold ${info.isToday ? 'text-purple-700' : 'text-purple-600'}`}>{birthdayLabel(info)}</span>
+                      <span className={`text-[11px] font-bold ${info.isToday ? 'text-rose-600 dark:text-rose-300' : 'text-rose-500 dark:text-rose-400'}`}>{birthdayLabel(info)}</span>
                       <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
                     </div>
                   </button>
 
                   {/* expanded details */}
                   {open && (
-                    <div className="px-3 pb-3 pt-1 border-t border-black/5 space-y-2">
+                    <div className="px-3 pb-3 pt-1 border-t border-border-light space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
-                        <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(devotee.dob)}</p>
-                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {devotee.mobile || '—'}</p>
-                        {devotee.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
-                        {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
+                        <p className="flex items-center gap-2 text-text-muted"><Cake className="h-3.5 w-3.5 text-rose-500 shrink-0" /> {dobShort(devotee.dob)}</p>
+                        <p className="flex items-center gap-2 text-text-muted"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {devotee.mobile || '—'}</p>
+                        {devotee.address && <p className="flex items-start gap-2 text-text-muted sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
+                        {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-text-muted sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
                       </div>
                       {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
@@ -240,7 +240,7 @@ export default function DashboardPage({ setActivePage, user }) {
                           className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
-                        {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
+                        {!wa && <span className="text-[11px] font-semibold text-text-muted">No mobile on file for a WhatsApp wish.</span>}
                       </div>
                     </div>
                   )}
@@ -370,7 +370,7 @@ export default function DashboardPage({ setActivePage, user }) {
                           className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
-                        {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
+                        {!wa && <span className="text-[11px] font-semibold text-text-muted">No mobile on file for a WhatsApp wish.</span>}
                       </div>
                     </div>
                   );
