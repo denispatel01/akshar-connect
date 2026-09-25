@@ -55,16 +55,17 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         </button>
 
         {/* Brand Logo */}
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActivePage('dashboard')}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#003158] text-white shadow-md">
-            <Sparkles className="h-5 w-5 text-[#FF862A]" />
-          </div>
-          <div>
-            <span className="flex items-center gap-1 font-display text-lg font-bold text-[#003158]">
-              Akshar Connect <span className="h-2 w-2 rounded-full bg-[#FF862A]"></span>
+        <div className="flex items-center gap-2.5 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
+          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
+            className="h-10 w-10 shrink-0 rounded-2xl shadow-md ring-1 ring-[#E4EBF3]" />
+          <div className="min-w-0">
+            <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect — Connecting Devotees with Divinity"
+              className="hidden sm:block h-7 w-auto max-w-[190px] object-contain object-left" />
+            <span className="sm:hidden flex items-center gap-1 font-display text-base font-bold text-[#003158] leading-tight">
+              Akshar Connect <span className="h-1.5 w-1.5 rounded-full bg-[#FF862A]"></span>
             </span>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-[#9BB5CB]">
-              Akshar Satsang Mandal
+            <p className="text-[9.5px] font-semibold uppercase tracking-[0.18em] text-[#9BB5CB] leading-tight mt-0.5">
+              Adajan Satsang Mandal
             </p>
           </div>
         </div>

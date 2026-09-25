@@ -167,7 +167,7 @@ export default function LoginPage({ onLoginSuccess }) {
               className="h-16 w-auto max-w-[240px] object-contain sm:h-20"
             />
             <span className="text-[11px] font-bold uppercase tracking-widest text-[#9BB5CB] block text-center">
-              Akshar Satsang Mandal
+              Adajan Satsang Mandal
             </span>
           </div>
 

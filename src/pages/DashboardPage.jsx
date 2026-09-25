@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import DarshanSlider from '../components/DarshanSlider';
 import { tagLabel, tagChipStyle } from '../services/tagCatalog';
 
 import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
@@ -168,6 +169,9 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-purple-600 mt-1">Tap to view celebrating today</p>
         </button>
       </div>
+
+      {/* Darshan & Vichar slider */}
+      <DarshanSlider />
 
       {/* Upcoming Birthdays */}
       <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs">

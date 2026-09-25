@@ -6,6 +6,7 @@ import DevoteesPage from './pages/DevoteesPage';
 import FollowupsPage from './pages/FollowupsPage';
 import AdminPage from './pages/AdminPage';
 import ComingSoonPage from './pages/ComingSoonPage';
+import Footer from './components/Footer';
 import { dataService } from './services/dataService';
 
 export default function App() {
@@ -103,6 +104,8 @@ export default function App() {
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
         {activePage === 'reports' && <ComingSoonPage title="Reports & Export" />}
       </main>
+
+      <Footer />
     </div>
   );
 }
