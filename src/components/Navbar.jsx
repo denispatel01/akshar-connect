@@ -214,13 +214,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         <div className="mx-3 mb-3 rounded-3xl bg-surface border border-border-light shadow-2xl overflow-hidden">
 
           {/* User card */}
-          <div className={`flex items-center gap-3 px-5 py-4 ${roleBg} border-b border-border-light`}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-white shadow-md">
+          <div className="flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">
               {user?.name?.[0] || 'U'}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-text-main leading-tight truncate">{user?.name || 'User'}</p>
-              <span className={`text-[11px] font-bold ${roleColor}`}>{user?.role || 'Devotee'}</span>
+              <p className="text-sm font-bold text-white leading-tight truncate">{user?.name || 'User'}</p>
+              <span className={`text-[11px] font-bold ${isAdmin ? 'text-red-300' : isSevak ? 'text-amber-300' : 'text-indigo-200'}`}>{user?.role || 'Devotee'}</span>
             </div>
           </div>
 
@@ -231,7 +231,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                 const active = activePage === id;
                 return (
                   <button key={id} onClick={() => navigate(id)}
-                    className={`w-full flex items-center gap-4 px-5 py-3.5 transition-colors ${active ? 'bg-primary/8 text-primary' : 'text-text-main hover:bg-bg-base'}`}>
+                    className={`w-full flex items-center gap-4 px-5 py-3.5 transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-text-main hover:bg-bg-base'}`}>
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-primary text-white' : 'bg-bg-base border border-border-light text-text-muted'}`}>
                       <Icon className="h-4 w-4" />
                     </div>
