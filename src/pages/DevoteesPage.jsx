@@ -934,17 +934,30 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       )}
 
-      {/* Profile Modal (tabbed + edit) — portal to document.body to escape main's animation stacking context */}
+      {/* Profile Modal (tabbed + edit) — portal to document.body to escape main's animation stacking context.
+          Centered floating card, inset from ALL edges (incl. iOS safe areas) so the backdrop is visible
+          all around it → reads as a popup, never full-screen, never cut off, on any device. */}
       {selectedDevotee && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
-          <div className="w-full max-w-2xl sm:rounded-3xl rounded-t-3xl bg-surface shadow-2xl relative flex flex-col"
-            style={{
-              height: 'calc(100dvh - env(safe-area-inset-top, 44px))',
-              maxHeight: '820px',
-            }}>
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[acFade_.18s_ease-out]"
+          style={{
+            paddingTop: 'max(20px, env(safe-area-inset-top))',
+            paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+            paddingLeft: 'max(16px, env(safe-area-inset-left))',
+            paddingRight: 'max(16px, env(safe-area-inset-right))',
+          }}
+          onClick={() => { setSelectedDevotee(null); setEditing(false); }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-3xl bg-surface shadow-2xl relative flex flex-col overflow-hidden animate-[acPop_.22s_cubic-bezier(0.16,1,0.3,1)]"
+            style={{ maxHeight: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <style>{`
               @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
               @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
+              @keyframes acFade{from{opacity:0}to{opacity:1}}
+              @keyframes acPop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
             `}</style>
 
             {/* Header — gradient band */}
@@ -1102,10 +1115,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
             </div>
 
-            {/* Footer actions */}
+            {/* Footer actions — safe-area handled by the overlay padding now */}
             {canEdit && (
-              <div className="flex items-center gap-2 px-4 pt-3 border-t border-border-light shrink-0"
-                style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+              <div className="flex items-center gap-2 px-4 py-3.5 border-t border-border-light bg-surface shrink-0">
                 {editing ? (
                   <>
                     <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Save className="h-4 w-4" /> Save Changes</button>
