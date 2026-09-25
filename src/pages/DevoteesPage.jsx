@@ -113,17 +113,35 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   useEffect(() => { loadDevotees(); }, []);
 
   useEffect(() => {
-    if (!devoteesPreset || !PRESET_META[devoteesPreset]) return;
-    const { tags } = PRESET_META[devoteesPreset];
-    setSelectedTags(tags || []);
-    setFilterKaryakarta('');
-    setFilterArea('');
-    setFilterWing('');
-    setFilterBlood('');
-    setFilterGender('');
-    setSearchQuery('');
-    setShowTagFilter(devoteesPreset === 'ambrish');
+    if (devoteesPreset && PRESET_META[devoteesPreset]) {
+      const { tags } = PRESET_META[devoteesPreset];
+      setSelectedTags(tags || []);
+      setFilterKaryakarta('');
+      setFilterArea('');
+      setFilterWing('');
+      setFilterBlood('');
+      setFilterGender('');
+      setSearchQuery('');
+      setShowTagFilter(devoteesPreset === 'ambrish');
+    }
   }, [devoteesPreset]);
+
+  useEffect(() => {
+    if (filterPreset) {
+      if (filterPreset.karyakarta) setFilterKaryakarta(filterPreset.karyakarta);
+      else setFilterKaryakarta('');
+      
+      if (filterPreset.area) setFilterArea(filterPreset.area);
+      else setFilterArea('');
+      
+      if (filterPreset.wing) setFilterWing(filterPreset.wing);
+      else setFilterWing('');
+      
+      setSelectedTags([]); // clear tags when applying these filters
+      setSearchQuery('');
+      setShowTagFilter(true);
+    }
+  }, [filterPreset]);
 
   const loadDevotees = () => setDevotees([...dataService.getDevotees()]);
 
