@@ -153,6 +153,7 @@ function handle_(p){
       return json_({ ok:true, count:readAll_('Devotees').length });
     }
     if(action==='insert'){ appendRows_(p.collection, [p.row]); sendNotificationEmail_('INSERT', p.collection, p.row); return json_({ ok:true, row:p.row }); }
+    if(action==='bulkUpdateTags') return doBulkUpdateTags_(p);
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
@@ -246,5 +247,50 @@ function sendNotificationEmail_(action, collection, row) {
       body: body
     });
   } catch(e) {
+  }
+}
+
+function doBulkUpdateTags_(p) {
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var sh = tab_('Devotees');
+    var H = HEADERS.Devotees;
+    var last = sh.getLastRow();
+    if (last < 2) return json_({ok: true, count: 0});
+    var data = sh.getRange(2, 1, last-1, H.length).getValues();
+    var idIndex = H.indexOf('id');
+    var tagsIndex = H.indexOf('tags');
+    var updatedByIndex = H.indexOf('updatedBy');
+    
+    var idsToUpdate = p.ids || [];
+    var tagsToAdd = p.tagsToAdd || [];
+    var tagsToRemove = p.tagsToRemove || [];
+    
+    var updatedCount = 0;
+    for (var i = 0; i < data.length; i++) {
+      var rowId = String(data[i][idIndex]);
+      if (idsToUpdate.indexOf(rowId) >= 0) {
+        var currentTags = data[i][tagsIndex] ? String(data[i][tagsIndex]).split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+        
+        for(var j=0; j<tagsToRemove.length; j++) {
+          var idx = currentTags.indexOf(tagsToRemove[j]);
+          if (idx >= 0) currentTags.splice(idx, 1);
+        }
+        
+        for(var j=0; j<tagsToAdd.length; j++) {
+          if (currentTags.indexOf(tagsToAdd[j]) < 0) currentTags.push(tagsToAdd[j]);
+        }
+        
+        data[i][tagsIndex] = currentTags.join(',');
+        if (updatedByIndex >= 0 && p.updatedBy) data[i][updatedByIndex] = p.updatedBy;
+        updatedCount++;
+      }
+    }
+    if (updatedCount > 0) {
+       sh.getRange(2, 1, last-1, H.length).setValues(data);
+    }
+    return json_({ok: true, count: updatedCount});
+  } finally {
+    lock.releaseLock();
   }
 }

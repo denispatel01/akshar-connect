@@ -1,5 +1,5 @@
 import React from 'react';
-import {
+import { Tag,
   LayoutDashboard,
   Users,
   CalendarCheck,

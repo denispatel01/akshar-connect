@@ -6,6 +6,7 @@ import DevoteesPage from './pages/DevoteesPage';
 import FollowupsPage from './pages/FollowupsPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
+import BulkTagPage from './pages/BulkTagPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import { dataService } from './services/dataService';
@@ -140,6 +141,7 @@ export default function App() {
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
+        {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
       </main>
 
       <Footer />
