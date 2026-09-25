@@ -14,7 +14,8 @@ import { Tag,
   Sun,
   Sparkles,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  Tags
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode }) {
@@ -26,9 +27,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           { id: 'followups', label: 'Calls', icon: PhoneCall },
           { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
           { id: 'email', label: 'Email', icon: Mail },
-          { id: 'admin', label: 'Admin', icon: Settings }
         ]
-      : [])
+      : []),
+    ...(user?.role === 'Admin'
+      ? [
+          { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
+          { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
+        ]
+      : []),
   ];
 
   return (
@@ -75,7 +81,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                 <button
                   key={item.id}
                   onClick={() => setActivePage(item.id)}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200 ${
+                  className={`relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200 ${
                     active
                       ? 'bg-surface text-text-main shadow-sm'
                       : 'text-text-muted hover:text-text-main'
@@ -83,6 +89,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                 >
                   <Icon className={`h-4 w-4 ${active ? 'text-accent' : ''}`} />
                   {item.label}
+                  {item.adminOnly && (
+                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 ring-1 ring-bg-base" />
+                  )}
                 </button>
               );
             })}
@@ -132,12 +141,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             <button
               key={item.id}
               onClick={() => setActivePage(item.id)}
-              className={`flex flex-col items-center justify-center w-full py-2 ${
+              className={`relative flex flex-col items-center justify-center w-full py-2 ${
                 active ? 'text-primary' : 'text-text-muted'
               }`}
             >
-              <div className={`flex items-center justify-center h-8 w-14 rounded-full transition-colors ${active ? 'bg-bg-base' : 'bg-transparent'}`}>
+              <div className={`relative flex items-center justify-center h-8 w-14 rounded-full transition-colors ${active ? 'bg-bg-base' : 'bg-transparent'}`}>
                 <Icon className={`h-5 w-5 ${active ? 'text-primary fill-primary/10' : ''}`} strokeWidth={active ? 2.5 : 2} />
+                {item.adminOnly && (
+                  <span className="absolute top-0.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-surface" />
+                )}
               </div>
               <span className="text-[10px] font-semibold mt-1">{item.label}</span>
             </button>
