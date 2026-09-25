@@ -152,19 +152,20 @@ function handle_(p){
       appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
     }
-    if(action==='insert'){ appendRows_(p.collection, [p.row]); return json_({ ok:true, row:p.row }); }
+    if(action==='insert'){ appendRows_(p.collection, [p.row]); sendNotificationEmail_('INSERT', p.collection, p.row); return json_({ ok:true, row:p.row }); }
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
       tab_(p.collection).getRange(rn,1,1,HEADERS[p.collection].length).setValues([rowFromObj_(p.collection,p.row)]);
+      sendNotificationEmail_('UPDATE', p.collection, p.row);
       return json_({ ok:true });
     }
     if(action==='remove'){
       var r=findRow_(p.collection, p.keyField||'id', p.key);
-      if(r>0) tab_(p.collection).deleteRow(r);
+      if(r>0) { tab_(p.collection).deleteRow(r); sendNotificationEmail_('DELETE', p.collection, { key: p.key }); }
       return json_({ ok:true });
     }
-    if(action==='markAttendance') return doMark_(p);
+    if(action==='markAttendance') { var res = doMark_(p); sendNotificationEmail_('MARK_ATTENDANCE', 'Attendance', p); return res; }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
     return json_({ ok:false, error:'unknown action: '+action });
@@ -220,4 +221,30 @@ function doUpsertUser_(p){
   if(rn>0) tab_('Users').getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
   else appendRows_('Users',[row]);
   return json_({ ok:true, user:row });
+}
+
+function sendNotificationEmail_(action, collection, row) {
+  try {
+    var email = 'denispatel01@gmail.com';
+    var subject = 'Akshar Connect: ' + action + ' on ' + collection;
+    var body = 'An action (' + action + ') was performed on the ' + collection + ' collection.\n\n';
+    
+    if (row && typeof row === 'object') {
+      body += 'Details:\n';
+      for (var key in row) {
+        if (row[key]) {
+          body += key + ': ' + row[key] + '\n';
+        }
+      }
+    } else {
+      body += 'Row data: ' + JSON.stringify(row);
+    }
+    
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body
+    });
+  } catch(e) {
+  }
 }

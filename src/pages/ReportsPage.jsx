@@ -21,7 +21,10 @@ export default function ReportsPage() {
       if (d.status !== 'Inactive') s.active++;
       
       if (d.followupKaryakarta) {
-        s.karyakartaStats[d.followupKaryakarta] = (s.karyakartaStats[d.followupKaryakarta] || 0) + 1;
+        if (!s.karyakartaStats[d.followupKaryakarta]) s.karyakartaStats[d.followupKaryakarta] = { devotees: 0, families: new Set() };
+        s.karyakartaStats[d.followupKaryakarta].devotees++;
+        if (d.familyId) s.karyakartaStats[d.followupKaryakarta].families.add(d.familyId);
+        else s.karyakartaStats[d.followupKaryakarta].families.add('ID_'+d.id);
       }
       
       if (d.area) {
@@ -82,8 +85,12 @@ export default function ReportsPage() {
     </div>
   );
 
-  const StatList = ({ title, data, icon: Icon }) => {
-    const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const StatList = ({ title, data, icon: Icon, isComplex }) => {
+    const sorted = Object.entries(data).sort((a, b) => {
+      const aVal = isComplex ? a[1].devotees : a[1];
+      const bVal = isComplex ? b[1].devotees : b[1];
+      return bVal - aVal;
+    });
     return (
       <div className="bg-surface rounded-3xl border border-border-light shadow-sm overflow-hidden flex flex-col h-full animate-fade-in">
         <div className="px-5 py-4 border-b border-border-light flex items-center gap-2 bg-bg-base">
@@ -96,7 +103,14 @@ export default function ReportsPage() {
               {sorted.map(([key, val]) => (
                 <li key={key} className="flex justify-between items-center px-3 py-2 hover:bg-bg-base rounded-xl transition-colors">
                   <span className="text-sm font-semibold text-text-main truncate pr-4">{key}</span>
-                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">{val}</span>
+                  {isComplex ? (
+                    <div className="flex gap-1">
+                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-md" title="Devotees">{val.devotees} D</span>
+                      <span className="text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-md" title="Families">{val.families.size} F</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">{val}</span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -131,7 +145,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} />
+        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true} />
         <StatList title="By Area" data={stats.areaStats} icon={MapPin} />
         <StatList title="By Wing" data={stats.wingStats} icon={Users} />
       </div>
