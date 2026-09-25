@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck } from 'lucide-react';
+import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck, UserCheck, User, Calendar, MapPin } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys, TAG_CATEGORIES } from '../services/tagCatalog';
 import { alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -49,7 +49,10 @@ export default function FamilyTagPage({ user }) {
     return primaryDevotees.filter(d =>
       (d.name || '').toLowerCase().includes(q) ||
       (d.area || '').toLowerCase().includes(q) ||
-      (d.mobile || '').includes(q)
+      (d.mobile || '').includes(q) ||
+      (d.reference || '').toLowerCase().includes(q) ||
+      (d.followupKaryakarta || '').toLowerCase().includes(q) ||
+      (d.address || '').toLowerCase().includes(q)
     );
   }, [primaryDevotees, search]);
 
@@ -328,6 +331,35 @@ export default function FamilyTagPage({ user }) {
                     {d.area && <span className="text-[11px] text-text-muted">{d.area}</span>}
                     {familySize > 1 && <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{familySize} members</span>}
                   </div>
+                  {/* Identifying details — helps recognise devotees you don't know by name */}
+                  {(d.reference || d.followupKaryakarta || d.dob || d.address) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                      {d.reference && (
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted min-w-0 max-w-full">
+                          <UserCheck className="h-3 w-3 shrink-0 text-primary/70" />
+                          <span className="truncate"><span className="opacity-60">Ref:</span> {d.reference}</span>
+                        </span>
+                      )}
+                      {d.followupKaryakarta && (
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted min-w-0 max-w-full">
+                          <User className="h-3 w-3 shrink-0 text-primary/70" />
+                          <span className="truncate"><span className="opacity-60">K.K:</span> {d.followupKaryakarta}</span>
+                        </span>
+                      )}
+                      {d.dob && (
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted shrink-0">
+                          <Calendar className="h-3 w-3 shrink-0 text-primary/70" />
+                          {dobShort(d.dob)}
+                        </span>
+                      )}
+                      {d.address && (
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted min-w-0 max-w-full basis-full">
+                          <MapPin className="h-3 w-3 shrink-0 text-primary/70" />
+                          <span className="truncate">{d.address}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {/* Active tags preview */}
                   {Array.isArray(d.tags) && d.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
