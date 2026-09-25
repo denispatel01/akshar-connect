@@ -137,6 +137,7 @@ function handle_(p){
   try{
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
     ensureSheets_();
+    if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
@@ -293,4 +294,36 @@ function doBulkUpdateTags_(p) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ── One-time Old/New classification (run via clasp) ─────────────────────────
+// Marks the listed people and their whole family as "Old", everyone else "New".
+function classifyOldNewNow(){
+  ensureSheets_();
+  var name='Devotees', sh=tab_(name), head=HEADERS[name];
+  var last=sh.getLastRow(); if(last<2) return 'no rows';
+  var idI=head.indexOf('id'), nmI=head.indexOf('name'), fI=head.indexOf('firstName'),
+      lI=head.indexOf('lastName'), famI=head.indexOf('familyId'), onI=head.indexOf('oldNew');
+  var rng=sh.getRange(2,1,last-1,head.length), v=rng.getValues();
+  var OLD=[['Hemant','Ahir'],['Hasmukh','Chandegara'],['Suketu','Thakor'],['Vrajesh','Panchal'],
+    ['Pratik','Patel'],['Ashwin','Patel'],['Aman','Jadav'],['Prerak','Ariwala'],
+    ['Nirdosh','Patel'],['Ashish','Makwana'],['Rigal','Patel'],['Girish','Bodiwala'],
+    ['Jenish','Bodiwala'],['Nanu','Ahir'],['Bhadresh','Gandhi'],['Mehul','Gandhi'],
+    ['Akshit','Panchal'],['Yogesh','Panchal'],['Yogesh','Bhagat'],['Kanti','Sakanwala'],
+    ['Nilesh','Chapaneriya'],['Digesh','Patel'],['Priyank','Mistry'],['Milan','Bhatt'],
+    ['Ravi','Papoliwala']];
+  function nn(s){return String(s||'').toLowerCase().replace(/bhai|kumar/g,'').replace(/[^a-z]/g,'');}
+  function fm(a,b){return a&&b&&(a===b||a.indexOf(b)===0||b.indexOf(a)===0);}
+  var oldFam={};
+  for(var i=0;i<v.length;i++){
+    var r=v[i], parts=String(r[nmI]||'').trim().split(/\s+/);
+    var f=nn(r[fI]||parts[0]||''), l=nn(r[lI]||(parts.length>1?parts[parts.length-1]:''));
+    for(var j=0;j<OLD.length;j++){ if(l===nn(OLD[j][1]) && fm(f,nn(OLD[j][0]))){ oldFam[r[famI]||r[idI]]=1; break; } }
+  }
+  var oldN=0,newN=0;
+  for(var i=0;i<v.length;i++){
+    var r=v[i]; if(oldFam[r[famI]||r[idI]]){ r[onI]='Old'; oldN++; } else { r[onI]='New'; newN++; }
+  }
+  rng.setValues(v);
+  return 'Old='+oldN+' New='+newN+' families='+Object.keys(oldFam).length;
 }

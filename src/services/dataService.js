@@ -89,8 +89,8 @@ const OLD_PEOPLE = [
   ['Pratik', 'Patel'], ['Ashwin', 'Patel'], ['Aman', 'Jadav'], ['Prerak', 'Ariwala'],
   ['Nirdosh', 'Patel'], ['Ashish', 'Makwana'], ['Rigal', 'Patel'], ['Girish', 'Bodiwala'],
   ['Jenish', 'Bodiwala'], ['Nanu', 'Ahir'], ['Bhadresh', 'Gandhi'], ['Mehul', 'Gandhi'],
-  ['Akshit', 'Panchal'], ['Yogesh', 'Panchal'], ['Yogesh', 'Bhagat'], ['Kanti', 'Sakarwala'],
-  ['Nilesh', 'Champaneriya'], ['Digesh', 'Patel'], ['Priyank', 'Mistry'], ['Milan', 'Bhatt'],
+  ['Akshit', 'Panchal'], ['Yogesh', 'Panchal'], ['Yogesh', 'Bhagat'], ['Kanti', 'Sakanwala'],
+  ['Nilesh', 'Chapaneriya'], ['Digesh', 'Patel'], ['Priyank', 'Mistry'], ['Milan', 'Bhatt'],
   ['Ravi', 'Papoliwala'],
 ];
 
