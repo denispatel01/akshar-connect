@@ -1,5 +1,6 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const CACHE_NAME = 'akshar-connect-v2';
+const BUILD_ID = '1790351720902'; // replaced at build time so each deploy ships a new SW
+const CACHE_NAME = 'akshar-connect-' + BUILD_ID;
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
   BASE,
@@ -12,6 +13,11 @@ const STATIC_ASSETS = [
   BASE + 'icons/apple-touch-icon.png',
   BASE + 'icons/favicon-32.png',
 ];
+
+// Let the page trigger an immediate activation of a freshly-installed SW.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
