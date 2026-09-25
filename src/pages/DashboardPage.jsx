@@ -84,6 +84,8 @@ export default function DashboardPage({ setActivePage, user }) {
 
   const openDevotees = (devoteesPreset) => setActivePage('devotees', { devoteesPreset });
 
+  const isDevotee = user?.role === 'Devotee';
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
       {/* Welcome Banner */}
@@ -123,6 +125,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {!isDevotee && (<>
         <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Total Devotees</span>
@@ -157,6 +160,7 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-2xl font-extrabold text-text-main">{familiesCount}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
         </button>
+        </>)}
 
         <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
           <div className="flex items-center justify-between mb-3">
@@ -299,6 +303,7 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Quick Actions */}
+      {!isDevotee && (
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
         <h2 className="text-base font-bold text-text-main mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -319,6 +324,7 @@ export default function DashboardPage({ setActivePage, user }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Today's Birthdays modal */}
       {showTodayBdays && (
