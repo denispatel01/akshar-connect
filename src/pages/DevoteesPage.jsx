@@ -39,7 +39,7 @@ const FIELD_OPTIONS = {
 // Fields that should render as textarea
 const TEXTAREA_FIELDS = new Set(['address', 'notes']);
 // Fields that allow both dropdown + manual entry (datalist pattern)
-const DATALIST_FIELDS = new Set(['area']);
+const COMBO_FIELDS = new Set(['area', 'followupKaryakarta', 'reference']);
 
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
@@ -87,6 +87,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   const [filterGender, setFilterGender] = useState('');
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
+  const [manualOverride, setManualOverride] = useState({});
   const [saving, setSaving] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -98,6 +99,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
 
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
+  const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
   const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
@@ -478,6 +480,21 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      
+      {filterKaryakarta && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-2.5 mb-2 animate-slide-up">
+          <p className="text-sm font-bold text-text-main flex items-center gap-2 min-w-0">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+            <span className="truncate">Karyakarta: {filterKaryakarta}</span>
+          </p>
+          <div className="flex items-center gap-2 text-xs font-bold text-text-main shrink-0">
+            <span className="bg-surface px-2 py-1 rounded-md border border-border-light shadow-sm">{filteredDevotees.length} Devotees</span>
+            <span className="bg-surface px-2 py-1 rounded-md border border-border-light shadow-sm">{new Set(filteredDevotees.map(d => d.familyId || d.id)).size} Families</span>
+            <button onClick={() => setFilterKaryakarta('')} className="text-red-500 hover:bg-red-50 px-2 py-1 rounded-md ml-1 transition-colors">Clear</button>
           </div>
         </div>
       )}
