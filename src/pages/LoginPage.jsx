@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, MessageCircle, Phone, KeyRound, Sparkles, CheckCircle, AlertCircle, User, Calendar } from 'lucide-react';
+import { MessageCircle, Phone, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
 import PinDigitInput from '../components/PinDigitInput';
 import { dataService } from '../services/dataService';
 
@@ -9,11 +9,8 @@ const MODE = {
   SETUP: 'setup'
 };
 
-// loginTab: 'staff' (Admin/Sevak — PIN or password) | 'devotee' (DOB login)
 export default function LoginPage({ onLoginSuccess }) {
   const [mode, setMode] = useState(MODE.MAIN);
-  const [loginTab, setLoginTab] = useState('staff'); // 'staff' | 'devotee'
-  const [authType, setAuthType] = useState('pin'); // 'pin' or 'password'
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -21,13 +18,6 @@ export default function LoginPage({ onLoginSuccess }) {
   // Form states
   const [mobile, setMobile] = useState('');
   const [pin, setPin] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Devotee DOB login
-  const [dobDay, setDobDay] = useState('');
-  const [dobMonth, setDobMonth] = useState('');
-  const [dobYear, setDobYear] = useState('');
 
   // OTP state
   const [otp, setOtp] = useState('');
@@ -43,7 +33,6 @@ export default function LoginPage({ onLoginSuccess }) {
 
   const isMobileValid = mobile.length === 10;
   const isPinValid = pin.length === 6;
-  const isDobValid = dobDay.length === 2 && dobMonth.length === 2 && dobYear.length === 4;
 
   const handleMobileChange = (e) => {
     setMobile(e.target.value.replace(/\D/g, ''));
@@ -51,47 +40,26 @@ export default function LoginPage({ onLoginSuccess }) {
     setInfoMessage('');
   };
 
-  const handleDobLogin = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    if (!isMobileValid) return setErrorMessage('Enter a valid 10-digit mobile number');
-    if (!isDobValid) return setErrorMessage('Enter your complete date of birth (DD-MM-YYYY)');
-    setLoading(true);
-    try {
-      const dobStr = `${dobDay}${dobMonth}${dobYear}`;
-      const res = await dataService.loginWithDob(mobile, dobStr);
-      onLoginSuccess(res.user);
-    } catch (err) {
-      setErrorMessage(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // One login for everyone: Mobile + 6-digit PIN. Staff use their set PIN;
+  // devotees use their date of birth as DDMMYY (e.g. 01-12-95 → 011295).
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     if (!isMobileValid) return setErrorMessage('Enter a valid 10-digit mobile number');
+    if (!isPinValid) return setErrorMessage('Enter your 6-digit PIN');
 
     setLoading(true);
     try {
-      if (authType === 'pin') {
-        if (!isPinValid) {
-          setLoading(false);
-          return setErrorMessage('Enter your 6-digit PIN');
-        }
-        const res = await dataService.loginWithPin(mobile, pin);
-        onLoginSuccess(res.user);
-      } else {
-        if (!password) {
-          setLoading(false);
-          return setErrorMessage('Enter your password');
-        }
-        const res = await dataService.loginWithPassword(mobile, password);
-        onLoginSuccess(res.user);
+      let res;
+      try {
+        res = await dataService.loginWithPin(mobile, pin);
+      } catch (_) {
+        // Fall back to devotee login where the PIN is their DOB (DDMMYY).
+        res = await dataService.loginWithDob(mobile, pin);
       }
+      onLoginSuccess(res.user);
     } catch (err) {
-      setErrorMessage(err.message || 'Login failed');
+      setErrorMessage('Invalid mobile number or PIN.');
     } finally {
       setLoading(false);
     }
@@ -215,144 +183,46 @@ export default function LoginPage({ onLoginSuccess }) {
                   <p className="text-sm font-medium text-text-muted mt-1">Jai Swaminarayan 🙏</p>
                 </div>
 
-                {/* Top tab: Staff | Devotee */}
-                <div className="flex rounded-2xl border border-border-light bg-bg-base p-1 mb-4">
-                  <button type="button"
-                    onClick={() => { setLoginTab('staff'); setErrorMessage(''); }}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${loginTab === 'staff' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'}`}>
-                    <KeyRound className="h-4 w-4" /> Admin / Sevak
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  {/* Mobile */}
+                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-5 w-5 text-text-muted" />
+                      <span className="text-sm font-bold text-text-main">+91</span>
+                      <input type="text" inputMode="numeric" maxLength={10} value={mobile} onChange={handleMobileChange}
+                        placeholder="10-digit mobile number"
+                        className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
+                    </div>
+                  </div>
+
+                  {/* PIN */}
+                  <div>
+                    <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
+                    <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={() => {}} masked={true} />
+                    <p className="mt-2 px-1 text-[11px] text-text-muted">Devotees: your PIN is your date of birth as <span className="font-bold">DDMMYY</span> — e.g. 01-12-95 → <span className="font-bold">011295</span>.</p>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
+                    </div>
+                  )}
+                  {infoMessage && (
+                    <div className="flex items-center gap-2.5 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-600">
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{infoMessage}</p>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading || !isPinValid}
+                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
+                    {loading ? 'Authenticating...' : 'Sign In →'}
                   </button>
-                  <button type="button"
-                    onClick={() => { setLoginTab('devotee'); setErrorMessage(''); }}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${loginTab === 'devotee' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'}`}>
-                    <User className="h-4 w-4" /> Devotee
+                  <button type="button" onClick={handleForgotOrSetup}
+                    className="w-full text-center text-xs font-bold text-[#FF862A] hover:underline pt-1">
+                    Forgot Password / First Time Setup
                   </button>
-                </div>
-
-                {/* ── STAFF LOGIN ── */}
-                {loginTab === 'staff' && (
-                  <form onSubmit={handleLoginSubmit} className="space-y-4">
-                    {/* PIN vs Password sub-tab */}
-                    <div className="flex rounded-xl border border-border-light bg-bg-base p-0.5 gap-0.5">
-                      <button type="button" onClick={() => { setAuthType('pin'); setErrorMessage(''); }}
-                        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${authType === 'pin' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'}`}>
-                        <KeyRound className="h-3.5 w-3.5" /> PIN
-                      </button>
-                      <button type="button" onClick={() => { setAuthType('password'); setErrorMessage(''); }}
-                        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${authType === 'password' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'}`}>
-                        <Lock className="h-3.5 w-3.5" /> Password
-                      </button>
-                    </div>
-
-                    {/* Mobile */}
-                    <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-5 w-5 text-text-muted" />
-                        <span className="text-sm font-bold text-text-main">+91</span>
-                        <input type="text" inputMode="numeric" maxLength={10} value={mobile} onChange={handleMobileChange}
-                          placeholder="10-digit mobile number"
-                          className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
-                      </div>
-                    </div>
-
-                    {/* Password or PIN */}
-                    {authType === 'password' ? (
-                      <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary transition-all">
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Password</label>
-                        <div className="flex items-center gap-3">
-                          <Lock className="h-5 w-5 text-text-muted" />
-                          <input type={showPassword ? 'text' : 'password'} value={password}
-                            onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
-                            placeholder="Enter your password"
-                            className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-text-muted hover:text-text-main">
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
-                        <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={() => {}} masked={true} />
-                      </div>
-                    )}
-
-                    {errorMessage && (
-                      <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                        <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
-                      </div>
-                    )}
-                    {infoMessage && (
-                      <div className="flex items-center gap-2.5 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-600">
-                        <CheckCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{infoMessage}</p>
-                      </div>
-                    )}
-
-                    <button type="submit" disabled={loading || (authType === 'pin' && !isPinValid)}
-                      className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
-                      {loading ? 'Authenticating...' : 'Sign In →'}
-                    </button>
-                    <button type="button" onClick={handleForgotOrSetup}
-                      className="w-full text-center text-xs font-bold text-[#FF862A] hover:underline pt-1">
-                      Forgot Password / First Time Setup
-                    </button>
-                  </form>
-                )}
-
-                {/* ── DEVOTEE LOGIN ── */}
-                {loginTab === 'devotee' && (
-                  <form onSubmit={handleDobLogin} className="space-y-4">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs font-semibold text-primary">
-                      <p>Enter your registered mobile number and date of birth to access your profile.</p>
-                    </div>
-
-                    {/* Mobile */}
-                    <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-5 w-5 text-text-muted" />
-                        <span className="text-sm font-bold text-text-main">+91</span>
-                        <input type="text" inputMode="numeric" maxLength={10} value={mobile} onChange={handleMobileChange}
-                          placeholder="10-digit mobile number"
-                          className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
-                      </div>
-                    </div>
-
-                    {/* DOB — 3 fields DD / MM / YY */}
-                    <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary transition-all">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">
-                        <Calendar className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
-                        Date of Birth
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input type="text" inputMode="numeric" maxLength={2} value={dobDay}
-                          onChange={e => { setDobDay(e.target.value.replace(/\D/g,'')); setErrorMessage(''); }}
-                          placeholder="DD" className="w-14 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
-                        <span className="text-text-muted font-bold">-</span>
-                        <input type="text" inputMode="numeric" maxLength={2} value={dobMonth}
-                          onChange={e => { setDobMonth(e.target.value.replace(/\D/g,'')); setErrorMessage(''); }}
-                          placeholder="MM" className="w-14 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
-                        <span className="text-text-muted font-bold">-</span>
-                        <input type="text" inputMode="numeric" maxLength={4} value={dobYear}
-                          onChange={e => { setDobYear(e.target.value.replace(/\D/g,'')); setErrorMessage(''); }}
-                          placeholder="YYYY" className="w-20 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-center text-sm font-bold text-text-main outline-none focus:border-primary" />
-                        <span className="text-xs text-text-muted ml-1">e.g. 01-12-1995</span>
-                      </div>
-                    </div>
-
-                    {errorMessage && (
-                      <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                        <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
-                      </div>
-                    )}
-
-                    <button type="submit" disabled={loading || !isMobileValid || !isDobValid}
-                      className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
-                      {loading ? 'Verifying...' : 'Access My Profile →'}
-                    </button>
-                  </form>
-                )}
+                </form>
               </>
             )}
 
