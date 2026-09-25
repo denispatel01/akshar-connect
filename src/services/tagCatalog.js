@@ -80,7 +80,6 @@ export const TAGS = [
   { key: 'yuvak',       label: 'Yuvak',             category: 'classification', desc: 'Youth (Yuva Wing) member.' },
   { key: 'vadil',       label: 'Vadil',             category: 'classification', desc: 'Senior / elder devotee.' },
   { key: 'vip',         label: 'VIP',               category: 'classification', desc: 'Special / prominent devotee.' },
-  { key: 'sadbhav',     label: 'Sadbhav',           category: 'classification' },
   { key: 'kids',        label: 'Kids',              category: 'classification', desc: 'Child of a satsangi who does NOT attend Bal Sabha.' },
   { key: 'bal-parents', label: 'Bal Sabha Parents', category: 'classification', desc: "Parents of Bal Sabha children." },
 

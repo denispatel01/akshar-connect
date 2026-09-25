@@ -1,5 +1,5 @@
 import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } from './mockData';
-import { normalizeDevotee, toBackendRow, withTag, buildKaryakartaReconcilePlan } from './devoteeSchema';
+import { normalizeDevotee, toBackendRow, withTag, buildKaryakartaReconcilePlan, parseTags } from './devoteeSchema';
 
 // ===== Live backend =====================================================
 // Replaced at build time with the deployed Apps Script /exec URL.
@@ -89,6 +89,19 @@ async function bootstrap() {
     DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
     DB.attendance = d.attendance || []; DB.followups = d.followups || [];
+    // Self-healing: if any stored devotee still carries a tag that is no longer
+    // in the catalog (e.g. a removed tag) or a duplicate, rewrite the cleaned
+    // rows once. normalizeDevotee already stripped them in-memory, so this just
+    // persists the purge. Self-terminating: once the sheet is clean it stops.
+    const rawDevotees = d.devotees || [];
+    const needsTagPurge = rawDevotees.some(r => {
+      const rawKeys = String(r.tags || '').split(/[|,]/).map(s => s.trim()).filter(Boolean);
+      const cleaned = parseTags(r.tags);
+      return rawKeys.length !== cleaned.length || rawKeys.some(k => !cleaned.includes(k));
+    });
+    if (needsTagPurge && DB.devotees.length) {
+      try { await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) }); } catch (e) { /* non-fatal */ }
+    }
     // First run: populate the new sheet with the bundled devotee list.
     if (DB.devotees.length === 0 && INITIAL_DEVOTEES.length) {
       await api('seedDevotees', { rows: INITIAL_DEVOTEES.map(r => toBackendRow(normalizeDevotee(r))) });
