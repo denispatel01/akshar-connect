@@ -418,84 +418,67 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, mobile, address, area, DOB — any order"
+              placeholder="Search name, mobile, address, area, DOB - any order"
               className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary dark:focus:border-primary-hover" />
           </div>
-          <button onClick={() => setShowTagFilter((s) => !s)}
-            className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
-              ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
-            <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? ' (Active)' : ''}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => setShowTagFilter((s) => !s)}
+              className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
+                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? ' (Active)' : ''}
+            </button>
+            
+            {canEdit && (
+              <button onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${selectMode ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base'}`}>
+                <CheckSquare className="h-4 w-4" /> {selectMode ? 'Cancel Select' : 'Bulk Select'}
+              </button>
+            )}
+
+            <div className="flex gap-2">
+               <button onClick={() => window.print()} title="Print / PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors">
+                 <Printer className="h-4 w-4" />
+               </button>
+               <button onClick={() => {
+                  const headers = ['ID', 'Name', 'Mobile', 'WhatsApp', 'Area', 'Karyakarta', 'Blood Group', 'Gender', 'Wing'];
+                  const csvRows = [headers.join(',')];
+                  filteredDevotees.forEach(d => {
+                    const row = [d.id, d.name, d.mobile, d.whatsapp, d.area, d.followupKaryakarta, d.bloodGroup, d.gender, d.wing].map(v => `"${(v||'').replace(/"/g, '""')}"`);
+                    csvRows.push(row.join(','));
+                  });
+                  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Devotees_Export_${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+               }} title="Export CSV" className="flex items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base transition-colors">
+                 <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
+               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {selectMode && (
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 animate-slide-up">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-bold text-text-main">{selectedIds.size} selected</span>
+            <button onClick={() => {
+              if (selectedIds.size === filteredDevotees.length) setSelectedIds(new Set());
+              else setSelectedIds(new Set(filteredDevotees.map(d => d.id)));
+            }} className="text-xs font-bold text-primary hover:underline">
+              {selectedIds.size === filteredDevotees.length ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <button 
+            disabled={selectedIds.size === 0}
+            onClick={() => setShowBulkTagModal(true)}
+            className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">
+            Apply Tags
           </button>
         </div>
-      </div>
-
-      {showTagFilter && (
-        <div className="mb-4 rounded-2xl border border-border-light bg-surface p-4 shadow-sm animate-slide-up">
-          <div className="flex items-center justify-between mb-3 border-b border-border-light pb-2">
-            <h3 className="text-sm font-bold text-text-main flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /> Advanced Filters</h3>
-            <button onClick={() => { setSelectedTags([]); setFilterKaryakarta(''); setFilterArea(''); setFilterWing(''); setFilterBlood(''); setFilterGender(''); }} className="text-xs font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors">Clear All</button>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Follow-up Karyakarta</label>
-              <select value={filterKaryakarta} onChange={(e) => setFilterKaryakarta(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-                <option value="">All Karyakartas</option>
-                {uniqueKaryakartas.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Area</label>
-              <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-                <option value="">All Areas</option>
-                {uniqueAreas.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Blood Group</label>
-              <select value={filterBlood} onChange={(e) => setFilterBlood(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-                <option value="">All Blood Groups</option>
-                {BLOOD_GROUPS.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Gender</label>
-              <select value={filterGender} onChange={(e) => setFilterGender(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-                <option value="">All</option>
-                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Wing</label>
-              <select value={filterWing} onChange={(e) => setFilterWing(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-                <option value="">All Wings</option>
-                {uniqueWings.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-border-light">
-            <label className="block text-xs font-bold text-text-muted mb-2">Filter by Tags</label>
-            <div className="flex flex-wrap gap-2">
-              {tagsByCategory().map(({ category, tags }) => (
-                <div key={category.key} className="flex flex-wrap gap-1.5 items-center border-r border-border-light pr-3 mr-1">
-                  <span className="text-[10px] uppercase font-bold text-text-muted mr-1">{category.label}:</span>
-                  {tags.map((t) => {
-                    const sel = selectedTags.includes(t.key);
-                    return (
-                      <button key={t.key} onClick={() => toggleFilterTag(t.key)}
-                        style={sel ? tagChipStyle(t.key) : undefined}
-                        className={'rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-all ' +
-                          (sel ? 'border border-transparent shadow-sm scale-105' : 'border border-border-light bg-surface text-text-muted hover:bg-bg-base hover:text-text-main')}>
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      )}
       )}
 
       
