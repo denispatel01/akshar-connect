@@ -53,6 +53,9 @@ export default function App() {
 
   // Navigate with history tracking
   const navigate = (page, options) => {
+    // Always jump back to the top — lets Home/logo act as a "scroll to top"
+    // even when you're already on that page.
+    try { window.scrollTo(0, 0); document.scrollingElement && (document.scrollingElement.scrollTop = 0); } catch (e) {}
     if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId && !options?.filterPreset) return;
     if (page !== activePage) {
       setHistory((h) => [...h, activePage]);
