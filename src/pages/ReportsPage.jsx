@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Download, Users, Briefcase, MapPin, Activity, Calendar, ShieldCheck, Heart, Phone, X, ArrowRight, User } from 'lucide-react';
+import { Download, Users, MapPin, Activity, Calendar, ShieldCheck, User, FileText, Loader2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { deriveAge } from '../services/devoteeSchema';
 import { isBirthdayWithin } from '../utils/birthdays';
+import { downloadReportPdf } from '../utils/reportPdf';
 
 const isYuva = (d) => {
   const g = String(d.gender || '').toLowerCase();
@@ -12,28 +12,25 @@ const isYuva = (d) => {
   return age !== '' && age >= 15 && age <= 45;
 };
 
-const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-const exportList = (list, label) => {
-  if (!list || list.length === 0) return;
-  const headers = ['Name', 'Age', 'Gender', 'Mobile', 'Area', 'Follow-up Karyakarta', 'Family Head'];
-  const rows = list.map(d => [d.name, deriveAge(d.dob), d.gender, d.mobile, d.area, d.followupKaryakarta, (d.type === 'Primary' || !d.type) ? 'Yes' : ''].map(csvCell).join(','));
-  const csv = [headers.map(csvCell).join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  const safe = String(label || 'report').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
-  link.setAttribute('download', `${safe}_${new Date().toISOString().split('T')[0]}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
 export default function ReportsPage({ setActivePage }) {
   const devotees = dataService.getDevotees();
 
-  // Drill-down bottom sheet: { field: 'followupKaryakarta'|'area'|'wing', value, label }
-  const [drill, setDrill] = useState(null);
+  // Which report is currently being generated (its label), for the busy overlay.
+  const [busy, setBusy] = useState(null);
+
+  // Tap a row / card → build and download an attractive PDF of that group.
+  const makeReport = async (rows, title, subtitle) => {
+    if (busy) return;
+    if (!rows || rows.length === 0) return;
+    setBusy(title);
+    try {
+      await downloadReportPdf({ title, subtitle, rows });
+    } catch (e) {
+      alert('Could not generate PDF: ' + (e?.message || e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const s = {
@@ -170,141 +167,39 @@ export default function ReportsPage({ setActivePage }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card title="Total Devotees" count={stats.total} icon={Users} color="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
         <Card title="Active Devotees" count={stats.active} icon={Activity} color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
         <Card title="Yuva (Male 15–45)" count={stats.yuva} icon={User} color="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
-          hint="Tap to view list"
-          onClick={() => setDrill({
-            field: '__yuva__',
-            label: 'Yuva — Male, 15 to 45',
-            heading: 'Yuva Report',
-            list: devotees.filter(isYuva),
-          })} />
+          hint="Tap to download PDF"
+          onClick={() => makeReport(devotees.filter(isYuva), 'Yuva Report (Male 15-45)', 'Adajan Satsang Mandal')} />
         <Card title="Upcoming Birthdays" count={stats.upcomingBirthdays} icon={Calendar} color="bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400" />
         <Card title="Total Areas" count={Object.keys(stats.areaStats).length} icon={MapPin} color="bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true} onRowClick={(k) => setDrill({ field: 'followupKaryakarta', value: k, label: k })} />
-        <StatList title="By Area" data={stats.areaStats} icon={MapPin} onRowClick={(k) => setDrill({ field: 'area', value: k, label: k })} />
-        <StatList title="By Wing" data={stats.wingStats} icon={Users} onRowClick={(k) => setDrill({ field: 'wing', value: k, label: k })} />
+      <div className="flex items-center gap-2 mb-3">
+        <FileText className="h-4 w-4 text-primary" />
+        <p className="text-xs font-semibold text-text-muted">Tap any name below to download an attractive PDF report of that group.</p>
       </div>
 
-      {drill && (
-        <DrillSheet
-          drill={drill}
-          devotees={devotees}
-          onClose={() => setDrill(null)}
-          onViewAll={
-            drill.field === 'followupKaryakarta' || drill.field === 'area' || drill.field === 'wing'
-              ? () => {
-                  const preset = drill.field === 'followupKaryakarta' ? { karyakarta: drill.value }
-                    : drill.field === 'area' ? { area: drill.value }
-                    : { wing: drill.value };
-                  setActivePage?.("devotees", { filterPreset: preset });
-                }
-              : drill.field === '__yuva__'
-                ? () => setActivePage?.("devotees", { filterPreset: { gender: 'Male' } })
-                : null
-          }
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true}
+          onRowClick={(k) => makeReport(devotees.filter(d => (d.followupKaryakarta || '') === k), `Karyakarta — ${k}`, 'Devotees under this karyakarta')} />
+        <StatList title="By Area" data={stats.areaStats} icon={MapPin}
+          onRowClick={(k) => makeReport(devotees.filter(d => (d.area || '') === k), `Area — ${k}`, 'Devotees in this area')} />
+        <StatList title="By Wing" data={stats.wingStats} icon={Users}
+          onRowClick={(k) => makeReport(devotees.filter(d => (d.wing || '') === k), `Wing — ${k}`, 'Devotees in this wing')} />
+      </div>
+
+      {busy && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+          <div className="flex flex-col items-center gap-3 rounded-3xl bg-surface px-8 py-6 shadow-2xl">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <p className="text-sm font-bold text-text-main">Preparing PDF…</p>
+            <p className="text-xs text-text-muted">{busy}</p>
+          </div>
+        </div>
       )}
     </div>
-  );
-}
-
-// ── Drill-down bottom sheet (mobile) / side drawer (desktop) ──────────────────
-function DrillSheet({ drill, devotees, onClose, onViewAll }) {
-  const list = useMemo(
-    () => (drill.list ? [...drill.list] : devotees.filter(d => (d[drill.field] || '') === drill.value))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || '')),
-    [devotees, drill]
-  );
-  const families = new Set(list.map(d => d.familyId || ('ID_' + d.id))).size;
-  const heading = drill.heading
-    || (drill.field === 'followupKaryakarta' ? 'Karyakarta' : drill.field === 'area' ? 'Area' : 'Wing');
-
-  return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center sm:justify-end"
-      style={{ animation: 'drillFade .2s ease-out' }}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
-
-      {/* Sheet */}
-      <div className="relative w-full sm:w-[420px] sm:h-full bg-surface shadow-2xl flex flex-col
-          rounded-t-3xl sm:rounded-none sm:rounded-l-3xl max-h-[85vh] sm:max-h-none"
-        style={{ animation: 'drillUp .28s cubic-bezier(.22,1,.36,1)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-
-        {/* Grab handle (mobile) */}
-        <div className="sm:hidden flex justify-center pt-3 pb-1">
-          <div className="h-1.5 w-10 rounded-full bg-border-light" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-5 pt-3 sm:pt-5 pb-4 border-b border-border-light">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-primary">{heading}</p>
-            <h3 className="text-lg font-black text-text-main truncate">{drill.label}</h3>
-            <div className="flex gap-1.5 mt-1.5">
-              <span className="text-[11px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md">{list.length} devotees</span>
-              <span className="text-[11px] font-bold bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md">{families} families</span>
-            </div>
-          </div>
-          <button onClick={onClose} className="shrink-0 grid h-9 w-9 place-items-center rounded-xl hover:bg-bg-base text-text-muted">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-auto px-3 py-3 space-y-1.5">
-          {list.length === 0 ? (
-            <p className="text-sm text-text-muted text-center py-10">No devotees found.</p>
-          ) : list.map(d => (
-            <div key={d.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-bg-base transition-colors">
-              <img src={d.avatar || `https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name=${encodeURIComponent(d.name||'?')}`}
-                alt={d.name} className="h-10 w-10 shrink-0 rounded-xl object-cover ring-2 ring-border-light" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                  {deriveAge(d.dob) !== '' && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">{deriveAge(d.dob)} yrs</span>}
-                  {d.area && <span className="flex items-center gap-1 text-[11px] text-text-muted"><MapPin className="h-3 w-3 shrink-0" /><span className="truncate">{d.area}</span></span>}
-                  {d.type === 'Primary' || !d.type ? <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Head</span> : null}
-                </div>
-              </div>
-              {d.mobile && (
-                <a href={`tel:${d.mobile}`} onClick={e => e.stopPropagation()}
-                  className="shrink-0 grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
-                  <Phone className="h-4 w-4" />
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-border-light p-3 flex gap-2">
-          <button onClick={() => exportList(list, drill.label)}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base py-3 text-sm font-bold text-text-main hover:border-primary transition-colors">
-            <Download className="h-4 w-4" /> Export
-          </button>
-          {onViewAll && (
-            <button onClick={onViewAll}
-              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary-hover transition-colors">
-              Directory <ArrowRight className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes drillFade { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes drillUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
-        @media (min-width: 640px) {
-          @keyframes drillUp { from { transform: translateX(100%) } to { transform: translateX(0) } }
-        }
-      `}</style>
-    </div>,
-    document.body
   );
 }
