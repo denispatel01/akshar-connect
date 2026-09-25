@@ -33,9 +33,38 @@ dataService.bootstrap()
   .then(() => window.dispatchEvent(new Event('ac-data-refreshed')))
   .catch(() => {})
 
-// Register the service worker for PWA / offline support.
+// Register the service worker for PWA / offline support, with automatic
+// update-and-reload so users always get the latest code without a manual
+// "Empty Cache & Hard Reload".
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL }).catch(() => {})
+    navigator.serviceWorker
+      .register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })
+      .then((reg) => {
+        // When an updated worker finishes installing, activate it immediately.
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing
+          if (!nw) return
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              nw.postMessage({ type: 'SKIP_WAITING' })
+            }
+          })
+        })
+        // Check for a new build now and whenever the app regains focus.
+        reg.update().catch(() => {})
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {})
+        })
+      })
+      .catch(() => {})
+
+    // The new worker took control → reload once to swap in the new code.
+    let reloaded = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return
+      reloaded = true
+      window.location.reload()
+    })
   })
 }
