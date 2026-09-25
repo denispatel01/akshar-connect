@@ -203,6 +203,7 @@ export default function ReportsPage({ setActivePage }) {
             `Karyakarta — ${k}`,
             'Devotees under this karyakarta',
             [
+              { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
               { header: 'Full Name', get: (d) => d.name || '' },
               { header: 'Date of Birth', get: (d) => reportDob(d.dob), width: 88 },
               { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },

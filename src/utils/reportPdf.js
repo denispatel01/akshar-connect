@@ -18,6 +18,43 @@ const dobShort = (dob) => {
   return `${d}-${mon}-${y}`;
 };
 
+// Devotee ordering for every report:
+//   ambrish → karyakarta → regular attending → irregular → not attending → rest
+// and family members are kept together (a family is placed at its best-ranked
+// member's position, and its members are listed consecutively).
+const TAG_PRIORITY = ['ambrish', 'karyakarta', 'regular-sabha', 'irregular-sabha', 'not-attending-sabha'];
+
+function tagRank(d) {
+  const tags = Array.isArray(d.tags) ? d.tags : [];
+  let best = Infinity;
+  TAG_PRIORITY.forEach((k, i) => { if (tags.includes(k)) best = Math.min(best, i); });
+  return best;
+}
+
+function sortForReport(rows) {
+  // Group by family so members stay adjacent.
+  const groups = new Map();
+  rows.forEach((d) => {
+    const fid = d.familyId || d.id;
+    if (!groups.has(fid)) groups.set(fid, []);
+    groups.get(fid).push(d);
+  });
+  const ordered = [];
+  Array.from(groups.values())
+    .map((members) => {
+      const sorted = members.slice().sort((a, b) => {
+        const ra = tagRank(a), rb = tagRank(b);
+        if (ra !== rb) return ra - rb;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      const groupRank = Math.min(...sorted.map(tagRank));
+      return { sorted, groupRank, name: sorted[0]?.name || '' };
+    })
+    .sort((a, b) => (a.groupRank - b.groupRank) || a.name.localeCompare(b.name))
+    .forEach((g) => ordered.push(...g.sorted));
+  return ordered;
+}
+
 // Default columns (used when a report doesn't pass its own `columns`).
 const DEFAULT_COLUMNS = [
   { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
@@ -38,6 +75,8 @@ export async function downloadReportPdf({ title, subtitle, rows, columns }) {
     import('jspdf-autotable'),
   ]);
   const autoTable = autoTableMod.default || autoTableMod.autoTable;
+
+  const orderedRows = sortForReport(rows);
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -68,18 +107,18 @@ export async function downloadReportPdf({ title, subtitle, rows, columns }) {
   doc.text(`Generated: ${dateStr} ${timeStr}`, pageW - 40, 34, { align: 'right' });
 
   // ── Summary ────────────────────────────────────────────────────────────────
-  const families = new Set(rows.map(d => d.familyId || ('ID_' + d.id))).size;
+  const families = new Set(orderedRows.map(d => d.familyId || ('ID_' + d.id))).size;
   doc.setTextColor(...INK);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text(`${rows.length} devotees`, 40, 128);
+  doc.text(`${orderedRows.length} devotees`, 40, 128);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 130, 145);
-  doc.text(`${families} families`, 40 + doc.getTextWidth(`${rows.length} devotees`) + 16, 128);
+  doc.text(`${families} families`, 40 + doc.getTextWidth(`${orderedRows.length} devotees`) + 16, 128);
 
   // ── Table ──────────────────────────────────────────────────────────────────
   const head = [cols.map((c) => c.header)];
-  const body = rows.map((d, i) => cols.map((c) => c.get(d, i)));
+  const body = orderedRows.map((d, i) => cols.map((c) => c.get(d, i)));
 
   const columnStyles = {};
   cols.forEach((c, idx) => {
