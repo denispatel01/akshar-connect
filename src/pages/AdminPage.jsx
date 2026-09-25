@@ -50,16 +50,16 @@ export default function AdminPage({ user }) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#003158]">Admin Settings & Control</h1>
-        <p className="text-sm font-medium text-[#9BB5CB]">
+        <h1 className="text-2xl font-bold text-text-main">Admin Settings & Control</h1>
+        <p className="text-sm font-medium text-text-muted">
           Access codes, user management, and system database settings.
         </p>
       </div>
 
       {/* User Management Card (Admin only) */}
       {isAdmin && (
-        <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#003158] uppercase tracking-wider">
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
             <UserPlus className="h-4 w-4 text-[#FF862A]" /> User Management
           </div>
           <form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -69,7 +69,7 @@ export default function AdminPage({ user }) {
                 type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
                 onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
                 placeholder="10-digit mobile" required
-                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>
             <div>
@@ -78,7 +78,7 @@ export default function AdminPage({ user }) {
                 type="text" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Full name" required
-                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>
             <div>
@@ -87,7 +87,7 @@ export default function AdminPage({ user }) {
                 type="text" inputMode="numeric" maxLength={6} value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
                 placeholder="6-digit PIN" required
-                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>
             <div>
@@ -95,7 +95,7 @@ export default function AdminPage({ user }) {
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full rounded-2xl border border-[#E0EAF4] bg-[#F0F4F8] px-4 py-2.5 text-sm text-[#003158] focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               >
                 <option value="Admin">Admin</option>
                 <option value="Sevak">Sevak</option>
@@ -119,26 +119,26 @@ export default function AdminPage({ user }) {
       )}
 
       {/* Devotee Database Card */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#003158] uppercase tracking-wider">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
           <Database className="h-4 w-4 text-[#FF862A]" /> Devotee Database
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8] p-4">
+          <div className="rounded-2xl border border-border-light bg-bg-base p-4">
             <span className="text-xs font-bold text-slate-500 block">Currently Loaded</span>
-            <p className="text-3xl font-extrabold text-[#003158] mt-1">{liveCount}</p>
+            <p className="text-3xl font-extrabold text-text-main mt-1">{liveCount}</p>
             <p className="text-[11px] text-slate-500 mt-1">devotee records in the app</p>
           </div>
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
             <span className="text-xs font-bold text-emerald-700 block">Bundled Merged Dataset</span>
-            <p className="text-3xl font-extrabold text-[#003158] mt-1">{bundledCount}</p>
+            <p className="text-3xl font-extrabold text-text-main mt-1">{bundledCount}</p>
             <p className="text-[11px] text-slate-500 mt-1">from AksharConnect + GBM sheets (de-duplicated)</p>
           </div>
         </div>
         {isAdmin ? (
           <div className="space-y-2">
             <button onClick={handleImport} disabled={importing}
-              className="flex items-center gap-2 rounded-2xl bg-[#003158] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00223f] disabled:opacity-60">
+              className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00223f] disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 ${importing ? 'animate-spin' : ''}`} />
               {importing ? 'Importing…' : `Load merged data into live database (${bundledCount})`}
             </button>
@@ -158,14 +158,14 @@ export default function AdminPage({ user }) {
       </div>
 
       {/* Registered System Users */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs">
-        <h2 className="text-base font-bold text-[#003158] mb-4">System User Accounts</h2>
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+        <h2 className="text-base font-bold text-text-main mb-4">System User Accounts</h2>
 
         <div className="space-y-3">
           {users.map((u, i) => (
-            <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8]">
+            <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border border-border-light bg-bg-base">
               <div>
-                <p className="text-xs font-bold text-[#003158]">{u.name || 'User'} ({u.mobile})</p>
+                <p className="text-xs font-bold text-text-main">{u.name || 'User'} ({u.mobile})</p>
                 <p className="text-[10px] text-slate-400">PIN: •••• • Password: ••••••••</p>
               </div>
 

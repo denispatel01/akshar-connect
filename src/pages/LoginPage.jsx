@@ -122,7 +122,7 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col overflow-y-auto bg-[#F0F4F8]">
+    <div className="flex min-h-[100dvh] flex-col overflow-y-auto bg-bg-base">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Side Hero Banner - Desktop */}
         <div className="relative hidden overflow-hidden lg:block lg:w-[48%] xl:w-1/2 bg-[#001F3D]">
@@ -140,7 +140,7 @@ export default function LoginPage({ onLoginSuccess }) {
             }}
           />
           <div className="absolute inset-x-0 bottom-0 z-20 p-10 xl:p-14">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white backdrop-blur-md">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-surface/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white backdrop-blur-md">
               <Sparkles className="h-4 w-4 text-[#FF862A]" />
               Akshar Connect
             </span>
@@ -158,7 +158,7 @@ export default function LoginPage({ onLoginSuccess }) {
         </div>
 
         {/* Right Side Login Form Container */}
-        <div className="relative flex h-full flex-1 flex-col overflow-y-auto bg-white">
+        <div className="relative flex h-full flex-1 flex-col overflow-y-auto bg-surface">
           {/* Header Branding */}
           <div className="relative flex flex-shrink-0 flex-col items-center justify-center gap-2 px-4 pb-2 pt-6 sm:pt-8">
             <img
@@ -166,7 +166,7 @@ export default function LoginPage({ onLoginSuccess }) {
               alt="Akshar Connect — Connecting Devotees with Divinity"
               className="h-16 w-auto max-w-[240px] object-contain sm:h-20"
             />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#9BB5CB] block text-center">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted block text-center">
               Adajan Satsang Mandal
             </span>
           </div>
@@ -186,18 +186,18 @@ export default function LoginPage({ onLoginSuccess }) {
             {mode === MODE.MAIN && (
               <>
                 <div className="mb-6 text-center">
-                  <h2 className="text-2xl font-bold text-[#003158]">Welcome Back</h2>
-                  <p className="text-sm font-medium text-[#9BB5CB] mt-1">Please enter your details to continue</p>
+                  <h2 className="text-2xl font-bold text-text-main">Welcome Back</h2>
+                  <p className="text-sm font-medium text-text-muted mt-1">Please enter your details to continue</p>
                 </div>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   {/* Tab Selector: PIN vs Password */}
-                  <div className="flex rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8] p-1">
+                  <div className="flex rounded-2xl border border-border-light bg-bg-base p-1">
                     <button
                       type="button"
                       onClick={() => { setAuthType('pin'); setErrorMessage(''); }}
                       className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                        authType === 'pin' ? 'bg-white text-[#003158] shadow-sm' : 'text-[#9BB5CB]'
+                        authType === 'pin' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'
                       }`}
                     >
                       <KeyRound className="h-4 w-4" /> PIN
@@ -206,7 +206,7 @@ export default function LoginPage({ onLoginSuccess }) {
                       type="button"
                       onClick={() => { setAuthType('password'); setErrorMessage(''); }}
                       className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                        authType === 'password' ? 'bg-white text-[#003158] shadow-sm' : 'text-[#9BB5CB]'
+                        authType === 'password' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'
                       }`}
                     >
                       <Lock className="h-4 w-4" /> Password
@@ -214,13 +214,13 @@ export default function LoginPage({ onLoginSuccess }) {
                   </div>
 
                   {/* Mobile Input Field */}
-                  <div className="rounded-2xl border border-[#E0EAF4] bg-white px-4 py-3 focus-within:border-[#003158] focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">
+                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">
                       Mobile Number
                     </label>
                     <div className="flex items-center gap-3">
-                      <Phone className="h-5 w-5 text-[#9BB5CB]" />
-                      <span className="text-sm font-bold text-[#003158]">+91</span>
+                      <Phone className="h-5 w-5 text-text-muted" />
+                      <span className="text-sm font-bold text-text-main">+91</span>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -228,30 +228,30 @@ export default function LoginPage({ onLoginSuccess }) {
                         value={mobile}
                         onChange={handleMobileChange}
                         placeholder="Enter 10-digit mobile number"
-                        className="w-full bg-transparent text-sm font-semibold text-[#003158] outline-none placeholder:text-slate-300"
+                        className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300"
                       />
                     </div>
                   </div>
 
                   {/* Password Input */}
                   {authType === 'password' ? (
-                    <div className="rounded-2xl border border-[#E0EAF4] bg-white px-4 py-3 focus-within:border-[#003158] focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">
+                    <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">
                         Password
                       </label>
                       <div className="flex items-center gap-3">
-                        <Lock className="h-5 w-5 text-[#9BB5CB]" />
+                        <Lock className="h-5 w-5 text-text-muted" />
                         <input
                           type={showPassword ? 'text' : 'password'}
                           value={password}
                           onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
                           placeholder="Enter your password"
-                          className="w-full bg-transparent text-sm font-semibold text-[#003158] outline-none placeholder:text-slate-300"
+                          className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="text-[#9BB5CB] hover:text-[#003158]"
+                          className="text-text-muted hover:text-text-main"
                         >
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -261,7 +261,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     /* 6-Digit PIN Input */
                     <div>
                       <div className="flex justify-between items-center mb-2 px-1">
-                        <span className="text-xs font-bold text-[#9BB5CB]">PIN</span>
+                        <span className="text-xs font-bold text-text-muted">PIN</span>
                       </div>
                       <PinDigitInput
                         length={6}
@@ -293,7 +293,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <button
                     type="submit"
                     disabled={loading || (authType === 'pin' && !isPinValid)}
-                    className="w-full rounded-2xl bg-[#003158] py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50"
+                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50"
                   >
                     {loading ? 'Authenticating...' : 'Sign In →'}
                   </button>
@@ -316,8 +316,8 @@ export default function LoginPage({ onLoginSuccess }) {
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF862A]/10 text-[#FF862A]">
                     <MessageCircle className="h-6 w-6" />
                   </div>
-                  <h2 className="text-2xl font-bold text-[#003158]">Check WhatsApp</h2>
-                  <p className="text-sm font-medium text-[#9BB5CB] mt-1">
+                  <h2 className="text-2xl font-bold text-text-main">Check WhatsApp</h2>
+                  <p className="text-sm font-medium text-text-muted mt-1">
                     OTP sent to <span className="font-bold text-[#FF862A]">+91 {mobile}</span>
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">(Demo OTP: 123456)</p>
@@ -341,7 +341,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <button
                     type="submit"
                     disabled={loading || otp.length !== 6}
-                    className="w-full rounded-2xl bg-[#003158] py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
+                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
                   >
                     {loading ? 'Verifying...' : 'Verify OTP'}
                   </button>
@@ -349,7 +349,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <button
                     type="button"
                     onClick={() => setMode(MODE.MAIN)}
-                    className="w-full text-center text-xs font-bold text-[#9BB5CB] hover:text-[#003158]"
+                    className="w-full text-center text-xs font-bold text-text-muted hover:text-text-main"
                   >
                     ← Back to Sign In
                   </button>
@@ -361,35 +361,35 @@ export default function LoginPage({ onLoginSuccess }) {
             {mode === MODE.SETUP && (
               <div>
                 <div className="mb-6 text-center">
-                  <h2 className="text-2xl font-bold text-[#003158]">Account Setup</h2>
-                  <p className="text-sm font-medium text-[#9BB5CB] mt-1">Set a password and your 6-digit PIN</p>
+                  <h2 className="text-2xl font-bold text-text-main">Account Setup</h2>
+                  <p className="text-sm font-medium text-text-muted mt-1">Set a password and your 6-digit PIN</p>
                 </div>
 
                 <form onSubmit={handleCompleteSetup} className="space-y-4">
-                  <div className="rounded-2xl border border-[#E0EAF4] bg-white px-4 py-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">New Password</label>
+                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">New Password</label>
                     <input
                       type={showSetupSecret ? 'text' : 'password'}
                       value={setupData.password}
                       onChange={(e) => setSetupData({ ...setupData, password: e.target.value })}
                       placeholder="At least 6 characters"
-                      className="w-full text-sm font-semibold text-[#003158] outline-none"
+                      className="w-full text-sm font-semibold text-text-main outline-none"
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-[#E0EAF4] bg-white px-4 py-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BB5CB] mb-1">Confirm Password</label>
+                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Confirm Password</label>
                     <input
                       type={showSetupSecret ? 'text' : 'password'}
                       value={setupData.confirmPassword}
                       onChange={(e) => setSetupData({ ...setupData, confirmPassword: e.target.value })}
                       placeholder="Re-enter password"
-                      className="w-full text-sm font-semibold text-[#003158] outline-none"
+                      className="w-full text-sm font-semibold text-text-main outline-none"
                     />
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-[#9BB5CB] mb-1 block">New 6-Digit PIN</span>
+                    <span className="text-xs font-bold text-text-muted mb-1 block">New 6-Digit PIN</span>
                     <PinDigitInput
                       length={6}
                       value={setupData.pin}
@@ -399,7 +399,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-[#9BB5CB] mb-1 block">Confirm 6-Digit PIN</span>
+                    <span className="text-xs font-bold text-text-muted mb-1 block">Confirm 6-Digit PIN</span>
                     <PinDigitInput
                       length={6}
                       value={setupData.confirmPin}
@@ -418,7 +418,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-2xl bg-[#003158] py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
+                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
                   >
                     Complete Setup & Sign In
                   </button>

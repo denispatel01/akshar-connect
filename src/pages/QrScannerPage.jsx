@@ -66,22 +66,22 @@ export default function QrScannerPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 space-y-6">
       <div className="text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#003158] text-white shadow-md">
+        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-md">
           <QrCode className="h-6 w-6 text-[#FF862A]" />
         </div>
-        <h1 className="text-2xl font-bold text-[#003158]">Sabha Entry QR Scanner</h1>
-        <p className="text-sm font-medium text-[#9BB5CB] mt-0.5">
+        <h1 className="text-2xl font-bold text-text-main">Sabha Entry QR Scanner</h1>
+        <p className="text-sm font-medium text-text-muted mt-0.5">
           Scan devotee QR code pass or enter Devotee ID manually
         </p>
       </div>
 
       {/* Select Active Sabha */}
-      <div className="rounded-2xl border border-[#E0EAF4] bg-white p-4 max-w-md mx-auto flex items-center justify-between">
-        <span className="text-xs font-bold text-[#003158]">Target Sabha:</span>
+      <div className="rounded-2xl border border-border-light bg-surface p-4 max-w-md mx-auto flex items-center justify-between">
+        <span className="text-xs font-bold text-text-main">Target Sabha:</span>
         <select
           value={selectedSabhaId}
           onChange={(e) => setSelectedSabhaId(e.target.value)}
-          className="rounded-xl border border-[#E0EAF4] bg-[#F0F4F8] px-3 py-1.5 text-xs font-bold text-[#003158] outline-none"
+          className="rounded-xl border border-border-light bg-bg-base px-3 py-1.5 text-xs font-bold text-text-main outline-none"
         >
           {sabhas.map(s => (
             <option key={s.id} value={s.id}>{s.title} ({s.date})</option>
@@ -90,25 +90,25 @@ export default function QrScannerPage() {
       </div>
 
       {/* Camera Viewport & QR Reader Container */}
-      <div className="mx-auto max-w-md overflow-hidden rounded-3xl border-2 border-[#003158] bg-white p-4 shadow-xl">
+      <div className="mx-auto max-w-md overflow-hidden rounded-3xl border-2 border-primary bg-surface p-4 shadow-xl">
         <div id="qr-reader" className="w-full"></div>
       </div>
 
       {/* Manual ID Search Backup */}
       <form onSubmit={handleManualSubmit} className="mx-auto max-w-md flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#9BB5CB]" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
           <input
             type="text"
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
             placeholder="Enter DEV-1001 or mobile number..."
-            className="w-full rounded-2xl border border-[#E0EAF4] bg-white pl-10 pr-4 py-2.5 text-xs font-semibold text-[#003158] outline-none focus:border-[#003158]"
+            className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-xs font-semibold text-text-main outline-none focus:border-primary"
           />
         </div>
         <button
           type="submit"
-          className="rounded-2xl bg-[#003158] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"
+          className="rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"
         >
           Verify
         </button>

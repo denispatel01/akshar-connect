@@ -37,7 +37,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="md:col-span-1">
-            <div className="inline-flex items-center gap-2.5 rounded-2xl bg-white/95 px-3 py-2 shadow-sm">
+            <div className="inline-flex items-center gap-2.5 rounded-2xl bg-surface/95 px-3 py-2 shadow-sm">
               <img src={`${BASE}icons/icon-192.png`} alt="Akshar Connect" className="h-9 w-9 rounded-xl" />
               <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="h-6 w-auto max-w-[150px] object-contain" />
             </div>
@@ -59,7 +59,7 @@ export default function Footer() {
                     <li key={l.label}>
                       <a href={l.href} target="_blank" rel="noreferrer"
                         className="group flex items-center gap-2.5 text-sm text-white/80 hover:text-white transition">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#FFB27D] group-hover:bg-white/20">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface/10 text-[#FFB27D] group-hover:bg-surface/20">
                           <Icon className="h-3.5 w-3.5" />
                         </span>
                         <span className="min-w-0 truncate">{l.label}</span>

@@ -23,12 +23,12 @@ export default function DarshanSlider() {
   }, [paused, n]);
 
   return (
-    <div className="rounded-3xl border border-[#E0EAF4] bg-white p-4 sm:p-5 shadow-xs">
+    <div className="rounded-3xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
       <div className="flex items-center justify-between mb-3 gap-2">
-        <h2 className="text-base font-bold text-[#003158] flex items-center gap-2">
+        <h2 className="text-base font-bold text-text-main flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-[#FF862A]" /> Darshan &amp; Vichar
         </h2>
-        <span className="text-[11px] font-semibold text-[#9BB5CB]">{i + 1} / {n}</span>
+        <span className="text-[11px] font-semibold text-text-muted">{i + 1} / {n}</span>
       </div>
 
       <div
@@ -67,7 +67,7 @@ export default function DarshanSlider() {
         <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5">
           {IMAGES.map((_, idx) => (
             <button key={idx} onClick={() => setI(idx)} aria-label={`Go to ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80'}`} />
+              className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-5 bg-surface' : 'w-1.5 bg-surface/50 hover:bg-surface/80'}`} />
           ))}
         </div>
       </div>

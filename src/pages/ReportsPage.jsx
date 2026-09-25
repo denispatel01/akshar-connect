@@ -35,8 +35,8 @@ export default function ReportsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#003158]">Reports & Analytics</h1>
-          <p className="text-sm font-medium text-[#9BB5CB]">
+          <h1 className="text-2xl font-bold text-text-main">Reports & Analytics</h1>
+          <p className="text-sm font-medium text-text-muted">
             Export devotee attendance summaries and inspect report data.
           </p>
         </div>
@@ -51,21 +51,21 @@ export default function ReportsPage() {
 
       {/* Search Input */}
       <div className="relative max-w-md">
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#9BB5CB]" />
+        <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Filter report by name, mobile, city..."
-          className="w-full rounded-2xl border border-[#E0EAF4] bg-white pl-10 pr-4 py-2.5 text-xs font-semibold text-[#003158] outline-none"
+          className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-xs font-semibold text-text-main outline-none"
         />
       </div>
 
       {/* Devotees Report Table */}
-      <div className="overflow-hidden rounded-3xl border border-[#E4EBF3] bg-white shadow-xs">
+      <div className="overflow-hidden rounded-3xl border border-border-light bg-surface shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-semibold text-[#003158]">
-            <thead className="bg-[#F0F4F8] text-[11px] uppercase tracking-wider text-[#9BB5CB] border-b border-[#E4EBF3]">
+          <table className="w-full text-left text-xs font-semibold text-text-main">
+            <thead className="bg-bg-base text-[11px] uppercase tracking-wider text-text-muted border-b border-border-light">
               <tr>
                 <th className="px-6 py-4">Devotee ID</th>
                 <th className="px-6 py-4">Name</th>

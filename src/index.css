@@ -1,20 +1,45 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #003158;
-  --color-primary-hover: #00223f;
-  --color-primary-light: #00436f;
-  --color-accent: #FF862A;
-  --color-accent-hover: #e06f19;
-  --color-accent-bg: rgba(255, 134, 42, 0.10);
-  --color-bg-slate: #F0F4F8;
-  --color-[#9BB5CB]: #9BB5CB;
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-bg-base: var(--bg-base);
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-border-light: var(--border-light);
 }
 
 @layer base {
+  :root {
+    --primary: #003158;
+    --primary-hover: #00223f;
+    --accent: #FF862A;
+    --surface: #FFFFFF;
+    --surface-hover: #F8FAFC;
+    --bg-base: #F0F4F8;
+    --text-main: #003158;
+    --text-muted: #64748B;
+    --border-light: #E4EBF3;
+  }
+
+  .dark {
+    --primary: #38bdf8;
+    --primary-hover: #7dd3fc;
+    --accent: #FF862A;
+    --surface: #0f172a;
+    --surface-hover: #1e293b;
+    --bg-base: #020617;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-light: #1e293b;
+  }
+
   body {
-    background-color: #F0F4F8;
-    color: #1E293B;
+    background-color: var(--bg-base);
+    color: var(--text-main);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     margin: 0;
     padding: 0;
@@ -80,4 +105,23 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
+}
+
+@layer utilities {
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out forwards;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

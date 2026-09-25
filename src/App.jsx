@@ -56,6 +56,19 @@ export default function App() {
     finally { setRefreshing(false); setRefreshKey((k) => k + 1); }
   };
 
+  // Pull to refresh tracking
+  const [touchStart, setTouchStart] = useState(0);
+
+  const handleTouchStart = (e) => setTouchStart(e.touches[0].clientY);
+  const handleTouchEnd = (e) => {
+    if (touchStart === 0) return;
+    const touchEnd = e.changedTouches[0].clientY;
+    if (touchEnd - touchStart > 100 && window.scrollY === 0 && !refreshing) {
+      refresh();
+    }
+    setTouchStart(0);
+  };
+
   const handleLoginSuccess = (userObj) => {
     setUser(userObj);
     setActivePage('dashboard');
@@ -69,12 +82,27 @@ export default function App() {
     setActivePage('dashboard');
   };
 
+  // Dark Mode Toggle
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('ac-dark-mode') === 'true';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('ac-dark-mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('ac-dark-mode', 'false');
+    }
+  }, [isDarkMode]);
+
   if (!user) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] flex flex-col font-sans">
+    <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <Navbar
         activePage={activePage}
         setActivePage={navigate}
@@ -84,10 +112,12 @@ export default function App() {
         canBack={history.length > 0}
         onRefresh={refresh}
         refreshing={refreshing}
+        isDarkMode={isDarkMode}
+        toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
       />
 
-      <main className="flex-1 pb-12" key={refreshKey}>
-        {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} />}
+      <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
+        {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
         {activePage === 'devotees' && (
           <DevoteesPage
             user={user}
@@ -95,9 +125,10 @@ export default function App() {
             onClearDevoteesPreset={() => setDevoteesPreset(null)}
             openDevoteeId={openDevoteeId}
             onClearOpenDevotee={() => setOpenDevoteeId(null)}
+            refreshing={refreshing}
           />
         )}
-        {activePage === 'followups' && <FollowupsPage user={user} />}
+        {activePage === 'followups' && <FollowupsPage user={user} refreshing={refreshing} />}
         {activePage === 'email' && <ComingSoonPage title="Email & Messaging" />}
         {activePage === 'admin' && <AdminPage user={user} />}
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}

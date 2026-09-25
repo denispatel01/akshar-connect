@@ -80,14 +80,14 @@ export default function DashboardPage({ setActivePage, user }) {
   };
 
   const statCardCls =
-    'rounded-2xl border border-[#E4EBF3] bg-white p-5 shadow-xs transition-all hover:shadow-md hover:border-[#003158]/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
+    'rounded-2xl border border-border-light bg-surface p-5 shadow-xs transition-all hover:shadow-md hover:border-primary/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
 
   const openDevotees = (devoteesPreset) => setActivePage('devotees', { devoteesPreset });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-[#003158] p-6 text-white shadow-lg sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8">
         <img
           src={`${import.meta.env.BASE_URL}images/swamiji-jode.webp`}
           alt="Jode cho Maharaj"
@@ -125,12 +125,12 @@ export default function DashboardPage({ setActivePage, user }) {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Total Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#003158]/10 text-[#003158]">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Total Devotees</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-text-main">
               <Users className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-[#003158]">{totalDevotees}</p>
+          <p className="text-2xl font-extrabold text-text-main">{totalDevotees}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1 flex items-center gap-1">
             <TrendingUp className="h-3 w-3" /> Tap to open full directory
           </p>
@@ -138,34 +138,34 @@ export default function DashboardPage({ setActivePage, user }) {
 
         <button type="button" onClick={() => openDevotees('ambrish')} className={statCardCls} title="View Ambrish devotees">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Ambrish</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Ambrish</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
               <Award className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-[#003158]">{ambrishCount}</p>
+          <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
           <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
         </button>
 
         <button type="button" onClick={() => openDevotees('families')} className={statCardCls} title="View family heads">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Families</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Families</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
               <Home className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-[#003158]">{familiesCount}</p>
+          <p className="text-2xl font-extrabold text-text-main">{familiesCount}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
         </button>
 
         <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#9BB5CB]">Today's Birthdays</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Today's Birthdays</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
               <Cake className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-[#003158]">{birthdaysToday.length}</p>
+          <p className="text-2xl font-extrabold text-text-main">{birthdaysToday.length}</p>
           <p className="text-[11px] font-semibold text-purple-600 mt-1">Tap to view celebrating today</p>
         </button>
       </div>
@@ -174,9 +174,9 @@ export default function DashboardPage({ setActivePage, user }) {
       <DarshanSlider />
 
       {/* Upcoming Birthdays */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4 gap-3">
-          <h2 className="text-base font-bold text-[#003158] flex items-center gap-2">
+          <h2 className="text-base font-bold text-text-main flex items-center gap-2">
             <Cake className="h-5 w-5 text-purple-600" /> Upcoming Birthdays
           </h2>
           <button onClick={() => openDevotees('upcomingBirthdays')} className="text-xs font-bold text-[#FF862A] hover:underline shrink-0">
@@ -184,7 +184,7 @@ export default function DashboardPage({ setActivePage, user }) {
           </button>
         </div>
         {upcoming.length === 0 ? (
-          <p className="text-sm font-semibold text-[#9BB5CB]">No birthdays in the next 30 days.</p>
+          <p className="text-sm font-semibold text-text-muted">No birthdays in the next 30 days.</p>
         ) : (
           <div className="space-y-2">
             {upcoming.map(({ devotee, info }) => {
@@ -192,7 +192,7 @@ export default function DashboardPage({ setActivePage, user }) {
               const wa = birthdayWaLink(devotee);
               return (
                 <div key={devotee.id}
-                  className={`rounded-2xl border transition-all ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-[#F0F4F8] bg-[#F8FAFC]'} ${open ? 'shadow-sm' : ''}`}>
+                  className={`rounded-2xl border transition-all ${info.isToday ? 'border-purple-200 bg-purple-50/60' : 'border-border-light bg-[#F8FAFC]'} ${open ? 'shadow-sm' : ''}`}>
                   {/* header row (tap to expand) */}
                   <button
                     onClick={() => setExpandedBday(open ? null : devotee.id)}
@@ -203,13 +203,13 @@ export default function DashboardPage({ setActivePage, user }) {
                         <Cake className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#003158] truncate">{devotee.name}</p>
+                        <p className="text-sm font-bold text-text-main truncate">{devotee.name}</p>
                         <p className="text-[11px] text-slate-400">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={`text-[11px] font-bold ${info.isToday ? 'text-purple-700' : 'text-purple-600'}`}>{birthdayLabel(info)}</span>
-                      <ChevronDown className={`h-4 w-4 text-[#9BB5CB] transition-transform ${open ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
                     </div>
                   </button>
 
@@ -218,8 +218,8 @@ export default function DashboardPage({ setActivePage, user }) {
                     <div className="px-3 pb-3 pt-1 border-t border-black/5 space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                         <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(devotee.dob)}</p>
-                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0" /> {devotee.mobile || '—'}</p>
-                        {devotee.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
+                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {devotee.mobile || '—'}</p>
+                        {devotee.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
                         {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
                       </div>
                       {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
@@ -237,7 +237,7 @@ export default function DashboardPage({ setActivePage, user }) {
                           </a>
                         )}
                         <button onClick={() => setActivePage('devotees', { openDevoteeId: devotee.id })}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#E4EBF3] bg-white px-3.5 py-2 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
                         {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
@@ -252,7 +252,7 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Today's Inspiration — swipeable slider */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
+      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
         <div className="flex-1 p-6 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
@@ -261,11 +261,11 @@ export default function DashboardPage({ setActivePage, user }) {
             {thoughtSlides.length > 1 && (
               <div className="flex items-center gap-1.5 shrink-0">
                 <button onClick={() => slideThought(-1)} aria-label="Previous thought"
-                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E4EBF3] text-[#003158] hover:bg-[#F0F4F8]">
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button onClick={() => slideThought(1)} aria-label="Next thought"
-                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E4EBF3] text-[#003158] hover:bg-[#F0F4F8]">
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
@@ -276,11 +276,11 @@ export default function DashboardPage({ setActivePage, user }) {
             className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {thoughtSlides.map((t, i) => (
               <div key={i} className="snap-center shrink-0 w-full pr-1">
-                <p className="text-lg font-semibold text-[#003158] italic leading-relaxed">
+                <p className="text-lg font-semibold text-text-main italic leading-relaxed">
                   "{t.thought}"
                 </p>
-                <p className="mt-3 text-xs font-semibold text-[#9BB5CB]">
-                  <span className="text-[#003158]/70">{t.author}</span>
+                <p className="mt-3 text-xs font-semibold text-text-muted">
+                  <span className="text-text-main/70">{t.author}</span>
                   {t.date ? <span> · {displayThoughtDate(t.date)}</span> : null}
                 </p>
               </div>
@@ -299,23 +299,23 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Quick Actions */}
-      <div className="rounded-3xl border border-[#E0EAF4] bg-white p-6 shadow-xs">
-        <h2 className="text-base font-bold text-[#003158] mb-4">Quick Actions</h2>
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+        <h2 className="text-base font-bold text-text-main mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
             onClick={() => setActivePage('devotees')}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8] p-4 text-center transition-all hover:bg-white hover:border-[#003158] hover:shadow-md"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base p-4 text-center transition-all hover:bg-surface hover:border-primary hover:shadow-md"
           >
-            <UserPlus className="h-6 w-6 text-[#003158]" />
-            <span className="text-xs font-bold text-[#003158]">Devotee Directory</span>
+            <UserPlus className="h-6 w-6 text-text-main" />
+            <span className="text-xs font-bold text-text-main">Devotee Directory</span>
           </button>
 
           <button
             onClick={() => setActivePage('followups')}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#E4EBF3] bg-[#F0F4F8] p-4 text-center transition-all hover:bg-white hover:border-[#FF862A] hover:shadow-md"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base p-4 text-center transition-all hover:bg-surface hover:border-[#FF862A] hover:shadow-md"
           >
             <PhoneCall className="h-6 w-6 text-[#FF862A]" />
-            <span className="text-xs font-bold text-[#003158]">Run Follow-ups</span>
+            <span className="text-xs font-bold text-text-main">Run Follow-ups</span>
           </button>
         </div>
       </div>
@@ -323,17 +323,17 @@ export default function DashboardPage({ setActivePage, user }) {
       {/* Today's Birthdays modal */}
       {showTodayBdays && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" onClick={() => setShowTodayBdays(false)}>
-          <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl max-h-[88vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#F0F4F8] p-5">
-              <h2 className="text-lg font-bold text-[#003158] flex items-center gap-2">
+          <div className="w-full max-w-lg rounded-3xl bg-surface shadow-2xl max-h-[88vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border-light p-5">
+              <h2 className="text-lg font-bold text-text-main flex items-center gap-2">
                 <Cake className="h-5 w-5 text-purple-600" /> Today's Birthdays
                 <span className="text-sm font-bold text-purple-600">({birthdaysToday.length})</span>
               </h2>
-              <button onClick={() => setShowTodayBdays(false)} className="text-[#9BB5CB] hover:text-[#003158]"><X className="h-5 w-5" /></button>
+              <button onClick={() => setShowTodayBdays(false)} className="text-text-muted hover:text-text-main"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3">
               {birthdaysToday.length === 0 ? (
-                <p className="text-sm font-semibold text-[#9BB5CB] text-center py-8">No devotee has a birthday today.</p>
+                <p className="text-sm font-semibold text-text-muted text-center py-8">No devotee has a birthday today.</p>
               ) : (
                 birthdaysToday.map((d) => {
                   const wa = birthdayWaLink(d);
@@ -342,14 +342,14 @@ export default function DashboardPage({ setActivePage, user }) {
                       <div className="flex items-center gap-3 mb-2">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white shrink-0"><Cake className="h-5 w-5" /></div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-[#003158] truncate">{d.name}</p>
+                          <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
                           <p className="text-[11px] font-semibold text-purple-600">🎂 Turning {new Date().getFullYear() - new Date(d.dob).getFullYear()} today</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                         <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(d.dob)}</p>
-                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0" /> {d.mobile || '—'}</p>
-                        {d.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-[#9BB5CB] shrink-0 mt-0.5" /> <span>{d.address}{d.area ? `, ${d.area}` : ''}</span></p>}
+                        <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {d.mobile || '—'}</p>
+                        {d.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{d.address}{d.area ? `, ${d.area}` : ''}</span></p>}
                         {d.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {d.followupKaryakarta}</p>}
                       </div>
                       {Array.isArray(d.tags) && d.tags.length > 0 && (
@@ -367,7 +367,7 @@ export default function DashboardPage({ setActivePage, user }) {
                           </a>
                         )}
                         <button onClick={() => { setShowTodayBdays(false); setActivePage('devotees', { openDevoteeId: d.id }); }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#E4EBF3] bg-white px-3.5 py-2 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
                         {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
