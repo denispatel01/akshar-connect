@@ -14,14 +14,15 @@ import {
   FAMILY_RECORD_TYPES, formatFamilyRecordType, formatFamilyMembershipContext
 } from '../services/devoteeSchema';
 
-// Profile tabs -> [field, label]
+// Profile tabs -> [field, label]. 'Tags' is a special tab (no fields, renders tag UI).
 const TABS = {
-  'Personal': [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  'Contact & Address': [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
-  'Education': [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
-  'Profession': [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang & Follow-up': [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Family membership']],
-  'System': [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
+  'Personal':    [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
+  'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
+  'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
+  'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
+  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Family membership']],
+  'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
+  'Tags':        [], // rendered separately
 };
 const ALL_FIELDS = Object.values(TABS).flat();
 const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
@@ -222,28 +223,51 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // --- Profile tab swipe navigation ---
   const TAB_KEYS = Object.keys(TABS);
-  const [slideDir, setSlideDir] = useState(0); // -1 left, 1 right (for animation)
+  const [slideDir, setSlideDir] = useState(1);
+  const [tabAnimKey, setTabAnimKey] = useState(0); // increment to re-trigger animation
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
+  const touchDeltaX = useRef(0);
+  const tabBarRef = useRef(null);
 
-  const goToTab = (dir) => {
-    const idx = TAB_KEYS.indexOf(activeTab);
-    const next = idx + dir;
-    if (next < 0 || next >= TAB_KEYS.length) return;
-    setSlideDir(dir);
-    setActiveTab(TAB_KEYS[next]);
+  const goToTab = (dir, targetKey) => {
+    const currentIdx = TAB_KEYS.indexOf(activeTab);
+    let nextKey = targetKey;
+    if (!nextKey) {
+      const nextIdx = currentIdx + dir;
+      if (nextIdx < 0 || nextIdx >= TAB_KEYS.length) return;
+      nextKey = TAB_KEYS[nextIdx];
+    }
+    const resolvedDir = TAB_KEYS.indexOf(nextKey) > currentIdx ? 1 : -1;
+    setSlideDir(resolvedDir);
+    setTabAnimKey(k => k + 1);
+    setActiveTab(nextKey);
+    // Scroll active tab button into view
+    setTimeout(() => {
+      const bar = tabBarRef.current;
+      if (!bar) return;
+      const active = bar.querySelector('[data-active="true"]');
+      if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 30);
   };
+
   const onBodyTouchStart = (e) => {
     if (editing) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    touchDeltaX.current = 0;
+  };
+  const onBodyTouchMove = (e) => {
+    if (editing || touchStartX.current == null) return;
+    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
   };
   const onBodyTouchEnd = (e) => {
     if (editing || touchStartX.current == null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    touchDeltaX.current = 0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       goToTab(dx < 0 ? 1 : -1);
     }
   };
@@ -873,9 +897,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
       {/* Profile Modal (tabbed + edit) */}
       {selectedDevotee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-surface shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
-            <style>{`@keyframes acSlideL{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}@keyframes acSlideR{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}`}</style>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
+          <div className="w-full max-w-2xl sm:rounded-3xl rounded-t-3xl bg-surface shadow-2xl relative flex flex-col"
+            style={{ maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 16px)', height: 'auto' }}>
+            <style>{`
+              @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
+              @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
+            `}</style>
 
             {/* Header — gradient band */}
             <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6">
@@ -910,71 +938,77 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               </div>
             </div>
 
-            {/* Tab Bar with slide arrows */}
-            <div className="flex items-center gap-1 border-b border-border-light bg-[#FAFBFC] px-2 sm:px-4">
+            {/* Tab Bar */}
+            <div className="flex items-center gap-1 border-b border-border-light bg-[#FAFBFC] px-2 sm:px-4 shrink-0">
               <button onClick={() => goToTab(-1)} disabled={TAB_KEYS.indexOf(activeTab) === 0}
-                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent">
+                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <div className="flex flex-1 overflow-x-auto no-scrollbar gap-1 py-2">
+              <div ref={tabBarRef} className="flex flex-1 overflow-x-auto no-scrollbar gap-1 py-2">
                 {TAB_KEYS.map((tab) => (
-                  <button key={tab} onClick={() => { setSlideDir(TAB_KEYS.indexOf(tab) > TAB_KEYS.indexOf(activeTab) ? 1 : -1); setActiveTab(tab); }}
+                  <button key={tab} data-active={activeTab === tab ? 'true' : 'false'}
+                    onClick={() => goToTab(0, tab)}
                     className={'shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ' +
-                      (activeTab === tab
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
+                      (activeTab === tab ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
                     {tab}
                   </button>
                 ))}
               </div>
               <button onClick={() => goToTab(1)} disabled={TAB_KEYS.indexOf(activeTab) === TAB_KEYS.length - 1}
-                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent">
+                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Body — filtered by active tab, swipeable */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4"
-              onTouchStart={onBodyTouchStart} onTouchEnd={onBodyTouchEnd}>
-              <div key={activeTab} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3"
-                style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .22s ease` }}>
-                {(TABS[activeTab] || []).map(([f, label]) => (
-                  <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
-                    {editing ? (
-                      renderEditField(f, editData, setEditData)
+            {/* Body — swipeable, scrollable */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0"
+              onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd}>
+
+              {/* Field grid for all non-Tags tabs */}
+              {activeTab !== 'Tags' && (
+                <div key={`${activeTab}-${tabAnimKey}`}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4"
+                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
+                  {(TABS[activeTab] || []).map(([f, label]) => (
+                    <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
+                      {editing ? (
+                        renderEditField(f, editData, setEditData)
+                      ) : (
+                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Tags tab */}
+              {activeTab === 'Tags' && (
+                <div key={`tags-${tabAnimKey}`}
+                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
+                  <div className="mb-3">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
+                    {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedDevotee.tags.map((key) => (
+                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
+                        ))}
+                      </div>
                     ) : (
-                      <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                      <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
                     )}
                   </div>
-                ))}
-              </div>
-
-              {/* Tags section — show only on the last tab (System) */}
-              {activeTab === 'System' && (
-                <div className="mt-4 pt-4 border-t border-border-light">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Tags</div>
-                  {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedDevotee.tags.map((key) => (
-                        <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
-                  )}
 
                   {canEdit && (
                     <div className="mt-4 space-y-5">
                       <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it.</p>
-                      {tagsByCategory().map(({ category, tags }) => {
-                        // group tags within this category by their mutuallyExclusiveGroup
+                      {tagsByCategory().map(({ category, tags: catTags }) => {
                         const groups = [];
                         const seen = new Set();
-                        tags.forEach(t => {
+                        catTags.forEach(t => {
                           if (t.mutuallyExclusiveGroup && !seen.has(t.mutuallyExclusiveGroup)) {
                             seen.add(t.mutuallyExclusiveGroup);
-                            groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: tags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
+                            groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: catTags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
                           } else if (!t.mutuallyExclusiveGroup) {
                             groups.push({ type: 'single', tags: [t] });
                           }
@@ -988,14 +1022,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                             <div className="flex flex-wrap gap-2">
                               {groups.map((g, gi) =>
                                 g.type === 'mutex' ? (
-                                  // Radio-style pill group with a subtle bracket
                                   <span key={gi} className="inline-flex items-center rounded-full border border-dashed border-border-light gap-0.5 p-0.5" title="Only one may be active">
                                     {g.tags.map(t => {
                                       const active = (selectedDevotee.tags || []).includes(t.key);
                                       return (
                                         <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                          style={active ? tagChipStyle(t.key) : undefined}
-                                          title={t.desc}
+                                          style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
                                           className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
                                             (active ? '' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
                                           {t.label}
@@ -1008,8 +1040,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                                     const active = (selectedDevotee.tags || []).includes(t.key);
                                     return (
                                       <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                        style={active ? tagChipStyle(t.key) : undefined}
-                                        title={t.desc}
+                                        style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
                                         className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
                                           (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
                                         {t.label}
@@ -1026,6 +1057,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   )}
                 </div>
               )}
+
             </div>
 
             {/* Footer actions */}
