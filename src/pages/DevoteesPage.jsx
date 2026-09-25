@@ -80,11 +80,20 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   const [editData, setEditData] = useState({});
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
+  const [filterKaryakarta, setFilterKaryakarta] = useState('');
+  const [filterArea, setFilterArea] = useState('');
+  const [filterWing, setFilterWing] = useState('');
+  const [filterBlood, setFilterBlood] = useState('');
+  const [filterGender, setFilterGender] = useState('');
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
+
+  const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
+  const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
+  const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
@@ -99,7 +108,12 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   useEffect(() => {
     if (!devoteesPreset || !PRESET_META[devoteesPreset]) return;
     const { tags } = PRESET_META[devoteesPreset];
-    setSelectedTags(tags);
+    setSelectedTags(tags || []);
+    setFilterKaryakarta('');
+    setFilterArea('');
+    setFilterWing('');
+    setFilterBlood('');
+    setFilterGender('');
     setSearchQuery('');
     setShowTagFilter(devoteesPreset === 'ambrish');
   }, [devoteesPreset]);
@@ -120,7 +134,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
 
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
-  const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !devoteesPreset;
+  const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !devoteesPreset;
 
   // Build the lowercased searchable text for a devotee (name, contacts, address,
   // area, dob variants, karyakarta, tags…).
@@ -138,6 +152,11 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
       if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
+      if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
+      if (filterArea && d.area !== filterArea) return false;
+      if (filterWing && d.wing !== filterWing) return false;
+      if (filterBlood && d.bloodGroup !== filterBlood) return false;
+      if (filterGender && d.gender !== filterGender) return false;
       return hasAnyTag(d, selectedTags) && presetMatch(d);
     });
     if (query) {
@@ -149,7 +168,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, selectedTags, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -383,38 +402,78 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
           </div>
           <button onClick={() => setShowTagFilter((s) => !s)}
             className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
-              (selectedTags.length ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
-            <Filter className="h-4 w-4" /> Filter by tag{selectedTags.length ? ` (${selectedTags.length})` : ''}
+              ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+            <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? ' (Active)' : ''}
           </button>
         </div>
       </div>
 
       {showTagFilter && (
-        <div className="rounded-3xl border border-border-light bg-surface p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-text-muted">Showing devotees with ANY selected tag.</p>
-            {selectedTags.length > 0 && (
-              <button onClick={() => setSelectedTags([])} className="text-xs font-bold text-[#FF862A] hover:underline">Clear</button>
-            )}
+        <div className="mb-4 rounded-2xl border border-border-light bg-surface p-4 shadow-sm animate-slide-up">
+          <div className="flex items-center justify-between mb-3 border-b border-border-light pb-2">
+            <h3 className="text-sm font-bold text-text-main flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /> Advanced Filters</h3>
+            <button onClick={() => { setSelectedTags([]); setFilterKaryakarta(''); setFilterArea(''); setFilterWing(''); setFilterBlood(''); setFilterGender(''); }} className="text-xs font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors">Clear All</button>
           </div>
-          {tagsByCategory().map(({ category, tags }) => (
-            <div key={category.key}>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-main mb-2">{category.label}</div>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((t) => {
-                  const active = selectedTags.includes(t.key);
-                  return (
-                    <button key={t.key} onClick={() => toggleFilterTag(t.key)}
-                      style={active ? tagChipStyle(t.key) : undefined}
-                      className={'rounded-full px-3 py-1 text-[11px] font-bold ' +
-                        (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-bold text-text-muted mb-1">Follow-up Karyakarta</label>
+              <select value={filterKaryakarta} onChange={(e) => setFilterKaryakarta(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+                <option value="">All Karyakartas</option>
+                {uniqueKaryakartas.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
             </div>
-          ))}
+            <div>
+              <label className="block text-xs font-bold text-text-muted mb-1">Area</label>
+              <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+                <option value="">All Areas</option>
+                {uniqueAreas.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-text-muted mb-1">Blood Group</label>
+              <select value={filterBlood} onChange={(e) => setFilterBlood(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+                <option value="">All Blood Groups</option>
+                {BLOOD_GROUPS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-text-muted mb-1">Gender</label>
+              <select value={filterGender} onChange={(e) => setFilterGender(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+                <option value="">All</option>
+                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-text-muted mb-1">Wing</label>
+              <select value={filterWing} onChange={(e) => setFilterWing(e.target.value)} className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+                <option value="">All Wings</option>
+                {uniqueWings.map(w => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border-light">
+            <label className="block text-xs font-bold text-text-muted mb-2">Filter by Tags</label>
+            <div className="flex flex-wrap gap-2">
+              {tagsByCategory().map(({ category, tags }) => (
+                <div key={category.key} className="flex flex-wrap gap-1.5 items-center border-r border-border-light pr-3 mr-1">
+                  <span className="text-[10px] uppercase font-bold text-text-muted mr-1">{category.label}:</span>
+                  {tags.map((t) => {
+                    const sel = selectedTags.includes(t.key);
+                    return (
+                      <button key={t.key} onClick={() => toggleFilterTag(t.key)}
+                        style={sel ? tagChipStyle(t.key) : undefined}
+                        className={'rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-all ' +
+                          (sel ? 'border border-transparent shadow-sm scale-105' : 'border border-border-light bg-surface text-text-muted hover:bg-bg-base hover:text-text-main')}>
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

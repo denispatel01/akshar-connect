@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage';
 import DevoteesPage from './pages/DevoteesPage';
 import FollowupsPage from './pages/FollowupsPage';
 import AdminPage from './pages/AdminPage';
+import ReportsPage from './pages/ReportsPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import { dataService } from './services/dataService';
@@ -133,7 +134,7 @@ export default function App() {
         {activePage === 'admin' && <AdminPage user={user} />}
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
-        {activePage === 'reports' && <ComingSoonPage title="Reports & Export" />}
+        {activePage === 'reports' && <ReportsPage />}
       </main>
 
       <Footer />

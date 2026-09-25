@@ -178,7 +178,7 @@ export const dataService = {
       id: `HPP-${nextNum}`,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
-      createdOn: now, updatedOn: now,
+      createdOn: now, updatedOn: now, createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System',
     });
     DB.devotees.unshift(newDevotee); saveCache();
     push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
@@ -188,7 +188,7 @@ export const dataService = {
   updateDevotee: (id, updatedFields) => {
     const idx = DB.devotees.findIndex(d => d.id === id);
     if (idx === -1) return null;
-    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString() });
+    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System' });
     DB.devotees[idx] = merged; saveCache();
     push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
     return merged;

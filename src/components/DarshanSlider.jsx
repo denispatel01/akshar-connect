@@ -4,8 +4,8 @@ import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 const BASE = import.meta.env.BASE_URL;
 // Prabodh Swamiji darshan / vichar wallpapers (public/images/gallery)
 const FILES = [
-  '9.jpg', '13.jpg', '14.jpg', '16.jpg', '18.jpg', '22.jpg', '23.jpg', '24.jpg', '27.jpg',
-  '10.webp', '11.webp', '12.webp', '15.webp', '17.webp', '19.webp', '20.webp', '21.webp', '25.webp', '26.webp', '8.webp',
+  '9.jpg', '14.jpg', '16.jpg', '18.jpg', '22.jpg', '23.jpg', '24.jpg', '27.jpg',
+  '10.webp', '12.webp', '15.webp', '17.webp', '19.webp', '21.webp', '25.webp', '26.webp', '8.webp',
 ];
 const IMAGES = FILES.map((f) => `${BASE}images/gallery/${f}`);
 
