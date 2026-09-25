@@ -5,6 +5,15 @@ import { deriveAge } from '../services/devoteeSchema';
 import { isBirthdayWithin } from '../utils/birthdays';
 import { downloadReportPdf } from '../utils/reportPdf';
 
+// DOB (YYYY-MM-DD) → dd-MMM-yyyy for the PDF, e.g. 01-Dec-1995.
+const reportDob = (dob) => {
+  if (!dob) return '';
+  const [y, m, d] = String(dob).split('-');
+  if (!y) return '';
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m - 1] || '';
+  return `${d}-${mon}-${y}`;
+};
+
 const isYuva = (d) => {
   const g = String(d.gender || '').toLowerCase();
   if (g !== 'male' && g !== 'm') return false;
@@ -19,12 +28,12 @@ export default function ReportsPage({ setActivePage }) {
   const [busy, setBusy] = useState(null);
 
   // Tap a row / card → build and download an attractive PDF of that group.
-  const makeReport = async (rows, title, subtitle) => {
+  const makeReport = async (rows, title, subtitle, columns) => {
     if (busy) return;
     if (!rows || rows.length === 0) return;
     setBusy(title);
     try {
-      await downloadReportPdf({ title, subtitle, rows });
+      await downloadReportPdf({ title, subtitle, rows, columns });
     } catch (e) {
       alert('Could not generate PDF: ' + (e?.message || e));
     } finally {
@@ -184,7 +193,17 @@ export default function ReportsPage({ setActivePage }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true}
-          onRowClick={(k) => makeReport(devotees.filter(d => (d.followupKaryakarta || '') === k), `Karyakarta — ${k}`, 'Devotees under this karyakarta')} />
+          onRowClick={(k) => makeReport(
+            devotees.filter(d => (d.followupKaryakarta || '') === k),
+            `Karyakarta — ${k}`,
+            'Devotees under this karyakarta',
+            [
+              { header: 'Full Name', get: (d) => d.name || '' },
+              { header: 'Date of Birth', get: (d) => reportDob(d.dob), width: 88 },
+              { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
+              { header: 'Address', get: (d) => [d.address, d.area].filter(Boolean).join(', ') },
+            ],
+          )} />
         <StatList title="By Area" data={stats.areaStats} icon={MapPin}
           onRowClick={(k) => makeReport(devotees.filter(d => (d.area || '') === k), `Area — ${k}`, 'Devotees in this area')} />
         <StatList title="By Wing" data={stats.wingStats} icon={Users}

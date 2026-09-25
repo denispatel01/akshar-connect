@@ -18,8 +18,21 @@ const dobShort = (dob) => {
   return `${d}-${mon}-${y}`;
 };
 
+// Default columns (used when a report doesn't pass its own `columns`).
+const DEFAULT_COLUMNS = [
+  { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
+  { header: 'Name', get: (d) => d.name || '' },
+  { header: 'Age', get: (d) => (deriveAge(d.dob) === '' ? '' : String(deriveAge(d.dob))), width: 32, halign: 'center' },
+  { header: 'Gender', get: (d) => d.gender || '', width: 46 },
+  { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
+  { header: 'Area', get: (d) => d.area || '' },
+  { header: 'Karyakarta', get: (d) => d.followupKaryakarta || '' },
+];
+
 // rows: array of devotee objects. title/subtitle are strings.
-export async function downloadReportPdf({ title, subtitle, rows }) {
+// columns: optional [{ header, get(d,i), width?, halign? }] to control layout.
+export async function downloadReportPdf({ title, subtitle, rows, columns }) {
+  const cols = columns && columns.length ? columns : DEFAULT_COLUMNS;
   const [{ jsPDF }, autoTableMod] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -65,30 +78,27 @@ export async function downloadReportPdf({ title, subtitle, rows }) {
   doc.text(`${families} families`, 40 + doc.getTextWidth(`${rows.length} devotees`) + 16, 128);
 
   // ── Table ──────────────────────────────────────────────────────────────────
-  const body = rows.map((d, i) => [
-    String(i + 1),
-    d.name || '',
-    deriveAge(d.dob) === '' ? '' : String(deriveAge(d.dob)),
-    d.gender || '',
-    d.mobile || '',
-    d.area || '',
-    d.followupKaryakarta || '',
-  ]);
+  const head = [cols.map((c) => c.header)];
+  const body = rows.map((d, i) => cols.map((c) => c.get(d, i)));
+
+  const columnStyles = {};
+  cols.forEach((c, idx) => {
+    const s = {};
+    if (c.width) s.cellWidth = c.width;
+    if (c.halign) s.halign = c.halign;
+    if (Object.keys(s).length) columnStyles[idx] = s;
+  });
 
   autoTable(doc, {
     startY: 146,
-    head: [['#', 'Name', 'Age', 'Gender', 'Mobile', 'Area', 'Karyakarta']],
+    head,
     body,
     theme: 'striped',
-    styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: INK, lineColor: [226, 232, 240], lineWidth: 0.5 },
+    // linebreak = wrap long values onto extra lines so nothing is ever cut off.
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: INK, lineColor: [226, 232, 240], lineWidth: 0.5, overflow: 'linebreak', valign: 'middle' },
     headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, halign: 'left' },
     alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: {
-      0: { cellWidth: 26, halign: 'center', textColor: [140, 150, 165] },
-      2: { cellWidth: 32, halign: 'center' },
-      3: { cellWidth: 46 },
-      4: { cellWidth: 78 },
-    },
+    columnStyles,
     margin: { left: 40, right: 40, bottom: 44 },
     didDrawPage: () => {
       const h = doc.internal.pageSize.getHeight();
