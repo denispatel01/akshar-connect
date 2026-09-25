@@ -18,17 +18,29 @@ const dobShort = (dob) => {
   return `${d}-${mon}-${y}`;
 };
 
-// Devotee ordering for every report:
-//   ambrish → karyakarta → regular attending → irregular → not attending → rest
-// and family members are kept together (a family is placed at its best-ranked
-// member's position, and its members are listed consecutively).
+// Devotee ordering for every report.
+// Between families: ambrish → karyakarta → regular → irregular → not attending
+//   → untagged → New (New always last, "old first, new later").
+// Within a family: primary/self first, then spouse (husband & wife together),
+//   then children, then parents (mother & father together), then others.
 const TAG_PRIORITY = ['ambrish', 'karyakarta', 'regular-sabha', 'irregular-sabha', 'not-attending-sabha'];
 
 function tagRank(d) {
   const tags = Array.isArray(d.tags) ? d.tags : [];
+  if (tags.includes('new')) return 90;          // New devotees always sort last
   let best = Infinity;
   TAG_PRIORITY.forEach((k, i) => { if (tags.includes(k)) best = Math.min(best, i); });
-  return best;
+  return best === Infinity ? 50 : best;         // untagged: after old, before New
+}
+
+function relationRank(d) {
+  if (d.type === 'Primary' || !d.type) return 0; // family head / primary record
+  const r = String(d.relation || '').toLowerCase();
+  if (r.includes('self') || r.includes('head')) return 0;
+  if (r.includes('wife') || r.includes('husband') || r.includes('spouse')) return 1;
+  if (r.includes('son') || r.includes('daughter') || r.includes('child')) return 2;
+  if (r.includes('father') || r.includes('mother') || r.includes('parent')) return 3;
+  return 4;
 }
 
 function sortForReport(rows) {
@@ -42,12 +54,13 @@ function sortForReport(rows) {
   const ordered = [];
   Array.from(groups.values())
     .map((members) => {
+      // Within a family: primary first, spouse, children, parents, others.
       const sorted = members.slice().sort((a, b) => {
-        const ra = tagRank(a), rb = tagRank(b);
+        const ra = relationRank(a), rb = relationRank(b);
         if (ra !== rb) return ra - rb;
         return (a.name || '').localeCompare(b.name || '');
       });
-      const groupRank = Math.min(...sorted.map(tagRank));
+      const groupRank = Math.min(...members.map(tagRank)); // family placed by best member
       return { sorted, groupRank, name: sorted[0]?.name || '' };
     })
     .sort((a, b) => (a.groupRank - b.groupRank) || a.name.localeCompare(b.name))
