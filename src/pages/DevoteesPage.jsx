@@ -69,7 +69,7 @@ function dobShort(dob) {
   return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_ABBR[d.getMonth()]}-${d.getFullYear()}`;
 }
 
-export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing }) {
+export default function DevoteesPage({ user, devoteesPreset, filterPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing }) {
   const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -289,16 +289,30 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
     };
     const options = FIELD_OPTIONS[f];
 
-    // Datalist fields (dropdown + manual entry combo)
-    if (DATALIST_FIELDS.has(f) && options) {
-      const listId = `dl-${f}`;
+    // Dropdown with manual entry fallback
+    if (COMBO_FIELDS.has(f)) {
+      const listOptions = f === 'followupKaryakarta' ? uniqueKaryakartas : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
+      const isManual = manualOverride[f];
       return (
-        <>
-          <input list={listId} value={value} onChange={onChange} className={inputCls} />
-          <datalist id={listId}>
-            {options.map(o => <option key={o} value={o} />)}
-          </datalist>
-        </>
+        <div>
+          {isManual ? (
+            <input value={value} onChange={onChange} className={inputCls} placeholder="Type manually..." />
+          ) : (
+            <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
+              <option value="">- Select -</option>
+              {listOptions.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          )}
+          <label className="flex items-center gap-1.5 mt-1.5 text-[10px] font-bold text-text-muted cursor-pointer hover:text-text-main">
+            <input type="checkbox" checked={!!isManual} onChange={(e) => {
+               setManualOverride({...manualOverride, [f]: e.target.checked});
+               if (!e.target.checked && value && !listOptions.includes(value)) {
+                 setData({ ...data, [f]: '' });
+               }
+            }} className="rounded focus:ring-primary" />
+            If not listed then tick here
+          </label>
+        </div>
       );
     }
     // Pure select dropdown

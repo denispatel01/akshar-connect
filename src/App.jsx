@@ -20,6 +20,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   /** Set from dashboard stat cards: total | ambrish | families | birthdays */
   const [devoteesPreset, setDevoteesPreset] = useState(null);
+  const [filterPreset, setFilterPreset] = useState(null);
   const [openDevoteeId, setOpenDevoteeId] = useState(null);
 
   // When the background live-refresh finishes, re-read fresh data into the pages.
@@ -31,7 +32,7 @@ export default function App() {
 
   // Navigate with history tracking
   const navigate = (page, options) => {
-    if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId) return;
+    if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId && !options?.filterPreset) return;
     if (page !== activePage) {
       setHistory((h) => [...h, activePage]);
       setActivePage(page);
@@ -40,6 +41,9 @@ export default function App() {
       if (options?.openDevoteeId) setOpenDevoteeId(options.openDevoteeId);
       if (options?.devoteesPreset) setDevoteesPreset(options.devoteesPreset);
       else if (!options?.keepDevoteesPreset) setDevoteesPreset(null);
+
+      if (options?.filterPreset) setFilterPreset(options.filterPreset);
+      else if (!options?.keepFilterPreset) setFilterPreset(null);
     }
   };
 
@@ -123,6 +127,7 @@ export default function App() {
           <DevoteesPage
             user={user}
             devoteesPreset={devoteesPreset}
+            filterPreset={filterPreset}
             onClearDevoteesPreset={() => setDevoteesPreset(null)}
             openDevoteeId={openDevoteeId}
             onClearOpenDevotee={() => setOpenDevoteeId(null)}
@@ -134,7 +139,7 @@ export default function App() {
         {activePage === 'admin' && <AdminPage user={user} />}
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
-        {activePage === 'reports' && <ReportsPage />}
+        {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
       </main>
 
       <Footer />

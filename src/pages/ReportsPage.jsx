@@ -3,7 +3,7 @@ import { Download, Users, Briefcase, MapPin, Activity, Calendar, ShieldCheck, He
 import { dataService } from '../services/dataService';
 import { isBirthdayWithin } from '../utils/birthdays';
 
-export default function ReportsPage() {
+export default function ReportsPage({ setActivePage }) {
   const devotees = dataService.getDevotees();
 
   const stats = useMemo(() => {
@@ -85,7 +85,7 @@ export default function ReportsPage() {
     </div>
   );
 
-  const StatList = ({ title, data, icon: Icon, isComplex }) => {
+  const StatList = ({ title, data, icon: Icon, isComplex, onRowClick }) => {
     const sorted = Object.entries(data).sort((a, b) => {
       const aVal = isComplex ? a[1].devotees : a[1];
       const bVal = isComplex ? b[1].devotees : b[1];
@@ -101,7 +101,7 @@ export default function ReportsPage() {
           {sorted.length > 0 ? (
             <ul className="space-y-1">
               {sorted.map(([key, val]) => (
-                <li key={key} className="flex justify-between items-center px-3 py-2 hover:bg-bg-base rounded-xl transition-colors">
+                <li key={key} onClick={() => onRowClick && onRowClick(key)} className={`flex justify-between items-center px-3 py-2 hover:bg-bg-base rounded-xl transition-colors ${onRowClick ? 'cursor-pointer hover:border-primary/30 border border-transparent' : ''}`}>
                   <span className="text-sm font-semibold text-text-main truncate pr-4">{key}</span>
                   {isComplex ? (
                     <div className="flex gap-1">
@@ -145,9 +145,9 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true} />
-        <StatList title="By Area" data={stats.areaStats} icon={MapPin} />
-        <StatList title="By Wing" data={stats.wingStats} icon={Users} />
+        <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true} onRowClick={(k) => setActivePage?.("devotees", { filterPreset: { karyakarta: k } })} />
+        <StatList title="By Area" data={stats.areaStats} icon={MapPin} onRowClick={(k) => setActivePage?.("devotees", { filterPreset: { area: k } })} />
+        <StatList title="By Wing" data={stats.wingStats} icon={Users} onRowClick={(k) => setActivePage?.("devotees", { filterPreset: { wing: k } })} />
       </div>
     </div>
   );
