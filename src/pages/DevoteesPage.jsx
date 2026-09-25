@@ -146,7 +146,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const presetMeta = devoteesPreset ? PRESET_META[devoteesPreset] : null;
   const presetMatch = presetMeta?.match ?? (() => true);
 
-  const canEdit = user?.role === 'Admin' || user?.role === 'Sevak';
+  const isDevotee = user?.role === 'Devotee';
+  const canEdit   = user?.role === 'Admin' || user?.role === 'Sevak';
+  const canDelete = user?.role === 'Admin'; // Sevak and Devotee cannot delete
+
+  // Devotee: restrict visible records to their own family only
+  const devoteeFamily = useMemo(() => {
+    if (!isDevotee) return null;
+    const fid = user?.familyId || user?.devoteeId;
+    if (!fid) return [];
+    return devotees.filter(d => d.familyId === fid || d.id === fid || d.id === user?.devoteeId);
+  }, [isDevotee, devotees, user]);
 
   // Count members per family (to show a "Family (N)" chip on head cards).
   const familySizes = useMemo(() => {
@@ -157,7 +167,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
-  const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !devoteesPreset;
+  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !devoteesPreset;
 
   // Build the lowercased searchable text for a devotee (name, contacts, address,
   // area, dob variants, karyakarta, tags…).
@@ -172,6 +182,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   const query = searchQuery.trim();
   const filteredDevotees = useMemo(() => {
+    // Devotees only see their own family — no search/filter applies
+    if (isDevotee) return devoteeFamily || [];
+
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
       if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
@@ -446,8 +459,30 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
 
+  // Auto-open own profile for Devotee login
+  useEffect(() => {
+    if (isDevotee && user?.devoteeId && filteredDevotees.length > 0 && !selectedDevotee) {
+      const own = filteredDevotees.find(d => d.id === user.devoteeId) || filteredDevotees[0];
+      if (own) openProfile(own);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDevotee, filteredDevotees.length]);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+
+      {/* Devotee mode — limited view banner */}
+      {isDevotee && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center gap-3">
+          <User className="h-5 w-5 text-primary shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-text-main">My Family Profile</p>
+            <p className="text-xs text-text-muted">You can view and edit your profile and your family members' profiles.</p>
+          </div>
+        </div>
+      )}
+
+      {!isDevotee && (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-main">Devotee Directory</h1>
@@ -465,7 +500,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           </button>
         )}
       </div>
+      )}
 
+      {!isDevotee && (<>
       {presetMeta && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
           <p className="text-xs font-bold text-text-main">{presetMeta.banner}</p>
@@ -690,6 +727,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       <p className="text-xs font-semibold text-text-muted">
         Showing {filteredDevotees.length}{isPlainBrowse ? ' family heads (open a family to see its members)' : ' devotees'}
       </p>
+      </>)}
 
       {refreshing ? (
         <ListSkeleton count={6} />
@@ -1071,7 +1109,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 ) : (
                   <>
                     <button onClick={startEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
-                    <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                    {canDelete && (
+                      <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                    )}
                   </>
                 )}
               </div>

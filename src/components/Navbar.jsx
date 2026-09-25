@@ -19,23 +19,29 @@ import { Tag,
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode }) {
-  const navItems = [
-    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'devotees', label: 'Directory', icon: Users },
-    ...(user?.role === 'Admin' || user?.role === 'Sevak'
-      ? [
-          { id: 'followups', label: 'Calls', icon: PhoneCall },
-          { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-          { id: 'email', label: 'Email', icon: Mail },
-        ]
-      : []),
-    ...(user?.role === 'Admin'
-      ? [
-          { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
-          { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
-        ]
-      : []),
-  ];
+  const isDevotee = user?.role === 'Devotee';
+  const navItems = isDevotee
+    ? [
+        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'devotees', label: 'My Profile', icon: User },
+      ]
+    : [
+        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'devotees', label: 'Directory', icon: Users },
+        ...(user?.role === 'Admin' || user?.role === 'Sevak'
+          ? [
+              { id: 'followups', label: 'Calls', icon: PhoneCall },
+              { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+              { id: 'email', label: 'Email', icon: Mail },
+            ]
+          : []),
+        ...(user?.role === 'Admin'
+          ? [
+              { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
+              { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
+            ]
+          : []),
+      ];
 
   return (
     <>

@@ -123,6 +123,31 @@ export const dataService = {
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 
+  // Devotee self-login: mobile + DOB formatted as ddMMyy (e.g. 011295 for 01-Dec-1995)
+  loginWithDob: async (mobile, dob) => {
+    // Find matching devotee record
+    const devotee = DB.devotees.find(d => String(d.mobile) === String(mobile));
+    if (!devotee) throw new Error('No devotee found with this mobile number.');
+    // DOB stored as YYYY-MM-DD; derive ddMMyy
+    if (!devotee.dob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
+    const [y, m, d] = devotee.dob.split('-');
+    const expected = `${d}${m}${y.slice(2)}`; // ddMMyy
+    if (String(dob).replace(/\D/g, '') !== expected)
+      throw new Error('Incorrect date of birth. Use format DD-MM-YY (e.g. 01-12-95).');
+    // Build a session user object for the devotee
+    const sessionUser = {
+      mobile: String(mobile),
+      name: devotee.name || 'Devotee',
+      role: 'Devotee',
+      pin: '',
+      password: '',
+      devoteeId: devotee.id,   // anchor to their own record
+      familyId: devotee.familyId || devotee.id,
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    return { success: true, user: sessionUser };
+  },
+
   loginWithPassword: async (mobile, password) => {
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && u.password === password);
     if (!user) throw new Error('Invalid Mobile Number or Password.');
