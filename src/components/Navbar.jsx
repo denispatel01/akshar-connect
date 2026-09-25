@@ -24,6 +24,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ...(user?.role === 'Admin' || user?.role === 'Sevak'
       ? [
           { id: 'followups', label: 'Calls', icon: PhoneCall },
+          { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
           { id: 'email', label: 'Email', icon: Mail },
           { id: 'admin', label: 'Admin', icon: Settings }
         ]
