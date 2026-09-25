@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys, TAG_CATEGORIES } from '../services/tagCatalog';
@@ -33,6 +33,9 @@ export default function FamilyTagPage({ user }) {
   const [expandedId, setExpandedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  // draft tags for the expanded individual editor: { [devoteeId]: Set<tagKey> }
+  const [draftTags, setDraftTags] = useState({});
+  const [savingIndividual, setSavingIndividual] = useState(false);
 
   // Tag panel state — which tags to add / remove in bulk
   const [panelOpen, setPanelOpen] = useState(false);
@@ -101,12 +104,53 @@ export default function FamilyTagPage({ user }) {
     }
   };
 
-  // ── single devotee tag toggle ─────────────────────────────────────────────
-  const toggleOneTag = useCallback((devoteeId, tagKey, currentlyOn) => {
-    const exclusiveKeys = currentlyOn ? [] : getMutuallyExclusiveKeys(tagKey);
-    const updated = dataService.setDevoteeTag(devoteeId, tagKey, !currentlyOn, exclusiveKeys);
-    if (updated) reload();
-  }, []);
+  // ── individual tag draft helpers ──────────────────────────────────────────
+  const openExpand = (devotee) => {
+    const id = devotee.id;
+    // init draft from current saved tags
+    if (!draftTags[id]) {
+      setDraftTags(prev => ({ ...prev, [id]: new Set(devotee.tags || []) }));
+    }
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const toggleDraftTag = (devoteeId, tagKey) => {
+    setDraftTags(prev => {
+      const current = new Set(prev[devoteeId] || []);
+      if (current.has(tagKey)) {
+        current.delete(tagKey);
+      } else {
+        // enforce mutual exclusivity
+        getMutuallyExclusiveKeys(tagKey).forEach(k => current.delete(k));
+        current.add(tagKey);
+      }
+      return { ...prev, [devoteeId]: current };
+    });
+  };
+
+  const saveIndividualTags = async (devotee) => {
+    const draft = draftTags[devotee.id];
+    if (!draft) return;
+    setSavingIndividual(true);
+    try {
+      const newTags = Array.from(draft);
+      await dataService.updateDevotee(devotee.id, { tags: newTags });
+      reload();
+      setExpandedId(null);
+      setDraftTags(prev => { const n = { ...prev }; delete n[devotee.id]; return n; });
+      setToast(`Tags saved for ${devotee.name} ✓`);
+      setTimeout(() => setToast(null), 3500);
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    } finally {
+      setSavingIndividual(false);
+    }
+  };
+
+  const discardDraft = (devoteeId) => {
+    setDraftTags(prev => { const n = { ...prev }; delete n[devoteeId]; return n; });
+    setExpandedId(null);
+  };
 
   // ── guard ─────────────────────────────────────────────────────────────────
   if (!isAdmin) {
@@ -259,7 +303,7 @@ export default function FamilyTagPage({ user }) {
         {filtered.map(d => {
           const selected = selectedIds.has(d.id);
           const expanded = expandedId === d.id;
-          const familySize = devotees.filter(x => x.familyId === d.familyId).length;
+          const familySize = devotees.filter(x => (x.familyId || x.id) === d.id).length;
 
           return (
             <div key={d.id}
@@ -299,42 +343,77 @@ export default function FamilyTagPage({ user }) {
 
                 {/* Expand toggle */}
                 <button
-                  onClick={e => { e.stopPropagation(); setExpandedId(expanded ? null : d.id); }}
+                  onClick={e => { e.stopPropagation(); openExpand(d); }}
                   className="shrink-0 grid h-8 w-8 place-items-center rounded-xl hover:bg-bg-base text-text-muted transition-colors">
                   {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
               </div>
 
-              {/* Expanded — individual tag editor */}
-              {expanded && (
-                <div className="border-t border-border-light px-4 pb-4 pt-3 space-y-4 animate-slide-up">
-                  <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Edit tags individually</p>
-                  {tagsByCategory().map(({ category, tags }) => (
-                    <div key={category.key}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category.color.dot }} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{category.label}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tags.map(t => {
-                          const active = (d.tags || []).includes(t.key);
-                          return (
-                            <button key={t.key}
-                              onClick={() => toggleOneTag(d.id, t.key, active)}
-                              style={active ? tagChipStyle(t.key) : undefined}
-                              title={t.desc}
-                              className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
-                                active ? '' : 'border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-text-main'
-                              }`}>
-                              {t.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+              {/* Expanded — draft tag editor */}
+              {expanded && (() => {
+                const draft = draftTags[d.id] || new Set(d.tags || []);
+                const saved = new Set(d.tags || []);
+                const changed = draft.size !== saved.size || [...draft].some(k => !saved.has(k)) || [...saved].some(k => !draft.has(k));
+                return (
+                  <div className="border-t border-border-light px-4 pb-4 pt-3 space-y-4 animate-slide-up">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Tap tags to toggle · then Save</p>
+                      {changed && (
+                        <button onClick={() => discardDraft(d.id)} className="text-xs text-text-muted hover:text-text-main flex items-center gap-1">
+                          <X className="h-3 w-3" /> Discard
+                        </button>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {tagsByCategory().map(({ category, tags }) => (
+                      <div key={category.key}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category.color.dot }} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{category.label}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {tags.map(t => {
+                            const active = draft.has(t.key);
+                            const wasOn = saved.has(t.key);
+                            const added   = active && !wasOn;
+                            const removed = !active && wasOn;
+                            return (
+                              <button key={t.key}
+                                onClick={() => toggleDraftTag(d.id, t.key)}
+                                title={t.desc}
+                                style={active ? tagChipStyle(t.key) : undefined}
+                                className={`rounded-full px-3 py-1 text-[11px] font-bold border transition-all ${
+                                  active
+                                    ? added ? 'ring-2 ring-emerald-400 ring-offset-1' : ''
+                                    : removed
+                                      ? 'border-red-300 bg-red-50 text-red-400 line-through'
+                                      : 'border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-text-main'
+                                }`}>
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => saveIndividualTags(d)}
+                        disabled={savingIndividual || !changed}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-colors">
+                        <Save className="h-4 w-4" />
+                        {savingIndividual ? 'Saving…' : changed ? 'Save Changes' : 'No Changes'}
+                      </button>
+                      <button
+                        onClick={() => discardDraft(d.id)}
+                        className="flex items-center justify-center h-12 w-12 rounded-2xl border border-border-light bg-bg-base text-text-muted hover:bg-border-light transition-colors">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
