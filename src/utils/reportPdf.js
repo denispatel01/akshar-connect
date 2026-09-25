@@ -26,8 +26,9 @@ const dobShort = (dob) => {
 const TAG_PRIORITY = ['ambrish', 'karyakarta', 'regular-sabha', 'irregular-sabha', 'not-attending-sabha'];
 
 function tagRank(d) {
+  // The Old/New status lives in its own `oldNew` column (values: Old / New).
+  if (String(d.oldNew || '').trim().toLowerCase() === 'new') return 90; // New always last
   const tags = Array.isArray(d.tags) ? d.tags : [];
-  if (tags.includes('new')) return 90;          // New devotees always sort last
   let best = Infinity;
   TAG_PRIORITY.forEach((k, i) => { if (tags.includes(k)) best = Math.min(best, i); });
   return best === Infinity ? 50 : best;         // untagged: after old, before New
