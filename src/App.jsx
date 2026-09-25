@@ -18,6 +18,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   /** Set from dashboard stat cards: total | ambrish | families | birthdays */
   const [devoteesPreset, setDevoteesPreset] = useState(null);
+  const [openDevoteeId, setOpenDevoteeId] = useState(null);
 
   // When the background live-refresh finishes, re-read fresh data into the pages.
   useEffect(() => {
@@ -28,12 +29,13 @@ export default function App() {
 
   // Navigate with history tracking
   const navigate = (page, options) => {
-    if (page === activePage && !options?.devoteesPreset) return;
+    if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId) return;
     if (page !== activePage) {
       setHistory((h) => [...h, activePage]);
       setActivePage(page);
     }
     if (page === 'devotees') {
+      if (options?.openDevoteeId) setOpenDevoteeId(options.openDevoteeId);
       if (options?.devoteesPreset) setDevoteesPreset(options.devoteesPreset);
       else if (!options?.keepDevoteesPreset) setDevoteesPreset(null);
     }
@@ -90,6 +92,8 @@ export default function App() {
             user={user}
             devoteesPreset={devoteesPreset}
             onClearDevoteesPreset={() => setDevoteesPreset(null)}
+            openDevoteeId={openDevoteeId}
+            onClearOpenDevotee={() => setOpenDevoteeId(null)}
           />
         )}
         {activePage === 'followups' && <FollowupsPage user={user} />}

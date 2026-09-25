@@ -225,14 +225,19 @@ export default function DashboardPage({ setActivePage, user }) {
                           ))}
                         </div>
                       )}
-                      {wa ? (
-                        <a href={wa} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
-                          <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
-                        </a>
-                      ) : (
-                        <p className="text-[11px] font-semibold text-slate-400">No mobile number on file to send a WhatsApp wish.</p>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {wa && (
+                          <a href={wa} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
+                            <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
+                          </a>
+                        )}
+                        <button onClick={() => setActivePage('devotees', { openDevoteeId: devotee.id })}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#E4EBF3] bg-white px-3.5 py-2 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">
+                          <User className="h-4 w-4" /> View profile
+                        </button>
+                        {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -350,14 +355,19 @@ export default function DashboardPage({ setActivePage, user }) {
                           ))}
                         </div>
                       )}
-                      {wa ? (
-                        <a href={wa} target="_blank" rel="noreferrer"
-                          className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
-                          <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
-                        </a>
-                      ) : (
-                        <p className="mt-2 text-[11px] font-semibold text-slate-400">No mobile number on file to send a WhatsApp wish.</p>
-                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {wa && (
+                          <a href={wa} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600">
+                            <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
+                          </a>
+                        )}
+                        <button onClick={() => { setShowTodayBdays(false); setActivePage('devotees', { openDevoteeId: d.id }); }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#E4EBF3] bg-white px-3.5 py-2 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">
+                          <User className="h-4 w-4" /> View profile
+                        </button>
+                        {!wa && <span className="text-[11px] font-semibold text-slate-400">No mobile on file for a WhatsApp wish.</span>}
+                      </div>
                     </div>
                   );
                 })

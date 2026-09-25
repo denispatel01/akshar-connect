@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home } from 'lucide-react';
+import { Search, Plus, Filter, QrCode, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, MessageSquare } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -59,8 +59,16 @@ const PRESET_META = {
   },
 };
 
-export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPreset }) {
-  const [devotees, setDevotees] = useState([]);
+const MONTHS_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dobShort(dob) {
+  if (!dob) return '';
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return dob;
+  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_ABBR[d.getMonth()]}-${d.getFullYear()}`;
+}
+
+export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee }) {
+  const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDevotee, setSelectedDevotee] = useState(null);
@@ -74,6 +82,7 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
+  const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
@@ -167,6 +176,15 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
   };
 
   const openProfile = (d) => { setSelectedDevotee(d); setActiveTab('Personal'); setEditing(false); };
+
+  // Open a specific devotee's profile when navigated here from another screen.
+  useEffect(() => {
+    if (!openDevoteeId) return;
+    const d = dataService.getDevotees().find((x) => x.id === openDevoteeId);
+    if (d) openProfile(d);
+    onClearOpenDevotee?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDevoteeId]);
 
   const startEdit = () => {
     const seed = {}; ALL_FIELDS.forEach(([f]) => seed[f] = selectedDevotee[f] ?? '');
@@ -413,89 +431,85 @@ export default function DevoteesPage({ user, devoteesPreset, onClearDevoteesPres
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredDevotees.map((devotee) => (
-          <div key={devotee.id} className="rounded-3xl border border-[#E4EBF3] bg-white p-5 shadow-xs hover:border-[#003158] hover:shadow-md">
-            <div className="flex flex-col h-full justify-between">
-              <div>
-                <div className="flex items-start gap-4">
-                  <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
-                    alt={devotee.name} className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover border border-[#E4EBF3]" />
-                  <div className="min-w-0 flex-1">
-                    {devotee.wing && <span className="text-[10px] font-bold text-[#FF862A] uppercase tracking-wider block mb-0.5">{devotee.wing}</span>}
-                    <h3 className="text-base font-bold text-[#003158] leading-tight truncate">{devotee.name}</h3>
-                    
-                    {/* Priority details: contact, address, karyakarta, area */}
-                    <div className="mt-2 space-y-1">
-                      <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={devotee.mobile}>
-                        <Phone className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
-                        <span className="truncate">{val(devotee.mobile)}</span>
-                      </p>
-                      {devotee.address && (
-                        <p className="text-[11px] text-slate-600 flex items-start gap-1.5" title={devotee.address}>
-                          <Home className="h-3 w-3 shrink-0 text-[#9BB5CB] mt-0.5" />
-                          <span className="line-clamp-2">{devotee.address}</span>
-                        </p>
-                      )}
-                      <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={[devotee.area, devotee.city].filter(Boolean).join(', ')}>
-                        <MapPin className="h-3 w-3 shrink-0 text-[#9BB5CB]" />
-                        <span className="truncate">{[devotee.area, devotee.city].filter(Boolean).join(', ') || val('')}</span>
-                      </p>
-                      {devotee.followupKaryakarta && (
-                        <p className="text-[11px] text-slate-600 flex items-center gap-1.5" title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`}>
-                          <User className="h-3 w-3 shrink-0 text-blue-500" />
-                          <span className="truncate">{devotee.followupKaryakarta}</span>
-                        </p>
-                      )}
-                      {(devotee.bloodGroup || devotee.profession || devotee.education) && (
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-slate-400">
-                          {devotee.profession || devotee.education ? (
-                            <span className="flex items-center gap-1 truncate max-w-full" title={devotee.profession || devotee.education}>
-                              <Briefcase className="h-3 w-3 shrink-0 text-amber-500" />
-                              <span className="truncate">{devotee.profession || devotee.education}</span>
-                            </span>
-                          ) : null}
-                          {devotee.bloodGroup && (
-                            <span className="flex items-center gap-1" title={`Blood Group: ${devotee.bloodGroup}`}>
-                              <Droplet className="h-3 w-3 shrink-0 text-red-400" /> {devotee.bloodGroup}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Tags flow smoothly after details */}
-                    {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {devotee.tags.slice(0, 3).map((key) => (
-                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
-                        ))}
-                        {devotee.tags.length > 3 && (
-                          <span className="rounded-full bg-[#F0F4F8] px-2 py-0.5 text-[10px] font-bold text-[#003158]">+{devotee.tags.length - 3}</span>
-                        )}
-                      </div>
+        {filteredDevotees.map((devotee) => {
+          const expanded = expandedCard === devotee.id;
+          const stop = (e) => e.stopPropagation();
+          const Row = ({ icon: Icon, color, text, title, clamp }) => (
+            <p className="text-[11.5px] text-slate-600 flex items-start gap-2" title={title || text}>
+              <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md ${color}`}><Icon className="h-2.5 w-2.5" /></span>
+              <span className={clamp ? 'line-clamp-2' : 'truncate'}>{text}</span>
+            </p>
+          );
+          return (
+          <div key={devotee.id}
+            onClick={() => openProfile(devotee)}
+            className="group flex flex-col rounded-3xl border border-[#E8EEF5] bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(16,40,80,0.05)] transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-[#003158]/30 hover:shadow-[0_10px_28px_rgba(16,40,80,0.12)]">
+            <div className="flex items-start gap-3.5">
+              <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
+                alt={devotee.name} className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover ring-2 ring-[#EAF0F7] group-hover:ring-[#003158]/20 transition" />
+              <div className="min-w-0 flex-1">
+                {devotee.wing && <span className="text-[9.5px] font-bold text-[#FF862A] uppercase tracking-wider block mb-0.5">{devotee.wing}</span>}
+                <h3 className="text-[15px] font-bold text-[#003158] leading-tight truncate">{devotee.name}</h3>
+
+                {/* First-glance priority: contact, full address, DOB, karyakarta */}
+                <div className="mt-2 space-y-1.5">
+                  <Row icon={Phone} color="bg-sky-50 text-sky-600" text={val(devotee.mobile)} />
+                  {devotee.address && <Row icon={Home} color="bg-slate-100 text-slate-500" text={devotee.address} clamp />}
+                  {devotee.dob && <Row icon={Calendar} color="bg-purple-50 text-purple-600" text={dobShort(devotee.dob)} title={`DOB: ${dobShort(devotee.dob)}`} />}
+                  {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={devotee.followupKaryakarta} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
+                </div>
+
+                {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {devotee.tags.slice(0, 3).map((key) => (
+                      <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
+                    ))}
+                    {devotee.tags.length > 3 && (
+                      <span className="rounded-full bg-[#F0F4F8] px-2 py-0.5 text-[10px] font-bold text-[#003158]">+{devotee.tags.length - 3}</span>
                     )}
                   </div>
-                </div>
+                )}
               </div>
-            <div className="mt-4 pt-3 border-t border-[#F0F4F8] flex items-center justify-between gap-2">
+            </div>
+
+            {/* Expanded inline details */}
+            {expanded && (
+              <div className="mt-3 rounded-2xl bg-[#F8FAFC] border border-[#EEF2F7] p-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[11.5px]">
+                {[devotee.area, devotee.city].filter(Boolean).length > 0 && (
+                  <p className="flex items-center gap-1.5 text-slate-600"><MapPin className="h-3 w-3 text-[#9BB5CB] shrink-0" /> {[devotee.area, devotee.city].filter(Boolean).join(', ')}</p>
+                )}
+                {devotee.gender && <p className="flex items-center gap-1.5 text-slate-600"><User className="h-3 w-3 text-[#9BB5CB] shrink-0" /> {devotee.gender}</p>}
+                {(devotee.profession || devotee.education) && <p className="flex items-center gap-1.5 text-slate-600 col-span-2"><Briefcase className="h-3 w-3 text-amber-500 shrink-0" /> <span className="truncate">{[devotee.profession, devotee.education].filter(Boolean).join(' · ')}</span></p>}
+                {devotee.bloodGroup && <p className="flex items-center gap-1.5 text-slate-600"><Droplet className="h-3 w-3 text-red-400 shrink-0" /> {devotee.bloodGroup}</p>}
+                {devotee.yuvakType && <p className="flex items-center gap-1.5 text-slate-600"><GraduationCap className="h-3 w-3 text-emerald-500 shrink-0" /> {devotee.yuvakType}</p>}
+                {devotee.followupKaryakartaMobile && <p className="flex items-center gap-1.5 text-slate-600 col-span-2"><Phone className="h-3 w-3 text-blue-500 shrink-0" /> Karyakarta: {devotee.followupKaryakartaMobile}</p>}
+                {devotee.reference && <p className="flex items-center gap-1.5 text-slate-600 col-span-2 truncate"><Users className="h-3 w-3 text-[#9BB5CB] shrink-0" /> Ref: {devotee.reference}</p>}
+              </div>
+            )}
+
+            <div className="mt-auto pt-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[11px] font-bold text-[#003158] bg-[#F0F4F8] px-2.5 py-1 rounded-full shrink-0">{devotee.id}</span>
+                <span className="text-[10.5px] font-bold text-[#003158] bg-[#F0F4F8] px-2 py-1 rounded-full shrink-0">{devotee.id}</span>
                 {!familyFilter && devotee.familyId && familySizes[devotee.familyId] > 1 && (
-                  <button onClick={() => { setFamilyFilter(devotee.familyId); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  <button onClick={(e) => { stop(e); setFamilyFilter(devotee.familyId); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     title="View family members"
-                    className="flex items-center gap-1 rounded-full bg-[#EAF0F7] px-2.5 py-1 text-[11px] font-bold text-[#003158] hover:bg-[#dbe6f2] shrink-0">
-                    <Users className="h-3 w-3" /> Family ({familySizes[devotee.familyId]})
+                    className="flex items-center gap-1 rounded-full bg-[#EAF0F7] px-2 py-1 text-[10.5px] font-bold text-[#003158] hover:bg-[#dbe6f2] shrink-0">
+                    <Users className="h-3 w-3" /> {familySizes[devotee.familyId]}
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => setQrModalDevotee(devotee)} title="QR Pass" className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A] hover:bg-amber-100"><QrCode className="h-4 w-4" /></button>
-                <button onClick={() => openProfile(devotee)} className="rounded-xl border border-[#E4EBF3] px-3 py-1 text-xs font-bold text-[#003158] hover:bg-[#F0F4F8]">View Profile</button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={(e) => { stop(e); setExpandedCard(expanded ? null : devotee.id); }} title={expanded ? 'Show less' : 'Quick details'}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#F0F4F8] text-[#003158] hover:bg-[#E4EBF3]">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                </button>
+                <button onClick={(e) => { stop(e); setQrModalDevotee(devotee); }} title="QR Pass" className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A] hover:bg-amber-100"><QrCode className="h-4 w-4" /></button>
+                <button onClick={(e) => { stop(e); openProfile(devotee); }} className="rounded-xl bg-[#003158] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#00223f] shadow-sm">Profile</button>
               </div>
             </div>
-            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {filteredDevotees.length === 0 && (
         <p className="text-center text-sm font-semibold text-[#9BB5CB] py-12">No devotees match this view.</p>
