@@ -479,7 +479,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           </button>
         </div>
       )}
-      )}
 
       
       {filterKaryakarta && (
