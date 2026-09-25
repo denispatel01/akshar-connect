@@ -2,7 +2,32 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, Users, Briefcase, MapPin, Activity, Calendar, ShieldCheck, Heart, Phone, X, ArrowRight, User } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { deriveAge } from '../services/devoteeSchema';
 import { isBirthdayWithin } from '../utils/birthdays';
+
+const isYuva = (d) => {
+  const g = String(d.gender || '').toLowerCase();
+  if (g !== 'male' && g !== 'm') return false;
+  const age = deriveAge(d.dob);
+  return age !== '' && age >= 15 && age <= 45;
+};
+
+const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+const exportList = (list, label) => {
+  if (!list || list.length === 0) return;
+  const headers = ['Name', 'Age', 'Gender', 'Mobile', 'Area', 'Follow-up Karyakarta', 'Family Head'];
+  const rows = list.map(d => [d.name, deriveAge(d.dob), d.gender, d.mobile, d.area, d.followupKaryakarta, (d.type === 'Primary' || !d.type) ? 'Yes' : ''].map(csvCell).join(','));
+  const csv = [headers.map(csvCell).join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const safe = String(label || 'report').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
+  link.setAttribute('download', `${safe}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 export default function ReportsPage({ setActivePage }) {
   const devotees = dataService.getDevotees();
@@ -14,6 +39,7 @@ export default function ReportsPage({ setActivePage }) {
     const s = {
       total: devotees.length,
       active: 0,
+      yuva: 0,
       karyakartaStats: {},
       areaStats: {},
       wingStats: {},
@@ -23,7 +49,8 @@ export default function ReportsPage({ setActivePage }) {
 
     devotees.forEach(d => {
       if (d.status !== 'Inactive') s.active++;
-      
+      if (isYuva(d)) s.yuva++;
+
       if (d.followupKaryakarta) {
         if (!s.karyakartaStats[d.followupKaryakarta]) s.karyakartaStats[d.followupKaryakarta] = { devotees: 0, families: new Set() };
         s.karyakartaStats[d.followupKaryakarta].devotees++;
@@ -77,14 +104,16 @@ export default function ReportsPage({ setActivePage }) {
     document.body.removeChild(link);
   };
 
-  const Card = ({ title, count, icon: Icon, color }) => (
-    <div className="bg-surface rounded-3xl p-5 border border-border-light shadow-sm flex items-start gap-4">
+  const Card = ({ title, count, icon: Icon, color, onClick, hint }) => (
+    <div onClick={onClick}
+      className={`bg-surface rounded-3xl p-5 border shadow-sm flex items-start gap-4 transition-all ${onClick ? 'cursor-pointer border-primary/30 hover:border-primary hover:shadow-md active:scale-[.99]' : 'border-border-light'}`}>
       <div className={`p-3 rounded-2xl ${color}`}>
         <Icon className="h-6 w-6" />
       </div>
-      <div>
-        <p className="text-xs font-semibold text-text-muted mb-1">{title}</p>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-text-muted mb-1 truncate">{title}</p>
         <p className="text-2xl font-black text-text-main leading-none">{count}</p>
+        {hint && <p className="text-[10px] font-semibold text-primary mt-1.5">{hint}</p>}
       </div>
     </div>
   );
@@ -141,9 +170,17 @@ export default function ReportsPage({ setActivePage }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <Card title="Total Devotees" count={stats.total} icon={Users} color="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
         <Card title="Active Devotees" count={stats.active} icon={Activity} color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
+        <Card title="Yuva (Male 15–45)" count={stats.yuva} icon={User} color="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+          hint="Tap to view list"
+          onClick={() => setDrill({
+            field: '__yuva__',
+            label: 'Yuva — Male, 15 to 45',
+            heading: 'Yuva Report',
+            list: devotees.filter(isYuva),
+          })} />
         <Card title="Upcoming Birthdays" count={stats.upcomingBirthdays} icon={Calendar} color="bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400" />
         <Card title="Total Areas" count={Object.keys(stats.areaStats).length} icon={MapPin} color="bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" />
       </div>
@@ -159,12 +196,18 @@ export default function ReportsPage({ setActivePage }) {
           drill={drill}
           devotees={devotees}
           onClose={() => setDrill(null)}
-          onViewAll={() => {
-            const preset = drill.field === 'followupKaryakarta' ? { karyakarta: drill.value }
-              : drill.field === 'area' ? { area: drill.value }
-              : { wing: drill.value };
-            setActivePage?.("devotees", { filterPreset: preset });
-          }}
+          onViewAll={
+            drill.field === 'followupKaryakarta' || drill.field === 'area' || drill.field === 'wing'
+              ? () => {
+                  const preset = drill.field === 'followupKaryakarta' ? { karyakarta: drill.value }
+                    : drill.field === 'area' ? { area: drill.value }
+                    : { wing: drill.value };
+                  setActivePage?.("devotees", { filterPreset: preset });
+                }
+              : drill.field === '__yuva__'
+                ? () => setActivePage?.("devotees", { filterPreset: { gender: 'Male' } })
+                : null
+          }
         />
       )}
     </div>
@@ -174,13 +217,13 @@ export default function ReportsPage({ setActivePage }) {
 // ── Drill-down bottom sheet (mobile) / side drawer (desktop) ──────────────────
 function DrillSheet({ drill, devotees, onClose, onViewAll }) {
   const list = useMemo(
-    () => devotees
-      .filter(d => (d[drill.field] || '') === drill.value)
+    () => (drill.list ? [...drill.list] : devotees.filter(d => (d[drill.field] || '') === drill.value))
       .sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     [devotees, drill]
   );
   const families = new Set(list.map(d => d.familyId || ('ID_' + d.id))).size;
-  const heading = drill.field === 'followupKaryakarta' ? 'Karyakarta' : drill.field === 'area' ? 'Area' : 'Wing';
+  const heading = drill.heading
+    || (drill.field === 'followupKaryakarta' ? 'Karyakarta' : drill.field === 'area' ? 'Area' : 'Wing');
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center sm:justify-end"
@@ -224,6 +267,7 @@ function DrillSheet({ drill, devotees, onClose, onViewAll }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                  {deriveAge(d.dob) !== '' && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">{deriveAge(d.dob)} yrs</span>}
                   {d.area && <span className="flex items-center gap-1 text-[11px] text-text-muted"><MapPin className="h-3 w-3 shrink-0" /><span className="truncate">{d.area}</span></span>}
                   {d.type === 'Primary' || !d.type ? <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Head</span> : null}
                 </div>
@@ -239,11 +283,17 @@ function DrillSheet({ drill, devotees, onClose, onViewAll }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border-light p-3">
-          <button onClick={onViewAll}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary-hover transition-colors">
-            View all in Directory <ArrowRight className="h-4 w-4" />
+        <div className="border-t border-border-light p-3 flex gap-2">
+          <button onClick={() => exportList(list, drill.label)}
+            className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base py-3 text-sm font-bold text-text-main hover:border-primary transition-colors">
+            <Download className="h-4 w-4" /> Export
           </button>
+          {onViewAll && (
+            <button onClick={onViewAll}
+              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary-hover transition-colors">
+              Directory <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
