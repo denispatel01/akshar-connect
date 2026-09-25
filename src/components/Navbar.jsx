@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Tag,
   LayoutDashboard,
   Users,
@@ -18,8 +18,11 @@ import { Tag,
   Tags
 } from 'lucide-react';
 
-export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode }) {
+export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
   const isDevotee = user?.role === 'Devotee';
+  const longPressTimer = useRef(null);
+  const startLongPress = () => { longPressTimer.current = setTimeout(() => onHardRefresh?.(), 1500); };
+  const cancelLongPress = () => { clearTimeout(longPressTimer.current); };
   const navItems = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -58,8 +61,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </button>
             <button
               onClick={onRefresh}
-              title="Refresh data"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface"
+              onMouseDown={startLongPress}
+              onMouseUp={cancelLongPress}
+              onMouseLeave={cancelLongPress}
+              onTouchStart={startLongPress}
+              onTouchEnd={cancelLongPress}
+              title="Refresh data · Hold 1.5s to clear cache & hard reload"
+              className={`flex h-9 w-9 items-center justify-center rounded-xl border bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface transition-colors ${updateAvailable ? 'border-amber-400 text-amber-500 animate-pulse' : 'border-border-light'}`}
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -137,6 +145,16 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           </div>
         </div>
       </header>
+
+      {/* Update available banner */}
+      {updateAvailable && (
+        <div className="w-full bg-amber-500 text-white text-xs font-bold flex items-center justify-between px-4 py-2 z-40">
+          <span>New update available — tap to refresh</span>
+          <button onClick={onHardRefresh} className="ml-4 rounded-lg bg-white/20 px-3 py-1 font-bold hover:bg-white/30 transition-colors shrink-0">
+            Update Now
+          </button>
+        </div>
+      )}
 
       {/* Mobile Bottom Tab Bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-surface border-t border-border-light pb-safe px-2 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">

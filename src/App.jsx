@@ -20,6 +20,25 @@ export default function App() {
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // Detect when a new service worker is waiting (new deploy is ready)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) return;
+      if (reg.waiting) { setUpdateAvailable(true); return; }
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            setUpdateAvailable(true);
+          }
+        });
+      });
+    });
+  }, []);
   /** Set from dashboard stat cards: total | ambrish | families | birthdays */
   const [devoteesPreset, setDevoteesPreset] = useState(null);
   const [filterPreset, setFilterPreset] = useState(null);
@@ -61,6 +80,22 @@ export default function App() {
     setRefreshing(true);
     try { await dataService.bootstrap(); }
     finally { setRefreshing(false); setRefreshKey((k) => k + 1); }
+  };
+
+  // Clear all SW caches and hard-reload — equivalent to "Empty Cache & Hard Reload"
+  const hardRefresh = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } finally {
+      window.location.reload(true);
+    }
   };
 
   // Pull to refresh tracking
@@ -121,6 +156,8 @@ export default function App() {
         refreshing={refreshing}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        updateAvailable={updateAvailable}
+        onHardRefresh={hardRefresh}
       />
 
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
