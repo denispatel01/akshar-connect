@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 export default function AdminPage({ user }) {
@@ -17,6 +17,7 @@ export default function AdminPage({ user }) {
 
   useEffect(() => {
     setUsers([...dataService.getUsers()]);
+    setKkPlan(dataService.planKaryakartaReconcile());
   }, []);
 
   const handleAddUser = (e) => {
@@ -30,6 +31,31 @@ export default function AdminPage({ user }) {
     setUsers([...dataService.getUsers()]);
     setForm(emptyForm);
     setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
+  };
+
+  // ── Follow-up Karyakarta reconciliation ──────────────────────────────────
+  const [kkPlan, setKkPlan] = useState(null);
+  const [kkRunning, setKkRunning] = useState(false);
+  const [kkMsg, setKkMsg] = useState('');
+  const loadKkPlan = () => setKkPlan(dataService.planKaryakartaReconcile());
+  const kkRenameGroups = (kkPlan || []).filter(g => g.willRename);
+  const kkRecordsToRename = kkRenameGroups.reduce((n, g) => n + g.count, 0);
+
+  const handleReconcileKk = async () => {
+    if (!window.confirm(
+      `This will rewrite follow-up karyakarta names to match the Devotees tab and fill each karyakarta's mobile.\n\n` +
+      `${kkRenameGroups.length} name(s) will be corrected across ${kkRecordsToRename} record(s); mobiles are filled for all matched records.\n\n` +
+      `It rewrites the live Devotees sheet in one atomic operation. Continue?`
+    )) return;
+    setKkRunning(true); setKkMsg('');
+    try {
+      const r = await dataService.reconcileKaryakartaNamesAndSync();
+      setLiveCount(dataService.getDevotees().length);
+      loadKkPlan();
+      setKkMsg(`Done — ${r.renamed} name(s) corrected, ${r.mobilesFilled} mobile(s) filled (${r.recordsChanged} record(s) updated).`);
+    } catch (e) {
+      setKkMsg('Failed: ' + (e.message || 'error'));
+    } finally { setKkRunning(false); }
   };
 
   const handleImport = async () => {
@@ -156,6 +182,59 @@ export default function AdminPage({ user }) {
           <p className="text-[11px] text-slate-500">Only an Admin can replace the devotee database.</p>
         )}
       </div>
+
+      {/* Reconcile Follow-up Karyakarta Names (Admin only) */}
+      {isAdmin && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+            <Users className="h-4 w-4 text-[#FF862A]" /> Reconcile Karyakarta Names
+          </div>
+          <p className="text-[11px] text-slate-500 flex items-start gap-1">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            Matches each free-typed follow-up karyakarta to its devotee record, renames it to the exact name from the Devotees tab, and fills the karyakarta's mobile. Review the matches below before applying.
+          </p>
+
+          <div className="rounded-2xl border border-border-light overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-bg-base px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <span>Current value</span><span>Records</span><span>Matched devotee</span>
+            </div>
+            {(kkPlan || []).map((g, i) => (
+              <div key={i} className={`grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2.5 border-t border-border-light text-xs ${g.willRename ? 'bg-amber-50/40' : ''}`}>
+                <span className="font-semibold text-text-main truncate" title={g.value}>{g.value}</span>
+                <span className="text-center font-bold text-slate-500 tabular-nums px-2">{g.count}</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {g.willRename
+                    ? <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    : <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+                  <span className="truncate" title={g.match ? `${g.match.name} · ${g.match.mobile || 'no mobile'}` : 'no match'}>
+                    {g.match ? g.match.name : '—'}
+                    {g.match?.mobile ? <span className="text-slate-400"> · {g.match.mobile}</span> : null}
+                  </span>
+                  {g.willRename
+                    ? <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">RENAME</span>
+                    : <span className="ml-auto shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">OK</span>}
+                </span>
+              </div>
+            ))}
+            {(!kkPlan || kkPlan.length === 0) && (
+              <div className="px-4 py-4 text-center text-xs font-semibold text-slate-400">No follow-up karyakarta values found.</div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={handleReconcileKk} disabled={kkRunning || kkRenameGroups.length === 0}
+              className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00223f] disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${kkRunning ? 'animate-spin' : ''}`} />
+              {kkRunning ? 'Reconciling…' : kkRenameGroups.length === 0 ? 'All names already match' : `Apply — fix ${kkRenameGroups.length} name(s), ${kkRecordsToRename} record(s)`}
+            </button>
+            {kkMsg && (
+              <span className={`text-xs font-bold flex items-center gap-1 ${kkMsg.startsWith('Done') ? 'text-emerald-600' : 'text-red-600'}`}>
+                <CheckCircle className="h-4 w-4" /> {kkMsg}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Registered System Users */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">

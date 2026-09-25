@@ -1,5 +1,5 @@
 import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } from './mockData';
-import { normalizeDevotee, toBackendRow, withTag } from './devoteeSchema';
+import { normalizeDevotee, toBackendRow, withTag, buildKaryakartaReconcilePlan } from './devoteeSchema';
 
 // ===== Live backend =====================================================
 // Replaced at build time with the deployed Apps Script /exec URL.
@@ -305,6 +305,34 @@ export const dataService = {
     return DB.devotees.length;
   },
   bundledDevoteeCount: () => INITIAL_DEVOTEES.length,
+
+  // Preview the follow-up karyakarta reconciliation without writing anything.
+  planKaryakartaReconcile: (minScore = 0.85) => buildKaryakartaReconcilePlan(DB.devotees, minScore),
+
+  // Reconcile every devotee's follow-up karyakarta name to its matching devotee
+  // record, and fill the karyakarta mobile from that record. Single atomic sheet
+  // write (replaceDevotees), same trusted path as the bundled-data import.
+  reconcileKaryakartaNamesAndSync: async (minScore = 0.85) => {
+    const groups = buildKaryakartaReconcilePlan(DB.devotees, minScore);
+    const map = new Map();
+    groups.forEach(g => { if (g.confident && g.match) map.set(g.value, g.match); });
+    let recordsChanged = 0, renamed = 0, mobilesFilled = 0;
+    DB.devotees = DB.devotees.map(d => {
+      const cur = (d.followupKaryakarta || '').trim();
+      const m = map.get(cur);
+      if (!m) return d;
+      const nameDiff = d.followupKaryakarta !== m.name;
+      const mobileDiff = (d.followupKaryakartaMobile || '') !== (m.mobile || '');
+      if (!nameDiff && !mobileDiff) return d;
+      if (nameDiff) renamed++;
+      if (mobileDiff) mobilesFilled++;
+      recordsChanged++;
+      return normalizeDevotee({ ...d, followupKaryakarta: m.name, followupKaryakartaMobile: m.mobile });
+    });
+    saveCache();
+    if (hasBackend()) await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) });
+    return { recordsChanged, renamed, mobilesFilled, groups };
+  },
 
   // ---- Sabhas & Attendance ----
   getSabhas: () => DB.sabhas,
