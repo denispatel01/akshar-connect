@@ -1,5 +1,5 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const CACHE_NAME = 'akshar-connect-v1';
+const CACHE_NAME = 'akshar-connect-v2';
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
   BASE,
