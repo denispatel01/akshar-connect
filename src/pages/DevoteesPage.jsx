@@ -599,13 +599,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType) ? ' (Active)' : ''}
             </button>
             
-            {canEdit && (
-              <button onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${selectMode ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base'}`}>
-                <CheckSquare className="h-4 w-4" /> {selectMode ? 'Cancel Select' : 'Bulk Select'}
-              </button>
-            )}
-
             <div className="flex gap-2">
                <button onClick={() => {
                  const now = new Date();
