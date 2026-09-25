@@ -93,6 +93,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [filterWing, setFilterWing] = useState('');
   const [filterBlood, setFilterBlood] = useState('');
   const [filterGender, setFilterGender] = useState('');
+  const [filterType, setFilterType] = useState(''); // '' = heads only (default) | Primary | Family | all
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [manualOverride, setManualOverride] = useState({});
@@ -190,7 +191,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
-  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !devoteesPreset;
+  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !filterType && !devoteesPreset;
 
   // Build the lowercased searchable text for a devotee (name, contacts, address,
   // area, dob variants, karyakarta, tags…).
@@ -211,6 +212,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
       if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
+      if (filterType === 'Primary' && !(d.type === 'Primary' || !d.type)) return false; // self / family heads
+      if (filterType === 'Family' && d.type !== 'Family') return false;                  // linked family members
+      // filterType === 'all' → no membership filter (show everyone)
       if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
       if (filterArea && d.area !== filterArea) return false;
       if (filterWing && d.wing !== filterWing) return false;
@@ -227,7 +231,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, filterType, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -558,8 +562,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowTagFilter((s) => !s)}
               className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
-                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
-              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? ' (Active)' : ''}
+                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType) ? ' (Active)' : ''}
             </button>
             
             {canEdit && (
@@ -682,6 +686,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <option value="">All Wings</option>
               {uniqueWings.map(w => <option key={w}>{w}</option>)}
             </select>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">Family Heads (Self)</option>
+              <option value="Family">Family Members</option>
+              <option value="all">All Members</option>
+            </select>
           </div>
 
           {/* Tags */}
@@ -703,8 +713,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           </div>
 
           {/* Clear all */}
-          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing) && (
-            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); }}
+          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing || filterType) && (
+            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); setFilterType(''); }}
               className="text-xs font-bold text-red-500 hover:underline">
               Clear all filters
             </button>
