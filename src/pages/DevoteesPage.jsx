@@ -994,6 +994,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
               @keyframes acFade{from{opacity:0}to{opacity:1}}
               @keyframes acPop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+              /* Interesting save loader: staggered bouncing beads + light sweep */
+              @keyframes acBead{0%,80%,100%{transform:translateY(0) scale(.6);opacity:.45}40%{transform:translateY(-5px) scale(1);opacity:1}}
+              @keyframes acSweep{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+              .ac-beads{display:inline-flex;align-items:center;gap:4px}
+              .ac-beads i{width:6px;height:6px;border-radius:9999px;background:#fff;display:block;animation:acBead 1s infinite ease-in-out}
+              .ac-beads i:nth-child(2){animation-delay:.16s}
+              .ac-beads i:nth-child(3){animation-delay:.32s}
+              .ac-sweep{position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.28) 50%,transparent 80%);animation:acSweep 1.15s infinite}
             `}</style>
 
             {/* Header — gradient band */}
@@ -1155,8 +1163,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <div className="flex items-center gap-2 px-4 py-3.5 border-t border-border-light bg-surface shrink-0">
                 {editing ? (
                   <>
-                    <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Save className="h-4 w-4" /> Save Changes</button>
-                    <button onClick={() => setEditing(false)} className="rounded-2xl border border-border-light px-4 py-2.5 text-xs font-bold text-text-main hover:bg-bg-base">Cancel</button>
+                    <button onClick={saveEdit} disabled={saving} aria-busy={saving}
+                      className={`relative overflow-hidden flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white transition-colors ${saving ? 'cursor-wait' : 'hover:bg-[#00223f]'}`}>
+                      {saving && <span className="ac-sweep" aria-hidden="true" />}
+                      <span className="relative flex items-center gap-2">
+                        {saving
+                          ? <><span className="ac-beads" aria-hidden="true"><i /><i /><i /></span> Saving…</>
+                          : <><Save className="h-4 w-4" /> Save Changes</>}
+                      </span>
+                    </button>
+                    <button onClick={() => setEditing(false)} disabled={saving}
+                      className="rounded-2xl border border-border-light px-4 py-2.5 text-xs font-bold text-text-main hover:bg-bg-base disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
                   </>
                 ) : (
                   <>
