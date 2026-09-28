@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   PhoneCall, Phone, Users2, ArrowLeft, Search, Filter, X, Check,
-  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus
+  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus, Pencil, Trash2
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
@@ -33,6 +33,7 @@ export default function FollowupsPage({ user }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventForm, setEventForm] = useState(emptyEventForm());
+  const [editingEventId, setEditingEventId] = useState(null); // null = creating
   const [events, setEvents] = useState([]);
   const [devotees, setDevotees] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -59,16 +60,31 @@ export default function FollowupsPage({ user }) {
   const submitEvent = (e) => {
     e.preventDefault();
     if (!eventForm.title.trim()) return;
-    dataService.addSabha({
+    const payload = {
       title: eventForm.title.trim(),
       date: eventForm.date,
       time: eventForm.time,
       venue: eventForm.venue,
       type: eventForm.type,
-    });
+    };
+    if (editingEventId) dataService.updateSabha(editingEventId, payload);
+    else dataService.addSabha(payload);
     setEvents(dataService.getEvents());
     setShowEventModal(false);
     setEventForm(emptyEventForm());
+    setEditingEventId(null);
+  };
+
+  const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
+  const openEditEvent = (ev) => {
+    setEditingEventId(ev.id);
+    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha' });
+    setShowEventModal(true);
+  };
+  const deleteEvent = (ev) => {
+    if (!window.confirm(`Delete event "${ev.title}"? This also removes its follow-up records. This cannot be undone.`)) return;
+    dataService.deleteSabha(ev.id);
+    setEvents(dataService.getEvents());
   };
 
   const save = (devId, patch) => {
@@ -129,7 +145,7 @@ export default function FollowupsPage({ user }) {
           </div>
           {canManage && (
             <button
-              onClick={() => { setEventForm(emptyEventForm()); setShowEventModal(true); }}
+              onClick={openNewEvent}
               className="flex shrink-0 items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-[#e06f19] active:scale-95"
             >
               <Plus className="h-4 w-4" /> New Event
@@ -149,19 +165,31 @@ export default function FollowupsPage({ user }) {
           {events.map(ev => {
             const done = dataService.getFollowupsForEvent(ev.id).filter(contacted).length;
             return (
-              <button key={ev.id} onClick={() => openEvent(ev)}
-                className="text-left rounded-3xl border border-border-light bg-surface p-6 shadow-xs transition-all hover:border-primary hover:shadow-md">
+              <div key={ev.id}
+                className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs transition-all hover:border-primary hover:shadow-md">
                 <div className="flex items-center justify-between mb-3">
                   <span className="rounded-full bg-[#EAF0F7] px-3 py-1 text-[11px] font-bold text-[#1F3A5F]">{ev.type || 'Sabha'}</span>
-                  <span className="text-xs font-semibold text-text-muted">{ev.date}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-text-muted">{ev.date}</span>
+                    {canManage && (
+                      <>
+                        <button onClick={() => openEditEvent(ev)} title="Edit event"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-text-muted hover:bg-bg-base hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => deleteEvent(ev)} title="Delete event"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-text-main mb-1">{ev.title}</h3>
-                <p className="text-xs text-slate-500 mb-4">{ev.time} • {ev.venue}</p>
-                <div className="pt-3 border-t border-border-light flex items-center justify-between">
-                  <span className="text-xs text-slate-500"><span className="font-extrabold text-text-main">{done}</span> contacted</span>
-                  <span className="flex items-center gap-1 text-xs font-bold text-[#FF862A]">Open drive <ChevronRight className="h-4 w-4" /></span>
-                </div>
-              </button>
+                <button onClick={() => openEvent(ev)} className="w-full text-left">
+                  <h3 className="text-base font-bold text-text-main mb-1">{ev.title}</h3>
+                  <p className="text-xs text-slate-500 mb-4">{ev.time} • {ev.venue}</p>
+                  <div className="pt-3 border-t border-border-light flex items-center justify-between">
+                    <span className="text-xs text-slate-500"><span className="font-extrabold text-text-main">{done}</span> contacted</span>
+                    <span className="flex items-center gap-1 text-xs font-bold text-[#FF862A]">Open drive <ChevronRight className="h-4 w-4" /></span>
+                  </div>
+                </button>
+              </div>
             );
           })}
         </div>
@@ -170,8 +198,8 @@ export default function FollowupsPage({ user }) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-md rounded-3xl bg-surface p-6 shadow-xl max-h-[85vh] overflow-y-auto">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-text-main">New Event</h2>
-                <button onClick={() => setShowEventModal(false)}
+                <h2 className="text-lg font-bold text-text-main">{editingEventId ? 'Edit Event' : 'New Event'}</h2>
+                <button onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
                   className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-slate-400 hover:text-text-main">
                   <X className="h-4 w-4" />
                 </button>
@@ -210,13 +238,13 @@ export default function FollowupsPage({ user }) {
                   </select>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowEventModal(false)}
+                  <button type="button" onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
                     className="rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
                     Cancel
                   </button>
                   <button type="submit"
                     className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00264a] active:scale-95">
-                    Create Event
+                    {editingEventId ? 'Save Changes' : 'Create Event'}
                   </button>
                 </div>
               </form>

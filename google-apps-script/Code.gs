@@ -171,6 +171,7 @@ function handle_(p){
     if(action==='markAttendance') { var res = doMark_(p); sendNotificationEmail_('MARK_ATTENDANCE', 'Attendance', p); return res; }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
+    if(action==='deleteUser') return doDeleteUser_(p);
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
@@ -220,11 +221,28 @@ function doSaveFollowup_(p){
 }
 
 function doUpsertUser_(p){
-  var rn=findRow_('Users','mobile',p.mobile);
-  var row={ mobile:p.mobile, pin:p.pin||'', password:p.password||'', role:p.role||'Devotee', name:p.name||'Satsangi Devotee' };
-  if(rn>0) tab_('Users').getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
+  var sh=tab_('Users'), rn=findRow_('Users','mobile',p.mobile);
+  // Merge with the existing row so a partial update (e.g. only password) does
+  // not wipe the other fields.
+  var cur={ mobile:p.mobile, pin:'', password:'', role:'Devotee', name:'Satsangi Devotee' };
+  if(rn>0){ var v=sh.getRange(rn,1,1,HEADERS.Users.length).getValues()[0];
+    HEADERS.Users.forEach(function(h,i){ cur[h]=v[i]; }); }
+  var row={
+    mobile:p.mobile,
+    pin: (p.pin!==undefined && p.pin!=='') ? p.pin : cur.pin,
+    password: (p.password!==undefined && p.password!=='') ? p.password : cur.password,
+    role: p.role || cur.role || 'Devotee',
+    name: p.name || cur.name || 'Satsangi Devotee'
+  };
+  if(rn>0) sh.getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
   else appendRows_('Users',[row]);
   return json_({ ok:true, user:row });
+}
+
+function doDeleteUser_(p){
+  var rn=findRow_('Users','mobile',p.mobile);
+  if(rn>0) tab_('Users').deleteRow(rn);
+  return json_({ ok:true });
 }
 
 function sendNotificationEmail_(action, collection, row) {

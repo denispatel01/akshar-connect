@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 export default function AdminPage({ user }) {
@@ -20,17 +20,36 @@ export default function AdminPage({ user }) {
     setKkPlan(dataService.planKaryakartaReconcile());
   }, []);
 
+  const [editingMobile, setEditingMobile] = useState(null); // null = adding new
+
   const handleAddUser = (e) => {
     e.preventDefault();
     setFormErr(''); setFormMsg('');
     const mobile = String(form.mobile || '').trim();
     const pin = String(form.pin || '').trim();
     if (!/^\d{10}$/.test(mobile)) { setFormErr('Mobile must be exactly 10 digits.'); return; }
-    if (!/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
-    dataService.addUser({ mobile, name: form.name.trim(), pin, role: form.role });
+    // PIN required for a NEW user; optional when editing (blank = keep current).
+    if (!editingMobile && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
+    if (pin && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits (leave blank to keep current).'); return; }
+    dataService.saveUser({ mobile, name: form.name.trim(), pin, role: form.role });
     setUsers([...dataService.getUsers()]);
-    setForm(emptyForm);
+    setForm(emptyForm); setEditingMobile(null);
     setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
+  };
+
+  const editUser = (u) => {
+    setEditingMobile(String(u.mobile));
+    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', role: u.role || 'Devotee' });
+    setFormErr(''); setFormMsg('');
+  };
+
+  const removeUser = async (u) => {
+    if (String(u.mobile) === String(user?.mobile)) { setFormErr('You cannot delete your own account.'); return; }
+    if (!window.confirm(`Delete user "${u.name || u.mobile}"? They will lose access. This cannot be undone.`)) return;
+    await dataService.deleteUserAndSync(u.mobile);
+    setUsers([...dataService.getUsers()]);
+    if (editingMobile === String(u.mobile)) { setForm(emptyForm); setEditingMobile(null); }
+    setFormMsg(`User "${u.name || u.mobile}" deleted.`);
   };
 
   // ── Follow-up Karyakarta reconciliation ──────────────────────────────────
@@ -94,8 +113,8 @@ export default function AdminPage({ user }) {
               <input
                 type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
                 onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
-                placeholder="10-digit mobile" required
-                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                placeholder="10-digit mobile" required disabled={!!editingMobile}
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A] disabled:opacity-60"
               />
             </div>
             <div>
@@ -108,11 +127,11 @@ export default function AdminPage({ user }) {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">PIN</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">PIN {editingMobile && <span className="font-semibold text-slate-400">(blank = keep)</span>}</label>
               <input
                 type="text" inputMode="numeric" maxLength={6} value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
-                placeholder="6-digit PIN" required
+                placeholder={editingMobile ? 'Leave blank to keep' : '6-digit PIN'} required={!editingMobile}
                 className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>
@@ -131,8 +150,14 @@ export default function AdminPage({ user }) {
             <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
               <button type="submit"
                 className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
-                <UserPlus className="h-4 w-4" /> Add / Update User
+                <UserPlus className="h-4 w-4" /> {editingMobile ? 'Save Changes' : 'Add User'}
               </button>
+              {editingMobile && (
+                <button type="button" onClick={() => { setForm(emptyForm); setEditingMobile(null); setFormErr(''); setFormMsg(''); }}
+                  className="rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
+                  Cancel
+                </button>
+              )}
               {formErr && <span className="text-xs font-bold text-red-600">{formErr}</span>}
               {formMsg && (
                 <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
@@ -141,6 +166,26 @@ export default function AdminPage({ user }) {
               )}
             </div>
           </form>
+
+          {/* Existing users list */}
+          <div className="border-t border-border-light pt-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Existing users ({users.length})</p>
+            <div className="space-y-2 max-h-[320px] overflow-auto">
+              {users.length === 0 && <p className="text-xs text-text-muted">No users yet.</p>}
+              {users.map((u) => (
+                <div key={u.mobile} className="flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base px-3 py-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white text-xs font-bold">{(u.name || 'U')[0]}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-text-main truncate">{u.name || '—'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}</p>
+                    <p className="text-[11px] text-text-muted">+91 {u.mobile}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === 'Admin' ? 'bg-red-50 text-red-600' : u.role === 'Sevak' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{u.role || 'Devotee'}</span>
+                  <button onClick={() => editUser(u)} title="Edit" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => removeUser(u)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

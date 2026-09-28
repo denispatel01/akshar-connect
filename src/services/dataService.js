@@ -272,6 +272,56 @@ export const dataService = {
     return user;
   },
 
+  // Create or edit a system user (Admin). Merges with the existing record so a
+  // partial edit (e.g. just the role) keeps the pin/password.
+  saveUser: (u) => {
+    const mobile = String(u.mobile || '').trim();
+    const idx = DB.users.findIndex(x => String(x.mobile) === mobile);
+    const cur = idx >= 0 ? DB.users[idx] : {};
+    const user = {
+      mobile,
+      name: (u.name ?? cur.name) || 'Satsangi Devotee',
+      role: (u.role ?? cur.role) || 'Devotee',
+      pin: (u.pin !== undefined && u.pin !== '') ? String(u.pin) : (cur.pin || ''),
+      password: (u.password !== undefined && u.password !== '') ? u.password : (cur.password || ''),
+    };
+    if (idx >= 0) DB.users[idx] = user; else DB.users.push(user);
+    saveCache();
+    // Send only the fields we intend to change (backend merges the rest).
+    const payload = { mobile, name: user.name, role: user.role };
+    if (u.pin !== undefined && u.pin !== '') payload.pin = String(u.pin);
+    if (u.password !== undefined && u.password !== '') payload.password = u.password;
+    push('upsertUser', payload);
+    return user;
+  },
+
+  deleteUserAndSync: async (mobile) => {
+    DB.users = DB.users.filter(x => String(x.mobile) !== String(mobile));
+    saveCache();
+    if (hasBackend()) await api('deleteUser', { mobile: String(mobile) });
+  },
+
+  // Change the signed-in user's own password and/or PIN. Works for staff and
+  // devotees; for a devotee (no Users row yet) it creates one so they can then
+  // also sign in with the new password/PIN.
+  changeMyCredentials: async ({ password, pin } = {}) => {
+    const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (!sess || !sess.mobile) throw new Error('You must be signed in.');
+    const payload = { mobile: String(sess.mobile), name: sess.name, role: sess.role || 'Devotee' };
+    if (password) payload.password = password;
+    if (pin) payload.pin = String(pin);
+    if (!password && !pin) throw new Error('Enter a new password or PIN.');
+    if (hasBackend()) await api('upsertUser', payload);
+    // reflect locally
+    const idx = DB.users.findIndex(x => String(x.mobile) === String(sess.mobile));
+    const merged = { ...(idx >= 0 ? DB.users[idx] : {}), ...payload };
+    if (idx >= 0) DB.users[idx] = merged; else DB.users.push(merged);
+    const newSess = { ...sess, ...(password ? { password } : {}), ...(pin ? { pin: String(pin) } : {}) };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newSess));
+    saveCache();
+    return { success: true, user: newSess };
+  },
+
   getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
   logout: () => localStorage.removeItem(SESSION_KEY),
 
@@ -428,6 +478,22 @@ export const dataService = {
     DB.sabhas.unshift(newSabha); saveCache();
     push('insert', { collection: 'Sabhas', row: newSabha });
     return newSabha;
+  },
+
+  updateSabha: (id, fields) => {
+    const idx = DB.sabhas.findIndex(s => s.id === id);
+    if (idx === -1) return null;
+    const merged = { ...DB.sabhas[idx], ...fields, id };
+    DB.sabhas[idx] = merged; saveCache();
+    push('update', { collection: 'Sabhas', keyField: 'id', key: id, row: merged });
+    return merged;
+  },
+
+  deleteSabha: (id) => {
+    DB.sabhas = DB.sabhas.filter(s => s.id !== id);
+    DB.followups = DB.followups.filter(f => f.eventId !== id);
+    saveCache();
+    push('remove', { collection: 'Sabhas', keyField: 'id', key: id });
   },
 
   markAttendance: (sabhaId, devoteeId, present = true) => {

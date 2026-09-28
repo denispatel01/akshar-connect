@@ -141,7 +141,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <div className="hidden sm:flex items-center gap-2">
-              <div className="flex items-center gap-2.5 rounded-2xl border border-border-light bg-bg-base px-3.5 py-1.5">
+              <button onClick={() => setActivePage('account')} title="My Account"
+                className="flex items-center gap-2.5 rounded-2xl border border-border-light bg-bg-base px-3.5 py-1.5 hover:border-primary transition-colors">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                   {user?.name?.[0] || 'U'}
                 </div>
@@ -149,7 +150,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                   <p className="text-xs font-bold text-text-main leading-tight">{user?.name || 'User'}</p>
                   <span className={`inline-block text-[10px] font-bold ${roleColor}`}>{user?.role || 'Devotee'}</span>
                 </div>
-              </div>
+              </button>
               <button onClick={onLogout} title="Logout"
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition-colors dark:bg-red-950 dark:border-red-900">
                 <LogOut className="h-4 w-4" />
@@ -213,16 +214,18 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="mx-3 mb-3 rounded-3xl bg-surface border border-border-light shadow-2xl overflow-hidden">
 
-          {/* User card */}
-          <div className="flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
+          {/* User card → My Account */}
+          <button onClick={() => { setMoreOpen(false); navigate('account'); }}
+            className="w-full text-left flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">
               {user?.name?.[0] || 'U'}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-white leading-tight truncate">{user?.name || 'User'}</p>
               <span className={`text-[11px] font-bold ${isAdmin ? 'text-red-300' : isSevak ? 'text-amber-300' : 'text-indigo-200'}`}>{user?.role || 'Devotee'}</span>
             </div>
-          </div>
+            <span className="text-[11px] font-bold text-white/70">My Account ›</span>
+          </button>
 
           {/* Nav items in More */}
           {moreItems.length > 0 && (

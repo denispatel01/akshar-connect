@@ -8,9 +8,11 @@ import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
+import AccountPage from './pages/AccountPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
+import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
 
 export default function App() {
@@ -149,6 +151,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <NotificationsPopup user={user} />
       <Navbar
         activePage={activePage}
         setActivePage={navigate}
@@ -186,6 +189,7 @@ export default function App() {
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
+        {activePage === 'account' && <AccountPage user={user} />}
         </ErrorBoundary>
       </main>
 
