@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
-import { UserCircle, Phone, ShieldCheck, Lock, KeyRound, Check, AlertCircle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Phone, ShieldCheck, Lock, KeyRound, Check, AlertCircle, UserCircle, Pencil } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import PinDigitInput from '../components/PinDigitInput';
 
-export default function AccountPage({ user }) {
+export default function AccountPage({ user, setActivePage }) {
+  // The devotee record that belongs to this account (matched by devoteeId, else mobile).
+  const myDevotee = useMemo(() => {
+    const list = dataService.getDevotees();
+    if (user?.devoteeId) return list.find(d => d.id === user.devoteeId) || null;
+    return list.find(d => String(d.mobile) === String(user?.mobile)) || null;
+  }, [user]);
+
+  const openMyProfile = () => {
+    if (myDevotee) setActivePage?.('devotees', { openDevoteeId: myDevotee.id });
+  };
+
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [pin, setPin] = useState('');
@@ -60,6 +71,24 @@ export default function AccountPage({ user }) {
             <ShieldCheck className="h-3 w-3" /> {user?.role || 'Devotee'}
           </span>
         </div>
+      </div>
+
+      {/* My devotee profile */}
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+        <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><UserCircle className="h-4 w-4 text-primary" /> My Profile</h2>
+        {myDevotee ? (
+          <>
+            <p className="text-sm text-text-muted">Your devotee record — view your full details and edit your profile.</p>
+            <button onClick={openMyProfile}
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
+              <Pencil className="h-4 w-4" /> View / Edit My Profile
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-text-muted">
+            No devotee record is linked to your mobile number. Ask an admin to add you to the directory with this mobile ({user?.mobile || '—'}) to enable your profile.
+          </p>
+        )}
       </div>
 
       {msg && (

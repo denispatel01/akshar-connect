@@ -189,7 +189,7 @@ export default function App() {
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
-        {activePage === 'account' && <AccountPage user={user} />}
+        {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         </ErrorBoundary>
       </main>
 
