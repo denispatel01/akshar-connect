@@ -56,7 +56,10 @@ export default function NotificationsPopup({ user }) {
     try { return localStorage.getItem(dayKey()) !== '1'; } catch (e) { return true; }
   });
 
-  const close = () => {
+  // Just close for now — it will pop up again next time the app is opened.
+  const close = () => setOpen(false);
+  // Suppress only for the rest of today; it returns tomorrow.
+  const dismissToday = () => {
     try { localStorage.setItem(dayKey(), '1'); } catch (e) {}
     setOpen(false);
   };
@@ -155,8 +158,11 @@ export default function NotificationsPopup({ user }) {
           )}
         </div>
 
-        <div className="border-t border-border-light p-3">
-          <button onClick={close} className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
+        <div className="border-t border-border-light p-3 flex gap-2">
+          <button onClick={dismissToday} className="flex-1 rounded-2xl border border-border-light bg-bg-base py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
+            Don't show today
+          </button>
+          <button onClick={close} className="flex-1 rounded-2xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
             Got it
           </button>
         </div>
