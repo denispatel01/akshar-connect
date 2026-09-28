@@ -19,6 +19,16 @@ const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha' });
 
+// Defined at module scope so the roster doesn't remount on every keystroke/save.
+function Tick({ on, onClick, icon: Icon, label }) {
+  return (
+    <button onClick={onClick} title={label}
+      className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${on ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-slate-400 hover:border-primary'}`}>
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
 export default function FollowupsPage({ user }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
   const [showEventModal, setShowEventModal] = useState(false);
@@ -304,12 +314,6 @@ export default function FollowupsPage({ user }) {
       <div className="space-y-2">
         {audience.slice(0, AUDIENCE_CAP).map(d => {
           const f = fmap[d.id] || {};
-          const Tick = ({ on, onClick, icon: Icon, label }) => (
-            <button onClick={onClick} title={label}
-              className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${on ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-slate-400 hover:border-primary'}`}>
-              <Icon className="h-4 w-4" />
-            </button>
-          );
           return (
             <div key={d.id} className="rounded-2xl border border-border-light bg-surface p-3 shadow-xs">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

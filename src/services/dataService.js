@@ -214,6 +214,24 @@ export const dataService = {
     return { success: true, user: sessionUser };
   },
 
+  // Fire-and-forget: email the admin when a user hits a runtime error.
+  reportError: (info) => {
+    try {
+      if (!hasBackend()) return;
+      const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      const body = JSON.stringify({
+        action: 'logError',
+        user: sess?.name || '', mobile: sess?.mobile || '',
+        message: String(info?.message || info || '').slice(0, 500),
+        stack: String(info?.stack || '').slice(0, 4000),
+        page: info?.page || (typeof location !== 'undefined' ? location.hash : ''),
+        ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        time: new Date().toISOString(),
+      });
+      fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, keepalive: true }).catch(() => {});
+    } catch (e) { /* never throw from the error reporter */ }
+  },
+
   loginWithPassword: async (mobile, password) => {
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && u.password === password);
     if (!user) throw new Error('Invalid Mobile Number or Password.');

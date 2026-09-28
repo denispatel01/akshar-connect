@@ -171,6 +171,7 @@ function handle_(p){
     if(action==='markAttendance') { var res = doMark_(p); sendNotificationEmail_('MARK_ATTENDANCE', 'Attendance', p); return res; }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
+    if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
 }
@@ -250,6 +251,23 @@ function sendNotificationEmail_(action, collection, row) {
     });
   } catch(e) {
   }
+}
+
+// Mail shooter: email the admin when a user hits a runtime error in the app.
+function sendErrorEmail_(p){
+  try{
+    var email='denispatel01@gmail.com';
+    var who=(p && (p.user||p.mobile)) || 'unknown user';
+    var subject='Akshar Connect ERROR — '+String(p && p.message || 'app error').slice(0,120);
+    var body='A user hit an error in Akshar Connect.\n\n'
+      +'User: '+who+'\n'
+      +'When: '+(p && p.time || new Date().toISOString())+'\n'
+      +'Page: '+(p && p.page || '')+'\n'
+      +'Message: '+(p && p.message || '')+'\n\n'
+      +'Stack:\n'+String(p && p.stack || '').slice(0,4000)+'\n\n'
+      +'UserAgent: '+(p && p.ua || '');
+    MailApp.sendEmail({ to: email, subject: subject, body: body });
+  }catch(e){}
 }
 
 function doBulkUpdateTags_(p) {

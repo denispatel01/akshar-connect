@@ -5,6 +5,15 @@ import 'sweetalert2/dist/sweetalert2.min.css'
 import App from './App.jsx'
 import { dataService } from './services/dataService'
 
+// Global safety net: email the admin on any uncaught error / promise rejection.
+window.addEventListener('error', (e) => {
+  dataService.reportError({ message: e?.message, stack: e?.error?.stack, page: location.hash });
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e?.reason;
+  dataService.reportError({ message: r?.message || String(r), stack: r?.stack, page: location.hash });
+});
+
 const root = createRoot(document.getElementById('root'))
 
 // 1) Load cached / bundled data synchronously so the app shows instantly —

@@ -10,6 +10,7 @@ import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
+import ErrorBoundary from './components/ErrorBoundary';
 import { dataService } from './services/dataService';
 
 export default function App() {
@@ -164,6 +165,7 @@ export default function App() {
       />
 
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
+        <ErrorBoundary key={activePage} page={activePage}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
         {activePage === 'devotees' && (
           <DevoteesPage
@@ -184,6 +186,7 @@ export default function App() {
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
+        </ErrorBoundary>
       </main>
 
       <Footer />
