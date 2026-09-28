@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X, Cake, MessageSquare, CalendarClock } from 'lucide-react';
+import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { isBirthdayToday, upcomingBirthdays, birthdayDate } from '../utils/birthdays';
 
 const dayKey = () => 'ac-notif-' + new Date().toISOString().slice(0, 10);
+const contactedF = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
 
 function waWish(d) {
   const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
@@ -16,6 +17,7 @@ function waWish(d) {
 
 // Shown once per day on app open when there is something worth surfacing.
 export default function NotificationsPopup({ user }) {
+  const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
   const devotees = useMemo(() => dataService.getDevotees(), []);
   const today = useMemo(() => devotees.filter(d => isBirthdayToday(d.dob)), [devotees]);
   const soon = useMemo(
@@ -23,7 +25,32 @@ export default function NotificationsPopup({ user }) {
     [devotees]
   );
 
-  const hasItems = today.length > 0 || soon.length > 0;
+  // Pending follow-ups on upcoming events (staff only).
+  const pendingEvents = useMemo(() => {
+    if (!canManage) return [];
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const total = devotees.length;
+    return dataService.getEvents()
+      .filter(ev => (ev.date || '') >= todayISO)
+      .map(ev => {
+        const done = dataService.getFollowupsForEvent(ev.id).filter(contactedF).length;
+        return { ev, pending: Math.max(0, total - done) };
+      })
+      .filter(x => x.pending > 0)
+      .sort((a, b) => (a.ev.date || '').localeCompare(b.ev.date || ''))
+      .slice(0, 5);
+  }, [devotees, canManage]);
+
+  // Devotees added in the last 7 days (staff only).
+  const newDevotees = useMemo(() => {
+    if (!canManage) return [];
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return devotees
+      .filter(d => { const t = Date.parse(d.createdOn || ''); return !isNaN(t) && t >= cutoff; })
+      .sort((a, b) => Date.parse(b.createdOn) - Date.parse(a.createdOn));
+  }, [devotees, canManage]);
+
+  const hasItems = today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
   const [open, setOpen] = useState(() => {
     if (!hasItems) return false;
     try { return localStorage.getItem(dayKey()) !== '1'; } catch (e) { return true; }
@@ -85,6 +112,44 @@ export default function NotificationsPopup({ user }) {
                     <span className="text-[11px] font-bold text-text-muted shrink-0">{birthdayDate(info)}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {pendingEvents.length > 0 && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#FF862A]">
+                <PhoneCall className="h-3.5 w-3.5" /> Pending follow-ups
+              </p>
+              <div className="space-y-1.5">
+                {pendingEvents.map(({ ev, pending }) => (
+                  <div key={ev.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-text-main truncate">{ev.title}</p>
+                      <p className="text-[11px] text-text-muted">{ev.date}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#FF862A] px-2.5 py-0.5 text-[11px] font-bold text-white">{pending} pending</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {newDevotees.length > 0 && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                <UserPlus className="h-3.5 w-3.5" /> New devotees (last 7 days) · {newDevotees.length}
+              </p>
+              <div className="space-y-1.5">
+                {newDevotees.slice(0, 8).map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 px-3 py-2">
+                    <span className="text-sm font-semibold text-text-main truncate">{d.name}</span>
+                    <span className="text-[11px] font-bold text-text-muted shrink-0">{String(d.createdOn || '').slice(0, 10)}</span>
+                  </div>
+                ))}
+                {newDevotees.length > 8 && (
+                  <p className="text-[11px] text-text-muted text-center">+{newDevotees.length - 8} more</p>
+                )}
               </div>
             </div>
           )}
