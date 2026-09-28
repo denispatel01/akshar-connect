@@ -103,6 +103,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
+  const [tagsExpandedId, setTagsExpandedId] = useState(null); // devotee id whose full tags are shown
 
   // Family heads (primary members) — used to link a family member to their head.
   const familyHeads = useMemo(() => devotees
@@ -854,16 +855,24 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={devotee.followupKaryakarta} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
                   </div>
 
-                  {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {devotee.tags.slice(0, 3).map((key) => (
-                        <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
-                      ))}
-                      {devotee.tags.length > 3 && (
-                        <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-main">+{devotee.tags.length - 3}</span>
-                      )}
-                    </div>
-                  )}
+                  {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (() => {
+                    const tagsOpen = tagsExpandedId === devotee.id;
+                    const shown = tagsOpen ? devotee.tags : devotee.tags.slice(0, 3);
+                    return (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {shown.map((key) => (
+                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
+                        ))}
+                        {devotee.tags.length > 3 && (
+                          <button onClick={(e) => { stop(e); setTagsExpandedId(tagsOpen ? null : devotee.id); }}
+                            title={tagsOpen ? 'Show fewer tags' : 'Show all tags'}
+                            className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/10 border border-transparent hover:border-primary/30">
+                            {tagsOpen ? 'Show less' : `+${devotee.tags.length - 3}`}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
