@@ -87,10 +87,23 @@ const DEFAULT_COLUMNS = [
 // columns: optional [{ header, get(d,i), width?, halign? }] to control layout.
 export async function downloadReportPdf({ title, subtitle, rows, columns }) {
   const cols = columns && columns.length ? columns : DEFAULT_COLUMNS;
-  const [{ jsPDF }, autoTableMod] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ]);
+  let jsPDF, autoTableMod;
+  try {
+    [{ jsPDF }, autoTableMod] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
+  } catch (e) {
+    // The PDF chunk failed to load — usually a stale build after a new deploy.
+    // Reload once to fetch the fresh build; the next tap will work.
+    try {
+      if (!sessionStorage.getItem('ac-pdf-reloaded')) {
+        sessionStorage.setItem('ac-pdf-reloaded', '1');
+        location.reload();
+      }
+    } catch (_) {}
+    throw new Error('The app was updated in the background. Reloading — please tap the report again.');
+  }
   const autoTable = autoTableMod.default || autoTableMod.autoTable;
 
   const orderedRows = sortForReport(rows);

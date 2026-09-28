@@ -5,6 +5,19 @@ import 'sweetalert2/dist/sweetalert2.min.css'
 import App from './App.jsx'
 import { dataService } from './services/dataService'
 
+// Stale-deployment recovery: when a lazily-loaded chunk can't be fetched
+// (a newer build replaced it), reload once to pick up the fresh build.
+window.addEventListener('vite:preloadError', (e) => {
+  try {
+    dataService.reportError({ message: 'vite:preloadError — ' + (e?.payload?.message || 'dynamic import failed'), page: location.hash });
+    if (!sessionStorage.getItem('ac-preload-reloaded')) {
+      sessionStorage.setItem('ac-preload-reloaded', '1');
+      e.preventDefault();
+      location.reload();
+    }
+  } catch (_) {}
+});
+
 // Global safety net: email the admin on any uncaught error / promise rejection.
 window.addEventListener('error', (e) => {
   dataService.reportError({ message: e?.message, stack: e?.error?.stack, page: location.hash });

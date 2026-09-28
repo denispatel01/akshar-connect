@@ -91,6 +91,8 @@ export default function ReportsPage({ setActivePage }) {
     try {
       await downloadReportPdf({ title, subtitle, rows, columns });
     } catch (e) {
+      // Email the admin the detail so it can be diagnosed.
+      dataService.reportError({ message: 'PDF report failed: ' + (e?.message || e), stack: e?.stack, page: 'reports:' + title });
       alert('Could not generate PDF: ' + (e?.message || e));
     } finally {
       setBusy(null);
