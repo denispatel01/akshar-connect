@@ -26,12 +26,15 @@ const dobShort = (dob) => {
 const TAG_PRIORITY = ['ambrish', 'karyakarta', 'regular-sabha', 'irregular-sabha', 'not-attending-sabha'];
 
 function tagRank(d) {
-  // The Old/New status lives in its own `oldNew` column (values: Old / New).
-  if (String(d.oldNew || '').trim().toLowerCase() === 'new') return 90; // New always last
+  // The Old / Reference / New status lives in its own `oldNew` column.
+  // Report order is Old (and everyone else) → Reference → New.
+  const s = String(d.oldNew || '').trim().toLowerCase();
+  if (s === 'new') return 90;        // New always last
+  if (s === 'reference') return 70;  // Reference between Old and New
   const tags = Array.isArray(d.tags) ? d.tags : [];
   let best = Infinity;
   TAG_PRIORITY.forEach((k, i) => { if (tags.includes(k)) best = Math.min(best, i); });
-  return best === Infinity ? 50 : best;         // untagged: after old, before New
+  return best === Infinity ? 50 : best;         // Old / untagged: before Reference
 }
 
 function relationRank(d) {

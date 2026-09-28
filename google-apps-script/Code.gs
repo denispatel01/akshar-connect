@@ -138,6 +138,7 @@ function handle_(p){
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
     ensureSheets_();
     if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
+    if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
@@ -326,4 +327,59 @@ function classifyOldNewNow(){
   }
   rng.setValues(v);
   return 'Old='+oldN+' New='+newN+' families='+Object.keys(oldFam).length;
+}
+
+// One-time Reference marking. Idempotent: resets every current "Reference" back
+// to "New", then re-marks. Each listed person's family (its "New" members) is
+// set to "Reference"; Old rows are never touched. Where a name matches more than
+// one family, the newest record (highest HPP number) wins — that is the freshly
+// entered reference contact rather than an established namesake family.
+// [first, last, middle?] — middle only where needed to disambiguate.
+var REF_PEOPLE = [
+  ['Rajesh','Surati'],['Kamlesh','Gajjar'],['Mitesh','Patel','Govind'],['Pravin','Bhajiwala'],
+  ['Smit','Pastagiya'],['Mehul','Pastagiya'],['Heena','Hajariwala'],['Priti','Gandhi'],
+  ['Kumarkant','Bakariwala'],['Lata','Rathod'],['Nehal','Modi'],['Pinkesh','Ganjawala'],
+  ['Jenish','Ganjawala'],['Parth','Modi'],['Kamlesh','Oza'],
+  ['Vijay','Patel'],['Bhavesh','Rathod'],['Jayesh','Shivde'],['Bharat','Bakariwala'],
+  ['Ashish','Bhatia'],['Rakesh','Lad'],['Parth','Gandhi']
+];
+// People with no usable surname — identified directly by their record id.
+var REF_IDS = ['HPP-548','HPP-552','HPP-554','HPP-555','HPP-556','HPP-557'];
+function _nn(s){return String(s||'').toLowerCase().replace(/bhai|kumar|ben/g,'').replace(/[^a-z]/g,'');}
+function _fm(a,b){return a&&b&&(a===b||a.indexOf(b)===0||b.indexOf(a)===0);}
+function _idNum(id){var m=String(id||'').match(/(\d+)/);return m?parseInt(m[1],10):-1;}
+function markReferenceNow(){
+  var name='Devotees', sh=tab_(name), head=HEADERS[name];
+  var last=sh.getLastRow(); if(last<2) return 'no rows';
+  var idI=head.indexOf('id'), nmI=head.indexOf('name'), fI=head.indexOf('firstName'),
+      lI=head.indexOf('lastName'), famI=head.indexOf('familyId'), onI=head.indexOf('oldNew');
+  var rng=sh.getRange(2,1,last-1,head.length), v=rng.getValues();
+  var rows=v.map(function(r){
+    var full=String(r[nmI]||''), parts=full.trim().split(/\s+/);
+    return { id:r[idI], f:_nn(r[fI]||parts[0]||''), l:_nn(r[lI]||(parts.length>1?parts[parts.length-1]:'')),
+             full:_nn(full), fam:(r[famI]||r[idI]), num:_idNum(r[idI]) };
+  });
+  // reset previous Reference -> New for idempotency
+  for(var i=0;i<v.length;i++){ if(String(v[i][onI]||'').toLowerCase()==='reference') v[i][onI]='New'; }
+  var refFam={}, unmatched=[];
+  for(var j=0;j<REF_PEOPLE.length;j++){
+    var of=_nn(REF_PEOPLE[j][0]), ol=_nn(REF_PEOPLE[j][1]), om=_nn(REF_PEOPLE[j][2]||'');
+    var cand=null;
+    for(var i=0;i<rows.length;i++){
+      if(rows[i].l===ol && _fm(rows[i].f,of) && (!om || rows[i].full.indexOf(om)>=0)){
+        if(!cand || rows[i].num>cand.num) cand=rows[i]; // newest wins
+      }
+    }
+    if(!cand) unmatched.push(REF_PEOPLE[j].join(' ')); else refFam[cand.fam]=1;
+  }
+  // explicit ids (no-surname people) -> their family
+  for(var q=0;q<REF_IDS.length;q++){
+    for(var i=0;i<rows.length;i++){ if(rows[i].id===REF_IDS[q]){ refFam[rows[i].fam]=1; break; } }
+  }
+  var setN=0;
+  for(var i=0;i<v.length;i++){
+    if(refFam[rows[i].fam] && String(v[i][onI]||'').toLowerCase()==='new'){ v[i][onI]='Reference'; setN++; }
+  }
+  rng.setValues(v);
+  return 'set='+setN+' | UNMATCHED: '+(unmatched.join(', ')||'none');
 }

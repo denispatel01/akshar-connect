@@ -223,10 +223,10 @@ export default function DashboardPage({ setActivePage, user }) {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                         <p className="flex items-center gap-2 text-text-muted"><Cake className="h-3.5 w-3.5 text-rose-500 shrink-0" /> {dobShort(devotee.dob)}</p>
                         <p className="flex items-center gap-2 text-text-muted"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {devotee.mobile || '—'}</p>
-                        {devotee.address && <p className="flex items-start gap-2 text-text-muted sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
-                        {devotee.followupKaryakarta && <p className="flex items-center gap-2 text-text-muted sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
+                        {!isDevotee && devotee.address && <p className="flex items-start gap-2 text-text-muted sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{devotee.address}{devotee.area ? `, ${devotee.area}` : ''}</span></p>}
+                        {!isDevotee && devotee.followupKaryakarta && <p className="flex items-center gap-2 text-text-muted sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {devotee.followupKaryakarta}</p>}
                       </div>
-                      {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
+                      {!isDevotee && Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                           {devotee.tags.slice(0, 5).map((k) => (
                             <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>
@@ -240,10 +240,12 @@ export default function DashboardPage({ setActivePage, user }) {
                             <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
                           </a>
                         )}
+                        {!isDevotee && (
                         <button onClick={() => setActivePage('devotees', { openDevoteeId: devotee.id })}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
+                        )}
                         {!wa && <span className="text-[11px] font-semibold text-text-muted">No mobile on file for a WhatsApp wish.</span>}
                       </div>
                     </div>
@@ -355,10 +357,10 @@ export default function DashboardPage({ setActivePage, user }) {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                         <p className="flex items-center gap-2 text-slate-600"><Cake className="h-3.5 w-3.5 text-purple-500 shrink-0" /> {dobShort(d.dob)}</p>
                         <p className="flex items-center gap-2 text-slate-600"><Phone className="h-3.5 w-3.5 text-text-muted shrink-0" /> {d.mobile || '—'}</p>
-                        {d.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{d.address}{d.area ? `, ${d.area}` : ''}</span></p>}
-                        {d.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {d.followupKaryakarta}</p>}
+                        {!isDevotee && d.address && <p className="flex items-start gap-2 text-slate-600 sm:col-span-2"><MapPin className="h-3.5 w-3.5 text-text-muted shrink-0 mt-0.5" /> <span>{d.address}{d.area ? `, ${d.area}` : ''}</span></p>}
+                        {!isDevotee && d.followupKaryakarta && <p className="flex items-center gap-2 text-slate-600 sm:col-span-2"><User className="h-3.5 w-3.5 text-blue-500 shrink-0" /> {d.followupKaryakarta}</p>}
                       </div>
-                      {Array.isArray(d.tags) && d.tags.length > 0 && (
+                      {!isDevotee && Array.isArray(d.tags) && d.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {d.tags.slice(0, 6).map((k) => (
                             <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>
@@ -372,10 +374,12 @@ export default function DashboardPage({ setActivePage, user }) {
                             <MessageSquare className="h-4 w-4" /> Wish on WhatsApp
                           </a>
                         )}
+                        {!isDevotee && (
                         <button onClick={() => { setShowTodayBdays(false); setActivePage('devotees', { openDevoteeId: d.id }); }}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-bg-base">
                           <User className="h-4 w-4" /> View profile
                         </button>
+                        )}
                         {!wa && <span className="text-[11px] font-semibold text-text-muted">No mobile on file for a WhatsApp wish.</span>}
                       </div>
                     </div>
