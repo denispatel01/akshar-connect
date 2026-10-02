@@ -6,14 +6,21 @@ import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
-import { scoreMatch, dateSearchForms } from '../utils/search';
+import { scoreMatch, devoteeSearchText } from '../utils/search';
 import EmptyState from '../components/EmptyState';
 import { ListSkeleton } from '../components/SkeletonLoader';
 import {
-  hasAnyTag, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
+  hasAnyTag, deriveAge, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
   PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
   FAMILY_RECORD_TYPES, formatFamilyRecordType, formatFamilyMembershipContext
 } from '../services/devoteeSchema';
+
+// Age bands for the Divine Devotees filter.
+const AGE_BANDS = {
+  under15: { label: 'Under 15', test: (a) => a !== '' && a < 15 },
+  '15to45': { label: '15 – 45', test: (a) => a !== '' && a >= 15 && a <= 45 },
+  over45: { label: 'Over 45', test: (a) => a !== '' && a > 45 },
+};
 
 // Profile tabs -> [field, label]. 'Tags' is a special tab (no fields, renders tag UI).
 const TABS = {
@@ -90,8 +97,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [filterKaryakarta, setFilterKaryakarta] = useState('');
   const [filterArea, setFilterArea] = useState('');
-  const [filterWing, setFilterWing] = useState('');
-  const [filterBlood, setFilterBlood] = useState('');
+  const [filterReference, setFilterReference] = useState('');
+  const [filterQualification, setFilterQualification] = useState('');
+  const [filterAge, setFilterAge] = useState(''); // '' | under15 | 15to45 | over45
   const [filterGender, setFilterGender] = useState('');
   const [filterType, setFilterType] = useState(''); // '' = heads only (default) | Primary | Family | all
   const [filterOldNew, setFilterOldNew] = useState(''); // '' = any | Old | Reference | New
@@ -158,8 +166,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       setSelectedTags(tags || []);
       setFilterKaryakarta('');
       setFilterArea('');
-      setFilterWing('');
-      setFilterBlood('');
+      setFilterReference('');
+      setFilterQualification('');
+      setFilterAge('');
       setFilterGender('');
       setSearchQuery('');
       setShowTagFilter(devoteesPreset === 'ambrish');
@@ -173,10 +182,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       
       if (filterPreset.area) setFilterArea(filterPreset.area);
       else setFilterArea('');
-      
-      if (filterPreset.wing) setFilterWing(filterPreset.wing);
-      else setFilterWing('');
-      
+
       setSelectedTags([]); // clear tags when applying these filters
       setSearchQuery('');
       setShowTagFilter(true);
@@ -212,18 +218,11 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
-  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !filterType && !filterOldNew && !devoteesPreset;
+  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterReference && !filterQualification && !filterAge && !filterGender && !filterType && !filterOldNew && !devoteesPreset;
 
-  // Build the lowercased searchable text for a devotee (name, contacts, address,
-  // area, dob variants, karyakarta, tags…).
-  const searchText = (d) => [
-    d.name, d.firstName, d.middleName, d.lastName,
-    d.mobile, d.whatsapp, d.secondaryMobile,
-    d.address, d.area, d.city,
-    dateSearchForms(d.dob), d.yuvakType, d.followupKaryakarta,
-    d.education, d.profession, d.reference,
-    ...((d.tags || []).map(tagLabel)),
-  ].filter(Boolean).join(' ').toLowerCase();
+  // Search matches a devotee's OWN name parts, DOB and mobile only — never
+  // karyakarta / reference / address (see devoteeSearchText).
+  const searchText = (d) => devoteeSearchText(d);
 
   const query = searchQuery.trim();
   const filteredDevotees = useMemo(() => {
@@ -238,8 +237,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       // filterType === 'all' → no membership filter (show everyone)
       if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
       if (filterArea && d.area !== filterArea) return false;
-      if (filterWing && d.wing !== filterWing) return false;
-      if (filterBlood && d.bloodGroup !== filterBlood) return false;
+      if (filterReference && d.reference !== filterReference) return false;
+      if (filterQualification && d.qualification !== filterQualification) return false;
+      if (filterAge && !AGE_BANDS[filterAge]?.test(deriveAge(d.dob))) return false;
       if (filterGender && d.gender !== filterGender) return false;
       if (filterOldNew && String(d.oldNew || '').toLowerCase() !== filterOldNew.toLowerCase()) return false;
       return hasAnyTag(d, selectedTags) && presetMatch(d);
@@ -253,7 +253,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, filterType, filterOldNew, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterReference, filterQualification, filterAge, filterGender, filterType, filterOldNew, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -595,14 +595,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, mobile, address, area, DOB - any order"
+              placeholder="Search name, DOB (dd-MM-yyyy) or mobile"
               className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary dark:focus:border-primary-hover" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowTagFilter((s) => !s)}
               className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
-                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType || filterOldNew) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
-              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType || filterOldNew) ? ' (Active)' : ''}
+                ((filterKaryakarta || filterArea || filterReference || filterQualification || filterAge || filterGender || filterType || filterOldNew) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+              <Filter className="h-4 w-4" /> Filters{(filterKaryakarta || filterArea || filterReference || filterQualification || filterAge || filterGender || filterType || filterOldNew) ? ' (Active)' : ''}
             </button>
             
             <div className="flex gap-2">
@@ -667,20 +667,31 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                }} title="Print / PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors">
                  <Printer className="h-4 w-4" />
                </button>
-               <button onClick={() => {
-                  const headers = ['ID', 'Name', 'Mobile', 'WhatsApp', 'Area', 'Karyakarta', 'Blood Group', 'Gender', 'Wing'];
-                  const csvRows = [headers.join(',')];
-                  filteredDevotees.forEach(d => {
-                    const row = [d.id, d.name, d.mobile, d.whatsapp, d.area, d.followupKaryakarta, d.bloodGroup, d.gender, d.wing].map(v => `"${(v||'').replace(/"/g, '""')}"`);
-                    csvRows.push(row.join(','));
+               <button onClick={async () => {
+                  // Real .xlsx so it opens straight in Google Sheets / Excel (incl. mobile).
+                  const XLSX = await import('xlsx');
+                  const data = filteredDevotees.map(d => {
+                    const age = deriveAge(d.dob);
+                    return {
+                      'ID': d.id || '',
+                      'Name': d.name || '',
+                      'Mobile': d.mobile || '',
+                      'WhatsApp': d.whatsapp || '',
+                      'DOB': d.dob ? d.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '',
+                      'Age': age === '' ? '' : age,
+                      'Area': d.area || '',
+                      'Reference': d.reference || '',
+                      'Karyakarta': d.followupKaryakarta || '',
+                      'Qualification': d.qualification || '',
+                      'Gender': d.gender || '',
+                      'Membership': d.type || '',
+                    };
                   });
-                  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `Devotees_Export_${new Date().toISOString().slice(0,10)}.csv`;
-                  a.click();
-               }} title="Export CSV" className="flex items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base transition-colors">
+                  const ws = XLSX.utils.json_to_sheet(data);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
+                  XLSX.writeFile(wb, `Devotees_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+               }} title="Export to Excel" className="flex items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base transition-colors">
                  <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
                </button>
             </div>
@@ -703,20 +714,25 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <option value="">All Karyakartas</option>
               {uniqueKaryakartas.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
             </select>
+            <select value={filterReference} onChange={e => setFilterReference(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All References</option>
+              {uniqueReferences.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select value={filterQualification} onChange={e => setFilterQualification(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Qualifications</option>
+              {QUALIFICATIONS.map(q => <option key={q}>{q}</option>)}
+            </select>
+            <select value={filterAge} onChange={e => setFilterAge(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All Ages</option>
+              {Object.entries(AGE_BANDS).map(([key, b]) => <option key={key} value={key}>{b.label}</option>)}
+            </select>
             <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
               <option value="">All Genders</option>
               <option>Male</option><option>Female</option>
-            </select>
-            <select value={filterBlood} onChange={e => setFilterBlood(e.target.value)}
-              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-              <option value="">All Blood Groups</option>
-              {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b}>{b}</option>)}
-            </select>
-            <select value={filterWing} onChange={e => setFilterWing(e.target.value)}
-              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-              <option value="">All Wings</option>
-              {uniqueWings.map(w => <option key={w}>{w}</option>)}
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
@@ -733,27 +749,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </select>
           </div>
 
-          {/* Tags */}
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Filter by Tags</p>
-            <div className="flex flex-wrap gap-1.5">
-              {tagsByCategory().flatMap(({ tags }) => tags).map((t) => {
-                const active = selectedTags.includes(t.key);
-                return (
-                  <button key={t.key} onClick={() => toggleFilterTag(t.key)}
-                    style={active ? tagChipStyle(t.key) : undefined}
-                    className={'rounded-full px-3 py-1 text-[11px] font-bold border transition-all ' +
-                      (active ? '' : 'border-border-light bg-bg-base text-text-muted hover:border-primary/50 hover:text-text-main')}>
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Clear all */}
-          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing || filterType || filterOldNew) && (
-            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); setFilterType(''); setFilterOldNew(''); }}
+          {(filterArea || filterKaryakarta || filterReference || filterQualification || filterAge || filterGender || filterType || filterOldNew) && (
+            <button onClick={() => { setFilterArea(''); setFilterKaryakarta(''); setFilterReference(''); setFilterQualification(''); setFilterAge(''); setFilterGender(''); setFilterType(''); setFilterOldNew(''); }}
               className="text-xs font-bold text-red-500 hover:underline">
               Clear all filters
             </button>
