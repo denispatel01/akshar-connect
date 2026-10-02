@@ -14,6 +14,7 @@ export default function AdminPage({ user }) {
   const [form, setForm] = useState(emptyForm);
   const [formErr, setFormErr] = useState('');
   const [formMsg, setFormMsg] = useState('');
+  const [showCreds, setShowCreds] = useState(false);
 
   useEffect(() => {
     setUsers([...dataService.getUsers()]);
@@ -283,14 +284,25 @@ export default function AdminPage({ user }) {
 
       {/* Registered System Users */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
-        <h2 className="text-base font-bold text-text-main mb-4">System User Accounts</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-text-main">System User Accounts</h2>
+          {isAdmin && (
+            <button onClick={() => setShowCreds(s => !s)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-1.5 text-xs font-bold text-text-main hover:border-primary">
+              {showCreds ? 'Hide credentials' : 'Show credentials'}
+            </button>
+          )}
+        </div>
 
         <div className="space-y-3">
           {users.map((u, i) => (
             <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border border-border-light bg-bg-base">
               <div>
                 <p className="text-xs font-bold text-text-main">{u.name || 'User'} ({u.mobile})</p>
-                <p className="text-[10px] text-slate-400">PIN: •••• • Password: ••••••••</p>
+                <p className="text-[10px] text-slate-400">
+                  PIN: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.pin || '—') : '••••'}</span>
+                  {' • '}Password: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.password || '—') : '••••••••'}</span>
+                </p>
               </div>
 
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${

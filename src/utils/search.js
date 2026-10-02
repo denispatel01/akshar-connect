@@ -64,7 +64,12 @@ export function devoteeMatches(d, query) {
   return scoreMatch(devoteeSearchText(d), d.name || '', query) >= 0;
 }
 
-// Score one devotee's searchable text against the raw query.
+// Score one devotee's searchable text against the raw query. STRICT, not fuzzy:
+// a word-like token must be the PREFIX of some word (so "ravi" matches Ravi /
+// Ravibhai but not Pravin), and a token containing digits (phone / DOB) must
+// appear as an exact substring of some word (so "992459843" matches only numbers
+// that actually contain it, and "01-12-1995" matches only that date). Every query
+// token must match, or the record is excluded. Returns a score for ranking, or -1.
 // `text` should be a lowercased, space-joined string of all searchable fields.
 export function scoreMatch(text, name, query) {
   const q = (query || '').trim().toLowerCase();
@@ -74,23 +79,14 @@ export function scoreMatch(text, name, query) {
   let total = 0;
 
   for (const t of tokens) {
+    const numeric = /\d/.test(t); // phone number or date-of-birth fragment
     let best = 0;
-    if (text.includes(t)) best = 1.5; // covers substrings across fields (address, dob…)
     for (const w of words) {
-      if (best >= 3) break;
       if (w === t) { best = 3; break; }
       if (w.startsWith(t)) { best = Math.max(best, 2.2); continue; }
-      if (w.includes(t)) { best = Math.max(best, 1.6); continue; }
-      const tol = t.length <= 4 ? 1 : 2;
-      // misspelled partial: compare token to the word's prefix of equal length
-      const pre = w.slice(0, t.length);
-      let dd = levenshtein(pre, t);
-      if (dd <= tol) { best = Math.max(best, 1.3 - dd * 0.2); continue; }
-      // misspelled full word
-      dd = levenshtein(w, t);
-      if (dd <= tol) { best = Math.max(best, 1.1 - dd * 0.2); }
+      if (numeric && w.includes(t)) { best = Math.max(best, 1.8); }
     }
-    if (best === 0) return -1; // this token matched nothing anywhere → not a result
+    if (best === 0) return -1; // this token matched nothing → not a result
     total += best;
   }
 

@@ -11,7 +11,7 @@
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
   Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
-  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type'],
+  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date']
