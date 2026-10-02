@@ -35,6 +35,46 @@ const TABS = {
 };
 // Satsang fields handled by the custom family-role block (not the generic grid).
 const SATSANG_ROLE_FIELDS = new Set(['familyId', 'relation']);
+
+// Searchable Family Head picker — type to filter heads by name/area instead of
+// scrolling a long dropdown.
+function FamilyHeadPicker({ heads, value, onChange, inputCls }) {
+  const [q, setQ] = React.useState('');
+  const [open, setOpen] = React.useState(false);
+  const selected = heads.find((h) => h.familyId === value);
+  const ql = q.trim().toLowerCase();
+  const matches = (ql
+    ? heads.filter((h) => (h.name || '').toLowerCase().includes(ql) || (h.area || '').toLowerCase().includes(ql))
+    : heads
+  ).slice(0, 40);
+  return (
+    <div className="relative">
+      <input
+        value={open ? q : (selected ? `${selected.name}${selected.area ? ` — ${selected.area}` : ''}` : '')}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => { setQ(''); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Search head by name or area…"
+        className={inputCls + ' bg-surface'} />
+      {open && (
+        <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-border-light bg-surface shadow-lg">
+          {matches.length === 0 && <p className="px-3 py-2 text-xs font-semibold text-text-muted">No matching head</p>}
+          {value && (
+            <button type="button" onMouseDown={(e) => { e.preventDefault(); onChange(''); setOpen(false); setQ(''); }}
+              className="block w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-bg-base border-b border-border-light">Clear</button>
+          )}
+          {matches.map((h) => (
+            <button type="button" key={h.familyId}
+              onMouseDown={(e) => { e.preventDefault(); onChange(h.familyId); setOpen(false); setQ(''); }}
+              className={`block w-full text-left px-3 py-2 text-sm hover:bg-bg-base ${h.familyId === value ? 'bg-primary/5 font-bold text-primary' : 'text-text-main'}`}>
+              {h.name}{h.area ? <span className="text-text-muted"> — {h.area}</span> : ''}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 const ALL_FIELDS = Object.values(TABS).flat();
 const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
 const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
@@ -585,10 +625,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Family Head</div>
-              <select value={data.familyId || ''} onChange={(e) => setData({ ...data, familyId: e.target.value })} className={inputCls + ' bg-surface'}>
-                <option value="">— Select head of family —</option>
-                {familyHeads.filter(h => h.id !== ownId).map(h => <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>)}
-              </select>
+              <FamilyHeadPicker
+                heads={familyHeads.filter(h => h.id !== ownId)}
+                value={data.familyId || ''}
+                onChange={(fid) => setData({ ...data, familyId: fid })}
+                inputCls={inputCls}
+              />
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Relation to family head</div>
