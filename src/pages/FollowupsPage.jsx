@@ -16,9 +16,11 @@ const OUTCOME_STYLE = {
   '': 'bg-surface text-slate-500 border-border-light',
 };
 const AUDIENCE_CAP = 250;
-const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani'];
+const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani', 'Samaiyo', 'Karyakarta Sabha/Shibir'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha' });
+const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha', description: '', tags: [] });
+// Event tags are stored as a pipe-joined string on the backend; parse to an array.
+const parseEventTags = (v) => Array.isArray(v) ? v : String(v || '').split('|').map(s => s.trim()).filter(Boolean);
 
 // Defined at module scope so the roster doesn't remount on every keystroke/save.
 function Tick({ on, onClick, icon: Icon, label }) {
@@ -68,7 +70,10 @@ export default function FollowupsPage({ user }) {
     const list = dataService.getFollowupsForEvent(ev.id);
     const m = {}; list.forEach(f => { m[f.devoteeId] = f; });
     setFmap(m); setSelectedEvent(ev);
-    setSearch(''); setSelectedTags([]); setPendingOnly(false); setShowTagPanel(false);
+    // Pre-filter the drive to the event's audience tags, so a karyakarta only sees
+    // the relevant devotees (e.g. an event tagged "Friday Sabha" shows only them).
+    const evTags = parseEventTags(ev.tags);
+    setSearch(''); setSelectedTags(evTags); setPendingOnly(false); setShowTagPanel(false);
   };
 
   const contacted = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
@@ -82,6 +87,8 @@ export default function FollowupsPage({ user }) {
       time: eventForm.time,
       venue: eventForm.venue,
       type: eventForm.type,
+      description: eventForm.description || '',
+      tags: parseEventTags(eventForm.tags).join('|'),
     };
     if (editingEventId) dataService.updateSabha(editingEventId, payload);
     else dataService.addSabha(payload);
@@ -94,7 +101,7 @@ export default function FollowupsPage({ user }) {
   const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
   const openEditEvent = (ev) => {
     setEditingEventId(ev.id);
-    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha' });
+    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags) });
     setShowEventModal(true);
   };
   const deleteEvent = (ev) => {
@@ -229,7 +236,7 @@ export default function FollowupsPage({ user }) {
                     placeholder="e.g. Weekly Satsang Sabha"
                     className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Date</label>
                     <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
@@ -254,6 +261,36 @@ export default function FollowupsPage({ user }) {
                     className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary">
                     {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Description <span className="normal-case text-slate-400">(optional)</span></label>
+                  <textarea value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
+                    rows={2} placeholder="Notes about this event…"
+                    className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary resize-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Audience tags <span className="normal-case text-slate-400">(optional)</span></label>
+                  <p className="mb-1.5 text-[10px] font-semibold text-text-muted">The drive will show only devotees who have ANY selected tag — so karyakartas skip irrelevant records.</p>
+                  <div className="max-h-44 overflow-y-auto rounded-xl border border-border-light p-2 space-y-2">
+                    {tagsByCategory().map(({ category, tags }) => (
+                      <div key={category.key}>
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1">{category.label}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {tags.map(t => {
+                            const on = eventForm.tags.includes(t.key);
+                            return (
+                              <button type="button" key={t.key}
+                                onClick={() => setEventForm(f => ({ ...f, tags: on ? f.tags.filter(k => k !== t.key) : [...f.tags, t.key] }))}
+                                style={on ? tagChipStyle(t.key) : undefined}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <button type="button" onClick={() => { setShowEventModal(false); setEditingEventId(null); }}

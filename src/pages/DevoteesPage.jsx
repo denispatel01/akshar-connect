@@ -751,7 +751,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search name, DOB (dd-MM-yyyy) or mobile"
-              className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary dark:focus:border-primary-hover" />
+              className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-10 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary dark:focus:border-primary-hover" />
+            {searchQuery && (
+              <button type="button" onClick={() => setSearchQuery('')} title="Clear search"
+                className="absolute right-2.5 top-1.5 grid h-7 w-7 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowTagFilter((s) => !s)}
@@ -1225,6 +1231,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             paddingLeft: 'env(safe-area-inset-left)',
             paddingRight: 'env(safe-area-inset-right)',
           }}
+          /* React portals bubble events through the component tree, so stop touch
+             events here — otherwise they reach App's pull-to-refresh handler and a
+             stray gesture (e.g. while typing) can remount the page and drop you out
+             of the profile/edit screen. */
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
           <div
             className="w-full flex-1 min-h-0 bg-surface relative flex flex-col overflow-hidden mx-auto max-w-4xl animate-[acPop_.22s_cubic-bezier(0.16,1,0.3,1)]"
@@ -1244,49 +1256,68 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               .ac-sweep{position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.28) 50%,transparent 80%);animation:acSweep 1.15s infinite}
             `}</style>
 
-            {/* Header — gradient band */}
-            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6 shrink-0">
+            {/* LinkedIn-style header: cover banner, overlapping avatar, headline, quick actions */}
+            <div className="relative shrink-0 border-b border-border-light">
               <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
-                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white hover:bg-white/30 backdrop-blur-sm transition-colors z-10">
+                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-black/20 text-white hover:bg-black/40 backdrop-blur-sm transition-colors z-10">
                 <X className="h-5 w-5" />
               </button>
 
-              <div className="flex items-center gap-4 pr-12">
-                <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=ffffff&color=003158&bold=true&name='+encodeURIComponent(selectedDevotee.name||'?')}
-                  alt={selectedDevotee.name} className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl sm:rounded-3xl object-cover border-2 border-white/40 shadow-lg shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight break-words">{selectedDevotee.name}</h2>
-                  {val(selectedDevotee.mobile) !== '—' && (
-                    <a href={`tel:${selectedDevotee.mobile}`}
-                      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs sm:text-sm font-semibold text-white hover:bg-white/25 transition-colors">
-                      <Phone className="h-3.5 w-3.5" /> {val(selectedDevotee.mobile)}
-                    </a>
+              {/* Cover */}
+              <div className="h-24 sm:h-28 bg-gradient-to-br from-primary via-[#013a6b] to-[#00223f]" />
+
+              <div className="px-5 sm:px-7 pb-4">
+                {/* Avatar overlapping the cover */}
+                <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=ffffff&bold=true&size=128&name=' + encodeURIComponent(selectedDevotee.name || '?')}
+                  alt={selectedDevotee.name}
+                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl object-cover ring-4 ring-surface shadow-lg bg-surface -mt-10 sm:-mt-12" />
+
+                <h2 className="mt-2 text-xl sm:text-2xl font-black text-text-main leading-tight break-words">{selectedDevotee.name}</h2>
+                {(() => {
+                  const age = deriveAge(selectedDevotee.dob);
+                  const headline = [selectedDevotee.yuvakType, selectedDevotee.professionField || selectedDevotee.profession, age !== '' ? `${age} yrs` : '']
+                    .filter(Boolean).join('  ·  ');
+                  return headline ? <p className="mt-0.5 text-sm font-semibold text-text-muted">{headline}</p> : null;
+                })()}
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {selectedDevotee.type && (
+                    <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full" title="Family membership">
+                      {selectedDevotee.type === 'Primary' ? 'Head of family' : 'Family member'}
+                    </span>
                   )}
+                  {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-text-muted bg-bg-base border border-border-light px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
+                  <span className="text-[10px] sm:text-[11px] font-bold text-text-muted bg-bg-base border border-border-light px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                {selectedDevotee.type && (
-                  <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full" title="Family membership">
-                    {formatFamilyMembershipContext(selectedDevotee.name, selectedDevotee.type)}
-                  </span>
-                )}
-                {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
-                <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-white px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
-              </div>
-
-              {/* Key facts strip */}
-              <div className="mt-4 grid grid-cols-3 gap-2 max-w-md">
-                {[
-                  ['Age', deriveAge(selectedDevotee.dob) === '' ? '—' : `${deriveAge(selectedDevotee.dob)} yrs`],
-                  ['Gender', selectedDevotee.gender || '—'],
-                  ['DOB', selectedDevotee.dob ? selectedDevotee.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '—'],
-                ].map(([k, v]) => (
-                  <div key={k} className="rounded-xl bg-white/10 px-2 py-2 text-center backdrop-blur-sm">
-                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">{v}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">{k}</p>
+                {/* Quick actions */}
+                {val(selectedDevotee.mobile) !== '—' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a href={`tel:${selectedDevotee.mobile}`}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#00223f] transition-colors">
+                      <Phone className="h-3.5 w-3.5" /> Call
+                    </a>
+                    <a href={`https://wa.me/${String(selectedDevotee.whatsapp || selectedDevotee.mobile).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}`}
+                      target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border-light bg-surface px-4 py-2 text-xs font-bold text-text-main hover:border-primary transition-colors">
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> WhatsApp
+                    </a>
                   </div>
-                ))}
+                )}
+
+                {/* Key facts strip */}
+                <div className="mt-3 grid grid-cols-3 gap-2 max-w-md">
+                  {[
+                    ['Age', deriveAge(selectedDevotee.dob) === '' ? '—' : `${deriveAge(selectedDevotee.dob)} yrs`],
+                    ['Gender', selectedDevotee.gender || '—'],
+                    ['DOB', selectedDevotee.dob ? selectedDevotee.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '—'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="rounded-xl border border-border-light bg-bg-base px-2 py-2 text-center">
+                      <p className="text-xs sm:text-sm font-extrabold text-text-main truncate">{v}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-text-muted">{k}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
