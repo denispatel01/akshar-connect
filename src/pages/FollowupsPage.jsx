@@ -160,7 +160,7 @@ export default function FollowupsPage({ user }) {
   // ---------------- EVENT LIST VIEW ----------------
   if (!selectedEvent) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+      <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-text-main">Event Follow-ups</h1>
@@ -207,8 +207,8 @@ export default function FollowupsPage({ user }) {
                   </div>
                 </div>
                 <button onClick={() => openEvent(ev)} className="w-full text-left">
-                  <h3 className="text-base font-bold text-text-main mb-1">{ev.title}</h3>
-                  <p className="text-xs text-slate-500 mb-4">{ev.time} • {ev.venue}</p>
+                  <h3 className="text-base font-bold text-text-main mb-1 break-words leading-snug">{ev.title}</h3>
+                  <p className="text-xs text-slate-500 mb-4 break-words">{ev.time} • {ev.venue}</p>
                   <div className="pt-3 border-t border-border-light flex items-center justify-between">
                     <span className="text-xs text-slate-500"><span className="font-extrabold text-text-main">{done}</span> contacted</span>
                     <span className="flex items-center gap-1 text-xs font-bold text-[#FF862A]">Open drive <ChevronRight className="h-4 w-4" /></span>
@@ -269,7 +269,7 @@ export default function FollowupsPage({ user }) {
                     className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary resize-none" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Audience tags <span className="normal-case text-slate-400">(optional)</span></label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Devotee tags <span className="normal-case text-slate-400">(optional)</span></label>
                   <p className="mb-1.5 text-[10px] font-semibold text-text-muted">The drive will show only devotees who have ANY selected tag — so karyakartas skip irrelevant records.</p>
                   <div className="max-h-44 overflow-y-auto rounded-xl border border-border-light p-2 space-y-2">
                     {tagsByCategory().map(({ category, tags }) => (
@@ -312,7 +312,7 @@ export default function FollowupsPage({ user }) {
 
   // ---------------- FOLLOW-UP BOARD VIEW ----------------
   const chips = [
-    { label: 'Audience', value: summary.total, cls: 'text-text-main' },
+    { label: 'Devotees', value: summary.total, cls: 'text-text-main' },
     { label: 'Contacted', value: summary.contacted, cls: 'text-sky-600' },
     { label: 'Coming', value: summary.coming, cls: 'text-emerald-600' },
     { label: 'Maybe', value: summary.maybe, cls: 'text-amber-600' },
@@ -321,17 +321,15 @@ export default function FollowupsPage({ user }) {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-5">
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-5">
       <button onClick={() => setSelectedEvent(null)} className="flex items-center gap-1.5 text-xs font-bold text-text-main hover:text-[#FF862A]">
         <ArrowLeft className="h-4 w-4" /> All events
       </button>
 
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-[#EAF0F7] px-3 py-1 text-[11px] font-bold text-[#1F3A5F]">{selectedEvent.type || 'Sabha'}</span>
-          <h1 className="text-xl font-bold text-text-main">{selectedEvent.title}</h1>
-        </div>
-        <p className="text-sm font-medium text-text-muted">{selectedEvent.date} • {selectedEvent.time} • {selectedEvent.venue}</p>
+        <span className="w-fit rounded-full bg-[#EAF0F7] px-3 py-1 text-[11px] font-bold text-[#1F3A5F]">{selectedEvent.type || 'Sabha'}</span>
+        <h1 className="text-lg sm:text-xl font-bold text-text-main break-words leading-snug">{selectedEvent.title}</h1>
+        <p className="text-sm font-medium text-text-muted break-words">{selectedEvent.date} • {selectedEvent.time} • {selectedEvent.venue}</p>
       </div>
 
       {/* Summary chips */}
@@ -350,7 +348,13 @@ export default function FollowupsPage({ user }) {
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, DOB or mobile…"
-              className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+              className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-10 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} title="Clear search"
+                className="absolute right-2.5 top-2 grid h-7 w-7 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
             {karyakartaOptions.length > 0 && (
@@ -375,7 +379,7 @@ export default function FollowupsPage({ user }) {
         {showTagPanel && (
           <div className="rounded-2xl border border-border-light bg-surface p-4 space-y-3 max-h-[40vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-text-main">Target audience by tag — showing devotees with ANY selected tag</p>
+              <p className="text-xs font-bold text-text-main">Filter devotees by tag — showing devotees with ANY selected tag</p>
               {selectedTags.length > 0 && (
                 <button onClick={() => setSelectedTags([])} className="text-xs font-bold text-[#FF862A]">Clear</button>
               )}
@@ -400,6 +404,11 @@ export default function FollowupsPage({ user }) {
           </div>
         )}
       </div>
+
+      {/* Result count */}
+      <p className="text-xs font-bold text-text-muted">
+        Showing <span className="text-text-main">{audience.length}</span> of {devotees.length} devotees
+      </p>
 
       {/* Roster */}
       <div className="space-y-2">
@@ -457,7 +466,7 @@ export default function FollowupsPage({ user }) {
           <p className="text-center text-xs text-text-muted py-8">No devotees match this filter.</p>
         )}
         {audience.length > AUDIENCE_CAP && (
-          <p className="text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the audience.</p>
+          <p className="text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the list.</p>
         )}
       </div>
     </div>

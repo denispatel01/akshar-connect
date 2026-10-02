@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Tag, Save, Search, ChevronLeft, ChevronRight, User, UserCheck,
-  Calendar, MapPin, Phone, Check,
+  Calendar, MapPin, Phone, Check, X,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { deriveAge } from '../services/devoteeSchema';
@@ -144,7 +144,13 @@ export default function BulkTagPage() {
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-text-muted" />
           <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search name, DOB (dd-MM-yyyy) or mobile"
-            className="w-full rounded-xl border border-border-light bg-surface pl-10 pr-4 py-2 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+            className="w-full rounded-xl border border-border-light bg-surface pl-10 pr-10 py-2 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} title="Clear search"
+              className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {karyakartaOptions.length > 0 && (
           <select value={karyakarta} onChange={e => setKaryakarta(e.target.value)}
