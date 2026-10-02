@@ -29,9 +29,12 @@ const TABS = {
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
+  'Family':      [], // special tab: lists everyone in this devotee's family (+ shows Family ID)
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
+// Satsang fields handled by the custom family-role block (not the generic grid).
+const SATSANG_ROLE_FIELDS = new Set(['familyId', 'relation']);
 const ALL_FIELDS = Object.values(TABS).flat();
 const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
 const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
@@ -216,6 +219,16 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     return m;
   }, [devotees]);
 
+  // All members of the open devotee's family (head first), for the Family tab.
+  const familyMembers = useMemo(() => {
+    if (!selectedDevotee) return [];
+    const fid = selectedDevotee.familyId;
+    let list = fid ? devotees.filter((d) => d.familyId === fid) : [];
+    if (!list.some((d) => d.id === selectedDevotee.id)) list = [selectedDevotee, ...list];
+    const rank = (d) => (d.type === 'Primary' ? 0 : 1);
+    return [...list].sort((a, b) => rank(a) - rank(b) || (b.dob || '').localeCompare(a.dob || ''));
+  }, [selectedDevotee, devotees]);
+
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
   const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterReference && !filterQualification && !filterAge && !filterGender && !filterType && !filterOldNew && !devoteesPreset;
@@ -347,6 +360,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   const startEdit = () => {
     const seed = {}; ALL_FIELDS.forEach(([f]) => seed[f] = selectedDevotee[f] ?? '');
+    seed.type = selectedDevotee.type ?? ''; // membership is derived via the family-role block, not a visible field
     setEditData(seed);
     const mob = String(selectedDevotee.mobile || '');
     const wa = String(selectedDevotee.whatsapp || '');
@@ -542,6 +556,71 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     // Default text
     return <input type="text" value={value} onChange={onChange} className={inputCls} />;
+  };
+
+  // Family role editor (replaces the separate Family Head + Relation + membership
+  // fields). Self = head of own family → relation/head are implied and hidden.
+  const renderFamilyRoleEdit = () => {
+    const data = editData, setData = setEditData;
+    const ownId = selectedDevotee?.id;
+    const isSelf = data.type === 'Primary';
+    return (
+      <div className="sm:col-span-2 rounded-2xl border border-border-light bg-bg-base p-4 space-y-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Family role</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button"
+            onClick={() => setData({ ...data, type: 'Primary', relation: 'Self', familyId: data.familyId || ownId || '' })}
+            className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${isSelf ? 'border-primary bg-primary text-white shadow-sm' : 'border-border-light bg-surface text-text-main hover:border-primary'}`}>
+            ★ Head of own family
+          </button>
+          <button type="button"
+            onClick={() => setData({ ...data, type: 'Family', relation: data.relation === 'Self' ? '' : data.relation })}
+            className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${!isSelf ? 'border-primary bg-primary text-white shadow-sm' : 'border-border-light bg-surface text-text-main hover:border-primary'}`}>
+            Member of a family
+          </button>
+        </div>
+        {isSelf ? (
+          <p className="text-[11px] font-semibold text-text-muted">This person is the head of their own family — relation and family head are set automatically.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Family Head</div>
+              <select value={data.familyId || ''} onChange={(e) => setData({ ...data, familyId: e.target.value })} className={inputCls + ' bg-surface'}>
+                <option value="">— Select head of family —</option>
+                {familyHeads.filter(h => h.id !== ownId).map(h => <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Relation to family head</div>
+              <select value={data.relation || ''} onChange={(e) => setData({ ...data, relation: e.target.value })} className={inputCls + ' bg-surface'}>
+                <option value="">— Select —</option>
+                {RELATIONS.filter(r => r !== 'Self').map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFamilyRoleView = () => {
+    const d = selectedDevotee;
+    const isSelf = d.type === 'Primary';
+    return (
+      <div className="sm:col-span-2 rounded-2xl border border-border-light bg-bg-base p-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1.5">Family role</div>
+        {isSelf ? (
+          <p className="text-sm font-bold text-text-main">★ Head of their own family</p>
+        ) : d.familyId ? (
+          <div className="text-sm font-semibold text-text-main">
+            <p>Member of <span className="text-primary font-bold">{familyHeadLabel(d.familyId)}</span>'s family</p>
+            {d.relation && <p className="mt-0.5 text-xs text-text-muted">Relation: {d.relation}</p>}
+          </div>
+        ) : (
+          <p className="text-sm font-semibold text-text-muted">Not linked to a family yet</p>
+        )}
+      </div>
+    );
   };
 
 
@@ -1045,24 +1124,21 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       )}
 
-      {/* Profile Modal (tabbed + edit) — portal to document.body to escape main's animation stacking context.
-          Centered floating card, inset from ALL edges (incl. iOS safe areas) so the backdrop is visible
-          all around it → reads as a popup, never full-screen, never cut off, on any device. */}
+      {/* Profile — FULL-SCREEN (not a popup): the most-used view, so it fills the
+          screen for easy reading and traversal. Portal to document.body to escape
+          main's animation stacking context; iOS safe areas respected. */}
       {selectedDevotee && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[acFade_.18s_ease-out]"
+          className="fixed inset-0 z-[60] bg-bg-base animate-[acFade_.18s_ease-out] flex flex-col"
           style={{
-            paddingTop: 'max(20px, env(safe-area-inset-top))',
-            paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
-            paddingLeft: 'max(16px, env(safe-area-inset-left))',
-            paddingRight: 'max(16px, env(safe-area-inset-right))',
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            paddingLeft: 'env(safe-area-inset-left)',
+            paddingRight: 'env(safe-area-inset-right)',
           }}
-          onClick={() => { setSelectedDevotee(null); setEditing(false); }}
         >
           <div
-            className="w-full max-w-2xl rounded-3xl bg-surface shadow-2xl relative flex flex-col overflow-hidden animate-[acPop_.22s_cubic-bezier(0.16,1,0.3,1)]"
-            style={{ maxHeight: '100%' }}
-            onClick={(e) => e.stopPropagation()}
+            className="w-full flex-1 min-h-0 bg-surface relative flex flex-col overflow-hidden mx-auto max-w-4xl animate-[acPop_.22s_cubic-bezier(0.16,1,0.3,1)]"
           >
             <style>{`
               @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
@@ -1109,6 +1185,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
                 <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-white px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
               </div>
+
+              {/* Key facts strip */}
+              <div className="mt-4 grid grid-cols-3 gap-2 max-w-md">
+                {[
+                  ['Age', deriveAge(selectedDevotee.dob) === '' ? '—' : `${deriveAge(selectedDevotee.dob)} yrs`],
+                  ['Gender', selectedDevotee.gender || '—'],
+                  ['DOB', selectedDevotee.dob ? selectedDevotee.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '—'],
+                ].map(([k, v]) => (
+                  <div key={k} className="rounded-xl bg-white/10 px-2 py-2 text-center backdrop-blur-sm">
+                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">{v}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">{k}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Tab Bar */}
@@ -1137,23 +1227,71 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0"
               onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd}>
 
-              {/* Field grid for all non-Tags tabs */}
-              {activeTab !== 'Tags' && (
+              {/* Field grid for all non-special tabs */}
+              {activeTab !== 'Tags' && activeTab !== 'Family' && (
                 <div key={`${activeTab}-${tabAnimKey}`}
                   className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4"
                   style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
-                  {(TABS[activeTab] || []).map(([f, label]) => (
-                    <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
-                      {editing ? (
-                        renderEditField(f, editData, setEditData)
-                      ) : (
-                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
-                          {f === 'familyId' ? familyHeadLabel(selectedDevotee.familyId) : val(selectedDevotee[f], f)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {(TABS[activeTab] || [])
+                    .filter(([f]) => !(activeTab === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)))
+                    .map(([f, label]) => (
+                      <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
+                        {editing ? (
+                          renderEditField(f, editData, setEditData)
+                        ) : (
+                          <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
+                            {val(selectedDevotee[f], f)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  {activeTab === 'Satsang' && (editing ? renderFamilyRoleEdit() : renderFamilyRoleView())}
+                </div>
+              )}
+
+              {/* Family tab — everyone in this devotee's family */}
+              {activeTab === 'Family' && (
+                <div key={`family-${tabAnimKey}`}
+                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
+                  <div className="mb-3 flex items-center justify-between rounded-2xl border border-border-light bg-bg-base px-4 py-2.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Family ID</span>
+                    <span className="font-mono text-xs font-bold text-text-main bg-surface border border-border-light rounded-lg px-2.5 py-1">{selectedDevotee.familyId || '—'}</span>
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">
+                    {familyMembers.length} member{familyMembers.length === 1 ? '' : 's'}
+                  </div>
+                  <div className="space-y-2">
+                    {familyMembers.map((m) => {
+                      const mAge = deriveAge(m.dob);
+                      const isThis = m.id === selectedDevotee.id;
+                      return (
+                        <button key={m.id} onClick={() => { if (!isThis) openProfile(m); }}
+                          className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${isThis ? 'border-primary bg-primary/5 cursor-default' : 'border-border-light bg-surface hover:border-primary/40 hover:shadow-sm'}`}>
+                          <img src={m.avatar || 'https://ui-avatars.com/api/?background=EAF0F7&color=003158&bold=true&name=' + encodeURIComponent(m.name || '?')}
+                            alt={m.name} className="h-11 w-11 rounded-xl object-cover border border-border-light shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-text-main truncate">
+                              {m.name}{isThis && <span className="ml-1.5 text-[10px] font-bold text-primary">(this profile)</span>}
+                            </p>
+                            <p className="text-xs font-semibold text-text-muted truncate">
+                              {m.type === 'Primary' ? '★ Head of family' : (m.relation || 'Member')}{mAge !== '' ? ` · ${mAge} yrs` : ''}
+                            </p>
+                          </div>
+                          {m.mobile && (
+                            <a href={`tel:${m.mobile}`} onClick={(e) => e.stopPropagation()}
+                              className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-bg-base text-primary hover:bg-primary hover:text-white transition-colors" title={m.mobile}>
+                              <Phone className="h-4 w-4" />
+                            </a>
+                          )}
+                          {!isThis && <ChevronRight className="h-4 w-4 text-text-muted shrink-0" />}
+                        </button>
+                      );
+                    })}
+                    {familyMembers.length <= 1 && (
+                      <p className="text-center text-xs font-semibold text-text-muted py-6">No other family members linked yet. Link members by setting this person as their Family Head.</p>
+                    )}
+                  </div>
                 </div>
               )}
 
