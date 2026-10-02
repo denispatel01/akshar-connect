@@ -35,6 +35,8 @@ const TABS = {
 };
 // Satsang fields handled by the custom family-role block (not the generic grid).
 const SATSANG_ROLE_FIELDS = new Set(['familyId', 'relation']);
+// Order of sections in the single-scroll LinkedIn-style profile.
+const PROFILE_SECTION_ORDER = ['Personal', 'Contact', 'Satsang', 'Family', 'Education', 'Profession', 'Tags', 'System'];
 
 // Searchable Family Head picker — type to filter heads by name/area instead of
 // scrolling a long dropdown.
@@ -1321,176 +1323,161 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               </div>
             </div>
 
-            {/* Tab Bar */}
-            <div className="flex items-center gap-1 border-b border-border-light bg-[#FAFBFC] px-2 sm:px-4 shrink-0">
-              <button onClick={() => goToTab(-1)} disabled={TAB_KEYS.indexOf(activeTab) === 0}
-                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div ref={tabBarRef} className="flex flex-1 overflow-x-auto no-scrollbar gap-1 py-2">
-                {TAB_KEYS.map((tab) => (
-                  <button key={tab} data-active={activeTab === tab ? 'true' : 'false'}
-                    onClick={() => goToTab(0, tab)}
-                    className={'shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ' +
-                      (activeTab === tab ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
-                    {tab}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => goToTab(1)} disabled={TAB_KEYS.indexOf(activeTab) === TAB_KEYS.length - 1}
-                className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            {/* Body — single-scroll LinkedIn-style section cards */}
+            <div className="overflow-y-auto flex-1 min-h-0 bg-bg-base">
+              <div className="mx-auto max-w-4xl p-3 sm:p-4 space-y-3">
+                {PROFILE_SECTION_ORDER.map((sec) => {
+                  // ── Family members card ──
+                  if (sec === 'Family') {
+                    return (
+                      <div key="Family" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-black text-text-main">Family <span className="text-text-muted font-bold">· {familyMembers.length}</span></h3>
+                          <span className="font-mono text-[10px] font-bold text-text-muted bg-bg-base border border-border-light rounded-lg px-2 py-0.5">ID: {selectedDevotee.familyId || '—'}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {familyMembers.map((m) => {
+                            const mAge = deriveAge(m.dob);
+                            const isThis = m.id === selectedDevotee.id;
+                            return (
+                              <button key={m.id} onClick={() => { if (!isThis) openProfile(m); }}
+                                className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${isThis ? 'border-primary bg-primary/5 cursor-default' : 'border-border-light bg-surface hover:border-primary/40 hover:shadow-sm'}`}>
+                                <img src={m.avatar || 'https://ui-avatars.com/api/?background=EAF0F7&color=003158&bold=true&name=' + encodeURIComponent(m.name || '?')}
+                                  alt={m.name} className="h-11 w-11 rounded-xl object-cover border border-border-light shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold text-text-main truncate">
+                                    {m.name}{isThis && <span className="ml-1.5 text-[10px] font-bold text-primary">(this profile)</span>}
+                                  </p>
+                                  <p className="text-xs font-semibold text-text-muted truncate">
+                                    {m.type === 'Primary' ? '★ Head of family' : (m.relation || 'Member')}{mAge !== '' ? ` · ${mAge} yrs` : ''}
+                                  </p>
+                                </div>
+                                {m.mobile && (
+                                  <a href={`tel:${m.mobile}`} onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-bg-base text-primary hover:bg-primary hover:text-white transition-colors" title={m.mobile}>
+                                    <Phone className="h-4 w-4" />
+                                  </a>
+                                )}
+                                {!isThis && <ChevronRight className="h-4 w-4 text-text-muted shrink-0" />}
+                              </button>
+                            );
+                          })}
+                          {familyMembers.length <= 1 && (
+                            <p className="text-center text-xs font-semibold text-text-muted py-6">No other family members linked yet. Link members by setting this person as their Family Head.</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
 
-            {/* Body — swipeable, scrollable */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0"
-              onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd}>
-
-              {/* Field grid for all non-special tabs */}
-              {activeTab !== 'Tags' && activeTab !== 'Family' && (
-                <div key={`${activeTab}-${tabAnimKey}`}
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4"
-                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
-                  {(TABS[activeTab] || [])
-                    .filter(([f]) => !(activeTab === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)))
-                    .map(([f, label]) => (
-                      <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
-                        {editing ? (
-                          renderEditField(f, editData, setEditData)
-                        ) : (
-                          <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
-                            {val(selectedDevotee[f], f)}
+                  // ── Tags card ──
+                  if (sec === 'Tags') {
+                    return (
+                      <div key="Tags" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
+                        <h3 className="text-sm font-black text-text-main mb-3">Tags</h3>
+                        <div className="mb-3">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
+                          {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedDevotee.tags.map((key) => (
+                                <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
+                          )}
+                        </div>
+                        {canEdit && (
+                          <div className="mt-4 space-y-5">
+                            <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it.</p>
+                            {tagsByCategory().map(({ category, tags: catTags }) => {
+                              const groups = [];
+                              const seen = new Set();
+                              catTags.forEach(t => {
+                                if (t.mutuallyExclusiveGroup && !seen.has(t.mutuallyExclusiveGroup)) {
+                                  seen.add(t.mutuallyExclusiveGroup);
+                                  groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: catTags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
+                                } else if (!t.mutuallyExclusiveGroup) {
+                                  groups.push({ type: 'single', tags: [t] });
+                                }
+                              });
+                              return (
+                                <div key={category.key}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: category.color.dot }} />
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-main">{category.label}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {groups.map((g, gi) =>
+                                      g.type === 'mutex' ? (
+                                        <span key={gi} className="inline-flex items-center rounded-full border border-dashed border-border-light gap-0.5 p-0.5" title="Only one may be active">
+                                          {g.tags.map(t => {
+                                            const active = (selectedDevotee.tags || []).includes(t.key);
+                                            return (
+                                              <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                                style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
+                                                className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
+                                                  (active ? '' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
+                                                {t.label}
+                                              </button>
+                                            );
+                                          })}
+                                        </span>
+                                      ) : (
+                                        g.tags.map(t => {
+                                          const active = (selectedDevotee.tags || []).includes(t.key);
+                                          return (
+                                            <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
+                                              style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
+                                              className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
+                                                (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
+                                              {t.label}
+                                            </button>
+                                          );
+                                        })
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
-                    ))}
-                  {activeTab === 'Satsang' && (editing ? renderFamilyRoleEdit() : renderFamilyRoleView())}
-                </div>
-              )}
+                    );
+                  }
 
-              {/* Family tab — everyone in this devotee's family */}
-              {activeTab === 'Family' && (
-                <div key={`family-${tabAnimKey}`}
-                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
-                  <div className="mb-3 flex items-center justify-between rounded-2xl border border-border-light bg-bg-base px-4 py-2.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Family ID</span>
-                    <span className="font-mono text-xs font-bold text-text-main bg-surface border border-border-light rounded-lg px-2.5 py-1">{selectedDevotee.familyId || '—'}</span>
-                  </div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">
-                    {familyMembers.length} member{familyMembers.length === 1 ? '' : 's'}
-                  </div>
-                  <div className="space-y-2">
-                    {familyMembers.map((m) => {
-                      const mAge = deriveAge(m.dob);
-                      const isThis = m.id === selectedDevotee.id;
-                      return (
-                        <button key={m.id} onClick={() => { if (!isThis) openProfile(m); }}
-                          className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${isThis ? 'border-primary bg-primary/5 cursor-default' : 'border-border-light bg-surface hover:border-primary/40 hover:shadow-sm'}`}>
-                          <img src={m.avatar || 'https://ui-avatars.com/api/?background=EAF0F7&color=003158&bold=true&name=' + encodeURIComponent(m.name || '?')}
-                            alt={m.name} className="h-11 w-11 rounded-xl object-cover border border-border-light shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold text-text-main truncate">
-                              {m.name}{isThis && <span className="ml-1.5 text-[10px] font-bold text-primary">(this profile)</span>}
-                            </p>
-                            <p className="text-xs font-semibold text-text-muted truncate">
-                              {m.type === 'Primary' ? '★ Head of family' : (m.relation || 'Member')}{mAge !== '' ? ` · ${mAge} yrs` : ''}
-                            </p>
-                          </div>
-                          {m.mobile && (
-                            <a href={`tel:${m.mobile}`} onClick={(e) => e.stopPropagation()}
-                              className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-bg-base text-primary hover:bg-primary hover:text-white transition-colors" title={m.mobile}>
-                              <Phone className="h-4 w-4" />
-                            </a>
-                          )}
-                          {!isThis && <ChevronRight className="h-4 w-4 text-text-muted shrink-0" />}
-                        </button>
-                      );
-                    })}
-                    {familyMembers.length <= 1 && (
-                      <p className="text-center text-xs font-semibold text-text-muted py-6">No other family members linked yet. Link members by setting this person as their Family Head.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tags tab */}
-              {activeTab === 'Tags' && (
-                <div key={`tags-${tabAnimKey}`}
-                  style={{ animation: `${slideDir < 0 ? 'acSlideR' : 'acSlideL'} .25s cubic-bezier(.25,.46,.45,.94) both` }}>
-                  <div className="mb-3">
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
-                    {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedDevotee.tags.map((key) => (
-                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
-                        ))}
+                  // ── Field section card (Personal / Contact / Satsang / Education / Profession / System) ──
+                  const fields = (TABS[sec] || []).filter(([f]) => !(sec === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)));
+                  return (
+                    <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-black text-text-main">{sec}</h3>
+                        {!editing && canEditProfile && (
+                          <button onClick={startEdit} title="Edit" className="grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-primary">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
-                    )}
-                  </div>
-
-                  {canEdit && (
-                    <div className="mt-4 space-y-5">
-                      <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it.</p>
-                      {tagsByCategory().map(({ category, tags: catTags }) => {
-                        const groups = [];
-                        const seen = new Set();
-                        catTags.forEach(t => {
-                          if (t.mutuallyExclusiveGroup && !seen.has(t.mutuallyExclusiveGroup)) {
-                            seen.add(t.mutuallyExclusiveGroup);
-                            groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: catTags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
-                          } else if (!t.mutuallyExclusiveGroup) {
-                            groups.push({ type: 'single', tags: [t] });
-                          }
-                        });
-                        return (
-                          <div key={category.key}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: category.color.dot }} />
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-text-main">{category.label}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {groups.map((g, gi) =>
-                                g.type === 'mutex' ? (
-                                  <span key={gi} className="inline-flex items-center rounded-full border border-dashed border-border-light gap-0.5 p-0.5" title="Only one may be active">
-                                    {g.tags.map(t => {
-                                      const active = (selectedDevotee.tags || []).includes(t.key);
-                                      return (
-                                        <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                          style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
-                                          className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
-                                            (active ? '' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
-                                          {t.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </span>
-                                ) : (
-                                  g.tags.map(t => {
-                                    const active = (selectedDevotee.tags || []).includes(t.key);
-                                    return (
-                                      <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                        style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
-                                        className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
-                                          (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
-                                        {t.label}
-                                      </button>
-                                    );
-                                  })
-                                )
-                              )}
-                            </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                        {fields.map(([f, label]) => (
+                          <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
+                            {editing ? (
+                              renderEditField(f, editData, setEditData)
+                            ) : (
+                              <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
+                                {val(selectedDevotee[f], f)}
+                              </div>
+                            )}
                           </div>
-                        );
-                      })}
+                        ))}
+                        {sec === 'Satsang' && (editing ? renderFamilyRoleEdit() : renderFamilyRoleView())}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-
+                  );
+                })}
+              </div>
             </div>
 
             {/* Footer actions — safe-area handled by the overlay padding now */}
