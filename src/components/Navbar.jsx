@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   RefreshCw,
   Tags,
+  Tag,
   MoreHorizontal,
   X,
   ChevronRight,
@@ -44,6 +45,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               { id: 'email', label: 'Email', icon: Mail },
             ]
           : []),
+        ...(isAdmin || isSevak
+          ? [{ id: 'bulk-tags', label: 'Bulk Tags', icon: Tag }]
+          : []),
         ...(isAdmin
           ? [
               { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
@@ -70,6 +74,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         ...(isAdmin || isSevak ? [
           { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
           { id: 'email', label: 'Email', icon: Mail },
+          { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
         ] : []),
         ...(isAdmin ? [
           { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
