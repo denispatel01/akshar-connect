@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
@@ -20,7 +21,7 @@ const TABS = {
   'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family ID'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['mandal','Mandal'],['type','Family membership']],
+  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['type','Family membership']],
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
@@ -29,6 +30,12 @@ const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
 const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
 
 const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
+
+// Display a full name as first + last only (drop middle name(s)) for compact labels.
+const firstLastName = (full) => {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length <= 2 ? parts.join(' ') : `${parts[0]} ${parts[parts.length - 1]}`;
+};
 
 // Map field keys to dropdown options (from devoteeSchema) for smart rendering
 const FIELD_OPTIONS = {
@@ -86,6 +93,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [filterWing, setFilterWing] = useState('');
   const [filterBlood, setFilterBlood] = useState('');
   const [filterGender, setFilterGender] = useState('');
+  const [filterType, setFilterType] = useState(''); // '' = heads only (default) | Primary | Family | all
+  const [filterOldNew, setFilterOldNew] = useState(''); // '' = any | Old | Reference | New
   const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
   const [manualOverride, setManualOverride] = useState({});
@@ -94,8 +103,38 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
+  const [tagsExpandedId, setTagsExpandedId] = useState(null); // devotee id whose full tags are shown
+
+  // Family heads (primary members) — used to link a family member to their head.
+  const familyHeads = useMemo(() => devotees
+    .filter(d => d.type === 'Primary')
+    .map(d => ({ name: d.name, familyId: d.familyId || d.id, id: d.id, area: d.area }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '')), [devotees]);
+  const headNameByFamilyId = useMemo(() => {
+    const m = new Map();
+    familyHeads.forEach(h => m.set(h.familyId, h.name));
+    return m;
+  }, [familyHeads]);
+  const familyHeadLabel = (fid) => {
+    if (!fid) return '—';
+    const nm = headNameByFamilyId.get(fid);
+    return nm ? `${nm} · ${fid}` : fid;
+  };
 
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
+  // Karyakarta picker: real devotees tagged 'karyakarta' (exact names), merged with any
+  // names already used as a follow-up karyakarta — so the name always matches the Devotees tab.
+  const karyakartaOptions = useMemo(() => {
+    const tagged = devotees.filter(d => (d.tags || []).includes('karyakarta')).map(d => d.name).filter(Boolean);
+    return [...new Set([...tagged, ...uniqueKaryakartas])].sort((a, b) => a.localeCompare(b));
+  }, [devotees, uniqueKaryakartas]);
+  // Look up a karyakarta devotee by exact name → auto-fill their mobile from the Devotees tab.
+  const devoteeByName = useMemo(() => {
+    const m = new Map();
+    devotees.forEach(d => { if (d.name) m.set(d.name.trim().toLowerCase(), d); });
+    return m;
+  }, [devotees]);
+  const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
   const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
@@ -103,9 +142,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
     prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
 
-  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'', dob:'',
-    bloodGroup:'', maritalStatus:'', profession:'', mandal:'Akshar Mandal Surat', wing:'Yuva Wing', area:'', city:'Surat',
-    address:'', education:'', occupation:'' };
+  const todayISO = new Date().toISOString().slice(0, 10);
+  // New yuvak defaults: a new record is a Primary family head (self), male, joining today.
+  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'Male', dob:'',
+    bloodGroup:'', maritalStatus:'', profession:'', wing:'Yuva Wing', area:'', city:'Surat',
+    address:'', education:'', occupation:'', followupKaryakarta:'', followupKaryakartaMobile:'',
+    type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
 
   useEffect(() => { loadDevotees(); }, []);
@@ -146,7 +188,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const presetMeta = devoteesPreset ? PRESET_META[devoteesPreset] : null;
   const presetMatch = presetMeta?.match ?? (() => true);
 
-  const canEdit = user?.role === 'Admin' || user?.role === 'Sevak';
+  const isDevotee = user?.role === 'Devotee';
+  const canEdit   = user?.role === 'Admin' || user?.role === 'Sevak';
+  const canDelete = user?.role === 'Admin'; // Sevak and Devotee cannot delete
+  // A devotee may edit their OWN profile (fields only — tags stay admin-only).
+  const isOwnProfile = isDevotee && !!selectedDevotee && String(selectedDevotee.id) === String(user?.devoteeId);
+  const canEditProfile = canEdit || isOwnProfile;
+
+  // Devotee: restrict visible records to their own family only
+  const devoteeFamily = useMemo(() => {
+    if (!isDevotee) return null;
+    const fid = user?.familyId || user?.devoteeId;
+    if (!fid) return [];
+    return devotees.filter(d => d.familyId === fid || d.id === fid || d.id === user?.devoteeId);
+  }, [isDevotee, devotees, user]);
 
   // Count members per family (to show a "Family (N)" chip on head cards).
   const familySizes = useMemo(() => {
@@ -157,14 +212,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Plain browsing (no query/tag/preset) lists heads only — family members are
   // hidden until you open their family or search for them.
-  const isPlainBrowse = !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !devoteesPreset;
+  const isPlainBrowse = !isDevotee && !searchQuery && selectedTags.length === 0 && !filterKaryakarta && !filterArea && !filterWing && !filterBlood && !filterGender && !filterType && !filterOldNew && !devoteesPreset;
 
   // Build the lowercased searchable text for a devotee (name, contacts, address,
   // area, dob variants, karyakarta, tags…).
   const searchText = (d) => [
     d.name, d.firstName, d.middleName, d.lastName,
     d.mobile, d.whatsapp, d.secondaryMobile,
-    d.address, d.area, d.city, d.mandal,
+    d.address, d.area, d.city,
     dateSearchForms(d.dob), d.yuvakType, d.followupKaryakarta,
     d.education, d.profession, d.reference,
     ...((d.tags || []).map(tagLabel)),
@@ -172,14 +227,21 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   const query = searchQuery.trim();
   const filteredDevotees = useMemo(() => {
+    // Devotees only see their own family — no search/filter applies
+    if (isDevotee) return devoteeFamily || [];
+
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
-      if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
+      if (isPlainBrowse && d.type !== 'Primary') return false; // default browse: family heads only
+      if (filterType === 'Primary' && d.type !== 'Primary') return false; // family heads (primary members)
+      if (filterType === 'Family' && d.type !== 'Family') return false;                  // linked family members
+      // filterType === 'all' → no membership filter (show everyone)
       if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
       if (filterArea && d.area !== filterArea) return false;
       if (filterWing && d.wing !== filterWing) return false;
       if (filterBlood && d.bloodGroup !== filterBlood) return false;
       if (filterGender && d.gender !== filterGender) return false;
+      if (filterOldNew && String(d.oldNew || '').toLowerCase() !== filterOldNew.toLowerCase()) return false;
       return hasAnyTag(d, selectedTags) && presetMatch(d);
     });
     if (query) {
@@ -191,7 +253,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, selectedTags, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, filterType, filterOldNew, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -205,12 +267,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
     setSaving(true);
     try {
-      await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
+      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
       loadDevotees();
       setShowAddModal(false);
       setFormData(blankForm);
       setAddWhatsappSameAsMobile(false);
       await alertDevoteeCreated(name);
+      // Open the new devotee immediately so the auto-generated Family ID shows without a manual refresh.
+      if (created) openProfile(created);
     } catch (err) {
       loadDevotees();
       await alertDevoteeSaveFailed(err.message);
@@ -294,7 +358,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const payload = { ...editData };
     READ_ONLY_FIELDS.forEach((f) => { delete payload[f]; });
     payload.id = selectedDevotee.id;
-    payload.familyId = selectedDevotee.familyId;
+    payload.familyId = editData.familyId ?? selectedDevotee.familyId;
     if (whatsappSameAsMobile) payload.whatsapp = payload.mobile ?? selectedDevotee.mobile;
     payload.name = [payload.firstName, payload.middleName, payload.lastName].filter(Boolean).join(' ')
       || selectedDevotee.name;
@@ -339,6 +403,23 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
   const renderEditField = (f, data, setData) => {
+    // Family Head picker — link this devotee to a head of family (sets familyId + membership type).
+    if (f === 'familyId') {
+      return (
+        <div>
+          <select value={data.familyId || ''} onChange={(e) => {
+            const fid = e.target.value;
+            const h = familyHeads.find(x => x.familyId === fid);
+            const isSelf = h && h.id === selectedDevotee?.id;
+            setData({ ...data, familyId: fid, ...(fid ? { type: isSelf ? 'Primary' : 'Family' } : {}) });
+          }} className={inputCls + ' bg-surface'}>
+            <option value="">— Select head of family —</option>
+            {familyHeads.map(h => <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>)}
+          </select>
+          <p className="mt-1 text-[10px] font-semibold text-text-muted">Links this devotee to the chosen head's family. Choosing another person marks them a Family member.</p>
+        </div>
+      );
+    }
     if (READ_ONLY_FIELDS.has(f)) {
       return (
         <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-sm font-semibold text-text-main break-words">
@@ -359,14 +440,18 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
     // Dropdown with manual entry fallback
     if (COMBO_FIELDS.has(f)) {
-      const listOptions = f === 'followupKaryakarta' ? uniqueKaryakartas : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
+      const listOptions = f === 'followupKaryakarta' ? karyakartaOptions : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
       const isManual = manualOverride[f];
+      // Selecting a follow-up karyakarta also auto-fills their mobile from the Devotees tab.
+      const comboOnChange = f === 'followupKaryakarta'
+        ? (e) => { const name = e.target.value; setData({ ...data, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || data.followupKaryakartaMobile || '' }); }
+        : onChange;
       return (
         <div>
           {isManual ? (
-            <input value={value} onChange={onChange} className={inputCls} placeholder="Type manually..." />
+            <input value={value} onChange={comboOnChange} className={inputCls} placeholder="Type manually..." />
           ) : (
-            <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
+            <select value={value} onChange={comboOnChange} className={inputCls + ' bg-surface'}>
               <option value="">- Select -</option>
               {listOptions.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -446,8 +531,30 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
 
+  // Auto-open own profile for Devotee login
+  useEffect(() => {
+    if (isDevotee && user?.devoteeId && filteredDevotees.length > 0 && !selectedDevotee) {
+      const own = filteredDevotees.find(d => d.id === user.devoteeId) || filteredDevotees[0];
+      if (own) openProfile(own);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDevotee, filteredDevotees.length]);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+
+      {/* Devotee mode — limited view banner */}
+      {isDevotee && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center gap-3">
+          <User className="h-5 w-5 text-primary shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-text-main">My Family Profile</p>
+            <p className="text-xs text-text-muted">You can view and edit your profile and your family members' profiles.</p>
+          </div>
+        </div>
+      )}
+
+      {!isDevotee && (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-main">Devotee Directory</h1>
@@ -465,7 +572,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           </button>
         )}
       </div>
+      )}
 
+      {!isDevotee && (<>
       {presetMeta && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
           <p className="text-xs font-bold text-text-main">{presetMeta.banner}</p>
@@ -492,17 +601,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowTagFilter((s) => !s)}
               className={'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ' +
-                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
-              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender) ? ' (Active)' : ''}
+                ((selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType || filterOldNew) ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+              <Filter className="h-4 w-4" /> Filters{(selectedTags.length || filterKaryakarta || filterArea || filterWing || filterBlood || filterGender || filterType || filterOldNew) ? ' (Active)' : ''}
             </button>
             
-            {canEdit && (
-              <button onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${selectMode ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base'}`}>
-                <CheckSquare className="h-4 w-4" /> {selectMode ? 'Cancel Select' : 'Bulk Select'}
-              </button>
-            )}
-
             <div className="flex gap-2">
                <button onClick={() => {
                  const now = new Date();
@@ -599,7 +701,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <select value={filterKaryakarta} onChange={e => setFilterKaryakarta(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
               <option value="">All Karyakartas</option>
-              {uniqueKaryakartas.map(k => <option key={k}>{k}</option>)}
+              {uniqueKaryakartas.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
             </select>
             <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
@@ -615,6 +717,19 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
               <option value="">All Wings</option>
               {uniqueWings.map(w => <option key={w}>{w}</option>)}
+            </select>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="Primary">Family Heads (Self)</option>
+              <option value="Family">Family Members</option>
+              <option value="">All Members</option>
+            </select>
+            <select value={filterOldNew} onChange={e => setFilterOldNew(e.target.value)}
+              className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
+              <option value="">All (Old/Ref/New)</option>
+              <option value="Old">Old</option>
+              <option value="Reference">Reference</option>
+              <option value="New">New</option>
             </select>
           </div>
 
@@ -637,8 +752,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           </div>
 
           {/* Clear all */}
-          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing) && (
-            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); }}
+          {(selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing || filterType || filterOldNew) && (
+            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); setFilterType(''); setFilterOldNew(''); }}
               className="text-xs font-bold text-red-500 hover:underline">
               Clear all filters
             </button>
@@ -690,6 +805,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       <p className="text-xs font-semibold text-text-muted">
         Showing {filteredDevotees.length}{isPlainBrowse ? ' family heads (open a family to see its members)' : ' devotees'}
       </p>
+      </>)}
 
       {refreshing ? (
         <ListSkeleton count={6} />
@@ -739,16 +855,24 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={devotee.followupKaryakarta} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
                   </div>
 
-                  {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {devotee.tags.slice(0, 3).map((key) => (
-                        <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
-                      ))}
-                      {devotee.tags.length > 3 && (
-                        <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-main">+{devotee.tags.length - 3}</span>
-                      )}
-                    </div>
-                  )}
+                  {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (() => {
+                    const tagsOpen = tagsExpandedId === devotee.id;
+                    const shown = tagsOpen ? devotee.tags : devotee.tags.slice(0, 3);
+                    return (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {shown.map((key) => (
+                          <span key={key} style={tagChipStyle(key)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(key)}</span>
+                        ))}
+                        {devotee.tags.length > 3 && (
+                          <button onClick={(e) => { stop(e); setTagsExpandedId(tagsOpen ? null : devotee.id); }}
+                            title={tagsOpen ? 'Show fewer tags' : 'Show all tags'}
+                            className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/10 border border-transparent hover:border-primary/30">
+                            {tagsOpen ? 'Show less' : `+${devotee.tags.length - 3}`}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -889,24 +1013,62 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   <select value={formData.wing} onChange={(e)=>setFormData({...formData,wing:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
                     {WINGS.map(o=><option key={o}>{o}</option>)}</select></div>
               </div>
+              {/* Follow-up Karyakarta — pick from existing karyakartas; mobile auto-fills from their record */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block text-xs font-bold text-text-main mb-1">Follow-up Karyakarta</label>
+                  <input list="dl-add-karyakarta" value={formData.followupKaryakarta || ''}
+                    onChange={(e) => { const name = e.target.value; setFormData({ ...formData, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : formData.followupKaryakartaMobile) }); }}
+                    placeholder="Type or select a karyakarta"
+                    className={inputCls + ' text-xs p-2.5'} />
+                  <datalist id="dl-add-karyakarta">{karyakartaOptions.map(o=><option key={o} value={o} />)}</datalist></div>
+                <div><label className="block text-xs font-bold text-text-main mb-1">Karyakarta Mobile</label>
+                  <input maxLength={10} inputMode="numeric" value={formData.followupKaryakartaMobile || ''}
+                    onChange={(e) => setFormData({ ...formData, followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })}
+                    placeholder="Auto-fills on select"
+                    className={inputCls + ' text-xs p-2.5'} /></div>
+              </div>
               <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-md hover:bg-[#00223f] mt-2">Save Devotee</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Profile Modal (tabbed + edit) */}
-      {selectedDevotee && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs sm:p-4">
-          <div className="w-full max-w-2xl sm:rounded-3xl rounded-t-3xl bg-surface shadow-2xl relative flex flex-col"
-            style={{ maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 16px)', height: 'auto' }}>
+      {/* Profile Modal (tabbed + edit) — portal to document.body to escape main's animation stacking context.
+          Centered floating card, inset from ALL edges (incl. iOS safe areas) so the backdrop is visible
+          all around it → reads as a popup, never full-screen, never cut off, on any device. */}
+      {selectedDevotee && createPortal(
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[acFade_.18s_ease-out]"
+          style={{
+            paddingTop: 'max(20px, env(safe-area-inset-top))',
+            paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+            paddingLeft: 'max(16px, env(safe-area-inset-left))',
+            paddingRight: 'max(16px, env(safe-area-inset-right))',
+          }}
+          onClick={() => { setSelectedDevotee(null); setEditing(false); }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-3xl bg-surface shadow-2xl relative flex flex-col overflow-hidden animate-[acPop_.22s_cubic-bezier(0.16,1,0.3,1)]"
+            style={{ maxHeight: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <style>{`
               @keyframes acSlideL{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
               @keyframes acSlideR{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:translateX(0)}}
+              @keyframes acFade{from{opacity:0}to{opacity:1}}
+              @keyframes acPop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+              /* Interesting save loader: staggered bouncing beads + light sweep */
+              @keyframes acBead{0%,80%,100%{transform:translateY(0) scale(.6);opacity:.45}40%{transform:translateY(-5px) scale(1);opacity:1}}
+              @keyframes acSweep{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+              .ac-beads{display:inline-flex;align-items:center;gap:4px}
+              .ac-beads i{width:6px;height:6px;border-radius:9999px;background:#fff;display:block;animation:acBead 1s infinite ease-in-out}
+              .ac-beads i:nth-child(2){animation-delay:.16s}
+              .ac-beads i:nth-child(3){animation-delay:.32s}
+              .ac-sweep{position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.28) 50%,transparent 80%);animation:acSweep 1.15s infinite}
             `}</style>
 
             {/* Header — gradient band */}
-            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6">
+            <div className="relative bg-gradient-to-br from-primary to-[#00223f] px-5 pt-5 pb-5 sm:px-7 sm:pt-6 sm:pb-6 shrink-0">
               <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
                 className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white hover:bg-white/30 backdrop-blur-sm transition-colors z-10">
                 <X className="h-5 w-5" />
@@ -933,7 +1095,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   </span>
                 )}
                 {selectedDevotee.area && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.area}</span>}
-                {selectedDevotee.mandal && <span className="text-[10px] sm:text-[11px] font-semibold text-white bg-white/15 px-2.5 py-1 rounded-full">{selectedDevotee.mandal}</span>}
                 <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-white px-2.5 py-1 rounded-full">{selectedDevotee.id}</span>
               </div>
             </div>
@@ -975,7 +1136,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       {editing ? (
                         renderEditField(f, editData, setEditData)
                       ) : (
-                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                        <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
+                          {f === 'familyId' ? familyHeadLabel(selectedDevotee.familyId) : val(selectedDevotee[f], f)}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1060,28 +1223,39 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
             </div>
 
-            {/* Footer actions */}
-            {canEdit && (
-              <div className="flex items-center gap-2 p-4 border-t border-border-light">
+            {/* Footer actions — safe-area handled by the overlay padding now */}
+            {canEditProfile && (
+              <div className="flex items-center gap-2 px-4 py-3.5 border-t border-border-light bg-surface shrink-0">
                 {editing ? (
                   <>
-                    <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Save className="h-4 w-4" /> Save Changes</button>
-                    <button onClick={() => setEditing(false)} className="rounded-2xl border border-border-light px-4 py-2.5 text-xs font-bold text-text-main hover:bg-bg-base">Cancel</button>
+                    <button onClick={saveEdit} disabled={saving} aria-busy={saving}
+                      className={`relative overflow-hidden flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white transition-colors ${saving ? 'cursor-wait' : 'hover:bg-[#00223f]'}`}>
+                      {saving && <span className="ac-sweep" aria-hidden="true" />}
+                      <span className="relative flex items-center gap-2">
+                        {saving
+                          ? <><span className="ac-beads" aria-hidden="true"><i /><i /><i /></span> Saving…</>
+                          : <><Save className="h-4 w-4" /> Save Changes</>}
+                      </span>
+                    </button>
+                    <button onClick={() => setEditing(false)} disabled={saving}
+                      className="rounded-2xl border border-border-light px-4 py-2.5 text-xs font-bold text-text-main hover:bg-bg-base disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
                   </>
                 ) : (
                   <>
                     <button onClick={startEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
-                    <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                    {canDelete && (
+                      <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                    )}
                   </>
                 )}
               </div>
             )}
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* QR Modal */}
-      {qrModalDevotee && (
+      {qrModalDevotee && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-2xl text-center relative">
             <button onClick={() => setQrModalDevotee(null)} className="absolute right-4 top-4 text-text-muted hover:text-text-main"><X className="h-5 w-5" /></button>
@@ -1094,7 +1268,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <p className="text-[11px] text-slate-400 mt-1">Scan at sabha entry for instant attendance</p>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

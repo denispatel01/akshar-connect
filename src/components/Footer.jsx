@@ -33,7 +33,7 @@ const SECTIONS = [
 export default function Footer() {
   return (
     <footer className="mt-8 bg-gradient-to-b from-[#022c54] to-[#001a33] text-white">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-10 pb-[calc(7rem_+_env(safe-area-inset-bottom))] md:pb-10">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="md:col-span-1">

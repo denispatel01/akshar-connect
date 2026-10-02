@@ -8,8 +8,11 @@ import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
+import AccountPage from './pages/AccountPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
+import ErrorBoundary from './components/ErrorBoundary';
+import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
 
 export default function App() {
@@ -20,6 +23,25 @@ export default function App() {
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // Detect when a new service worker is waiting (new deploy is ready)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) return;
+      if (reg.waiting) { setUpdateAvailable(true); return; }
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            setUpdateAvailable(true);
+          }
+        });
+      });
+    });
+  }, []);
   /** Set from dashboard stat cards: total | ambrish | families | birthdays */
   const [devoteesPreset, setDevoteesPreset] = useState(null);
   const [filterPreset, setFilterPreset] = useState(null);
@@ -34,6 +56,9 @@ export default function App() {
 
   // Navigate with history tracking
   const navigate = (page, options) => {
+    // Always jump back to the top — lets Home/logo act as a "scroll to top"
+    // even when you're already on that page.
+    try { window.scrollTo(0, 0); document.scrollingElement && (document.scrollingElement.scrollTop = 0); } catch (e) {}
     if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId && !options?.filterPreset) return;
     if (page !== activePage) {
       setHistory((h) => [...h, activePage]);
@@ -61,6 +86,22 @@ export default function App() {
     setRefreshing(true);
     try { await dataService.bootstrap(); }
     finally { setRefreshing(false); setRefreshKey((k) => k + 1); }
+  };
+
+  // Clear all SW caches and hard-reload — equivalent to "Empty Cache & Hard Reload"
+  const hardRefresh = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } finally {
+      window.location.reload(true);
+    }
   };
 
   // Pull to refresh tracking
@@ -110,6 +151,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <NotificationsPopup user={user} />
       <Navbar
         activePage={activePage}
         setActivePage={navigate}
@@ -121,9 +163,12 @@ export default function App() {
         refreshing={refreshing}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        updateAvailable={updateAvailable}
+        onHardRefresh={hardRefresh}
       />
 
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
+        <ErrorBoundary key={activePage} page={activePage}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
         {activePage === 'devotees' && (
           <DevoteesPage
@@ -144,6 +189,8 @@ export default function App() {
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
+        {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
+        </ErrorBoundary>
       </main>
 
       <Footer />

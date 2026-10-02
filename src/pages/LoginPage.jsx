@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, MessageCircle, Phone, KeyRound, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { MessageCircle, Phone, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
 import PinDigitInput from '../components/PinDigitInput';
 import { dataService } from '../services/dataService';
 
@@ -11,7 +11,6 @@ const MODE = {
 
 export default function LoginPage({ onLoginSuccess }) {
   const [mode, setMode] = useState(MODE.MAIN);
-  const [authType, setAuthType] = useState('pin'); // 'pin' or 'password'
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -19,8 +18,6 @@ export default function LoginPage({ onLoginSuccess }) {
   // Form states
   const [mobile, setMobile] = useState('');
   const [pin, setPin] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // OTP state
   const [otp, setOtp] = useState('');
@@ -43,30 +40,26 @@ export default function LoginPage({ onLoginSuccess }) {
     setInfoMessage('');
   };
 
+  // One login for everyone: Mobile + 6-digit PIN. Staff use their set PIN;
+  // devotees use their date of birth as DDMMYY (e.g. 01-12-95 → 011295).
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     if (!isMobileValid) return setErrorMessage('Enter a valid 10-digit mobile number');
+    if (!isPinValid) return setErrorMessage('Enter your 6-digit PIN');
 
     setLoading(true);
     try {
-      if (authType === 'pin') {
-        if (!isPinValid) {
-          setLoading(false);
-          return setErrorMessage('Enter your 6-digit PIN');
-        }
-        const res = await dataService.loginWithPin(mobile, pin);
-        onLoginSuccess(res.user);
-      } else {
-        if (!password) {
-          setLoading(false);
-          return setErrorMessage('Enter your password');
-        }
-        const res = await dataService.loginWithPassword(mobile, password);
-        onLoginSuccess(res.user);
+      let res;
+      try {
+        res = await dataService.loginWithPin(mobile, pin);
+      } catch (_) {
+        // Fall back to devotee login where the PIN is their DOB (DDMMYY).
+        res = await dataService.loginWithDob(mobile, pin);
       }
+      onLoginSuccess(res.user);
     } catch (err) {
-      setErrorMessage(err.message || 'Login failed');
+      setErrorMessage('Invalid mobile number or PIN.');
     } finally {
       setLoading(false);
     }
@@ -185,124 +178,48 @@ export default function LoginPage({ onLoginSuccess }) {
             {/* MAIN LOGIN MODE */}
             {mode === MODE.MAIN && (
               <>
-                <div className="mb-6 text-center">
+                <div className="mb-5 text-center">
                   <h2 className="text-2xl font-bold text-text-main">Welcome Back</h2>
-                  <p className="text-sm font-medium text-text-muted mt-1">Please enter your details to continue</p>
+                  <p className="text-sm font-medium text-text-muted mt-1">Jai Swaminarayan 🙏</p>
                 </div>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  {/* Tab Selector: PIN vs Password */}
-                  <div className="flex rounded-2xl border border-border-light bg-bg-base p-1">
-                    <button
-                      type="button"
-                      onClick={() => { setAuthType('pin'); setErrorMessage(''); }}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                        authType === 'pin' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'
-                      }`}
-                    >
-                      <KeyRound className="h-4 w-4" /> PIN
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAuthType('password'); setErrorMessage(''); }}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                        authType === 'password' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted'
-                      }`}
-                    >
-                      <Lock className="h-4 w-4" /> Password
-                    </button>
-                  </div>
-
-                  {/* Mobile Input Field */}
+                  {/* Mobile */}
                   <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">
-                      Mobile Number
-                    </label>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
                     <div className="flex items-center gap-3">
                       <Phone className="h-5 w-5 text-text-muted" />
                       <span className="text-sm font-bold text-text-main">+91</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={10}
-                        value={mobile}
-                        onChange={handleMobileChange}
-                        placeholder="Enter 10-digit mobile number"
-                        className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300"
-                      />
+                      <input type="text" inputMode="numeric" maxLength={10} value={mobile} onChange={handleMobileChange}
+                        placeholder="10-digit mobile number"
+                        className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
                     </div>
                   </div>
 
-                  {/* Password Input */}
-                  {authType === 'password' ? (
-                    <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">
-                        Password
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <Lock className="h-5 w-5 text-text-muted" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
-                          placeholder="Enter your password"
-                          className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="text-text-muted hover:text-text-main"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* 6-Digit PIN Input */
-                    <div>
-                      <div className="flex justify-between items-center mb-2 px-1">
-                        <span className="text-xs font-bold text-text-muted">PIN</span>
-                      </div>
-                      <PinDigitInput
-                        length={6}
-                        value={pin}
-                        onChange={(val) => { setPin(val); setErrorMessage(''); }}
-                        onComplete={() => {}}
-                        masked={true}
-                      />
-                    </div>
-                  )}
+                  {/* PIN */}
+                  <div>
+                    <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
+                    <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={() => {}} masked={true} />
+                    <p className="mt-2 px-1 text-[11px] text-text-muted">Devotees: your PIN is your date of birth as <span className="font-bold">DDMMYY</span> — e.g. 01-12-95 → <span className="font-bold">011295</span>.</p>
+                  </div>
 
-                  {/* Error Notification */}
                   {errorMessage && (
                     <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      <p className="text-xs font-semibold">{errorMessage}</p>
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
                     </div>
                   )}
-
-                  {/* Info Notification */}
                   {infoMessage && (
                     <div className="flex items-center gap-2.5 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-600">
-                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                      <p className="text-xs font-semibold">{infoMessage}</p>
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{infoMessage}</p>
                     </div>
                   )}
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={loading || (authType === 'pin' && !isPinValid)}
-                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50"
-                  >
+                  <button type="submit" disabled={loading || !isPinValid}
+                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
                     {loading ? 'Authenticating...' : 'Sign In →'}
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={handleForgotOrSetup}
-                    className="w-full text-center text-xs font-bold text-[#FF862A] hover:underline pt-2"
-                  >
+                  <button type="button" onClick={handleForgotOrSetup}
+                    className="w-full text-center text-xs font-bold text-[#FF862A] hover:underline pt-1">
                     Forgot Password / First Time Setup
                   </button>
                 </form>

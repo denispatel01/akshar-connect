@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 export default function AdminPage({ user }) {
@@ -17,7 +17,10 @@ export default function AdminPage({ user }) {
 
   useEffect(() => {
     setUsers([...dataService.getUsers()]);
+    setKkPlan(dataService.planKaryakartaReconcile());
   }, []);
+
+  const [editingMobile, setEditingMobile] = useState(null); // null = adding new
 
   const handleAddUser = (e) => {
     e.preventDefault();
@@ -25,11 +28,53 @@ export default function AdminPage({ user }) {
     const mobile = String(form.mobile || '').trim();
     const pin = String(form.pin || '').trim();
     if (!/^\d{10}$/.test(mobile)) { setFormErr('Mobile must be exactly 10 digits.'); return; }
-    if (!/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
-    dataService.addUser({ mobile, name: form.name.trim(), pin, role: form.role });
+    // PIN required for a NEW user; optional when editing (blank = keep current).
+    if (!editingMobile && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
+    if (pin && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits (leave blank to keep current).'); return; }
+    dataService.saveUser({ mobile, name: form.name.trim(), pin, role: form.role });
     setUsers([...dataService.getUsers()]);
-    setForm(emptyForm);
+    setForm(emptyForm); setEditingMobile(null);
     setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
+  };
+
+  const editUser = (u) => {
+    setEditingMobile(String(u.mobile));
+    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', role: u.role || 'Devotee' });
+    setFormErr(''); setFormMsg('');
+  };
+
+  const removeUser = async (u) => {
+    if (String(u.mobile) === String(user?.mobile)) { setFormErr('You cannot delete your own account.'); return; }
+    if (!window.confirm(`Delete user "${u.name || u.mobile}"? They will lose access. This cannot be undone.`)) return;
+    await dataService.deleteUserAndSync(u.mobile);
+    setUsers([...dataService.getUsers()]);
+    if (editingMobile === String(u.mobile)) { setForm(emptyForm); setEditingMobile(null); }
+    setFormMsg(`User "${u.name || u.mobile}" deleted.`);
+  };
+
+  // ── Follow-up Karyakarta reconciliation ──────────────────────────────────
+  const [kkPlan, setKkPlan] = useState(null);
+  const [kkRunning, setKkRunning] = useState(false);
+  const [kkMsg, setKkMsg] = useState('');
+  const loadKkPlan = () => setKkPlan(dataService.planKaryakartaReconcile());
+  const kkRenameGroups = (kkPlan || []).filter(g => g.willRename);
+  const kkRecordsToRename = kkRenameGroups.reduce((n, g) => n + g.count, 0);
+
+  const handleReconcileKk = async () => {
+    if (!window.confirm(
+      `This will rewrite follow-up karyakarta names to match the Devotees tab and fill each karyakarta's mobile.\n\n` +
+      `${kkRenameGroups.length} name(s) will be corrected across ${kkRecordsToRename} record(s); mobiles are filled for all matched records.\n\n` +
+      `It rewrites the live Devotees sheet in one atomic operation. Continue?`
+    )) return;
+    setKkRunning(true); setKkMsg('');
+    try {
+      const r = await dataService.reconcileKaryakartaNamesAndSync();
+      setLiveCount(dataService.getDevotees().length);
+      loadKkPlan();
+      setKkMsg(`Done — ${r.renamed} name(s) corrected, ${r.mobilesFilled} mobile(s) filled (${r.recordsChanged} record(s) updated).`);
+    } catch (e) {
+      setKkMsg('Failed: ' + (e.message || 'error'));
+    } finally { setKkRunning(false); }
   };
 
   const handleImport = async () => {
@@ -68,8 +113,8 @@ export default function AdminPage({ user }) {
               <input
                 type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
                 onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
-                placeholder="10-digit mobile" required
-                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+                placeholder="10-digit mobile" required disabled={!!editingMobile}
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A] disabled:opacity-60"
               />
             </div>
             <div>
@@ -82,11 +127,11 @@ export default function AdminPage({ user }) {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">PIN</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">PIN {editingMobile && <span className="font-semibold text-slate-400">(blank = keep)</span>}</label>
               <input
                 type="text" inputMode="numeric" maxLength={6} value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
-                placeholder="6-digit PIN" required
+                placeholder={editingMobile ? 'Leave blank to keep' : '6-digit PIN'} required={!editingMobile}
                 className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
               />
             </div>
@@ -105,8 +150,14 @@ export default function AdminPage({ user }) {
             <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
               <button type="submit"
                 className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
-                <UserPlus className="h-4 w-4" /> Add / Update User
+                <UserPlus className="h-4 w-4" /> {editingMobile ? 'Save Changes' : 'Add User'}
               </button>
+              {editingMobile && (
+                <button type="button" onClick={() => { setForm(emptyForm); setEditingMobile(null); setFormErr(''); setFormMsg(''); }}
+                  className="rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
+                  Cancel
+                </button>
+              )}
               {formErr && <span className="text-xs font-bold text-red-600">{formErr}</span>}
               {formMsg && (
                 <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
@@ -115,6 +166,26 @@ export default function AdminPage({ user }) {
               )}
             </div>
           </form>
+
+          {/* Existing users list */}
+          <div className="border-t border-border-light pt-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Existing users ({users.length})</p>
+            <div className="space-y-2 max-h-[320px] overflow-auto">
+              {users.length === 0 && <p className="text-xs text-text-muted">No users yet.</p>}
+              {users.map((u) => (
+                <div key={u.mobile} className="flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base px-3 py-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white text-xs font-bold">{(u.name || 'U')[0]}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-text-main truncate">{u.name || '—'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}</p>
+                    <p className="text-[11px] text-text-muted">+91 {u.mobile}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === 'Admin' ? 'bg-red-50 text-red-600' : u.role === 'Sevak' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{u.role || 'Devotee'}</span>
+                  <button onClick={() => editUser(u)} title="Edit" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => removeUser(u)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -156,6 +227,59 @@ export default function AdminPage({ user }) {
           <p className="text-[11px] text-slate-500">Only an Admin can replace the devotee database.</p>
         )}
       </div>
+
+      {/* Reconcile Follow-up Karyakarta Names (Admin only) */}
+      {isAdmin && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+            <Users className="h-4 w-4 text-[#FF862A]" /> Reconcile Karyakarta Names
+          </div>
+          <p className="text-[11px] text-slate-500 flex items-start gap-1">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            Matches each free-typed follow-up karyakarta to its devotee record, renames it to the exact name from the Devotees tab, and fills the karyakarta's mobile. Review the matches below before applying.
+          </p>
+
+          <div className="rounded-2xl border border-border-light overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-bg-base px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <span>Current value</span><span>Records</span><span>Matched devotee</span>
+            </div>
+            {(kkPlan || []).map((g, i) => (
+              <div key={i} className={`grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2.5 border-t border-border-light text-xs ${g.willRename ? 'bg-amber-50/40' : ''}`}>
+                <span className="font-semibold text-text-main truncate" title={g.value}>{g.value}</span>
+                <span className="text-center font-bold text-slate-500 tabular-nums px-2">{g.count}</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {g.willRename
+                    ? <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    : <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+                  <span className="truncate" title={g.match ? `${g.match.name} · ${g.match.mobile || 'no mobile'}` : 'no match'}>
+                    {g.match ? g.match.name : '—'}
+                    {g.match?.mobile ? <span className="text-slate-400"> · {g.match.mobile}</span> : null}
+                  </span>
+                  {g.willRename
+                    ? <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">RENAME</span>
+                    : <span className="ml-auto shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">OK</span>}
+                </span>
+              </div>
+            ))}
+            {(!kkPlan || kkPlan.length === 0) && (
+              <div className="px-4 py-4 text-center text-xs font-semibold text-slate-400">No follow-up karyakarta values found.</div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={handleReconcileKk} disabled={kkRunning || kkRenameGroups.length === 0}
+              className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00223f] disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${kkRunning ? 'animate-spin' : ''}`} />
+              {kkRunning ? 'Reconciling…' : kkRenameGroups.length === 0 ? 'All names already match' : `Apply — fix ${kkRenameGroups.length} name(s), ${kkRecordsToRename} record(s)`}
+            </button>
+            {kkMsg && (
+              <span className={`text-xs font-bold flex items-center gap-1 ${kkMsg.startsWith('Done') ? 'text-emerald-600' : 'text-red-600'}`}>
+                <CheckCircle className="h-4 w-4" /> {kkMsg}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Registered System Users */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">

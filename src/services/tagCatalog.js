@@ -67,8 +67,9 @@ export const TAGS = [
 
   // ── Sabha Attendance ─────────────────────────────────────────────────────
   // regularity: only one of these two may be active at a time
-  { key: 'regular-sabha',   label: 'Regular Attending',   category: 'attendance', mutuallyExclusiveGroup: 'sabha-regularity', desc: 'Attends sabha regularly.' },
-  { key: 'irregular-sabha', label: 'Irregular Attending', category: 'attendance', mutuallyExclusiveGroup: 'sabha-regularity', desc: 'Attends sabha irregularly.' },
+  { key: 'regular-sabha',      label: 'Regular Attending',    category: 'attendance', mutuallyExclusiveGroup: 'sabha-regularity', desc: 'Attends sabha regularly.' },
+  { key: 'irregular-sabha',    label: 'Irregular Attending',  category: 'attendance', mutuallyExclusiveGroup: 'sabha-regularity', desc: 'Attends sabha irregularly.' },
+  { key: 'not-attending-sabha', label: 'Not Attending Sabha', category: 'attendance', mutuallyExclusiveGroup: 'sabha-regularity', desc: 'Does not attend sabha.' },
   // assembly type: only one of these two may be active at a time
   { key: 'balika-sabha', label: 'Balika Sabha', category: 'attendance', mutuallyExclusiveGroup: 'assembly-type', desc: "Girls' assembly." },
   { key: 'bal-sabha',    label: 'Bal Sabha',    category: 'attendance', mutuallyExclusiveGroup: 'assembly-type', desc: "Children's assembly." },
@@ -79,7 +80,6 @@ export const TAGS = [
   { key: 'yuvak',       label: 'Yuvak',             category: 'classification', desc: 'Youth (Yuva Wing) member.' },
   { key: 'vadil',       label: 'Vadil',             category: 'classification', desc: 'Senior / elder devotee.' },
   { key: 'vip',         label: 'VIP',               category: 'classification', desc: 'Special / prominent devotee.' },
-  { key: 'sadbhav',     label: 'Sadbhav',           category: 'classification' },
   { key: 'kids',        label: 'Kids',              category: 'classification', desc: 'Child of a satsangi who does NOT attend Bal Sabha.' },
   { key: 'bal-parents', label: 'Bal Sabha Parents', category: 'classification', desc: "Parents of Bal Sabha children." },
 
