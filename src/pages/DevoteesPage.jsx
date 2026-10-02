@@ -198,7 +198,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'Male', dob:'',
     bloodGroup:'', maritalStatus:'', profession:'', wing:'Yuva Wing', area:'', city:'Surat',
     address:'', education:'', occupation:'', followupKaryakarta:'', followupKaryakartaMobile:'',
-    type:'Primary', relation:'Self', dateOfJoining: todayISO };
+    familyId:'', type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
 
   useEffect(() => { loadDevotees(); }, []);
@@ -258,6 +258,25 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     devotees.forEach((d) => { if (d.familyId) m[d.familyId] = (m[d.familyId] || 0) + 1; });
     return m;
   }, [devotees]);
+
+  // Head (Primary) record for each family — used to inherit the family's shared
+  // address / area / follow-up karyakarta onto a new or newly-linked member.
+  const headRecordByFamilyId = useMemo(() => {
+    const m = new Map();
+    devotees.forEach((d) => { if (d.type === 'Primary') m.set(d.familyId || d.id, d); });
+    return m;
+  }, [devotees]);
+  // Fields a family member inherits from their head (non-empty head values win).
+  const inheritFromHead = (familyId, data) => {
+    const h = headRecordByFamilyId.get(familyId);
+    if (!h) return {};
+    return {
+      address: h.address || data.address || '',
+      area: h.area || data.area || '',
+      followupKaryakarta: h.followupKaryakarta || data.followupKaryakarta || '',
+      followupKaryakartaMobile: h.followupKaryakartaMobile || data.followupKaryakartaMobile || '',
+    };
+  };
 
   // All members of the open devotee's family (head first), for the Family tab.
   const familyMembers = useMemo(() => {
@@ -628,9 +647,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <FamilyHeadPicker
                 heads={familyHeads.filter(h => h.id !== ownId)}
                 value={data.familyId || ''}
-                onChange={(fid) => setData({ ...data, familyId: fid })}
+                onChange={(fid) => setData({ ...data, familyId: fid, ...(fid ? inheritFromHead(fid, data) : {}) })}
                 inputCls={inputCls}
               />
+              <p className="mt-1 text-[10px] font-semibold text-text-muted">Choosing a head copies the family's address and follow-up karyakarta onto this member.</p>
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Relation to family head</div>
@@ -1160,6 +1180,33 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     placeholder="Auto-fills on select"
                     className={inputCls + ' text-xs p-2.5'} /></div>
               </div>
+
+              {/* Family — link to a head and auto-inherit their address + karyakarta */}
+              <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
+                <label className="block text-xs font-bold text-text-main">Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></label>
+                <FamilyHeadPicker
+                  heads={familyHeads}
+                  value={formData.familyId || ''}
+                  inputCls={inputCls + ' text-xs p-2.5'}
+                  onChange={(fid) => {
+                    if (!fid) { setFormData({ ...formData, familyId: '', type: 'Primary', relation: 'Self' }); return; }
+                    setFormData({ ...formData, familyId: fid, type: 'Family',
+                      relation: formData.relation === 'Self' ? '' : formData.relation,
+                      ...inheritFromHead(fid, formData) });
+                  }}
+                />
+                {formData.familyId && (
+                  <>
+                    <select value={formData.relation || ''} onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
+                      className={inputCls + ' text-xs p-2.5 bg-surface'}>
+                      <option value="">— Relation to head —</option>
+                      {RELATIONS.filter(r => r !== 'Self').map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <p className="text-[10px] font-semibold text-text-muted">Address and follow-up karyakarta were copied from the family head — edit above if needed.</p>
+                  </>
+                )}
+              </div>
+
               <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-md hover:bg-[#00223f] mt-2">Save Devotee</button>
             </form>
           </div>
