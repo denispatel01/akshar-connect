@@ -42,11 +42,26 @@ export default function FollowupsPage({ user }) {
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagPanel, setShowTagPanel] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(false);
+  const [karyakarta, setKaryakarta] = useState('');
 
   useEffect(() => {
     setEvents(dataService.getEvents());
     setDevotees(dataService.getDevotees());
   }, []);
+
+  // Distinct follow-up karyakarta names (for the "my devotees" filter).
+  const karyakartaOptions = useMemo(() => {
+    const set = new Set();
+    devotees.forEach(d => { const k = (d.followupKaryakarta || '').trim(); if (k) set.add(k); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [devotees]);
+
+  // Default the filter to the signed-in karyakarta when their name matches one.
+  useEffect(() => {
+    if (karyakarta || !user?.name || !karyakartaOptions.length) return;
+    const mine = karyakartaOptions.find(k => k.toLowerCase() === user.name.trim().toLowerCase());
+    if (mine) setKaryakarta(mine);
+  }, [karyakartaOptions, user, karyakarta]);
 
   const openEvent = (ev) => {
     const list = dataService.getFollowupsForEvent(ev.id);
@@ -100,17 +115,19 @@ export default function FollowupsPage({ user }) {
     const q = search.trim().toLowerCase();
     return devotees.filter(d => {
       if (q && !((d.name || '').toLowerCase().includes(q) || String(d.mobile || '').includes(search))) return false;
+      if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       if (pendingOnly && contacted(fmap[d.id])) return false;
       return true;
     });
-  }, [devotees, search, selectedTags, pendingOnly, fmap]);
+  }, [devotees, search, selectedTags, pendingOnly, fmap, karyakarta]);
 
   // Summary over the current (search + tag) audience, ignoring the pendingOnly view filter
   const summary = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = devotees.filter(d => {
       if (q && !((d.name || '').toLowerCase().includes(q) || String(d.mobile || '').includes(search))) return false;
+      if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       return true;
     });
@@ -123,7 +140,7 @@ export default function FollowupsPage({ user }) {
       else if (f?.outcome === 'Maybe') s.maybe++;
     });
     return s;
-  }, [devotees, search, selectedTags, fmap]);
+  }, [devotees, search, selectedTags, fmap, karyakarta]);
 
   const waLink = (d) => {
     const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
@@ -298,6 +315,14 @@ export default function FollowupsPage({ user }) {
               className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
           </div>
           <div className="flex items-center gap-2">
+            {karyakartaOptions.length > 0 && (
+              <select value={karyakarta} onChange={e => setKaryakarta(e.target.value)}
+                title="Filter to one karyakarta's devotees"
+                className={`rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ${karyakarta ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+                <option value="">All karyakartas</option>
+                {karyakartaOptions.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+            )}
             <button onClick={() => setShowTagPanel(v => !v)}
               className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
               <Filter className="h-4 w-4" /> Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}

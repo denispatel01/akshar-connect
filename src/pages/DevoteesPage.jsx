@@ -107,7 +107,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Family heads (primary members) — used to link a family member to their head.
   const familyHeads = useMemo(() => devotees
-    .filter(d => d.type === 'Primary' || !d.type)
+    .filter(d => d.type === 'Primary')
     .map(d => ({ name: d.name, familyId: d.familyId || d.id, id: d.id, area: d.area }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '')), [devotees]);
   const headNameByFamilyId = useMemo(() => {
@@ -232,8 +232,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
-      if (isPlainBrowse && d.type === 'Family') return false; // hide dependents by default
-      if (filterType === 'Primary' && !(d.type === 'Primary' || !d.type)) return false; // self / family heads
+      if (isPlainBrowse && d.type !== 'Primary') return false; // default browse: family heads only
+      if (filterType === 'Primary' && d.type !== 'Primary') return false; // family heads (primary members)
       if (filterType === 'Family' && d.type !== 'Family') return false;                  // linked family members
       // filterType === 'all' → no membership filter (show everyone)
       if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
@@ -720,9 +720,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-              <option value="">Family Heads (Self)</option>
+              <option value="Primary">Family Heads (Self)</option>
               <option value="Family">Family Members</option>
-              <option value="all">All Members</option>
+              <option value="">All Members</option>
             </select>
             <select value={filterOldNew} onChange={e => setFilterOldNew(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">

@@ -39,7 +39,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         { id: 'devotees', label: 'Directory', icon: Users },
         ...(isAdmin || isSevak
           ? [
-              { id: 'followups', label: 'Calls', icon: PhoneCall },
+              { id: 'followups', label: 'Follow-up', icon: PhoneCall },
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
             ]
@@ -61,7 +61,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'devotees', label: 'Directory', icon: Users },
-        ...(isAdmin || isSevak ? [{ id: 'followups', label: 'Calls', icon: PhoneCall }] : []),
+        ...(isAdmin || isSevak ? [{ id: 'followups', label: 'Follow-up', icon: PhoneCall }] : []),
       ];
 
   const moreItems = isDevotee

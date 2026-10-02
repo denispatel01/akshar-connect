@@ -416,6 +416,33 @@ export const dataService = {
     }
   },
 
+  // Replace the full tag array for several devotees at once. `entries` is
+  // [{ id, tags }] — used by the swipe-through bulk tagger where each devotee
+  // gets its own complete tag set. Only devotees whose tags actually changed
+  // are synced to the backend.
+  bulkSetTagsAndSync: async (entries) => {
+    const now = new Date().toISOString();
+    const user = JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System';
+    const toSync = [];
+    entries.forEach(({ id, tags }) => {
+      const idx = DB.devotees.findIndex(d => d.id === id);
+      if (idx === -1) return;
+      const nextTags = parseTags(tags); // normalize/dedupe to valid keys
+      const prev = DB.devotees[idx].tags || [];
+      const changed = prev.length !== nextTags.length || prev.some(t => !nextTags.includes(t));
+      if (!changed) return;
+      DB.devotees[idx] = normalizeDevotee({ ...DB.devotees[idx], tags: nextTags, updatedOn: now, updatedBy: user });
+      toSync.push(DB.devotees[idx]);
+    });
+    saveCache();
+    if (hasBackend()) {
+      for (const d of toSync) {
+        await api('update', { collection: 'Devotees', keyField: 'id', key: d.id, row: toBackendRow(d) });
+      }
+    }
+    return toSync.length;
+  },
+
   setDevoteeTag: (id, tagKey, on, exclusiveKeys = []) => {
     const d = DB.devotees.find(x => x.id === id);
     if (!d) return null;
