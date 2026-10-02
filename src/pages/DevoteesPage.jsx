@@ -28,7 +28,7 @@ const TABS = {
   'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
-  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference'],['type','Family membership']],
+  'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
@@ -403,20 +403,34 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
   const renderEditField = (f, data, setData) => {
-    // Family Head picker — link this devotee to a head of family (sets familyId + membership type).
+    // Family Head picker. "Self" means this person heads their own family (Primary);
+    // choosing someone else makes this person a Family member under them. The old
+    // separate "Family membership" field is gone — membership is derived here.
     if (f === 'familyId') {
+      const ownId = selectedDevotee?.id;
+      const isSelf = data.type === 'Primary';
+      const selectValue = isSelf ? '__self__' : (data.familyId || '');
       return (
         <div>
-          <select value={data.familyId || ''} onChange={(e) => {
-            const fid = e.target.value;
-            const h = familyHeads.find(x => x.familyId === fid);
-            const isSelf = h && h.id === selectedDevotee?.id;
-            setData({ ...data, familyId: fid, ...(fid ? { type: isSelf ? 'Primary' : 'Family' } : {}) });
+          <select value={selectValue} onChange={(e) => {
+            const v = e.target.value;
+            if (v === '__self__') {
+              setData({ ...data, type: 'Primary', relation: 'Self', familyId: data.familyId || ownId || '' });
+            } else if (v === '') {
+              setData({ ...data, familyId: '', type: '' });
+            } else {
+              setData({ ...data, familyId: v, type: 'Family', relation: data.relation === 'Self' ? '' : data.relation });
+            }
           }} className={inputCls + ' bg-surface'}>
-            <option value="">— Select head of family —</option>
-            {familyHeads.map(h => <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>)}
+            <option value="__self__">★ This person is the family head (Self)</option>
+            <option value="">— Not linked yet —</option>
+            {familyHeads.filter(h => h.id !== ownId).map(h => (
+              <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>
+            ))}
           </select>
-          <p className="mt-1 text-[10px] font-semibold text-text-muted">Links this devotee to the chosen head's family. Choosing another person marks them a Family member.</p>
+          <p className="mt-1 text-[10px] font-semibold text-text-muted">
+            Pick <strong>Self</strong> if this person heads their own family (they become the primary member). Otherwise choose the head they live under — that makes them a family member, and you can set their relation below.
+          </p>
         </div>
       );
     }
