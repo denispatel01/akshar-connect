@@ -6,6 +6,7 @@ import {
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { hasAnyTag } from '../services/devoteeSchema';
+import { devoteeMatches } from '../utils/search';
 
 const OUTCOMES = ['Coming', 'Maybe', 'Not Coming'];
 const OUTCOME_STYLE = {
@@ -114,7 +115,7 @@ export default function FollowupsPage({ user }) {
   const audience = useMemo(() => {
     const q = search.trim().toLowerCase();
     return devotees.filter(d => {
-      if (q && !((d.name || '').toLowerCase().includes(q) || String(d.mobile || '').includes(search))) return false;
+      if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       if (pendingOnly && contacted(fmap[d.id])) return false;
@@ -126,7 +127,7 @@ export default function FollowupsPage({ user }) {
   const summary = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = devotees.filter(d => {
-      if (q && !((d.name || '').toLowerCase().includes(q) || String(d.mobile || '').includes(search))) return false;
+      if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       return true;
@@ -311,7 +312,7 @@ export default function FollowupsPage({ user }) {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or mobile…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, DOB or mobile…"
               className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
           </div>
           <div className="flex items-center gap-2">

@@ -28,6 +28,42 @@ export function dateSearchForms(dob) {
   return `${dd} ${mon} ${yyyy} ${dd}-${mon}-${yyyy} ${dob}`;
 }
 
+// Numeric date-of-birth forms so a devotee can be found by typing their DOB as
+// dd-MM-yy or dd-MM-yyyy (also tolerates / and . separators), e.g. 01-12-1995,
+// 01-12-95, 01/12/1995.
+export function dobSearchForms(dob) {
+  if (!dob) return '';
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return String(dob);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(d.getFullYear());
+  const yy = yyyy.slice(-2);
+  const seps = ['-', '/', '.'];
+  const forms = [];
+  for (const s of seps) { forms.push(`${dd}${s}${mm}${s}${yyyy}`, `${dd}${s}${mm}${s}${yy}`); }
+  forms.push(dateSearchForms(dob));
+  return forms.join(' ');
+}
+
+// Restricted searchable text for a devotee: ONLY their own name parts, DOB, and
+// phone numbers. Deliberately excludes karyakarta / reference / address so that
+// searching a karyakarta's name returns people *named* that — not everyone the
+// karyakarta manages.
+export function devoteeSearchText(d) {
+  return [
+    d.firstName, d.middleName, d.lastName, d.name,
+    d.mobile, d.whatsapp, d.secondaryMobile,
+    dobSearchForms(d.dob),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+// Does a devotee match the query on name / DOB / mobile only? (token-based,
+// every query token must match somewhere in the restricted text.)
+export function devoteeMatches(d, query) {
+  return scoreMatch(devoteeSearchText(d), d.name || '', query) >= 0;
+}
+
 // Score one devotee's searchable text against the raw query.
 // `text` should be a lowercased, space-joined string of all searchable fields.
 export function scoreMatch(text, name, query) {

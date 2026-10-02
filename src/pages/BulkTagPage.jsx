@@ -6,27 +6,31 @@ import {
 import { dataService } from '../services/dataService';
 import { deriveAge } from '../services/devoteeSchema';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
+import { devoteeMatches } from '../utils/search';
 
 export default function BulkTagPage() {
   const tagGroups = useMemo(() => tagsByCategory(), []);
 
-  // Working deck of devotees (sorted by name) + search narrowing.
+  // Working deck of devotees (sorted by name) + search / karyakarta narrowing.
   const [searchQuery, setSearchQuery] = useState('');
+  const [karyakarta, setKaryakarta] = useState('');
   const allDevotees = useMemo(
     () => [...dataService.getDevotees()].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     [],
   );
+  const karyakartaOptions = useMemo(() => {
+    const set = new Set();
+    allDevotees.forEach(d => { const k = (d.followupKaryakarta || '').trim(); if (k) set.add(k); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allDevotees]);
   const deck = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return allDevotees;
-    return allDevotees.filter(d =>
-      (d.name || '').toLowerCase().includes(q) ||
-      (d.followupKaryakarta || '').toLowerCase().includes(q) ||
-      (d.reference || '').toLowerCase().includes(q) ||
-      (d.address || '').toLowerCase().includes(q) ||
-      String(d.mobile || '').toLowerCase().includes(q),
-    );
-  }, [allDevotees, searchQuery]);
+    return allDevotees.filter(d => {
+      if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
+      // Search matches name / DOB / mobile only (never karyakarta/reference).
+      if (searchQuery.trim() && !devoteeMatches(d, searchQuery)) return false;
+      return true;
+    });
+  }, [allDevotees, searchQuery, karyakarta]);
 
   // Per-devotee draft tag sets: { [id]: string[] }. Seeded from current tags.
   const [draft, setDraft] = useState(() => {
@@ -40,7 +44,7 @@ export default function BulkTagPage() {
   const [successMsg, setSuccessMsg] = useState('');
 
   // Reset the pointer when the filtered deck changes.
-  useEffect(() => { setIndex(0); }, [searchQuery]);
+  useEffect(() => { setIndex(0); }, [searchQuery, karyakarta]);
 
   const current = deck[index] || null;
 
@@ -134,12 +138,22 @@ export default function BulkTagPage() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative mt-4 mb-3">
-        <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-text-muted" />
-        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search name, karyakarta, reference, address…"
-          className="w-full rounded-xl border border-border-light bg-surface pl-10 pr-4 py-2 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+      {/* Search + karyakarta filter */}
+      <div className="mt-4 mb-3 flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-text-muted" />
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search name, DOB (dd-MM-yyyy) or mobile"
+            className="w-full rounded-xl border border-border-light bg-surface pl-10 pr-4 py-2 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+        </div>
+        {karyakartaOptions.length > 0 && (
+          <select value={karyakarta} onChange={e => setKaryakarta(e.target.value)}
+            title="Filter to one karyakarta's devotees"
+            className={`rounded-xl border px-3 py-2 text-sm font-bold outline-none ${karyakarta ? 'border-primary bg-primary/5 text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+            <option value="">All karyakartas</option>
+            {karyakartaOptions.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        )}
       </div>
 
       {deck.length === 0 || !current ? (

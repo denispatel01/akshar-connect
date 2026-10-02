@@ -37,7 +37,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'devotees', label: 'Directory', icon: Users },
+        { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak
           ? [
               { id: 'followups', label: 'Follow-up', icon: PhoneCall },
@@ -64,7 +64,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'devotees', label: 'Directory', icon: Users },
+        { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak ? [{ id: 'followups', label: 'Follow-up', icon: PhoneCall }] : []),
       ];
 
