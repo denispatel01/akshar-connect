@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
+import AddDevoteeWizard from '../components/AddDevoteeWizard';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
@@ -1058,7 +1059,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 </div>
               )}
               <div className="flex items-start gap-3.5">
-                <img src={devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
+                <img src={devotee.photo || devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name='+encodeURIComponent(devotee.name||'?')}
                   alt={devotee.name} className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover ring-2 ring-[#EAF0F7] group-hover:ring-[#003158]/20 transition" />
                 <div className="min-w-0 flex-1">
                   {devotee.wing && <span className="text-[9.5px] font-bold text-accent uppercase tracking-wider block mb-0.5">{devotee.wing}</span>}
@@ -1146,153 +1147,22 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         />
       )}
 
+      {/* Add Devotee — multi-step wizard */}
+      {showAddModal && (
+        <AddDevoteeWizard
+          user={user}
+          devotees={devotees}
+          familyHeads={familyHeads}
+          karyakartaOptions={karyakartaOptions}
+          karyakartaMobileFor={karyakartaMobileFor}
+          referenceOptions={referenceOptions}
+          headRecordByFamilyId={headRecordByFamilyId}
+          onClose={() => setShowAddModal(false)}
+          onCreated={(created) => { setShowAddModal(false); loadDevotees(); if (created) openProfile(created); }}
+        />
+      )}
+
       
-
-      {/* Add Devotee Modal */}
-      {showAddModal && createPortal(
-        <div className="fixed inset-0 z-[60] bg-bg-base flex flex-col"
-          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
-          onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between border-b border-border-light bg-surface px-4 sm:px-6 py-4 shrink-0">
-            <h2 className="text-lg font-bold text-text-main">Add New Devotee</h2>
-            <button onClick={() => setShowAddModal(false)} className="grid h-9 w-9 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main"><X className="h-5 w-5" /></button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto bg-bg-base">
-            <form onSubmit={handleCreateSubmit} className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6">
-              {/* Identity */}
-              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
-                <h3 className="text-sm font-black text-text-main">Identity</h3>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name']].map(([f,l]) => (
-                    <div key={f}><label className="block text-xs font-bold text-text-main mb-1">{l}</label>
-                      <input value={formData[f]} onChange={(e)=>setFormData({...formData,[f]:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  ))}
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Gender</label>
-                    <select value={formData.gender} onChange={(e)=>setFormData({...formData,gender:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{GENDERS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Date of Birth</label>
-                    <input type="date" value={formData.dob} onChange={(e)=>setFormData({...formData,dob:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Blood Group</label>
-                    <select value={formData.bloodGroup} onChange={(e)=>setFormData({...formData,bloodGroup:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{BLOOD_GROUPS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Marital Status</label>
-                    <select value={formData.maritalStatus} onChange={(e)=>setFormData({...formData,maritalStatus:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{MARITAL_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Yuvak Type</label>
-                    <select value={formData.yuvakType} onChange={(e)=>setFormData({...formData,yuvakType:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{YUVAK_TYPES.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div className="col-span-2 lg:col-span-3"><label className="block text-xs font-bold text-text-main mb-1">Photo URL</label>
-                    <input value={formData.photo} onChange={(e)=>setFormData({...formData,photo:e.target.value})} placeholder="https://…" className={inputCls + ' text-sm p-2.5'} /></div>
-                </div>
-              </div>
-
-              {/* Contact */}
-              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
-                <h3 className="text-sm font-black text-text-main">Contact</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Mobile *</label>
-                    <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e)=>{ const v=e.target.value.replace(/\D/g,''); setFormData({...formData, mobile:v, ...(addWhatsappSameAsMobile?{whatsapp:v}:{})}); }} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-text-main">WhatsApp</label>
-                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer">
-                        <input type="checkbox" checked={addWhatsappSameAsMobile} onChange={(e)=>{ setAddWhatsappSameAsMobile(e.target.checked); if(e.target.checked) setFormData(p=>({...p, whatsapp:p.mobile})); }} className="rounded" /> Same as mobile
-                      </label>
-                    </div>
-                    <input maxLength={10} inputMode="numeric" value={formData.whatsapp} disabled={addWhatsappSameAsMobile} onChange={(e)=>setFormData({...formData, whatsapp:e.target.value.replace(/\D/g,'')})} className={inputCls + ' text-sm p-2.5 ' + (addWhatsappSameAsMobile?'bg-bg-base opacity-80':'')} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Secondary Mobile</label>
-                    <input maxLength={10} inputMode="numeric" value={formData.secondaryMobile} onChange={(e)=>setFormData({...formData, secondaryMobile:e.target.value.replace(/\D/g,'')})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Email</label>
-                    <input type="email" value={formData.email} onChange={(e)=>setFormData({...formData, email:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Area</label>
-                    <input list="dl-add-area" value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
-                    <datalist id="dl-add-area">{AREAS.map(o=><option key={o} value={o} />)}</datalist></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">City</label>
-                    <input value={formData.city} onChange={(e)=>setFormData({...formData,city:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div className="col-span-1 sm:col-span-2 lg:col-span-3"><label className="block text-xs font-bold text-text-main mb-1">Address</label>
-                    <AutoResizeTextarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} minRows={2} className={inputCls + ' text-sm p-2.5'} /></div>
-                </div>
-              </div>
-
-              {/* Education & Profession */}
-              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
-                <h3 className="text-sm font-black text-text-main">Education &amp; Profession</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Qualification</label>
-                    <select value={formData.qualification} onChange={(e)=>setFormData({...formData,qualification:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{QUALIFICATIONS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Education / Stream</label>
-                    <input value={formData.education} onChange={(e)=>setFormData({...formData,education:e.target.value})} placeholder="e.g. B.Tech Computer" className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Education Status</label>
-                    <select value={formData.educationStatus} onChange={(e)=>setFormData({...formData,educationStatus:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      {EDUCATION_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">School / College</label>
-                    <input value={formData.school} onChange={(e)=>setFormData({...formData,school:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Profession</label>
-                    <select value={formData.profession} onChange={(e)=>setFormData({...formData,profession:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                      <option value="">— Select —</option>{PROFESSIONS.map(o=><option key={o}>{o}</option>)}</select></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Field</label>
-                    <input value={formData.professionField} onChange={(e)=>setFormData({...formData,professionField:e.target.value})} placeholder="e.g. Software Developer" className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Company</label>
-                    <input value={formData.companyName} onChange={(e)=>setFormData({...formData,companyName:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
-                </div>
-              </div>
-
-              {/* Satsang & Family */}
-              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
-                <h3 className="text-sm font-black text-text-main">Satsang &amp; Family</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Follow-up Karyakarta</label>
-                    <input list="dl-add-karyakarta" value={formData.followupKaryakarta} onChange={(e)=>{ const name=e.target.value; setFormData({...formData, followupKaryakarta:name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name)?'':formData.followupKaryakartaMobile)}); }} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
-                    <datalist id="dl-add-karyakarta">{karyakartaOptions.map(o=><option key={o} value={o} />)}</datalist></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Karyakarta Mobile</label>
-                    <input maxLength={10} inputMode="numeric" value={formData.followupKaryakartaMobile} onChange={(e)=>setFormData({...formData, followupKaryakartaMobile:e.target.value.replace(/\D/g,'')})} placeholder="Auto-fills on select" className={inputCls + ' text-sm p-2.5'} /></div>
-                  <div><label className="block text-xs font-bold text-text-main mb-1">Reference / Introduced By</label>
-                    <input list="dl-add-reference" value={formData.reference} onChange={(e)=>setFormData({...formData, reference:e.target.value})} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
-                    <datalist id="dl-add-reference">{referenceOptions.map(o=><option key={o} value={o} />)}</datalist></div>
-                </div>
-
-                {/* Family role */}
-                <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
-                  <label className="block text-xs font-bold text-text-main">Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></label>
-                  <FamilyHeadPicker heads={familyHeads} value={formData.familyId || ''} inputCls={inputCls + ' text-sm p-2.5'}
-                    onChange={(fid)=>{ if(!fid){ setFormData({...formData, familyId:'', type:'Primary', relation:'Self'}); return; } setFormData({...formData, familyId:fid, type:'Family', relation: formData.relation==='Self'?'':formData.relation, ...inheritFromHead(fid, formData)}); }} />
-                  {formData.familyId && (
-                    <>
-                      <select value={formData.relation} onChange={(e)=>setFormData({...formData, relation:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
-                        <option value="">— Relation to head —</option>{RELATIONS.filter(r=>r!=='Self').map(r=><option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <p className="text-[10px] font-semibold text-text-muted">Address &amp; follow-up karyakarta copied from the family head — edit above if needed.</p>
-                    </>
-                  )}
-                </div>
-
-                {/* Tags */}
-                <div>
-                  <label className="block text-xs font-bold text-text-main mb-1.5">Tags</label>
-                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-border-light bg-bg-base p-2">
-                    {tagsByCategory().flatMap(({ tags }) => tags).map(t => {
-                      const on = (formData.tags || []).includes(t.key);
-                      return (
-                        <button type="button" key={t.key}
-                          onClick={()=>setFormData(f=>({...f, tags: on ? f.tags.filter(k=>k!==t.key) : [...(f.tags||[]), t.key]}))}
-                          style={on ? tagChipStyle(t.key) : undefined}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div><label className="block text-xs font-bold text-text-main mb-1">Notes</label>
-                  <AutoResizeTextarea value={formData.notes} onChange={(e)=>setFormData({...formData,notes:e.target.value})} minRows={2} className={inputCls + ' text-sm p-2.5'} /></div>
-              </div>
-
-              <p className="text-[11px] font-semibold text-text-muted">Mandal <strong>Adajan</strong> and “created by” ({user?.name || 'you'}) are set automatically.</p>
-              <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-sm font-bold text-white shadow-md hover:bg-[#00223f]">Save Devotee</button>
-            </form>
-          </div>
-        </div>
-      , document.body)}
 
       {/* Profile — FULL-SCREEN (not a popup): the most-used view, so it fills the
           screen for easy reading and traversal. Portal to document.body to escape
@@ -1348,7 +1218,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
               <div className="px-5 sm:px-7 pb-4">
                 {/* Avatar overlapping the cover */}
-                <img src={selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=ffffff&bold=true&size=128&name=' + encodeURIComponent(selectedDevotee.name || '?')}
+                <img src={selectedDevotee.photo || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=ffffff&bold=true&size=128&name=' + encodeURIComponent(selectedDevotee.name || '?')}
                   alt={selectedDevotee.name}
                   className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl object-cover ring-4 ring-surface shadow-lg bg-surface -mt-10 sm:-mt-12" />
 
@@ -1443,7 +1313,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                             return (
                               <button key={m.id} onClick={() => { if (!isThis) openProfile(m); }}
                                 className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${isThis ? 'border-primary bg-primary/5 cursor-default' : 'border-border-light bg-surface hover:border-primary/40 hover:shadow-sm'}`}>
-                                <img src={m.avatar || 'https://ui-avatars.com/api/?background=EAF0F7&color=003158&bold=true&name=' + encodeURIComponent(m.name || '?')}
+                                <img src={m.photo || m.avatar || 'https://ui-avatars.com/api/?background=EAF0F7&color=003158&bold=true&name=' + encodeURIComponent(m.name || '?')}
                                   alt={m.name} className="h-11 w-11 rounded-xl object-cover border border-border-light shrink-0" />
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-bold text-text-main truncate">
