@@ -362,9 +362,8 @@ export const dataService = {
     const merged = normalizeDevotee({ ...prev, ...updatedFields, updatedOn: new Date().toISOString() });
     DB.devotees[idx] = merged;
     saveCache();
-    if (hasBackend()) {
-      await api('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
-    }
+    // Optimistic: return immediately; the write syncs in the background (with retry).
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
     return merged;
   },
 
@@ -387,9 +386,8 @@ export const dataService = {
     });
     DB.devotees.unshift(newDevotee);
     saveCache();
-    if (hasBackend()) {
-      await api('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
-    }
+    // Optimistic: return immediately; the insert syncs in the background (with retry).
+    push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
     return newDevotee;
   },
 
@@ -409,11 +407,8 @@ export const dataService = {
       }
     });
     saveCache();
-    if (hasBackend()) {
-       for (const d of toSync) {
-         await api('update', { collection: 'Devotees', keyField: 'id', key: d.id, row: toBackendRow(d) });
-       }
-    }
+    // One batched background request instead of one per devotee.
+    if (toSync.length) push('bulkUpdateTags', { ids, tagsToAdd, tagsToRemove, updatedBy: user });
   },
 
   // Replace the full tag array for several devotees at once. `entries` is
@@ -435,11 +430,8 @@ export const dataService = {
       toSync.push(DB.devotees[idx]);
     });
     saveCache();
-    if (hasBackend()) {
-      for (const d of toSync) {
-        await api('update', { collection: 'Devotees', keyField: 'id', key: d.id, row: toBackendRow(d) });
-      }
-    }
+    // One batched background request instead of one per devotee.
+    if (toSync.length) push('bulkSetTags', { rows: toSync.map(d => ({ id: d.id, tags: toBackendRow(d).tags })), updatedBy: user });
     return toSync.length;
   },
 
