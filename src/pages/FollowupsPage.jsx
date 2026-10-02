@@ -315,21 +315,21 @@ export default function FollowupsPage({ user }) {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, DOB or mobile…"
               className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
             {karyakartaOptions.length > 0 && (
               <select value={karyakarta} onChange={e => setKaryakarta(e.target.value)}
                 title="Filter to one karyakarta's devotees"
-                className={`rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ${karyakarta ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+                className={`col-span-2 sm:col-auto w-full sm:w-auto min-w-0 truncate rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ${karyakarta ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
                 <option value="">All karyakartas</option>
                 {karyakartaOptions.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
             )}
             <button onClick={() => setShowTagPanel(v => !v)}
-              className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+              className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
               <Filter className="h-4 w-4" /> Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}
             </button>
             <button onClick={() => setPendingOnly(v => !v)}
-              className={`rounded-2xl border px-4 py-2.5 text-sm font-bold ${pendingOnly ? 'border-[#FF862A] bg-amber-50 text-[#C8642B]' : 'border-border-light bg-surface text-text-muted'}`}>
+              className={`flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold ${pendingOnly ? 'border-[#FF862A] bg-amber-50 text-[#C8642B]' : 'border-border-light bg-surface text-text-muted'}`}>
               Pending only
             </button>
           </div>
