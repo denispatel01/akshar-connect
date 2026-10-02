@@ -179,6 +179,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [showTags, setShowTags] = useState(false); // separate Tags filter section (outside Filters)
+  const [sortBy, setSortBy] = useState(''); // '' = default | name | joinedDesc | joinedAsc
   // All directory filters are multi-select (arrays of selected values).
   const [filterKaryakartas, setFilterKaryakartas] = useState([]);
   const [filterAreas, setFilterAreas] = useState([]);
@@ -231,6 +232,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
+  // Reference picker: existing reference values first, then every devotee name, + free typing.
+  const referenceOptions = useMemo(
+    () => [...new Set([...uniqueReferences, ...devotees.map(d => d.name).filter(Boolean)])],
+    [uniqueReferences, devotees]);
   const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
@@ -238,9 +243,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
   const todayISO = new Date().toISOString().slice(0, 10);
   // New yuvak defaults: a new record is a Primary family head (self), male, joining today.
-  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', gender:'Male', dob:'',
-    bloodGroup:'', maritalStatus:'', profession:'', wing:'Yuva Wing', area:'', city:'Surat',
-    address:'', education:'', occupation:'', followupKaryakarta:'', followupKaryakartaMobile:'',
+  const blankForm = { name:'', firstName:'', middleName:'', lastName:'', mobile:'', whatsapp:'', secondaryMobile:'', email:'',
+    gender:'Male', dob:'', bloodGroup:'', maritalStatus:'', anniversary:'', yuvakType:'', photo:'',
+    qualification:'', education:'', educationStatus:'Completed', school:'',
+    profession:'', professionField:'', companyName:'',
+    address:'', area:'', city:'Surat', mandal:'Adajan',
+    followupKaryakarta:'', followupKaryakartaMobile:'', reference:'', notes:'', tags:[],
     familyId:'', type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
 
@@ -356,10 +364,16 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         .filter((x) => x.s >= 0)
         .sort((a, b) => b.s - a.s) // exact first, then partial, then fuzzy
         .map((x) => x.d);
+    } else if (sortBy) {
+      base = [...base].sort((a, b) => {
+        if (sortBy === 'joinedDesc') return String(b.dateOfJoining || '').localeCompare(String(a.dateOfJoining || ''));
+        if (sortBy === 'joinedAsc') return String(a.dateOfJoining || '').localeCompare(String(b.dateOfJoining || ''));
+        return String(a.name || '').localeCompare(String(b.name || '')); // name A-Z
+      });
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, sortBy, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -380,7 +394,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
     setSaving(true);
     try {
-      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name });
+      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name, mandal: formData.mandal || 'Adajan', createdBy: user?.name || '' });
       loadDevotees();
       setShowAddModal(false);
       setFormData(blankForm);
@@ -811,6 +825,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 (selectedTags.length ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
               Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}
             </button>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} title="Sort"
+              className={'rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ' +
+                (sortBy ? 'border-primary bg-primary/5 text-text-main' : 'border-border-light bg-surface text-text-muted')}>
+              <option value="">Sort: Default</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="joinedDesc">Recently joined</option>
+              <option value="joinedAsc">Oldest joined</option>
+            </select>
             
             <div className="flex gap-2">
                <button onClick={() => {
@@ -1136,122 +1158,137 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <button onClick={() => setShowAddModal(false)} className="grid h-9 w-9 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main"><X className="h-5 w-5" /></button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto bg-bg-base">
-            <form onSubmit={handleCreateSubmit} className="mx-auto w-full max-w-3xl space-y-3 p-4 sm:p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name']].map(([f,l]) => (
-                  <div key={f}><label className="block text-xs font-bold text-text-main mb-1">{l}</label>
-                    <input value={formData[f]} onChange={(e)=>setFormData({...formData,[f]:e.target.value})}
-                      className={inputCls + ' text-xs p-2.5'} /></div>
-                ))}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-text-main mb-1">Mobile *</label>
-                  <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    setFormData({ ...formData, mobile: val, ...(addWhatsappSameAsMobile ? { whatsapp: val } : {}) });
-                  }} className={inputCls + ' text-xs p-2.5'} />
+            <form onSubmit={handleCreateSubmit} className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6">
+              {/* Identity */}
+              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
+                <h3 className="text-sm font-black text-text-main">Identity</h3>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name']].map(([f,l]) => (
+                    <div key={f}><label className="block text-xs font-bold text-text-main mb-1">{l}</label>
+                      <input value={formData[f]} onChange={(e)=>setFormData({...formData,[f]:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  ))}
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Gender</label>
+                    <select value={formData.gender} onChange={(e)=>setFormData({...formData,gender:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{GENDERS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Date of Birth</label>
+                    <input type="date" value={formData.dob} onChange={(e)=>setFormData({...formData,dob:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Blood Group</label>
+                    <select value={formData.bloodGroup} onChange={(e)=>setFormData({...formData,bloodGroup:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{BLOOD_GROUPS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Marital Status</label>
+                    <select value={formData.maritalStatus} onChange={(e)=>setFormData({...formData,maritalStatus:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{MARITAL_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Yuvak Type</label>
+                    <select value={formData.yuvakType} onChange={(e)=>setFormData({...formData,yuvakType:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{YUVAK_TYPES.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div className="col-span-2 lg:col-span-3"><label className="block text-xs font-bold text-text-main mb-1">Photo URL</label>
+                    <input value={formData.photo} onChange={(e)=>setFormData({...formData,photo:e.target.value})} placeholder="https://…" className={inputCls + ' text-sm p-2.5'} /></div>
                 </div>
+              </div>
+
+              {/* Contact */}
+              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
+                <h3 className="text-sm font-black text-text-main">Contact</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Mobile *</label>
+                    <input required maxLength={10} inputMode="numeric" value={formData.mobile} onChange={(e)=>{ const v=e.target.value.replace(/\D/g,''); setFormData({...formData, mobile:v, ...(addWhatsappSameAsMobile?{whatsapp:v}:{})}); }} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-text-main">WhatsApp</label>
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer">
+                        <input type="checkbox" checked={addWhatsappSameAsMobile} onChange={(e)=>{ setAddWhatsappSameAsMobile(e.target.checked); if(e.target.checked) setFormData(p=>({...p, whatsapp:p.mobile})); }} className="rounded" /> Same as mobile
+                      </label>
+                    </div>
+                    <input maxLength={10} inputMode="numeric" value={formData.whatsapp} disabled={addWhatsappSameAsMobile} onChange={(e)=>setFormData({...formData, whatsapp:e.target.value.replace(/\D/g,'')})} className={inputCls + ' text-sm p-2.5 ' + (addWhatsappSameAsMobile?'bg-bg-base opacity-80':'')} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Secondary Mobile</label>
+                    <input maxLength={10} inputMode="numeric" value={formData.secondaryMobile} onChange={(e)=>setFormData({...formData, secondaryMobile:e.target.value.replace(/\D/g,'')})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Email</label>
+                    <input type="email" value={formData.email} onChange={(e)=>setFormData({...formData, email:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Area</label>
+                    <input list="dl-add-area" value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
+                    <datalist id="dl-add-area">{AREAS.map(o=><option key={o} value={o} />)}</datalist></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">City</label>
+                    <input value={formData.city} onChange={(e)=>setFormData({...formData,city:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div className="col-span-1 sm:col-span-2 lg:col-span-3"><label className="block text-xs font-bold text-text-main mb-1">Address</label>
+                    <AutoResizeTextarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} minRows={2} className={inputCls + ' text-sm p-2.5'} /></div>
+                </div>
+              </div>
+
+              {/* Education & Profession */}
+              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
+                <h3 className="text-sm font-black text-text-main">Education &amp; Profession</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Qualification</label>
+                    <select value={formData.qualification} onChange={(e)=>setFormData({...formData,qualification:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{QUALIFICATIONS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Education / Stream</label>
+                    <input value={formData.education} onChange={(e)=>setFormData({...formData,education:e.target.value})} placeholder="e.g. B.Tech Computer" className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Education Status</label>
+                    <select value={formData.educationStatus} onChange={(e)=>setFormData({...formData,educationStatus:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      {EDUCATION_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">School / College</label>
+                    <input value={formData.school} onChange={(e)=>setFormData({...formData,school:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Profession</label>
+                    <select value={formData.profession} onChange={(e)=>setFormData({...formData,profession:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                      <option value="">— Select —</option>{PROFESSIONS.map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Field</label>
+                    <input value={formData.professionField} onChange={(e)=>setFormData({...formData,professionField:e.target.value})} placeholder="e.g. Software Developer" className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Company</label>
+                    <input value={formData.companyName} onChange={(e)=>setFormData({...formData,companyName:e.target.value})} className={inputCls + ' text-sm p-2.5'} /></div>
+                </div>
+              </div>
+
+              {/* Satsang & Family */}
+              <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs space-y-3">
+                <h3 className="text-sm font-black text-text-main">Satsang &amp; Family</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Follow-up Karyakarta</label>
+                    <input list="dl-add-karyakarta" value={formData.followupKaryakarta} onChange={(e)=>{ const name=e.target.value; setFormData({...formData, followupKaryakarta:name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name)?'':formData.followupKaryakartaMobile)}); }} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
+                    <datalist id="dl-add-karyakarta">{karyakartaOptions.map(o=><option key={o} value={o} />)}</datalist></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Karyakarta Mobile</label>
+                    <input maxLength={10} inputMode="numeric" value={formData.followupKaryakartaMobile} onChange={(e)=>setFormData({...formData, followupKaryakartaMobile:e.target.value.replace(/\D/g,'')})} placeholder="Auto-fills on select" className={inputCls + ' text-sm p-2.5'} /></div>
+                  <div><label className="block text-xs font-bold text-text-main mb-1">Reference / Introduced By</label>
+                    <input list="dl-add-reference" value={formData.reference} onChange={(e)=>setFormData({...formData, reference:e.target.value})} placeholder="Select or type" className={inputCls + ' text-sm p-2.5'} />
+                    <datalist id="dl-add-reference">{referenceOptions.map(o=><option key={o} value={o} />)}</datalist></div>
+                </div>
+
+                {/* Family role */}
+                <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
+                  <label className="block text-xs font-bold text-text-main">Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></label>
+                  <FamilyHeadPicker heads={familyHeads} value={formData.familyId || ''} inputCls={inputCls + ' text-sm p-2.5'}
+                    onChange={(fid)=>{ if(!fid){ setFormData({...formData, familyId:'', type:'Primary', relation:'Self'}); return; } setFormData({...formData, familyId:fid, type:'Family', relation: formData.relation==='Self'?'':formData.relation, ...inheritFromHead(fid, formData)}); }} />
+                  {formData.familyId && (
+                    <>
+                      <select value={formData.relation} onChange={(e)=>setFormData({...formData, relation:e.target.value})} className={inputCls + ' text-sm p-2.5 bg-surface'}>
+                        <option value="">— Relation to head —</option>{RELATIONS.filter(r=>r!=='Self').map(r=><option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <p className="text-[10px] font-semibold text-text-muted">Address &amp; follow-up karyakarta copied from the family head — edit above if needed.</p>
+                    </>
+                  )}
+                </div>
+
+                {/* Tags */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-text-main">WhatsApp</label>
-                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer hover:text-text-main">
-                      <input type="checkbox" checked={addWhatsappSameAsMobile} onChange={(e) => {
-                        setAddWhatsappSameAsMobile(e.target.checked);
-                        if (e.target.checked) setFormData(prev => ({ ...prev, whatsapp: prev.mobile }));
-                      }} className="rounded text-text-main focus:ring-[#003158]" />
-                      Same as mobile
-                    </label>
+                  <label className="block text-xs font-bold text-text-main mb-1.5">Tags</label>
+                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-border-light bg-bg-base p-2">
+                    {tagsByCategory().flatMap(({ tags }) => tags).map(t => {
+                      const on = (formData.tags || []).includes(t.key);
+                      return (
+                        <button type="button" key={t.key}
+                          onClick={()=>setFormData(f=>({...f, tags: on ? f.tags.filter(k=>k!==t.key) : [...(f.tags||[]), t.key]}))}
+                          style={on ? tagChipStyle(t.key) : undefined}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>
+                      );
+                    })}
                   </div>
-                  <input maxLength={10} inputMode="numeric" value={formData.whatsapp || ''} disabled={addWhatsappSameAsMobile} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })}
-                    className={inputCls + ' text-xs p-2.5 ' + (addWhatsappSameAsMobile ? 'bg-bg-base opacity-80' : '')} />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Date of Birth</label>
-                  <input type="date" value={formData.dob} onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    className={inputCls + ' text-xs p-2.5'} /></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Gender</label>
-                  <select value={formData.gender} onChange={(e)=>setFormData({...formData,gender:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                    <option value="">— Select —</option>{GENDERS.map(o=><option key={o}>{o}</option>)}</select></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">Blood Group</label>
-                  <select value={formData.bloodGroup} onChange={(e)=>setFormData({...formData,bloodGroup:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                    <option value="">— Select —</option>{BLOOD_GROUPS.map(o=><option key={o}>{o}</option>)}</select></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Marital Status</label>
-                  <select value={formData.maritalStatus || ''} onChange={(e)=>setFormData({...formData,maritalStatus:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                    <option value="">— Select —</option>{MARITAL_STATUS.map(o=><option key={o}>{o}</option>)}</select></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">Profession</label>
-                  <select value={formData.profession || ''} onChange={(e)=>setFormData({...formData,profession:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                    <option value="">— Select —</option>{PROFESSIONS.map(o=><option key={o}>{o}</option>)}</select></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Education</label>
-                  <input value={formData.education} onChange={(e)=>setFormData({...formData,education:e.target.value})}
-                    placeholder="e.g. B.Tech Computer"
-                    className={inputCls + ' text-xs p-2.5'} /></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">Occupation</label>
-                  <input value={formData.occupation} onChange={(e)=>setFormData({...formData,occupation:e.target.value})}
-                    className={inputCls + ' text-xs p-2.5'} /></div>
-              </div>
-              <div><label className="block text-xs font-bold text-text-main mb-1">Address</label>
-                <AutoResizeTextarea value={formData.address} onChange={(e)=>setFormData({...formData,address:e.target.value})} minRows={2}
-                  className={inputCls + ' text-xs p-2.5'} /></div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Area</label>
-                  <input list="dl-add-area" value={formData.area} onChange={(e)=>setFormData({...formData,area:e.target.value})} className={inputCls + ' text-xs p-2.5'} />
-                  <datalist id="dl-add-area">{AREAS.map(o=><option key={o} value={o} />)}</datalist></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">City</label>
-                  <input value={formData.city} onChange={(e)=>setFormData({...formData,city:e.target.value})} className={inputCls + ' text-xs p-2.5'} /></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">Wing</label>
-                  <select value={formData.wing} onChange={(e)=>setFormData({...formData,wing:e.target.value})} className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                    {WINGS.map(o=><option key={o}>{o}</option>)}</select></div>
-              </div>
-              {/* Follow-up Karyakarta — pick from existing karyakartas; mobile auto-fills from their record */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-bold text-text-main mb-1">Follow-up Karyakarta</label>
-                  <input list="dl-add-karyakarta" value={formData.followupKaryakarta || ''}
-                    onChange={(e) => { const name = e.target.value; setFormData({ ...formData, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : formData.followupKaryakartaMobile) }); }}
-                    placeholder="Type or select a karyakarta"
-                    className={inputCls + ' text-xs p-2.5'} />
-                  <datalist id="dl-add-karyakarta">{karyakartaOptions.map(o=><option key={o} value={o} />)}</datalist></div>
-                <div><label className="block text-xs font-bold text-text-main mb-1">Karyakarta Mobile</label>
-                  <input maxLength={10} inputMode="numeric" value={formData.followupKaryakartaMobile || ''}
-                    onChange={(e) => setFormData({ ...formData, followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })}
-                    placeholder="Auto-fills on select"
-                    className={inputCls + ' text-xs p-2.5'} /></div>
+
+                <div><label className="block text-xs font-bold text-text-main mb-1">Notes</label>
+                  <AutoResizeTextarea value={formData.notes} onChange={(e)=>setFormData({...formData,notes:e.target.value})} minRows={2} className={inputCls + ' text-sm p-2.5'} /></div>
               </div>
 
-              {/* Family — link to a head and auto-inherit their address + karyakarta */}
-              <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
-                <label className="block text-xs font-bold text-text-main">Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></label>
-                <FamilyHeadPicker
-                  heads={familyHeads}
-                  value={formData.familyId || ''}
-                  inputCls={inputCls + ' text-xs p-2.5'}
-                  onChange={(fid) => {
-                    if (!fid) { setFormData({ ...formData, familyId: '', type: 'Primary', relation: 'Self' }); return; }
-                    setFormData({ ...formData, familyId: fid, type: 'Family',
-                      relation: formData.relation === 'Self' ? '' : formData.relation,
-                      ...inheritFromHead(fid, formData) });
-                  }}
-                />
-                {formData.familyId && (
-                  <>
-                    <select value={formData.relation || ''} onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
-                      className={inputCls + ' text-xs p-2.5 bg-surface'}>
-                      <option value="">— Relation to head —</option>
-                      {RELATIONS.filter(r => r !== 'Self').map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                    <p className="text-[10px] font-semibold text-text-muted">Address and follow-up karyakarta were copied from the family head — edit above if needed.</p>
-                  </>
-                )}
-              </div>
-
-              <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-xs font-bold text-white shadow-md hover:bg-[#00223f] mt-2">Save Devotee</button>
+              <p className="text-[11px] font-semibold text-text-muted">Mandal <strong>Adajan</strong> and “created by” ({user?.name || 'you'}) are set automatically.</p>
+              <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-sm font-bold text-white shadow-md hover:bg-[#00223f]">Save Devotee</button>
             </form>
           </div>
         </div>
@@ -1294,12 +1331,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               .ac-sweep{position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.28) 50%,transparent 80%);animation:acSweep 1.15s infinite}
             `}</style>
 
-            {/* LinkedIn-style header: cover banner, overlapping avatar, headline, quick actions */}
-            <div className="relative shrink-0 border-b border-border-light">
-              <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
-                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-black/20 text-white hover:bg-black/40 backdrop-blur-sm transition-colors z-10">
-                <X className="h-5 w-5" />
-              </button>
+            {/* Floating close — stays visible while the whole profile (header included) scrolls */}
+            <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
+              className="absolute right-4 z-30 grid h-9 w-9 place-items-center rounded-full bg-black/25 text-white hover:bg-black/45 backdrop-blur-sm transition-colors"
+              style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Everything scrolls — nothing is pinned */}
+            <div className="flex-1 min-h-0 overflow-y-auto bg-bg-base">
+            {/* Header: cover banner, overlapping avatar, headline, quick actions */}
+            <div className="relative border-b border-border-light">
 
               {/* Cover */}
               <div className="h-24 sm:h-28 bg-gradient-to-br from-primary via-[#013a6b] to-[#00223f]" />
@@ -1383,8 +1425,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               </div>
             </div>
 
-            {/* Body — single-scroll LinkedIn-style section cards */}
-            <div className="overflow-y-auto flex-1 min-h-0 bg-bg-base">
+            {/* Body — section cards (continues the same scroll as the header) */}
               <div className="w-full p-3 sm:p-4 space-y-3">
                 {PROFILE_SECTION_ORDER.map((sec) => {
                   // ── Family members card ──
