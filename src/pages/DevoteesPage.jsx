@@ -910,7 +910,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       {showTagFilter && (
         <div className="rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
           {/* Multi-select filter dropdowns */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2">
             <MultiSelect label="All Areas" options={uniqueAreas} selected={filterAreas} onChange={setFilterAreas} />
             <MultiSelect label="All Karyakartas" options={uniqueKaryakartas.map(k => ({ value: k, label: firstLastName(k) }))} selected={filterKaryakartas} onChange={setFilterKaryakartas} />
             <MultiSelect label="All References" options={uniqueReferences} selected={filterReferences} onChange={setFilterReferences} />
@@ -1005,7 +1005,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       {refreshing ? (
         <ListSkeleton count={6} />
       ) : filteredDevotees.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredDevotees.map((devotee) => {
             const expanded = expandedCard === devotee.id;
             const stop = (e) => e.stopPropagation();
@@ -1512,9 +1512,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   return (
                     <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                       <h3 className="text-sm font-black text-text-main mb-3">{sec}</h3>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4">
+                      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-4">
                         {fields.map(([f, label]) => (
-                          <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3' : ''}>
+                          <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3 xl:col-span-4' : ''}>
                             <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
                             {editing ? (
                               renderEditField(f, editData, setEditData)
