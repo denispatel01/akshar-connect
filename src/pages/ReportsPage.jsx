@@ -169,7 +169,7 @@ export default function ReportsPage({ setActivePage }) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 animate-slide-up">
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-text-main tracking-tight">Reports & Insights</h1>

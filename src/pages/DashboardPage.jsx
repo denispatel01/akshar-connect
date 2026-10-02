@@ -54,7 +54,9 @@ export default function DashboardPage({ setActivePage, user }) {
 
   const totalDevotees = devotees.length;
   const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish')).length;
-  const familiesCount = new Set(devotees.map(d => d.familyId).filter(Boolean)).size;
+  // One family per head (Primary member) — same definition the directory uses,
+  // so the family count matches everywhere.
+  const familiesCount = devotees.filter(d => d.type === 'Primary').length;
   const picked = pickRotatingThought(thoughts);
   const todaysThought = picked.thought || {
     author: 'Mahant Swami Maharaj',
@@ -87,7 +89,7 @@ export default function DashboardPage({ setActivePage, user }) {
   const isDevotee = user?.role === 'Devotee';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8">
         <img

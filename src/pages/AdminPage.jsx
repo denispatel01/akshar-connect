@@ -94,7 +94,7 @@ export default function AdminPage({ user }) {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 space-y-6">
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-text-main">Admin Settings & Control</h1>
         <p className="text-sm font-medium text-text-muted">
@@ -167,26 +167,6 @@ export default function AdminPage({ user }) {
               )}
             </div>
           </form>
-
-          {/* Existing users list */}
-          <div className="border-t border-border-light pt-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Existing users ({users.length})</p>
-            <div className="space-y-2 max-h-[320px] overflow-auto">
-              {users.length === 0 && <p className="text-xs text-text-muted">No users yet.</p>}
-              {users.map((u) => (
-                <div key={u.mobile} className="flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base px-3 py-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white text-xs font-bold">{(u.name || 'U')[0]}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-text-main truncate">{u.name || '—'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}</p>
-                    <p className="text-[11px] text-text-muted">+91 {u.mobile}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === 'Admin' ? 'bg-red-50 text-red-600' : u.role === 'Sevak' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{u.role || 'Devotee'}</span>
-                  <button onClick={() => editUser(u)} title="Edit" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
-                  <button onClick={() => removeUser(u)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -295,21 +275,31 @@ export default function AdminPage({ user }) {
         </div>
 
         <div className="space-y-3">
+          {users.length === 0 && <p className="text-xs text-text-muted">No users yet.</p>}
           {users.map((u, i) => (
-            <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border border-border-light bg-bg-base">
-              <div>
-                <p className="text-xs font-bold text-text-main">{u.name || 'User'} ({u.mobile})</p>
-                <p className="text-[10px] text-slate-400">
+            <div key={i} className="flex items-center gap-3 p-3.5 rounded-2xl border border-border-light bg-bg-base">
+              <div className="h-10 w-10 shrink-0 grid place-items-center rounded-xl bg-primary text-white text-sm font-bold">{(u.name || 'U')[0]}</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-text-main truncate">
+                  {u.name || 'User'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}
+                </p>
+                <p className="text-[11px] font-semibold text-text-muted">+91 {u.mobile}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
                   PIN: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.pin || '—') : '••••'}</span>
                   {' • '}Password: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.password || '—') : '••••••••'}</span>
                 </p>
               </div>
-
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+              <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
                 u.role === 'Admin' ? 'bg-red-100 text-red-700' : u.role === 'Sevak' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
               }`}>
-                {u.role}
+                {u.role || 'Devotee'}
               </span>
+              {isAdmin && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => editUser(u)} title="Edit" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => removeUser(u)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              )}
             </div>
           ))}
         </div>
