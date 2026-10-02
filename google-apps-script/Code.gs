@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
@@ -137,6 +137,8 @@ function handle_(p){
   try{
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
     ensureSheets_();
+    if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
+    if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
@@ -169,6 +171,8 @@ function handle_(p){
     if(action==='markAttendance') { var res = doMark_(p); sendNotificationEmail_('MARK_ATTENDANCE', 'Attendance', p); return res; }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
+    if(action==='deleteUser') return doDeleteUser_(p);
+    if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
 }
@@ -217,11 +221,28 @@ function doSaveFollowup_(p){
 }
 
 function doUpsertUser_(p){
-  var rn=findRow_('Users','mobile',p.mobile);
-  var row={ mobile:p.mobile, pin:p.pin||'', password:p.password||'', role:p.role||'Devotee', name:p.name||'Satsangi Devotee' };
-  if(rn>0) tab_('Users').getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
+  var sh=tab_('Users'), rn=findRow_('Users','mobile',p.mobile);
+  // Merge with the existing row so a partial update (e.g. only password) does
+  // not wipe the other fields.
+  var cur={ mobile:p.mobile, pin:'', password:'', role:'Devotee', name:'Satsangi Devotee' };
+  if(rn>0){ var v=sh.getRange(rn,1,1,HEADERS.Users.length).getValues()[0];
+    HEADERS.Users.forEach(function(h,i){ cur[h]=v[i]; }); }
+  var row={
+    mobile:p.mobile,
+    pin: (p.pin!==undefined && p.pin!=='') ? p.pin : cur.pin,
+    password: (p.password!==undefined && p.password!=='') ? p.password : cur.password,
+    role: p.role || cur.role || 'Devotee',
+    name: p.name || cur.name || 'Satsangi Devotee'
+  };
+  if(rn>0) sh.getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
   else appendRows_('Users',[row]);
   return json_({ ok:true, user:row });
+}
+
+function doDeleteUser_(p){
+  var rn=findRow_('Users','mobile',p.mobile);
+  if(rn>0) tab_('Users').deleteRow(rn);
+  return json_({ ok:true });
 }
 
 function sendNotificationEmail_(action, collection, row) {
@@ -248,6 +269,23 @@ function sendNotificationEmail_(action, collection, row) {
     });
   } catch(e) {
   }
+}
+
+// Mail shooter: email the admin when a user hits a runtime error in the app.
+function sendErrorEmail_(p){
+  try{
+    var email='denispatel01@gmail.com';
+    var who=(p && (p.user||p.mobile)) || 'unknown user';
+    var subject='Akshar Connect ERROR — '+String(p && p.message || 'app error').slice(0,120);
+    var body='A user hit an error in Akshar Connect.\n\n'
+      +'User: '+who+'\n'
+      +'When: '+(p && p.time || new Date().toISOString())+'\n'
+      +'Page: '+(p && p.page || '')+'\n'
+      +'Message: '+(p && p.message || '')+'\n\n'
+      +'Stack:\n'+String(p && p.stack || '').slice(0,4000)+'\n\n'
+      +'UserAgent: '+(p && p.ua || '');
+    MailApp.sendEmail({ to: email, subject: subject, body: body });
+  }catch(e){}
 }
 
 function doBulkUpdateTags_(p) {
@@ -293,4 +331,91 @@ function doBulkUpdateTags_(p) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ── One-time Old/New classification (run via clasp) ─────────────────────────
+// Marks the listed people and their whole family as "Old", everyone else "New".
+function classifyOldNewNow(){
+  ensureSheets_();
+  var name='Devotees', sh=tab_(name), head=HEADERS[name];
+  var last=sh.getLastRow(); if(last<2) return 'no rows';
+  var idI=head.indexOf('id'), nmI=head.indexOf('name'), fI=head.indexOf('firstName'),
+      lI=head.indexOf('lastName'), famI=head.indexOf('familyId'), onI=head.indexOf('oldNew');
+  var rng=sh.getRange(2,1,last-1,head.length), v=rng.getValues();
+  var OLD=[['Hemant','Ahir'],['Hasmukh','Chandegara'],['Suketu','Thakor'],['Vrajesh','Panchal'],
+    ['Pratik','Patel'],['Ashwin','Patel'],['Aman','Jadav'],['Prerak','Ariwala'],
+    ['Nirdosh','Patel'],['Ashish','Makwana'],['Rigal','Patel'],['Girish','Bodiwala'],
+    ['Jenish','Bodiwala'],['Nanu','Ahir'],['Bhadresh','Gandhi'],['Mehul','Gandhi'],
+    ['Akshit','Panchal'],['Yogesh','Panchal'],['Yogesh','Bhagat'],['Kanti','Sakanwala'],
+    ['Nilesh','Chapaneriya'],['Digesh','Patel'],['Priyank','Mistry'],['Milan','Bhatt'],
+    ['Ravi','Papoliwala']];
+  function nn(s){return String(s||'').toLowerCase().replace(/bhai|kumar/g,'').replace(/[^a-z]/g,'');}
+  function fm(a,b){return a&&b&&(a===b||a.indexOf(b)===0||b.indexOf(a)===0);}
+  var oldFam={};
+  for(var i=0;i<v.length;i++){
+    var r=v[i], parts=String(r[nmI]||'').trim().split(/\s+/);
+    var f=nn(r[fI]||parts[0]||''), l=nn(r[lI]||(parts.length>1?parts[parts.length-1]:''));
+    for(var j=0;j<OLD.length;j++){ if(l===nn(OLD[j][1]) && fm(f,nn(OLD[j][0]))){ oldFam[r[famI]||r[idI]]=1; break; } }
+  }
+  var oldN=0,newN=0;
+  for(var i=0;i<v.length;i++){
+    var r=v[i]; if(oldFam[r[famI]||r[idI]]){ r[onI]='Old'; oldN++; } else { r[onI]='New'; newN++; }
+  }
+  rng.setValues(v);
+  return 'Old='+oldN+' New='+newN+' families='+Object.keys(oldFam).length;
+}
+
+// One-time Reference marking. Idempotent: resets every current "Reference" back
+// to "New", then re-marks. Each listed person's family (its "New" members) is
+// set to "Reference"; Old rows are never touched. Where a name matches more than
+// one family, the newest record (highest HPP number) wins — that is the freshly
+// entered reference contact rather than an established namesake family.
+// [first, last, middle?] — middle only where needed to disambiguate.
+var REF_PEOPLE = [
+  ['Rajesh','Surati'],['Kamlesh','Gajjar'],['Mitesh','Patel','Govind'],['Pravin','Bhajiwala'],
+  ['Smit','Pastagiya'],['Mehul','Pastagiya'],['Heena','Hajariwala'],['Priti','Gandhi'],
+  ['Kumarkant','Bakariwala'],['Lata','Rathod'],['Nehal','Modi'],['Pinkesh','Ganjawala'],
+  ['Jenish','Ganjawala'],['Parth','Modi'],['Kamlesh','Oza'],
+  ['Vijay','Patel'],['Bhavesh','Rathod'],['Jayesh','Shivde'],['Bharat','Bakariwala'],
+  ['Ashish','Bhatia'],['Rakesh','Lad'],['Parth','Gandhi']
+];
+// People with no usable surname — identified directly by their record id.
+var REF_IDS = ['HPP-548','HPP-552','HPP-554','HPP-555','HPP-556','HPP-557'];
+function _nn(s){return String(s||'').toLowerCase().replace(/bhai|kumar|ben/g,'').replace(/[^a-z]/g,'');}
+function _fm(a,b){return a&&b&&(a===b||a.indexOf(b)===0||b.indexOf(a)===0);}
+function _idNum(id){var m=String(id||'').match(/(\d+)/);return m?parseInt(m[1],10):-1;}
+function markReferenceNow(){
+  var name='Devotees', sh=tab_(name), head=HEADERS[name];
+  var last=sh.getLastRow(); if(last<2) return 'no rows';
+  var idI=head.indexOf('id'), nmI=head.indexOf('name'), fI=head.indexOf('firstName'),
+      lI=head.indexOf('lastName'), famI=head.indexOf('familyId'), onI=head.indexOf('oldNew');
+  var rng=sh.getRange(2,1,last-1,head.length), v=rng.getValues();
+  var rows=v.map(function(r){
+    var full=String(r[nmI]||''), parts=full.trim().split(/\s+/);
+    return { id:r[idI], f:_nn(r[fI]||parts[0]||''), l:_nn(r[lI]||(parts.length>1?parts[parts.length-1]:'')),
+             full:_nn(full), fam:(r[famI]||r[idI]), num:_idNum(r[idI]) };
+  });
+  // reset previous Reference -> New for idempotency
+  for(var i=0;i<v.length;i++){ if(String(v[i][onI]||'').toLowerCase()==='reference') v[i][onI]='New'; }
+  var refFam={}, unmatched=[];
+  for(var j=0;j<REF_PEOPLE.length;j++){
+    var of=_nn(REF_PEOPLE[j][0]), ol=_nn(REF_PEOPLE[j][1]), om=_nn(REF_PEOPLE[j][2]||'');
+    var cand=null;
+    for(var i=0;i<rows.length;i++){
+      if(rows[i].l===ol && _fm(rows[i].f,of) && (!om || rows[i].full.indexOf(om)>=0)){
+        if(!cand || rows[i].num>cand.num) cand=rows[i]; // newest wins
+      }
+    }
+    if(!cand) unmatched.push(REF_PEOPLE[j].join(' ')); else refFam[cand.fam]=1;
+  }
+  // explicit ids (no-surname people) -> their family
+  for(var q=0;q<REF_IDS.length;q++){
+    for(var i=0;i<rows.length;i++){ if(rows[i].id===REF_IDS[q]){ refFam[rows[i].fam]=1; break; } }
+  }
+  var setN=0;
+  for(var i=0;i<v.length;i++){
+    if(refFam[rows[i].fam] && String(v[i][onI]||'').toLowerCase()==='new'){ v[i][onI]='Reference'; setN++; }
+  }
+  rng.setValues(v);
+  return 'set='+setN+' | UNMATCHED: '+(unmatched.join(', ')||'none');
 }

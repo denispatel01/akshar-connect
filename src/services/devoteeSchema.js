@@ -214,3 +214,58 @@ export function hasAnyTag(devotee, keys) {
 
 // Sanity check: every catalog tag key is unique & kebab-case (dev aid).
 export const _TAG_KEYS = TAG_KEYS;
+
+// ---- Follow-up Karyakarta reconciliation -----------------------------------
+// Follow-up karyakarta was historically free-typed, so the same person appears
+// under spelling / "bhai"-suffix variants ("Ravibhai Ashvinbhai Papoliwala" vs
+// the devotee record "Ravi Ashwinbhai Papoliwala"). These helpers fuzzy-match
+// each distinct value to the best devotee record so names can be reconciled to
+// the Devotees tab (and the karyakarta's mobile pulled from that record).
+function nameTokens(s) {
+  return String(s || '').toLowerCase()
+    .replace(/\(.*?\)/g, ' ')          // drop parentheticals e.g. "(Denis)"
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/).filter(Boolean)
+    .map(t => t.replace(/bhai$/, '').replace(/kumar$/, '')) // normalise honorific suffixes
+    .filter(Boolean);
+}
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[m][n];
+}
+const tokenSim = (x, y) => 1 - levenshtein(x, y) / Math.max(x.length, y.length);
+function nameScore(aTok, bTok) {
+  if (!aTok.length || !bTok.length) return 0;
+  let total = 0;
+  for (const a of aTok) { let best = 0; for (const b of bTok) best = Math.max(best, tokenSim(a, b)); total += best; }
+  return total / aTok.length;
+}
+
+// Build the reconciliation plan (pure — no writes). Returns one entry per
+// distinct follow-up karyakarta value, most-used first.
+export function buildKaryakartaReconcilePlan(devotees, minScore = 0.85) {
+  const counts = new Map();
+  devotees.forEach(d => { const k = (d.followupKaryakarta || '').trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+  const devTok = devotees.map(d => ({ d, tok: nameTokens(d.name) }));
+  const groups = [];
+  for (const [value, count] of counts) {
+    const vt = nameTokens(value);
+    let best = null, bestScore = -1;
+    for (const { d, tok } of devTok) {
+      const s = (nameScore(vt, tok) + nameScore(tok, vt)) / 2;
+      if (s > bestScore) { bestScore = s; best = d; }
+    }
+    const score = +Math.max(bestScore, 0).toFixed(3);
+    const match = best ? { id: best.id, name: best.name, mobile: best.mobile } : null;
+    const confident = !!match && score >= minScore;
+    groups.push({ value, count, match, score, exact: !!match && value === best.name, willRename: confident && value !== best.name, confident });
+  }
+  groups.sort((a, b) => b.count - a.count);
+  return groups;
+}

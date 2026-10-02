@@ -1,5 +1,5 @@
 import { INITIAL_DEVOTEES, INITIAL_SABHAS, INITIAL_THOUGHTS, INITIAL_USERS } from './mockData';
-import { normalizeDevotee, toBackendRow, withTag } from './devoteeSchema';
+import { normalizeDevotee, toBackendRow, withTag, buildKaryakartaReconcilePlan, parseTags } from './devoteeSchema';
 
 // ===== Live backend =====================================================
 // Replaced at build time with the deployed Apps Script /exec URL.
@@ -82,6 +82,43 @@ function ensureSeedAdminPin_() {
 }
 
 // Called once from main.jsx BEFORE the app renders.
+// People (first + last) who — together with their whole family — are "Old".
+// Everyone else is "New". Used once by the bootstrap classification.
+const OLD_PEOPLE = [
+  ['Hemant', 'Ahir'], ['Hasmukh', 'Chandegara'], ['Suketu', 'Thakor'], ['Vrajesh', 'Panchal'],
+  ['Pratik', 'Patel'], ['Ashwin', 'Patel'], ['Aman', 'Jadav'], ['Prerak', 'Ariwala'],
+  ['Nirdosh', 'Patel'], ['Ashish', 'Makwana'], ['Rigal', 'Patel'], ['Girish', 'Bodiwala'],
+  ['Jenish', 'Bodiwala'], ['Nanu', 'Ahir'], ['Bhadresh', 'Gandhi'], ['Mehul', 'Gandhi'],
+  ['Akshit', 'Panchal'], ['Yogesh', 'Panchal'], ['Yogesh', 'Bhagat'], ['Kanti', 'Sakanwala'],
+  ['Nilesh', 'Chapaneriya'], ['Digesh', 'Patel'], ['Priyank', 'Mistry'], ['Milan', 'Bhatt'],
+  ['Ravi', 'Papoliwala'],
+];
+
+// Normalize a name part: lowercase, drop honorific suffixes, keep letters only.
+const normName_ = (s) => String(s || '').toLowerCase().replace(/bhai|kumar/g, '').replace(/[^a-z]/g, '');
+
+function firstLast_(dv) {
+  const parts = String(dv.name || '').trim().split(/\s+/).filter(Boolean);
+  const first = dv.firstName || parts[0] || '';
+  const last = dv.lastName || (parts.length > 1 ? parts[parts.length - 1] : '');
+  return [normName_(first), normName_(last)];
+}
+
+// First names match if equal or one is a prefix of the other (handles
+// "Priyank" vs "Priyankkumar", "Digesh" vs "Digesh (Denis)").
+const firstMatch_ = (a, b) => a && b && (a === b || a.startsWith(b) || b.startsWith(a));
+
+// Returns the Set of familyIds that should be marked Old.
+function classifyOldFamilies_(devotees) {
+  const old = OLD_PEOPLE.map(([f, l]) => [normName_(f), normName_(l)]);
+  const families = new Set();
+  devotees.forEach((dv) => {
+    const [f, l] = firstLast_(dv);
+    if (old.some(([of, ol]) => l === ol && firstMatch_(f, of))) families.add(dv.familyId || dv.id);
+  });
+  return families;
+}
+
 async function bootstrap() {
   if (!hasBackend()) { loadDemo(); return { mode: 'demo' }; }
   try {
@@ -89,6 +126,32 @@ async function bootstrap() {
     DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
     DB.attendance = d.attendance || []; DB.followups = d.followups || [];
+    // Self-healing: if any stored devotee still carries a tag that is no longer
+    // in the catalog (e.g. a removed tag) or a duplicate, rewrite the cleaned
+    // rows once. normalizeDevotee already stripped them in-memory, so this just
+    // persists the purge. Self-terminating: once the sheet is clean it stops.
+    const rawDevotees = d.devotees || [];
+    const needsTagPurge = rawDevotees.some(r => {
+      const rawKeys = String(r.tags || '').split(/[|,]/).map(s => s.trim()).filter(Boolean);
+      const cleaned = parseTags(r.tags);
+      return rawKeys.length !== cleaned.length || rawKeys.some(k => !cleaned.includes(k));
+    });
+    if (needsTagPurge && DB.devotees.length) {
+      try { await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) }); } catch (e) { /* non-fatal */ }
+    }
+    // One-time Old/New classification. Runs only while some devotee still has a
+    // blank oldNew (i.e. before this has ever been applied). The listed people
+    // and everyone in their family are marked Old; everyone else New. Once every
+    // record has a value it never runs again, and new devotees default to New.
+    const needsOldNew = DB.devotees.length && (d.devotees || []).some(r => !String(r.oldNew || '').trim());
+    if (needsOldNew) {
+      const oldFamilyIds = classifyOldFamilies_(DB.devotees);
+      DB.devotees = DB.devotees.map(dv => normalizeDevotee({
+        ...dv,
+        oldNew: oldFamilyIds.has(dv.familyId || dv.id) ? 'Old' : 'New',
+      }));
+      try { await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) }); } catch (e) { /* non-fatal */ }
+    }
     // First run: populate the new sheet with the bundled devotee list.
     if (DB.devotees.length === 0 && INITIAL_DEVOTEES.length) {
       await api('seedDevotees', { rows: INITIAL_DEVOTEES.map(r => toBackendRow(normalizeDevotee(r))) });
@@ -121,6 +184,52 @@ export const dataService = {
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
     if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return { success: true, user }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
+  },
+
+  // Devotee self-login: mobile + DOB. Password is the date of birth in
+  // dd-MM-yyyy (e.g. 01121995). A 2-digit year (ddMMyy) is still accepted.
+  loginWithDob: async (mobile, dob) => {
+    // Find matching devotee record
+    const devotee = DB.devotees.find(d => String(d.mobile) === String(mobile));
+    if (!devotee) throw new Error('No devotee found with this mobile number.');
+    if (!devotee.dob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
+    // DOB stored as YYYY-MM-DD → build the accepted ddMMyyyy / ddMMyy forms.
+    const [y, m, d] = devotee.dob.split('-');
+    const entered = String(dob).replace(/\D/g, '');
+    const expectedFull  = `${d}${m}${y}`;          // ddMMyyyy
+    const expectedShort = `${d}${m}${y.slice(2)}`; // ddMMyy (legacy)
+    if (entered !== expectedFull && entered !== expectedShort)
+      throw new Error('Incorrect date of birth. Use format DD-MM-YYYY (e.g. 01-12-1995).');
+    // Build a session user object for the devotee
+    const sessionUser = {
+      mobile: String(mobile),
+      name: devotee.name || 'Devotee',
+      role: 'Devotee',
+      pin: '',
+      password: '',
+      devoteeId: devotee.id,   // anchor to their own record
+      familyId: devotee.familyId || devotee.id,
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    return { success: true, user: sessionUser };
+  },
+
+  // Fire-and-forget: email the admin when a user hits a runtime error.
+  reportError: (info) => {
+    try {
+      if (!hasBackend()) return;
+      const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      const body = JSON.stringify({
+        action: 'logError',
+        user: sess?.name || '', mobile: sess?.mobile || '',
+        message: String(info?.message || info || '').slice(0, 500),
+        stack: String(info?.stack || '').slice(0, 4000),
+        page: info?.page || (typeof location !== 'undefined' ? location.hash : ''),
+        ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        time: new Date().toISOString(),
+      });
+      fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, keepalive: true }).catch(() => {});
+    } catch (e) { /* never throw from the error reporter */ }
   },
 
   loginWithPassword: async (mobile, password) => {
@@ -163,6 +272,56 @@ export const dataService = {
     return user;
   },
 
+  // Create or edit a system user (Admin). Merges with the existing record so a
+  // partial edit (e.g. just the role) keeps the pin/password.
+  saveUser: (u) => {
+    const mobile = String(u.mobile || '').trim();
+    const idx = DB.users.findIndex(x => String(x.mobile) === mobile);
+    const cur = idx >= 0 ? DB.users[idx] : {};
+    const user = {
+      mobile,
+      name: (u.name ?? cur.name) || 'Satsangi Devotee',
+      role: (u.role ?? cur.role) || 'Devotee',
+      pin: (u.pin !== undefined && u.pin !== '') ? String(u.pin) : (cur.pin || ''),
+      password: (u.password !== undefined && u.password !== '') ? u.password : (cur.password || ''),
+    };
+    if (idx >= 0) DB.users[idx] = user; else DB.users.push(user);
+    saveCache();
+    // Send only the fields we intend to change (backend merges the rest).
+    const payload = { mobile, name: user.name, role: user.role };
+    if (u.pin !== undefined && u.pin !== '') payload.pin = String(u.pin);
+    if (u.password !== undefined && u.password !== '') payload.password = u.password;
+    push('upsertUser', payload);
+    return user;
+  },
+
+  deleteUserAndSync: async (mobile) => {
+    DB.users = DB.users.filter(x => String(x.mobile) !== String(mobile));
+    saveCache();
+    if (hasBackend()) await api('deleteUser', { mobile: String(mobile) });
+  },
+
+  // Change the signed-in user's own password and/or PIN. Works for staff and
+  // devotees; for a devotee (no Users row yet) it creates one so they can then
+  // also sign in with the new password/PIN.
+  changeMyCredentials: async ({ password, pin } = {}) => {
+    const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (!sess || !sess.mobile) throw new Error('You must be signed in.');
+    const payload = { mobile: String(sess.mobile), name: sess.name, role: sess.role || 'Devotee' };
+    if (password) payload.password = password;
+    if (pin) payload.pin = String(pin);
+    if (!password && !pin) throw new Error('Enter a new password or PIN.');
+    if (hasBackend()) await api('upsertUser', payload);
+    // reflect locally
+    const idx = DB.users.findIndex(x => String(x.mobile) === String(sess.mobile));
+    const merged = { ...(idx >= 0 ? DB.users[idx] : {}), ...payload };
+    if (idx >= 0) DB.users[idx] = merged; else DB.users.push(merged);
+    const newSess = { ...sess, ...(password ? { password } : {}), ...(pin ? { pin: String(pin) } : {}) };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newSess));
+    saveCache();
+    return { success: true, user: newSess };
+  },
+
   getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
   logout: () => localStorage.removeItem(SESSION_KEY),
 
@@ -178,6 +337,7 @@ export const dataService = {
       id: `HPP-${nextNum}`,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
+      oldNew: devotee.oldNew || 'New', // newly added devotees default to New
       createdOn: now, updatedOn: now, createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System',
     });
     DB.devotees.unshift(newDevotee); saveCache();
@@ -211,11 +371,18 @@ export const dataService = {
   addDevoteeAndSync: async (devotee) => {
     const nextNum = DB.devotees.length + 1;
     const now = new Date().toISOString();
+    const id = `HPP-${nextNum}`;
+    // A primary member (family head) is their own family — auto-generate the
+    // Family ID from their own record ID so it's populated immediately.
+    const isPrimary = devotee.type === 'Primary' || !devotee.type;
+    const familyId = devotee.familyId || (isPrimary ? id : '');
     const newDevotee = normalizeDevotee({
       ...devotee,
-      id: `HPP-${nextNum}`,
+      id,
+      familyId,
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
+      oldNew: devotee.oldNew || 'New', // newly added devotees default to New
       createdOn: now, updatedOn: now,
     });
     DB.devotees.unshift(newDevotee);
@@ -249,6 +416,33 @@ export const dataService = {
     }
   },
 
+  // Replace the full tag array for several devotees at once. `entries` is
+  // [{ id, tags }] — used by the swipe-through bulk tagger where each devotee
+  // gets its own complete tag set. Only devotees whose tags actually changed
+  // are synced to the backend.
+  bulkSetTagsAndSync: async (entries) => {
+    const now = new Date().toISOString();
+    const user = JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System';
+    const toSync = [];
+    entries.forEach(({ id, tags }) => {
+      const idx = DB.devotees.findIndex(d => d.id === id);
+      if (idx === -1) return;
+      const nextTags = parseTags(tags); // normalize/dedupe to valid keys
+      const prev = DB.devotees[idx].tags || [];
+      const changed = prev.length !== nextTags.length || prev.some(t => !nextTags.includes(t));
+      if (!changed) return;
+      DB.devotees[idx] = normalizeDevotee({ ...DB.devotees[idx], tags: nextTags, updatedOn: now, updatedBy: user });
+      toSync.push(DB.devotees[idx]);
+    });
+    saveCache();
+    if (hasBackend()) {
+      for (const d of toSync) {
+        await api('update', { collection: 'Devotees', keyField: 'id', key: d.id, row: toBackendRow(d) });
+      }
+    }
+    return toSync.length;
+  },
+
   setDevoteeTag: (id, tagKey, on, exclusiveKeys = []) => {
     const d = DB.devotees.find(x => x.id === id);
     if (!d) return null;
@@ -275,6 +469,34 @@ export const dataService = {
   },
   bundledDevoteeCount: () => INITIAL_DEVOTEES.length,
 
+  // Preview the follow-up karyakarta reconciliation without writing anything.
+  planKaryakartaReconcile: (minScore = 0.85) => buildKaryakartaReconcilePlan(DB.devotees, minScore),
+
+  // Reconcile every devotee's follow-up karyakarta name to its matching devotee
+  // record, and fill the karyakarta mobile from that record. Single atomic sheet
+  // write (replaceDevotees), same trusted path as the bundled-data import.
+  reconcileKaryakartaNamesAndSync: async (minScore = 0.85) => {
+    const groups = buildKaryakartaReconcilePlan(DB.devotees, minScore);
+    const map = new Map();
+    groups.forEach(g => { if (g.confident && g.match) map.set(g.value, g.match); });
+    let recordsChanged = 0, renamed = 0, mobilesFilled = 0;
+    DB.devotees = DB.devotees.map(d => {
+      const cur = (d.followupKaryakarta || '').trim();
+      const m = map.get(cur);
+      if (!m) return d;
+      const nameDiff = d.followupKaryakarta !== m.name;
+      const mobileDiff = (d.followupKaryakartaMobile || '') !== (m.mobile || '');
+      if (!nameDiff && !mobileDiff) return d;
+      if (nameDiff) renamed++;
+      if (mobileDiff) mobilesFilled++;
+      recordsChanged++;
+      return normalizeDevotee({ ...d, followupKaryakarta: m.name, followupKaryakartaMobile: m.mobile });
+    });
+    saveCache();
+    if (hasBackend()) await api('replaceDevotees', { rows: DB.devotees.map(toBackendRow) });
+    return { recordsChanged, renamed, mobilesFilled, groups };
+  },
+
   // ---- Sabhas & Attendance ----
   getSabhas: () => DB.sabhas,
 
@@ -283,6 +505,22 @@ export const dataService = {
     DB.sabhas.unshift(newSabha); saveCache();
     push('insert', { collection: 'Sabhas', row: newSabha });
     return newSabha;
+  },
+
+  updateSabha: (id, fields) => {
+    const idx = DB.sabhas.findIndex(s => s.id === id);
+    if (idx === -1) return null;
+    const merged = { ...DB.sabhas[idx], ...fields, id };
+    DB.sabhas[idx] = merged; saveCache();
+    push('update', { collection: 'Sabhas', keyField: 'id', key: id, row: merged });
+    return merged;
+  },
+
+  deleteSabha: (id) => {
+    DB.sabhas = DB.sabhas.filter(s => s.id !== id);
+    DB.followups = DB.followups.filter(f => f.eventId !== id);
+    saveCache();
+    push('remove', { collection: 'Sabhas', keyField: 'id', key: id });
   },
 
   markAttendance: (sabhaId, devoteeId, present = true) => {
