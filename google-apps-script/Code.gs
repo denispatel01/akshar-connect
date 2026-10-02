@@ -176,6 +176,7 @@ function handle_(p){
     ensureSheets_();
     if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
     if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
+    if(action==='syncFamilyFields') return json_({ ok:true, result: syncFamilyFieldsNow() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
@@ -368,6 +369,41 @@ function doBulkUpdateTags_(p) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Copy each family head's (Primary member's) address, follow-up karyakarta and
+// karyakarta mobile down to every member of that family — a family shares one
+// address and one karyakarta. Only non-empty head values overwrite; the head's
+// own row is never changed. Saves a timestamped backup tab first.
+function syncFamilyFieldsNow(){
+  var name='Devotees', sh=tab_(name), H=HEADERS[name], last=sh.getLastRow();
+  if(last<2) return 'no rows';
+  try{ sh.copyTo(ss_()).setName(name+'_bak_'+Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); }catch(e){}
+  var famI=H.indexOf('familyId'), typeI=H.indexOf('type'),
+      addrI=H.indexOf('address'), areaI=H.indexOf('area'),
+      kkI=H.indexOf('followupKaryakarta'), kkmI=H.indexOf('followupKaryakartaMobile');
+  var rng=sh.getRange(2,1,last-1,H.length), v=rng.getValues();
+  var head={};
+  for(var i=0;i<v.length;i++){
+    var fid=v[i][famI]; if(!fid) continue;
+    if(String(v[i][typeI])==='Primary'){
+      head[fid]={ a:v[i][addrI], ar:v[i][areaI], k:v[i][kkI], m:v[i][kkmI] };
+    }
+  }
+  var changed=0, families={};
+  for(var i=0;i<v.length;i++){
+    var fid=v[i][famI]; if(!fid) continue;
+    if(String(v[i][typeI])==='Primary') continue;
+    var h=head[fid]; if(!h) continue;
+    var did=false;
+    if(h.a!==''  && h.a!=null  && v[i][addrI]!==h.a){ v[i][addrI]=h.a; did=true; }
+    if(h.ar!=='' && h.ar!=null && v[i][areaI]!==h.ar){ v[i][areaI]=h.ar; did=true; }
+    if(h.k!==''  && h.k!=null  && v[i][kkI]!==h.k){ v[i][kkI]=h.k; did=true; }
+    if(h.m!==''  && h.m!=null  && v[i][kkmI]!==h.m){ v[i][kkmI]=h.m; did=true; }
+    if(did){ changed++; families[fid]=1; }
+  }
+  rng.setValues(v);
+  return 'updated '+changed+' members across '+Object.keys(families).length+' families';
 }
 
 // ── One-time Old/New classification (run via clasp) ─────────────────────────
