@@ -186,7 +186,7 @@ export default function FollowupsPage({ user }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {events.map(ev => {
             const done = dataService.getFollowupsForEvent(ev.id).filter(contacted).length;
             return (
@@ -411,7 +411,7 @@ export default function FollowupsPage({ user }) {
       </p>
 
       {/* Roster */}
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
         {audience.slice(0, AUDIENCE_CAP).map(d => {
           const f = fmap[d.id] || {};
           return (
@@ -463,10 +463,10 @@ export default function FollowupsPage({ user }) {
         })}
 
         {audience.length === 0 && (
-          <p className="text-center text-xs text-text-muted py-8">No devotees match this filter.</p>
+          <p className="col-span-full text-center text-xs text-text-muted py-8">No devotees match this filter.</p>
         )}
         {audience.length > AUDIENCE_CAP && (
-          <p className="text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the list.</p>
+          <p className="col-span-full text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the list.</p>
         )}
       </div>
     </div>
