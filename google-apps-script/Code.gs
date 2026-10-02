@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','reference','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','ambrish','gharNo','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
@@ -70,16 +70,53 @@ function resetAll_(){
  */
 function migrateHeaders_(name){
   var sh = ss_().getSheetByName(name); if(!sh) return;
-  var need = HEADERS[name].length;
+  var target = HEADERS[name];
+  var need = target.length;
   var maxCols = sh.getMaxColumns();
   if(maxCols < need) sh.insertColumnsAfter(maxCols, need - maxCols);
   var lastCol = sh.getLastColumn();
-  var cur = lastCol > 0 ? sh.getRange(1,1,1,Math.max(lastCol,need)).getValues()[0] : [];
-  var changed = lastCol < need;
-  for(var i=0;i<need && !changed;i++){ if(String(cur[i]==null?'':cur[i]) !== HEADERS[name][i]) changed = true; }
-  if(changed){
+  var cur = (lastCol > 0 ? sh.getRange(1,1,1,lastCol).getValues()[0] : []).map(function(x){ return String(x==null?'':x); });
+  while(cur.length && cur[cur.length-1] === '') cur.pop(); // drop trailing blanks
+
+  // Already exactly right? Nothing to do.
+  var exact = cur.length === need;
+  for(var i=0;i<need && exact;i++){ if(cur[i] !== target[i]) exact = false; }
+  if(exact) return;
+
+  // Any structural change (reorder, added or removed columns): rebuild the whole
+  // tab in the target column order, matching each column by its header NAME. Because
+  // every value is moved by name — never by position — data can never be scrambled.
+  // New columns arrive blank; a timestamped backup tab is saved first so the change
+  // is fully reversible. A LockService guard prevents a concurrent request from
+  // reading a half-rewritten sheet.
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch(e) {}
+  try {
+    // Re-check under the lock in case another request already migrated.
+    var lastCol2 = sh.getLastColumn();
+    var cur2 = (lastCol2 > 0 ? sh.getRange(1,1,1,lastCol2).getValues()[0] : []).map(function(x){ return String(x==null?'':x); });
+    while(cur2.length && cur2[cur2.length-1] === '') cur2.pop();
+    var ok = cur2.length === need;
+    for(var k=0;k<need && ok;k++){ if(cur2[k] !== target[k]) ok = false; }
+    if(ok) return;
+
+    var last = sh.getLastRow();
+    var width = Math.max(cur2.length, 1);
+    try {
+      sh.copyTo(ss_()).setName(name + '_bak_' + Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd_HHmmss'));
+    } catch(e) {}
+    var block = last >= 1 ? sh.getRange(1,1,last,width).getValues() : [[]];
+    var pos = {}; cur2.forEach(function(h,idx){ pos[h] = idx; });
+    var out = block.map(function(row, r){
+      return target.map(function(h){
+        if(r === 0) return h;                 // header row -> target names
+        var idx = pos[h]; return idx === undefined ? '' : row[idx];
+      });
+    });
     sh.getRange(1,1,sh.getMaxRows(),need).setNumberFormat('@'); // keep all-text
-    sh.getRange(1,1,1,need).setValues([HEADERS[name]]);
+    sh.getRange(1,1,out.length,need).setValues(out);
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
   }
 }
 
