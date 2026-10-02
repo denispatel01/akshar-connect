@@ -14,8 +14,11 @@ var HEADERS = {
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
-  Thoughts:   ['id','author','thought','date']
+  Thoughts:   ['id','author','thought','date'],
+  Changes:    ['ts','action','collection','summary','emailed']
 };
+// Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
+var SCHEMA_VERSION = '2026-10-03';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -121,8 +124,12 @@ function migrateHeaders_(name){
 }
 
 function ensureSheets_(){
+  // Heavy schema check/migration runs once per deployment, not on every request.
+  // Reads/writes still create a missing tab lazily via tab_(), so this is safe.
+  var props = PropertiesService.getScriptProperties();
+  if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -130,6 +137,7 @@ function ensureSheets_(){
   if(readAll_('Users').length===0)    appendRows_('Users', SEED_USERS);
   if(readAll_('Sabhas').length===0)   appendRows_('Sabhas', SEED_SABHAS);
   if(readAll_('Thoughts').length===0) appendRows_('Thoughts', SEED_THOUGHTS);
+  props.setProperty('ensuredSchema', SCHEMA_VERSION);
 }
 
 function readAll_(name){
@@ -192,21 +200,25 @@ function handle_(p){
       appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
     }
-    if(action==='insert'){ appendRows_(p.collection, [p.row]); sendNotificationEmail_('INSERT', p.collection, p.row); return json_({ ok:true, row:p.row }); }
+    // Writes return as fast as possible — no synchronous email (it blocked the
+    // response by 1-3s). Change notifications are logged and emailed hourly by the
+    // emailChangeDigest_ time-trigger instead.
+    if(action==='insert'){ appendRows_(p.collection, [p.row]); logChange_('INSERT', p.collection, p.row); return json_({ ok:true, row:p.row }); }
     if(action==='bulkUpdateTags') return doBulkUpdateTags_(p);
+    if(action==='bulkSetTags') return doBulkSetTags_(p);
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
       tab_(p.collection).getRange(rn,1,1,HEADERS[p.collection].length).setValues([rowFromObj_(p.collection,p.row)]);
-      sendNotificationEmail_('UPDATE', p.collection, p.row);
+      logChange_('UPDATE', p.collection, p.row);
       return json_({ ok:true });
     }
     if(action==='remove'){
       var r=findRow_(p.collection, p.keyField||'id', p.key);
-      if(r>0) { tab_(p.collection).deleteRow(r); sendNotificationEmail_('DELETE', p.collection, { key: p.key }); }
+      if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key }); }
       return json_({ ok:true });
     }
-    if(action==='markAttendance') { var res = doMark_(p); sendNotificationEmail_('MARK_ATTENDANCE', 'Attendance', p); return res; }
+    if(action==='markAttendance') { return doMark_(p); }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
     if(action==='deleteUser') return doDeleteUser_(p);
@@ -283,30 +295,33 @@ function doDeleteUser_(p){
   return json_({ ok:true });
 }
 
-function sendNotificationEmail_(action, collection, row) {
-  try {
-    var email = 'denispatel01@gmail.com';
-    var subject = 'Akshar Connect: ' + action + ' on ' + collection;
-    var body = 'An action (' + action + ') was performed on the ' + collection + ' collection.\n\n';
-    
-    if (row && typeof row === 'object') {
-      body += 'Details:\n';
-      for (var key in row) {
-        if (row[key]) {
-          body += key + ': ' + row[key] + '\n';
-        }
-      }
-    } else {
-      body += 'Row data: ' + JSON.stringify(row);
-    }
-    
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: body
-    });
-  } catch(e) {
-  }
+// Lightweight change log (replaces the slow per-write email). Appends one compact
+// row to the Changes tab; emailChangeDigest_ emails these hourly if a trigger is set.
+function logChange_(action, collection, row){
+  try{
+    var who = (row && (row.name || row.updatedBy || row.key)) || '';
+    var summary = String(who).slice(0,120);
+    tab_('Changes').appendRow([ new Date().toISOString(), action, collection, summary, '' ]);
+  }catch(e){}
+}
+
+// Optional hourly digest: email all un-emailed changes, then mark them emailed.
+// Enable once by running setupChangeDigest_() in the Apps Script editor.
+function emailChangeDigest_(){
+  var sh = tab_('Changes'); var last = sh.getLastRow(); if(last<2) return;
+  var H = HEADERS.Changes, v = sh.getRange(2,1,last-1,H.length).getValues();
+  var eI = H.indexOf('emailed');
+  var pending = [], rows = [];
+  for(var i=0;i<v.length;i++){ if(!v[i][eI]){ pending.push(v[i]); rows.push(i+2); } }
+  if(!pending.length) return;
+  var body = 'Akshar Connect — ' + pending.length + ' change(s):\n\n'
+    + pending.map(function(r){ return r[0]+'  '+r[1]+' '+r[2]+'  '+r[3]; }).join('\n');
+  try{ MailApp.sendEmail({ to:'denispatel01@gmail.com', subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
+  rows.forEach(function(rn){ sh.getRange(rn, eI+1).setValue('yes'); });
+}
+function setupChangeDigest_(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='emailChangeDigest_') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('emailChangeDigest_').timeBased().everyHours(1).create();
 }
 
 // Mail shooter: email the admin when a user hits a runtime error in the app.
@@ -324,6 +339,30 @@ function sendErrorEmail_(p){
       +'UserAgent: '+(p && p.ua || '');
     MailApp.sendEmail({ to: email, subject: subject, body: body });
   }catch(e){}
+}
+
+// Set the full tags value for many devotees in ONE request/write. p.rows is
+// [{id, tags}] (tags already serialized). Used by the swipe bulk tagger.
+function doBulkSetTags_(p){
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try{
+    var sh = tab_('Devotees'); var H = HEADERS.Devotees; var last = sh.getLastRow();
+    if(last < 2) return json_({ ok:true, count:0 });
+    var data = sh.getRange(2,1,last-1,H.length).getValues();
+    var idI = H.indexOf('id'), tagsI = H.indexOf('tags'), ubI = H.indexOf('updatedBy');
+    var map = {}; (p.rows||[]).forEach(function(r){ map[String(r.id)] = (r.tags==null?'':String(r.tags)); });
+    var n = 0;
+    for(var i=0;i<data.length;i++){
+      var id = String(data[i][idI]);
+      if(map.hasOwnProperty(id)){
+        data[i][tagsI] = map[id];
+        if(ubI>=0 && p.updatedBy) data[i][ubI] = p.updatedBy;
+        n++;
+      }
+    }
+    if(n>0) sh.getRange(2,1,last-1,H.length).setValues(data);
+    return json_({ ok:true, count:n });
+  } finally { lock.releaseLock(); }
 }
 
 function doBulkUpdateTags_(p) {
