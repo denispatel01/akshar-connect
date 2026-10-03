@@ -92,7 +92,12 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const fileRef = useRef(null);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // Capitalize the first letter of every word (#89) — for name/text fields.
+  const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
+  const setCap = (key) => (e) => set({ [key]: capWords(e.target.value) });
   const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
+  // Name of the chosen family head, for the review summary (#92).
+  const headName = (familyHeads.find((h) => h.familyId === form.familyId) || {}).name || '';
 
   const dupMobile = useMemo(
     () => (form.mobile.length === 10 ? devotees.find((d) => String(d.mobile) === form.mobile) : null),
@@ -187,7 +192,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const avatar = form.photo || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&size=128&name=' + encodeURIComponent(fullName || '?');
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-bg-base flex flex-col"
+    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#FFF1E2] via-[#FBF5EF] to-[#E9F2F1] flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
@@ -254,9 +259,9 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><Label req>First Name</Label><input value={form.firstName} onChange={(e) => set({ firstName: e.target.value })} placeholder="Enter first name" className={inputCls} /></div>
-                <div><Label>Middle Name</Label><input value={form.middleName} onChange={(e) => set({ middleName: e.target.value })} placeholder="Enter middle name" className={inputCls} /></div>
-                <div><Label>Last Name</Label><input value={form.lastName} onChange={(e) => set({ lastName: e.target.value })} placeholder="Enter surname" className={inputCls} /></div>
+                <div><Label req>First Name</Label><input value={form.firstName} onChange={setCap('firstName')} placeholder="Enter first name" className={inputCls} /></div>
+                <div><Label>Middle Name</Label><input value={form.middleName} onChange={setCap('middleName')} placeholder="Enter middle name" className={inputCls} /></div>
+                <div><Label>Last Name</Label><input value={form.lastName} onChange={setCap('lastName')} placeholder="Enter surname" className={inputCls} /></div>
                 <div><Label req>Mobile Number</Label><input required maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
                 <div><Label>Date of Birth</Label><input type="date" value={form.dob} onChange={(e) => set({ dob: e.target.value })} className={inputCls} /></div>
                 <div><Label>Gender</Label>
@@ -314,7 +319,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   <div><Label>📧 Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@example.com" className={inputCls} /></div>
                   <div><Label>🗺️ Area</Label>
                     <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" /></div>
-                  <div><Label>🏙️ City</Label><input value={form.city} onChange={(e) => set({ city: e.target.value })} className={inputCls} /></div>
+                  <div><Label>🏙️ City</Label><input value={form.city} onChange={setCap('city')} className={inputCls} /></div>
                   <div><Label>🩸 Blood Group</Label>
                     <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
                       <option value="">— Select —</option>{BLOOD_GROUPS.map((o) => <option key={o}>{o}</option>)}</select></div>
@@ -322,23 +327,36 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                     <select value={form.maritalStatus} onChange={(e) => set({ maritalStatus: e.target.value })} className={inputCls}>
                       <option value="">— Select —</option>{MARITAL_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
                 </div>
-                <div><Label>📍 Address</Label><AutoResizeTextarea value={form.address} onChange={(e) => set({ address: e.target.value })} minRows={2} className={inputCls} /></div>
+                <div><Label>📍 Address</Label><AutoResizeTextarea value={form.address} onChange={setCap('address')} minRows={2} className={inputCls} /></div>
               </div>
 
-              {/* Education */}
-              <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
-                <h3 className="flex items-center gap-2 text-lg font-black text-text-main">🎓 Education</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div><Label>🎓 Qualification</Label>
-                    <select value={form.qualification} onChange={(e) => set({ qualification: e.target.value })} className={inputCls}>
-                      <option value="">— Select —</option>{QUALIFICATIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                  <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={(e) => set({ grade: e.target.value })} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
-                  <div><Label>📚 Education / Stream</Label><input value={form.education} onChange={(e) => set({ education: e.target.value })} placeholder="e.g. B.Tech Computer" className={inputCls} /></div>
-                  <div><Label>⏳ Education Status</Label>
-                    <select value={form.educationStatus} onChange={(e) => set({ educationStatus: e.target.value })} className={inputCls}>{EDUCATION_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                  <div><Label>🏫 School / College</Label><input value={form.school} onChange={(e) => set({ school: e.target.value })} className={inputCls} /></div>
-                </div>
-              </div>
+              {/* Education — Bal & students see Grade; only non-Bal see college qualification */}
+              {(() => {
+                const showGrade = isBal || form.educationStatus === 'Pursuing';
+                return (
+                  <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                    <h3 className="flex items-center gap-2 text-lg font-black text-text-main">🎓 Education</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {!isBal && (
+                        <div><Label>🎓 Qualification</Label>
+                          <select value={form.qualification} onChange={(e) => set({ qualification: e.target.value })} className={inputCls}>
+                            <option value="">— Select —</option>{QUALIFICATIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                      )}
+                      {!isBal && (
+                        <div><Label>⏳ Education Status</Label>
+                          <select value={form.educationStatus} onChange={(e) => set({ educationStatus: e.target.value })} className={inputCls}>{EDUCATION_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                      )}
+                      {showGrade && (
+                        <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={setCap('grade')} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
+                      )}
+                      {!isBal && (
+                        <div><Label>📚 Education / Stream</Label><input value={form.education} onChange={setCap('education')} placeholder="e.g. B.Tech Computer" className={inputCls} /></div>
+                      )}
+                      <div><Label>🏫 School / College</Label><input value={form.school} onChange={setCap('school')} className={inputCls} /></div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Profession — hidden for Bal (children) */}
               {!isBal && (
@@ -348,8 +366,8 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                     <div><Label>💼 Profession</Label>
                       <select value={form.profession} onChange={(e) => set({ profession: e.target.value })} className={inputCls}>
                         <option value="">— Select —</option>{PROFESSIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                    <div><Label>🛠️ Field</Label><input value={form.professionField} onChange={(e) => set({ professionField: e.target.value })} placeholder="e.g. Software Developer" className={inputCls} /></div>
-                    <div><Label>🏢 Company</Label><input value={form.companyName} onChange={(e) => set({ companyName: e.target.value })} className={inputCls} /></div>
+                    <div><Label>🛠️ Field</Label><input value={form.professionField} onChange={setCap('professionField')} placeholder="e.g. Software Developer" className={inputCls} /></div>
+                    <div><Label>🏢 Company</Label><input value={form.companyName} onChange={setCap('companyName')} className={inputCls} /></div>
                   </div>
                 </div>
               )}
@@ -433,7 +451,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                     {form.address && <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-primary/70" />{form.address}</p>}
                     {form.followupKaryakarta && <p className="flex items-center gap-2"><User className="h-3.5 w-3.5 text-primary/70" />Karyakarta: {form.followupKaryakarta}</p>}
                     {form.reference && <p className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-primary/70" />Reference: {form.reference}</p>}
-                    <p className="flex items-center gap-2"><User className="h-3.5 w-3.5 text-primary/70" />{form.familyId ? `Member (${form.relation || 'relation?'})` : 'Head of own family'}</p>
+                    <p className="flex items-center gap-2"><User className="h-3.5 w-3.5 text-primary/70" />{form.familyId ? `${form.relation || 'Member'} of ${headName || 'family head'}` : 'Head of own family'}</p>
                   </div>
                   {form.tags.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">{form.tags.map((k) => <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>)}</div>
@@ -465,7 +483,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   ['💼', 'Profession', form.profession],
                   ['🛠️', 'Field', form.professionField],
                   ['🏢', 'Company', form.companyName],
-                  ['👨‍👩‍👧', 'Family Role', form.familyId ? `Member (${form.relation || '—'})` : 'Head of own family', true],
+                  ['👨‍👩‍👧', 'Family Role', form.familyId ? `${form.relation || 'Member'} of ${headName || 'family head'}` : 'Head of own family', true],
                   ['🙏', 'Follow-up Karyakarta', [form.followupKaryakarta, form.followupKaryakartaMobile].filter(Boolean).join('  ·  '), true],
                   ['🔗', 'Reference', form.reference, true],
                   ['🗓️', 'Date of Joining', form.dateOfJoining],
