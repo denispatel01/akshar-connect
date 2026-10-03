@@ -574,7 +574,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     return v;
   };
 
-  const inputCls = 'w-full rounded-xl border border-border-light p-2 text-sm font-semibold text-text-main outline-none focus:border-primary';
+  const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 py-3 text-sm font-semibold text-text-main outline-none transition-colors placeholder:font-medium placeholder:text-text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
 
   // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
   const renderEditField = (f, data, setData) => {
@@ -611,7 +611,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     if (READ_ONLY_FIELDS.has(f)) {
       return (
-        <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-sm font-semibold text-text-main break-words">
+        <div className="rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-sm font-semibold text-text-main break-words">
           {val(data[f], f)}
         </div>
       );
