@@ -292,7 +292,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const avatar = form.photo || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&size=128&name=' + encodeURIComponent(fullName || '?');
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-[#F5F7FA] dark:bg-[#120d09] flex flex-col"
+    <div className="fixed inset-0 z-[60] bg-[#EFF6FF] dark:bg-[#0d1420] flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
