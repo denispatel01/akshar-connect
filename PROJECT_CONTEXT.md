@@ -23,8 +23,18 @@ to manage devotees, families, follow-up drives, events, tagging and reports.
 - Live web-app deployment id: `AKfycbw-LyYduU1mUaXwamTGPyh_TtP6pZkO3pTCPPGKMQOhUwJhFa_Z4wFzz83FYXnq9YqAnA`
 - `dataService.js` `API_URL` points at that deployment's `/exec`. **Redeploy the same id** on backend changes so the URL never changes.
 - Sheet tabs: `Users`, `Devotees`, `Sabhas`, `Attendance`, `Followups`, `Thoughts`,
-  `Areas`, `Changes` (+ `*_bak_*` backups). `SCHEMA_VERSION` is `2026-10-04a`
-  (added the `Areas` tab: `name|number|notes`, keyed by `name`, returned in `bootstrap`).
+  `Areas`, `Activity`, `Changes` (+ `*_bak_*` backups). `SCHEMA_VERSION` is
+  `2026-10-04c`. `Areas` = `name|number|notes` (keyed by `name`); `Activity` =
+  `ts|actor|actorMobile|action|target|detail|device` (app-wide audit log).
+  Devotees gained a `grade` column; audit columns are ordered
+  `createdBy|createdOn|updatedBy|updatedOn`.
+
+### ⚠️ Email requires one-time owner authorization
+`MailApp.sendEmail` needs the `script.send_mail` OAuth scope. The web app was
+first authorized before mail was added, so sends fail silently. **Fix (owner, once):**
+open the Apps Script editor → run the `testMail` function → approve the permission
+prompt (includes "Send email as you"). After that, add/edit/delete emails flow.
+Diagnose anytime via `?action=testMail` (returns `sent:true` / the real error).
 
 ### Admin login
 - Mobile `9924598434`, PIN `170853` (admin seed: "Denis Patel" / role Admin).
