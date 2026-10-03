@@ -42,6 +42,7 @@ export default function FollowupsPage({ user }) {
   const [devotees, setDevotees] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventMsg, setEventMsg] = useState(''); // transient success toast after create/edit
+  const [highlightEventId, setHighlightEventId] = useState(null); // newly created event card to highlight
   const [fmap, setFmap] = useState({});           // devoteeId -> followup record (for selected event)
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
@@ -98,10 +99,18 @@ export default function FollowupsPage({ user }) {
     setShowEventModal(false);
     setEventForm(emptyEventForm());
     setEditingEventId(null);
-    // Success feedback + auto-focus the newly created event's drive board (#63).
+    // Success feedback. Stay on the events list (cards) and highlight + scroll to
+    // the newly created event's card (#82) instead of opening its drive board.
     setEventMsg(isNew ? `✅ Event "${payload.title}" created` : `✅ Event "${payload.title}" updated`);
     setTimeout(() => setEventMsg(''), 4000);
-    if (isNew && saved) openEvent(saved);
+    if (saved) {
+      setHighlightEventId(saved.id);
+      setTimeout(() => setHighlightEventId(null), 3500);
+      setTimeout(() => {
+        const el = document.getElementById(`event-card-${saved.id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
   };
 
   const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
@@ -211,8 +220,8 @@ export default function FollowupsPage({ user }) {
           {events.map(ev => {
             const done = dataService.getFollowupsForEvent(ev.id).filter(contacted).length;
             return (
-              <div key={ev.id}
-                className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs transition-all hover:border-primary hover:shadow-md">
+              <div key={ev.id} id={`event-card-${ev.id}`}
+                className={`rounded-3xl border bg-surface p-6 shadow-xs transition-all hover:border-primary hover:shadow-md ${highlightEventId === ev.id ? 'border-primary ring-4 ring-primary/30 animate-[fadeIn_0.3s_ease-out]' : 'border-border-light'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <span className="rounded-full bg-[#EAF0F7] px-3 py-1 text-[11px] font-bold text-[#1F3A5F]">{ev.type || 'Sabha'}</span>
                   <div className="flex items-center gap-2">
@@ -295,7 +304,7 @@ export default function FollowupsPage({ user }) {
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Devotee tags <span className="normal-case text-slate-400">(optional)</span></label>
                   <p className="mb-1.5 text-[10px] font-semibold text-text-muted">The drive will show only devotees who have ANY selected tag — so karyakartas skip irrelevant records.</p>
-                  <div className="max-h-44 overflow-y-auto rounded-xl border border-border-light p-2 space-y-2">
+                  <div className="rounded-xl border border-border-light p-2 space-y-2">
                     {tagsByCategory().map(({ category, tags }) => (
                       <div key={category.key}>
                         <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1">{category.label}</p>

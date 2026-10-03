@@ -26,8 +26,8 @@ const AGE_BANDS = {
 // Profile tabs -> [field, label]. 'Tags' is a special tab (no fields, renders tag UI).
 const TABS = {
   'Personal':    [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  'Contact':     [['address','Address'],['mobile','Mobile'],['whatsapp','WhatsApp'],['email','Email'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
-  'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
+  'Contact':     [['address','Address'],['mobile','Mobile'],['whatsapp','WhatsApp'],['email','Email'],['area','Area'],['city','City']],
+  'Education':   [['qualification','Qualification'],['grade','Grade / Standard'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
   'Family':      [], // special tab: lists everyone in this devotee's family (+ shows Family ID)
@@ -185,9 +185,12 @@ function AuditFooter({ d }) {
   };
   const createdOn = fmt(d.createdOn);
   const updatedOn = fmt(d.updatedOn);
-  // Only show "updated" when it actually differs from creation.
-  const wasUpdated = d.updatedOn && d.createdOn && new Date(d.updatedOn).getTime() - new Date(d.createdOn).getTime() > 60000;
-  if (!d.createdBy && !createdOn && !wasUpdated) return null;
+  // Show "updated" whenever we have update info that isn't identical to creation.
+  // (Older records may have no createdOn, so don't require it.)
+  const bothTimes = d.updatedOn && d.createdOn;
+  const wasUpdated = (d.updatedBy || d.updatedOn) && (!bothTimes ||
+    new Date(d.updatedOn).getTime() - new Date(d.createdOn).getTime() > 60000);
+  if (!d.createdBy && !createdOn && !d.updatedBy && !updatedOn) return null;
   return (
     <div className="mt-4 pt-3 border-t border-dashed border-border-light space-y-1.5">
       {(d.createdBy || createdOn) && (
@@ -726,7 +729,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const ownId = selectedDevotee?.id;
     const isSelf = data.type === 'Primary';
     return (
-      <div className="sm:col-span-2 rounded-2xl border border-border-light bg-bg-base p-4 space-y-3">
+      <div className="col-span-full rounded-2xl border border-border-light bg-bg-base p-4 space-y-3">
         <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Family role</div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button"
@@ -771,7 +774,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const d = selectedDevotee;
     const isSelf = d.type === 'Primary';
     return (
-      <div className="sm:col-span-2 rounded-2xl border border-border-light bg-bg-base p-4">
+      <div className="col-span-full rounded-2xl border border-border-light bg-bg-base p-4">
         <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1.5">Family role</div>
         {isSelf ? (
           <p className="text-sm font-bold text-text-main">★ Head of their own family</p>
