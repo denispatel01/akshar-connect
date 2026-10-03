@@ -95,7 +95,7 @@ export default function AdminPage({ user }) {
   };
 
   return (
-    <div className="w-full max-w-none px-4 py-6 sm:px-6 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3 items-start">
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3 grid-flow-dense items-start">
       <div className="col-span-full">
         <h1 className="text-2xl font-bold text-text-main">⚙️ Admin Settings & Control</h1>
         <p className="text-sm font-medium text-text-muted">
@@ -181,14 +181,14 @@ export default function AdminPage({ user }) {
       )}
 
       {/* Area Master Card (Admin only) */}
-      {isAdmin && <div className="lg:col-span-2"><AreaMaster /></div>}
+      {isAdmin && <div className="md:col-span-2 xl:col-span-2"><AreaMaster /></div>}
 
       {/* Email notifications on/off (Admin only) (#100) */}
       {isAdmin && <MailToggle />}
 
       {/* Activity Log (Admin only) — everything everyone does in the app */}
       {isAdmin && (
-        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2 2xl:col-span-3">
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs md:col-span-2 xl:col-span-3">
           <div className="mb-4 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
             <Activity className="h-4 w-4 text-[#FF862A]" /> 📜 Activity Log
           </div>
@@ -291,7 +291,7 @@ export default function AdminPage({ user }) {
       )}
 
       {/* Registered System Users */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs md:col-span-2 xl:col-span-2">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-text-main">👥 System User Accounts</h2>
           {isAdmin && (

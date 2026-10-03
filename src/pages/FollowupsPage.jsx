@@ -8,6 +8,7 @@ import { dataService } from '../services/dataService';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
+import { alertSuccess } from '../utils/sweetAlert';
 
 const OUTCOMES = ['Coming', 'Maybe', 'Not Coming'];
 const OUTCOME_STYLE = {
@@ -99,10 +100,8 @@ export default function FollowupsPage({ user }) {
     setShowEventModal(false);
     setEventForm(emptyEventForm());
     setEditingEventId(null);
-    // Success feedback. Stay on the events list (cards) and highlight + scroll to
-    // the newly created event's card (#82) instead of opening its drive board.
-    setEventMsg(isNew ? `✅ Event "${payload.title}" created` : `✅ Event "${payload.title}" updated`);
-    setTimeout(() => setEventMsg(''), 4000);
+    // Centered SweetAlert success (#102), closes on OK.
+    alertSuccess(isNew ? 'Event created' : 'Event updated', `"${payload.title}" was ${isNew ? 'created' : 'updated'} successfully.`);
     if (saved) {
       setHighlightEventId(saved.id);
       setTimeout(() => setHighlightEventId(null), 3500);

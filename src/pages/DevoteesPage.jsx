@@ -198,12 +198,10 @@ function AuditFooter({ d }) {
   };
   const createdOn = fmt(d.createdOn);
   const updatedOn = fmt(d.updatedOn);
-  // Show "updated" whenever we have update info that isn't identical to creation.
-  // (Older records may have no createdOn, so don't require it.)
-  const bothTimes = d.updatedOn && d.createdOn;
-  const wasUpdated = (d.updatedBy || d.updatedOn) && (!bothTimes ||
-    new Date(d.updatedOn).getTime() - new Date(d.createdOn).getTime() > 60000);
-  if (!d.createdBy && !createdOn && !d.updatedBy && !updatedOn) return null;
+  // Show the "updated" line whenever update info exists (#101) — even if it was
+  // only stamped at creation, the user wants to see who/when last touched it.
+  const hasUpdated = d.updatedBy || d.updatedOn;
+  if (!d.createdBy && !createdOn && !hasUpdated) return null;
   return (
     <div className="mt-4 pt-3 border-t border-dashed border-border-light space-y-1.5">
       {(d.createdBy || createdOn) && (
@@ -213,7 +211,7 @@ function AuditFooter({ d }) {
           {createdOn && <span>· {createdOn}</span>}
         </p>
       )}
-      {wasUpdated && (
+      {hasUpdated && (
         <p className="text-[11px] font-semibold text-text-muted flex flex-wrap items-center gap-x-1.5">
           <span>✏️ Last updated by</span>
           <span className="text-text-main font-bold">{d.updatedBy || '—'}</span>
@@ -1377,7 +1375,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           referenceOptions={referenceOptions}
           headRecordByFamilyId={headRecordByFamilyId}
           onClose={() => setShowAddModal(false)}
-          onCreated={(created) => { setShowAddModal(false); loadDevotees(); if (created) openProfile(created); }}
+          onCreated={(created) => { setShowAddModal(false); loadDevotees(); alertDevoteeCreated(created?.name); if (created) openProfile(created); }}
         />
       )}
 
