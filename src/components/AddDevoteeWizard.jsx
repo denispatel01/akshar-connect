@@ -341,7 +341,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
             <div className="space-y-4">
               <p className="text-xs font-bold text-text-muted">Review — this is how the profile will look:</p>
               <div className="rounded-3xl border border-border-light bg-surface overflow-hidden shadow-sm">
-                <div className="h-16 bg-gradient-to-br from-primary to-[#00223f]" />
+                <div className="h-16 bg-gradient-to-br from-[#FF9D52] to-[#E56F18]" />
                 <div className="px-5 pb-4">
                   <img src={avatar} alt="" className="h-20 w-20 rounded-2xl object-cover ring-4 ring-surface -mt-10 bg-surface" />
                   <h3 className="mt-2 text-lg font-black text-text-main">{fullName || '—'}</h3>

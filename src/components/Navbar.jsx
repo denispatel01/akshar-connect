@@ -95,7 +95,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
-        <div className="h-0.5 w-full bg-gradient-to-r from-[#FF862A] via-[#FFB26B] to-[#003158]" />
+        <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-2.5 sm:px-6">
 
           {/* Left: back + refresh + brand */}
@@ -133,7 +133,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               return (
                 <button key={id} onClick={() => setActivePage(id)}
                   className={`group relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${active
-                    ? 'bg-gradient-to-br from-primary to-[#00223f] text-white shadow-md shadow-primary/25'
+                    ? 'bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30'
                     : 'text-text-muted hover:text-text-main hover:bg-surface'}`}>
                   <Icon className={`h-4 w-4 transition-transform duration-200 ${active ? 'text-[#FFB26B]' : 'text-text-muted group-hover:text-accent group-hover:scale-110'}`} strokeWidth={active ? 2.5 : 2} />
                   {label}

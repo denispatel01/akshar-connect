@@ -84,29 +84,58 @@ Done 49.Profile > Contact > Address should be first as it needs 2 columns (more 
 Done 50.Add devotees screen > DOB and Gender getting overlapped in mobile. 
 	- this kind of things you should test everytime for every design. i am very much frustrated now as i need to test every small things and ask you.
 Done 51.add devotee > profile photo should be photo upload option with camera take. ask for photo at last.
-52."secondary mobile" is not needed really. remove from sheet as well and from entire app.
-53.it is suggesting me values in keyboard top but I cant see any dropdown in add devotees (iphone). 
-54.I have deleted "wing" column from the sheet. you manage app. nothing should be crash or misbehave.
-55.Didn't getting mail. send mail on add/edit/delete devotees and other actions. but mail sending processing should be in background. user should feel quick action.
-56.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
-57.add devotees > DOB should allow seletion from calendar as well manual typing (show placeholder)
-
-58.add devotees > tag > allow select all options with different sections.
-59.add devotees > review tab is not showing all the details entered like, education, qualification,jon etc
-60. you are not using icons and emoji in entire app. use too many emoji and icons to convey details in short and to make app attractive.
+Done 52."secondary mobile" is not needed really. remove from sheet as well and from entire app.
+Done 53.it is suggesting me values in keyboard top but I cant see any dropdown in add devotees (iphone). 
+Done 54.I have deleted "wing" column from the sheet. you manage app. nothing should be crash or misbehave.
+Done 55.Didn't getting mail. send mail on add/edit/delete devotees and other actions. but mail sending processing should be in background. user should feel quick action.
+Done 56.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
+Done 57.add devotees > DOB should allow seletion from calendar as well manual typing (show placeholder)
+---
+Done 58.add devotees > tag > allow select all options with different sections.
+Done 59.add devotees > review tab is not showing all the details entered like, education, qualification,jon etc
+Done 60. you are not using icons and emoji in entire app. use too many emoji and icons to convey details in short and to make app attractive.
 	- if you have some other idea to make app attractive then apply that also.
-61.Make area master tab where show all the area entered by devotees and give add/edit/delete options. admin can assign number to area.
+Done 61.Make area master tab where show all the area entered by devotees and give add/edit/delete options. admin can assign number to area.
 	- dont show area route number in add devotees screen
-62.profile should also show created by created date and updated by and updated date (only if updated)
-
-63.create event should give success message and focus should be seted on newely created event automatically.
-64.still issue not resolved. if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
+Done 62.profile should also show created by created date and updated by and updated date (only if updated)
+Done 63.create event should give success message and focus should be seted on newely created event automatically.
+Done 64.still issue not resolved. if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
 	- if admin created event with friday sabha tag and some sevak removed tag from his end by mistakenely then now anyone dont know (suppose) which tag is applied then what to do ? thatswhy i am telling that dont allow removing tag at the time of followup.
-65.system user > 1st row should be Name, then mobile,PIN,Password (every field in new row). got it?
-66.More > still toggle (show/hide) not working. showing works fine but hide is not working.
-67.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
+Done 65.system user > 1st row should be Name, then mobile,PIN,Password (every field in new row). got it?
+Done 66.More > still toggle (show/hide) not working. showing works fine but hide is not working.
+Done 67.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
 	- slider getting cutdown in hights as header is fixed. i think you can make slider fit to screen.
 	- instead of showing 1 card in 1 row for upcoming birthday. you can show multiple cards as much as fits in screen (responsive). it will apply on entire app.
 	- today's inspiration should be fit width of screen and image wallpaper should come below it (fit to screen)
 	- Devotees > in desktop view, you can give 2 options, grid (by default) and cards. grid header should be fixed and grid data should be scrollable.
-68.Still created by is not saved on add devotees. If i have logged in with "Digesh Patel" account then save Digesh Patel (ID) in CreatedBy column (sheet)
+Done 68.Still created by is not saved on add devotees. If i have logged in with "Digesh Patel" account then save Digesh Patel (ID) in CreatedBy column (sheet)
+----
+69.Stil Didn't getting mail. send mail on add/edit/delete devotees and other actions.
+70.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
+71.Add devotees > tags > showing section wise and added select all options (section wise) that is good but still tags section is fixed height. i dont want to show it in fixed height div. it should grow with tags. i dont mind if it looks very big.
+72.Where are we taking grade details of students? which column?
+	- show further fields based on the yuvak type (Ambrish/Yuvak/Bal). if Bal selected then no need to show unnecessary input like job/company etc
+73.Edit profile > family role is more content but showing in half screen (width) it should be shown in full width screen.
+74.Edit profile > Satsang > show all the input in next line. 1 row 1 field because label are long and "if not listed" checkbox so that section is not looking aligned.
+75.Add devotees > Review > screen looking very good but icon is of 1 row and label is in 2 rows (Gender, Male) so looking unaligned. icon should also be of 2 rows big.
+	- and too much space is blank at right side as gender mobile qualification etc is not taking too much space so utilize the space by showing details in 
+	2 parts (responsive design - it content is big then show in 1 part only)
+76.Still i am feeling app is equipped with very few emoji (specifically) and icons. i want extreme usage. app should look very modern and smart.
+77.still i can see area route number in ad/edit devotees screen. i dont want to take input at the time of devotees add/edit. it is backend (admin) work.
+	- i want area master UI in more tab where i can make route by assigning appropriate number to area.
+	- then add 1 more sorting option i.e. area (vaishnodevi to palanpur) or (palanpur to vaishnodevi). Here, area number 1 is from area and last area is to area.
+78.Still updated by and updated on not showing.
+79.I want 1 activity log of entire app. if anyone performs anything in app then i could see that activity in admin tab (only admin can see)
+	- activity log should be like, Digesh Patel added new yuvak namely Nikunj Ramani, Digesh Patel updated DOB, Address and Mobile of Nikunj Ramani,
+		added followup, login (also log mobile/desktop model) , logout etc. i want each and every actions logged. (in background, so app should not became slow)
+80.individual user should also see their own activity (all the actions) in one new tab.
+81.followup > add event > devotee tags section should not be fixed height. section should be grow with more content.
+82.create event should give success message and focus should be seted on newely created event automatically (cards view where all the events shown).
+83.Report > By Karyakarta > 2 download options should be there.
+	1. Only family heads
+	2. with family members (pdf should contains relation colum to identify who is wife/brother/sister of whooom
+84.Report > Remove "By wing" report and add "Yuvak (15-45 age)" - pdf should contains DOB (with Age in bracket) column
+85.Still desktop view for admin tab is not proper. user management section is required very less space then also it is showing it in whole screen 100% width.
+	you can add as much as possible cards (section) in 1 row as per screen resolution.
+86.Created by column (in sheet) should be besides created on (left side)
+87.Use orange color in our theme. reference image given.
