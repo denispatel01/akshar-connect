@@ -139,13 +139,13 @@ Done 85.Still desktop view for admin tab is not proper. user management section 
 Done 86.Created by column (in sheet) should be besides created on (left side)
 Done 87.add new devotees > rename "Details" to "Additional", "Family&Satsang" to "Satsang"
 ---
-88.Edit photo option is not available.
-89.Add/edit profile > Any field > after space auto capital of first character of word.
-90.Edit profile > selected ambrish as yuvak type then changed to Bal and then again changed to ambrish so it is asking for grade even my education is completed.
-91.add/edit profile > tag > sabha attendance > only 1 option should be allowed, regular attending or irregular attending or not attending or bal sabha or balika sabha.
-92.review tab showing family role: member brother but not showing whoose brother.
-93.Email for add devotee > photo base64 should be not shown in email. email looks very simple. it should also looks same like profile in app. same to same.
-94.add devotee does not saving DOB. make it working.
+Done 88.Edit photo option is not available.
+Done 89.Add/edit profile > Any field > after space auto capital of first character of word.
+Done 90.Edit profile > selected ambrish as yuvak type then changed to Bal and then again changed to ambrish so it is asking for grade even my education is completed.
+Done 91.add/edit profile > tag > sabha attendance > only 1 option should be allowed, regular attending or irregular attending or not attending or bal sabha or balika sabha.
+Done 92.review tab showing family role: member brother but not showing whoose brother.
+Done 93.Email for add devotee > photo base64 should be not shown in email. email looks very simple. it should also looks same like profile in app. same to same.
+Done 94.add devotee does not saving DOB. make it working.
 95.delete devotee mail > only showing ID. it should be shown name with ID and who is deleted their name also with date time.
 96.add devotee screen should be little bit colorful instead of white background.
 97.if user select Bal then why are we asking, diploma, bachelor, master etc?
@@ -160,8 +160,17 @@ Done 87.add new devotees > rename "Details" to "Additional", "Family&Satsang" to
 104.If i OFF the mail then dont send mail for add/edit/delete (any mail). currently what happened is, i off the mail, update the area and on the mail. so basically i should not get the email but when i turned on the email i got mail for every area update.
 105.Area is not visible as of now in grid. make number label small and save/delete also. whole text of area should be clearly visible.
 106.Profile should exactly look like review tab in add devotees. currently profile showing in 2 column. review screen is in 1 column.
-
-
+107.we are saving base64 for photo. is there any other way which is very quick and reliable other than base64. can we save file on google drive?
+108.Received the mail for editing the profile but mail not mentioned that what was the updated exactly. something small pill "updated" or bg color or something can do that admin can understand what exactly updated.
+	- i have updated photo but i am not able to see photo in mail.
+109.Fix the unwanted horizontal scrolling and overflow bounce so the screen doesn't move left or right. when required then it is fine but when not required then fix it.
+110.if area is not available in dropdown and user adding manually area then it should aloso capitalize first char of every word.
+111.add/edit devotees > if i select "bal" then grade should be dropdown (not open text) load all grade from jr.kg to grade 12.
+	- if some students already added school namely, "radiant" then for other students, school text box should be auto suggest or dropdown from which user can select Radiant. so consistency remains over the school name.
+112.add/edit profile > tag should be saved/updated on save click. currently it is updating on tag slection also. 
+	- edit profile > sabha attendance tag > Bal sabha tag going out of screen. fix the UI/UX issue.
+113.add/edit profile (or anywhere)> enter should be redirect to next input control, it will make life easy.
+114.
 
 
 

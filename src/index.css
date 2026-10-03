@@ -42,6 +42,14 @@
     --border-light: #2e2318;
   }
 
+  html, body {
+    /* Stop unwanted horizontal scrolling and the left/right rubber-band bounce
+       when content doesn't actually overflow (#109). Vertical scroll stays. */
+    max-width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
   body {
     background-color: var(--bg-base);
     color: var(--text-main);
@@ -55,6 +63,8 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
 

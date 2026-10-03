@@ -4,10 +4,11 @@ import { X, ChevronLeft, ChevronRight, Check, Camera, Phone, MapPin, User, UserC
 import { dataService } from '../services/dataService';
 import {
   AREAS, GENDERS, BLOOD_GROUPS, MARITAL_STATUS, YUVAK_TYPES,
-  QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, deriveAge,
+  QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, GRADES, deriveAge,
 } from '../services/devoteeSchema';
 import { tagsByCategory, tagChipStyle, tagLabel, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import AutoResizeTextarea from './AutoResizeTextarea';
+import { focusNextOnEnter } from '../utils/formNav';
 import { alertDevoteeSaveFailed } from '../utils/sweetAlert';
 
 const STEPS = ['Basics', 'Additional', 'Satsang', 'Review'];
@@ -59,15 +60,21 @@ function HeadPicker({ heads, value, onChange }) {
 
 // Searchable combo that works on iOS (real dropdown, unlike <datalist>). Allows
 // free typing AND picking from the list.
-function Combo({ options, value, onChange, placeholder }) {
+// Capitalize the first letter of every word (#89/#110).
+const capWordsFn = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
+
+function Combo({ options, value, onChange, placeholder, capitalize }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ql = q.trim().toLowerCase();
   const matches = (ql ? options.filter((o) => String(o).toLowerCase().includes(ql)) : options).slice(0, 50);
+  // When typing a value that isn't in the list, title-case it so manually added
+  // areas stay consistent with the dropdown ones (#110).
+  const emit = (raw) => onChange(capitalize ? capWordsFn(raw) : raw);
   return (
     <div className="relative">
       <input value={open ? q : (value || '')}
-        onChange={(e) => { setQ(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onChange={(e) => { const v = capitalize ? capWordsFn(e.target.value) : e.target.value; setQ(v); emit(e.target.value); setOpen(true); }}
         onFocus={() => { setQ(value || ''); setOpen(true); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder} className={inputCls} />
@@ -95,6 +102,13 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   // Capitalize the first letter of every word (#89) — for name/text fields.
   const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
   const setCap = (key) => (e) => set({ [key]: capWords(e.target.value) });
+  // Distinct school names already in use — so new entries can reuse them for
+  // consistency instead of re-typing "Radiant" five different ways (#111).
+  const schoolOptions = useMemo(() => {
+    const set = new Set();
+    (devotees || []).forEach((d) => { const s = String(d.school || '').trim(); if (s) set.add(s); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [devotees]);
   const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
   // Name of the chosen family head, for the review summary (#92).
   const headName = (familyHeads.find((h) => h.familyId === form.familyId) || {}).name || '';
@@ -122,17 +136,25 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     });
   };
 
+  const [photoUploading, setPhotoUploading] = useState(false);
   const onPhotoFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
         const ctx = c.getContext('2d');
         const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
         ctx.drawImage(img, sx, sy, m, m, 0, 0, S, S);
-        set({ photo: c.toDataURL('image/jpeg', 0.72) });
+        const dataUri = c.toDataURL('image/jpeg', 0.72);
+        set({ photo: dataUri });            // instant local preview
+        setPhotoUploading(true);
+        // Store the photo on Drive and keep only its URL (#107). Falls back to the
+        // data URI if the upload fails, so the photo is never lost.
+        const url = await dataService.uploadPhoto(dataUri, form.mobile || '');
+        set({ photo: url });
+        setPhotoUploading(false);
       };
       img.src = reader.result;
     };
@@ -242,7 +264,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
       {savedMsg && <div className="shrink-0 bg-emerald-50 text-emerald-700 text-xs font-bold px-4 py-2 border-b border-emerald-200">{savedMsg}</div>}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 space-y-4">
+        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 space-y-4" data-enter-nav onKeyDown={focusNextOnEnter}>
 
           {step === 0 && (
             <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
@@ -255,7 +277,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                     <Camera className="h-4 w-4" /> {form.photo ? '📷 Change photo' : '📷 Upload photo'}
                   </button>
                   {form.photo && <button type="button" onClick={() => set({ photo: '' })} className="ml-2 text-xs font-bold text-red-500">Remove</button>}
-                  <p className="mt-1 text-[10px] text-text-muted">Auto-cropped to a square.</p>
+                  <p className="mt-1 text-[10px] text-text-muted">{photoUploading ? '⏳ Uploading photo…' : 'Auto-cropped to a square.'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -318,7 +340,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   </div>
                   <div><Label>📧 Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@example.com" className={inputCls} /></div>
                   <div><Label>🗺️ Area</Label>
-                    <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" /></div>
+                    <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" capitalize /></div>
                   <div><Label>🏙️ City</Label><input value={form.city} onChange={setCap('city')} className={inputCls} /></div>
                   <div><Label>🩸 Blood Group</Label>
                     <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
@@ -347,12 +369,18 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                           <select value={form.educationStatus} onChange={(e) => set({ educationStatus: e.target.value })} className={inputCls}>{EDUCATION_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
                       )}
                       {showGrade && (
-                        <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={setCap('grade')} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
+                        isBal ? (
+                          <div><Label>📘 Grade / Standard</Label>
+                            <select value={form.grade} onChange={(e) => set({ grade: e.target.value })} className={inputCls}>
+                              <option value="">— Select —</option>{GRADES.map((o) => <option key={o}>{o}</option>)}</select></div>
+                        ) : (
+                          <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={setCap('grade')} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
+                        )
                       )}
                       {!isBal && (
                         <div><Label>📚 Education / Stream</Label><input value={form.education} onChange={setCap('education')} placeholder="e.g. B.Tech Computer" className={inputCls} /></div>
                       )}
-                      <div><Label>🏫 School / College</Label><input value={form.school} onChange={setCap('school')} className={inputCls} /></div>
+                      <div><Label>🏫 School / College</Label><Combo options={schoolOptions} value={form.school} onChange={(v) => set({ school: v })} placeholder="Select or type" capitalize /></div>
                     </div>
                   </div>
                 );

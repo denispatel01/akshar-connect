@@ -8,11 +8,12 @@ import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, devoteeSearchText } from '../utils/search';
+import { focusNextOnEnter } from '../utils/formNav';
 import EmptyState from '../components/EmptyState';
 import { ListSkeleton } from '../components/SkeletonLoader';
 import {
   hasAnyTag, deriveAge, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
-  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS,
+  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS, GRADES,
   FAMILY_RECORD_TYPES, formatFamilyRecordType, formatFamilyMembershipContext
 } from '../services/devoteeSchema';
 
@@ -143,7 +144,7 @@ const FIELD_OPTIONS = {
 // Fields that should render as textarea
 const TEXTAREA_FIELDS = new Set(['address', 'notes']);
 // Fields that allow both dropdown + manual entry (datalist pattern)
-const COMBO_FIELDS = new Set(['area', 'followupKaryakarta', 'reference']);
+const COMBO_FIELDS = new Set(['area', 'followupKaryakarta', 'reference', 'school']);
 
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
@@ -167,7 +168,7 @@ const PRESET_META = {
 
 // Capitalize the first letter of every word (#89). Applied to name/text fields only.
 const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
-const CAP_FIELDS = new Set(['firstName', 'middleName', 'lastName', 'city', 'school', 'grade', 'education', 'professionField', 'companyName', 'address', 'reference', 'followupKaryakarta', 'notes']);
+const CAP_FIELDS = new Set(['firstName', 'middleName', 'lastName', 'city', 'school', 'grade', 'education', 'professionField', 'companyName', 'address', 'reference', 'followupKaryakarta', 'notes', 'area']);
 // Emoji per profile field for extra visual cues (#98).
 const FIELD_EMOJI = {
   firstName: '🪪', middleName: '🪪', lastName: '🪪', gender: '⚧️', dob: '🎂', bloodGroup: '🩸',
@@ -232,18 +233,26 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const photoInputRef = useRef(null);
-  // Crop an uploaded image to a square and store as base64 on the edit form (#88).
+  const [photoUploading, setPhotoUploading] = useState(false);
+  // Crop an uploaded image to a square, then store it on Drive and keep only its
+  // URL on the record (#107/#88). Shows the cropped image instantly, then swaps in
+  // the Drive URL; falls back to the data URI if the upload fails.
   const handleProfilePhoto = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
         const ctx = c.getContext('2d');
         const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
         ctx.drawImage(img, sx, sy, m, m, 0, 0, S, S);
-        setEditData((d) => ({ ...d, photo: c.toDataURL('image/jpeg', 0.72) }));
+        const dataUri = c.toDataURL('image/jpeg', 0.72);
+        setEditData((d) => ({ ...d, photo: dataUri }));
+        setPhotoUploading(true);
+        const url = await dataService.uploadPhoto(dataUri, editData?.mobile || selectedDevotee?.mobile || '');
+        setEditData((d) => ({ ...d, photo: url }));
+        setPhotoUploading(false);
       };
       img.src = reader.result;
     };
@@ -317,6 +326,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
+  // Distinct existing school names, so edits reuse them for consistency (#111).
+  const uniqueSchools = useMemo(() => [...new Set(devotees.map(d => String(d.school || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
   // Reference picker: existing reference values first, then every devotee name, + free typing.
   const referenceOptions = useMemo(
     () => [...new Set([...uniqueReferences, ...devotees.map(d => d.name).filter(Boolean)])],
@@ -571,6 +582,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const startEdit = () => {
     const seed = {}; ALL_FIELDS.forEach(([f]) => seed[f] = selectedDevotee[f] ?? '');
     seed.type = selectedDevotee.type ?? ''; // membership is derived via the family-role block, not a visible field
+    seed.tags = Array.isArray(selectedDevotee.tags) ? [...selectedDevotee.tags] : []; // tags buffer until Save (#112)
     setEditData(seed);
     const mob = String(selectedDevotee.mobile || '');
     const wa = String(selectedDevotee.whatsapp || '');
@@ -606,11 +618,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
   };
 
+  // Tag edits now buffer into editData and persist only on Save (#112) — they no
+  // longer write to the backend on every tap.
   const toggleProfileTag = (key, nextOn) => {
     const exclusiveKeys = nextOn ? getMutuallyExclusiveKeys(key) : [];
-    const updated = dataService.setDevoteeTag(selectedDevotee.id, key, nextOn, exclusiveKeys);
-    if (updated) setSelectedDevotee(updated);
-    loadDevotees();
+    setEditData((d) => {
+      let tags = Array.isArray(d.tags) ? [...d.tags] : [];
+      if (nextOn) {
+        tags = tags.filter((k) => !exclusiveKeys.includes(k));
+        if (!tags.includes(key)) tags.push(key);
+      } else {
+        tags = tags.filter((k) => k !== key);
+      }
+      return { ...d, tags };
+    });
   };
 
   const handleDelete = (id) => {
@@ -677,9 +698,19 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     };
     const options = FIELD_OPTIONS[f];
 
+    // Bal (children): Grade is a fixed dropdown Nursery → Grade 12 (#111).
+    if (f === 'grade' && data.yuvakType === 'Bal') {
+      return (
+        <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
+          <option value="">— Select —</option>
+          {GRADES.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+
     // Dropdown with manual entry fallback
     if (COMBO_FIELDS.has(f)) {
-      const listOptions = f === 'followupKaryakarta' ? karyakartaOptions : f === 'reference' ? uniqueReferences : (FIELD_OPTIONS[f] || []);
+      const listOptions = f === 'followupKaryakarta' ? karyakartaOptions : f === 'reference' ? uniqueReferences : f === 'school' ? uniqueSchools : (FIELD_OPTIONS[f] || []);
       const isManual = manualOverride[f];
       // Selecting a follow-up karyakarta also auto-fills their mobile from the Devotees tab.
       const comboOnChange = f === 'followupKaryakarta'
@@ -1447,7 +1478,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhoto(e.target.files && e.target.files[0])} />
                       <button type="button" onClick={() => photoInputRef.current && photoInputRef.current.click()}
                         className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg hover:bg-primary-hover">
-                        <Camera className="h-4 w-4" /> {editData.photo ? 'Change' : 'Add photo'}
+                        <Camera className="h-4 w-4" /> {photoUploading ? 'Uploading…' : (editData.photo ? 'Change' : 'Add photo')}
                       </button>
                       {editData.photo && (
                         <button type="button" onClick={() => setEditData((d) => ({ ...d, photo: '' }))}
@@ -1533,7 +1564,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </div>
 
             {/* Body — section cards (continues the same scroll as the header) */}
-              <div className="w-full p-3 sm:p-4 space-y-3">
+              <div className="w-full p-3 sm:p-4 space-y-3" data-enter-nav onKeyDown={focusNextOnEnter}>
                 {PROFILE_SECTION_ORDER.map((sec) => {
                   // ── Family members card ──
                   if (sec === 'Family') {
@@ -1583,11 +1614,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     return (
                       <div key="Tags" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                         <h3 className="text-sm font-black text-text-main mb-3">🏷️ Tags</h3>
+                        {(() => {
+                          const activeTags = editing ? (editData.tags || []) : (selectedDevotee.tags || []);
+                          return (
                         <div className="mb-3">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
-                          {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags{editing ? ' (saved on Save Changes)' : ''}</div>
+                          {activeTags.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
-                              {selectedDevotee.tags.map((key) => (
+                              {activeTags.map((key) => (
                                 <span key={key} style={tagChipStyle(key)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tagLabel(key)}</span>
                               ))}
                             </div>
@@ -1595,9 +1629,11 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                             <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
                           )}
                         </div>
-                        {canEdit && (
+                          );
+                        })()}
+                        {canEdit && editing && (
                           <div className="mt-4 space-y-5">
-                            <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it.</p>
+                            <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it. Changes apply when you press <strong>Save Changes</strong>.</p>
                             {tagsByCategory().map(({ category, tags: catTags }) => {
                               const groups = [];
                               const seen = new Set();
@@ -1618,9 +1654,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                                   <div className="flex flex-wrap gap-2">
                                     {groups.map((g, gi) =>
                                       g.type === 'mutex' ? (
-                                        <span key={gi} className="inline-flex items-center rounded-full border border-dashed border-border-light gap-0.5 p-0.5" title="Only one may be active">
+                                        <span key={gi} className="inline-flex flex-wrap items-center rounded-2xl border border-dashed border-border-light gap-0.5 p-0.5 max-w-full" title="Only one may be active">
                                           {g.tags.map(t => {
-                                            const active = (selectedDevotee.tags || []).includes(t.key);
+                                            const active = (editData.tags || []).includes(t.key);
                                             return (
                                               <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
                                                 style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
@@ -1633,7 +1669,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                                         </span>
                                       ) : (
                                         g.tags.map(t => {
-                                          const active = (selectedDevotee.tags || []).includes(t.key);
+                                          const active = (editData.tags || []).includes(t.key);
                                           return (
                                             <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
                                               style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
@@ -1668,6 +1704,35 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     }
                     return true;
                   });
+                  // View mode mirrors the Add-wizard Review tab exactly (#106):
+                  // single-column (two on wide screens) icon-chip tiles, only for
+                  // fields that have a value. Edit mode keeps the input grid.
+                  if (!editing) {
+                    const filled = fields.filter(([f]) => {
+                      const v = val(selectedDevotee[f], f);
+                      return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '—';
+                    });
+                    const showFamily = sec === 'Satsang';
+                    if (!filled.length && !showFamily && sec !== 'System') return null;
+                    return (
+                      <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
+                        <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {filled.map(([f, label]) => (
+                            <div key={f} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}`}>
+                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{FIELD_EMOJI[f] || '•'}</span>
+                              <div className="min-w-0">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
+                                <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                              </div>
+                            </div>
+                          ))}
+                          {showFamily && renderFamilyRoleView()}
+                        </div>
+                        {sec === 'System' && <AuditFooter d={selectedDevotee} />}
+                      </div>
+                    );
+                  }
                   return (
                     <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                       <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
@@ -1675,16 +1740,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                         {fields.map(([f, label]) => (
                           <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3 xl:col-span-4' : ''}>
                             <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{FIELD_EMOJI[f] ? `${FIELD_EMOJI[f]} ` : ''}{label}</div>
-                            {editing ? (
-                              renderEditField(f, editData, setEditData)
-                            ) : (
-                              <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">
-                                {val(selectedDevotee[f], f)}
-                              </div>
-                            )}
+                            {renderEditField(f, editData, setEditData)}
                           </div>
                         ))}
-                        {sec === 'Satsang' && (editing ? renderFamilyRoleEdit() : renderFamilyRoleView())}
+                        {sec === 'Satsang' && renderFamilyRoleEdit()}
                       </div>
                       {sec === 'System' && <AuditFooter d={selectedDevotee} />}
                     </div>

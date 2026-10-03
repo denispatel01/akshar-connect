@@ -38,10 +38,11 @@ function mailEnabled_(){ return PropertiesService.getScriptProperties().getPrope
 // Central mailer — always shows "Akshar Connect" as the sender name, and sends
 // AS aksharconnect01 when the alias is verified. Falls back (keeps the name) if
 // the alias isn't set up yet, so mail is never lost. Supports an optional HTML body.
-function sendMail_(subject, body, toOverride, htmlBody){
+function sendMail_(subject, body, toOverride, htmlBody, inlineImages){
   var to = toOverride || MAIL_TO;
   var opts = { to: to, subject: subject, body: body, name: MAIL_FROM_NAME };
   if (htmlBody) opts.htmlBody = htmlBody;
+  if (inlineImages) opts.inlineImages = inlineImages;
   try {
     opts.from = MAIL_FROM;
     MailApp.sendEmail(opts);
@@ -53,8 +54,61 @@ function sendMail_(subject, body, toOverride, htmlBody){
   }
 }
 
-// Pretty, profile-style HTML email for a devotee add/edit (#93). No base64 photo.
-function devoteeEmailHtml_(action, row){
+// Decode a data: URI (base64 or url-encoded) into a Blob for use as an inline
+// email image (#108). Gmail strips <img src="data:..."> for security, so the
+// photo must be attached and referenced by Content-ID instead.
+function dataUriToBlob_(dataUri, name){
+  try{
+    var m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(String(dataUri));
+    if(!m) return null;
+    var contentType = m[1] || 'image/jpeg';
+    var bytes = m[2] ? Utilities.base64Decode(m[3]) : Utilities.newBlob(decodeURIComponent(m[3])).getBytes();
+    return Utilities.newBlob(bytes, contentType, name || 'photo');
+  }catch(e){ return null; }
+}
+
+// ── Photo storage on Google Drive (#107) ────────────────────────────────────
+// Instead of storing a big base64 string on every devotee row (bloats the Sheet,
+// slows bootstrap, and Gmail won't render it), the photo is saved as a file in a
+// dedicated Drive folder and only its URL is kept on the record.
+var PHOTO_FOLDER_NAME = 'Akshar Connect Photos';
+function photoFolder_(){
+  var it = DriveApp.getFoldersByName(PHOTO_FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(PHOTO_FOLDER_NAME);
+}
+// A URL that renders reliably both in the app and inside Gmail.
+function photoUrl_(id){ return 'https://lh3.googleusercontent.com/d/' + id; }
+// Extract a Drive file id from a photo value (our stored URL forms).
+function photoIdFromUrl_(u){
+  var s = String(u || '');
+  var m = /lh3\.googleusercontent\.com\/d\/([A-Za-z0-9_-]+)/.exec(s)
+       || /[?&]id=([A-Za-z0-9_-]+)/.exec(s)
+       || /\/d\/([A-Za-z0-9_-]+)/.exec(s);
+  return m ? m[1] : '';
+}
+function doUploadPhoto_(p){
+  try{
+    var blob = dataUriToBlob_(p.dataUri, (p.id || 'photo') + '_' + Date.now() + '.jpg');
+    if(!blob) return json_({ ok:false, error:'bad image data' });
+    var file = photoFolder_().createFile(blob);
+    try{ file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }catch(e){}
+    var id = file.getId();
+    return json_({ ok:true, id:id, url:photoUrl_(id) });
+  }catch(e){ return json_({ ok:false, error:String(e) }); }
+}
+/** RUN ONCE from the editor to grant the Drive permission (like testMail). */
+function authorizeDrive(){
+  var f = photoFolder_();
+  Logger.log('Drive OK — folder "' + PHOTO_FOLDER_NAME + '" id: ' + f.getId());
+}
+
+// Pretty, profile-style HTML email for a devotee add/edit (#93).
+// `changedKeys` (edit only) highlights exactly what was updated (#108).
+// `hasPhoto` embeds the uploaded photo as an inline image (cid:devpic) (#108).
+function devoteeEmailHtml_(action, row, changedKeys, hasPhoto){
+  var changed = {};
+  if (changedKeys && changedKeys.length) for (var c=0;c<changedKeys.length;c++) changed[changedKeys[c]] = true;
+  var isEdit = action === 'UPDATE';
   var FIELDS = [
     ['mobile','📱 Mobile'],['whatsapp','💬 WhatsApp'],['email','📧 Email'],
     ['gender','⚧ Gender'],['dob','🎂 Date of Birth'],['bloodGroup','🩸 Blood Group'],
@@ -66,17 +120,35 @@ function devoteeEmailHtml_(action, row){
     ['relation','🔗 Relation'],['followupKaryakarta','🙏 Karyakarta'],['reference','🤝 Reference'],
     ['tags','🏷️ Tags'],['notes','📝 Notes'],['id','🆔 ID'],
   ];
-  var rows = '';
+  var PILL = '<span style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#FDBA74;color:#7C2D12;font-size:10px;font-weight:800;letter-spacing:.3px;vertical-align:middle">UPDATED</span>';
+  var rows = '', changedLabels = [];
   for (var i=0;i<FIELDS.length;i++){
     var k = FIELDS[i][0], v = row[k];
     if (v === undefined || v === null || v === '') continue;
+    var hit = isEdit && changed[k];
+    if (hit) changedLabels.push(FIELDS[i][1]);
+    var labTd = 'padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap;border-bottom:1px solid #F0E6DC;vertical-align:top;'
+      + (hit ? 'background:#FFF7ED;color:#9A3412' : 'color:#7A7369');
+    var valTd = 'padding:7px 12px;font-size:13px;font-weight:600;border-bottom:1px solid #F0E6DC;'
+      + (hit ? 'background:#FFF7ED;color:#7C2D12' : 'color:#26303B');
     rows += '<tr>'
-      + '<td style="padding:7px 12px;color:#7A7369;font-size:12px;font-weight:700;white-space:nowrap;border-bottom:1px solid #F0E6DC;vertical-align:top">'+FIELDS[i][1]+'</td>'
-      + '<td style="padding:7px 12px;color:#26303B;font-size:13px;font-weight:600;border-bottom:1px solid #F0E6DC">'+String(v).replace(/</g,'&lt;')+'</td>'
+      + '<td style="'+labTd+'">'+FIELDS[i][1]+(hit?PILL:'')+'</td>'
+      + '<td style="'+valTd+'">'+String(v).replace(/</g,'&lt;')+'</td>'
       + '</tr>';
   }
   var who = row.updatedBy || row.createdBy || '';
   var verb = action === 'INSERT' ? 'added' : 'updated';
+  // On an edit, a one-line summary of what changed, right under the header.
+  var summaryBar = '';
+  if (isEdit) {
+    var txt = changedLabels.length
+      ? ('✏️ Updated: ' + changedLabels.map(function(s){ return s.replace(/^[^\sA-Za-z]+\s*/, ''); }).join(', '))
+      : '✏️ Record updated';
+    summaryBar = '<div style="background:#FFEDD5;color:#9A3412;font-size:12px;font-weight:700;padding:9px 20px;border-bottom:1px solid #FED7AA">'+txt+'</div>';
+  }
+  var photoBlock = hasPhoto
+    ? '<div style="text-align:center;background:#fff;padding:16px 0 4px"><img src="cid:devpic" alt="photo" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid #FF9D52"></div>'
+    : '';
   return ''
     + '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;background:#FBF5EF;padding:18px;border-radius:16px">'
     + '<div style="background:linear-gradient(135deg,#FF9D52,#E56F18);color:#fff;padding:18px 20px;border-radius:14px 14px 0 0">'
@@ -84,6 +156,8 @@ function devoteeEmailHtml_(action, row){
     +   '<div style="font-size:20px;font-weight:800;margin-top:2px">'+(row.name||'Devotee')+'</div>'
     +   '<div style="font-size:12px;opacity:.95;margin-top:2px">Devotee '+verb+(who?(' by '+who):'')+'</div>'
     + '</div>'
+    + summaryBar
+    + photoBlock
     + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 14px 14px;overflow:hidden">'+rows+'</table>'
     + '<div style="color:#9b9183;font-size:11px;text-align:center;margin-top:12px">Sent automatically by Akshar Connect</div>'
     + '</div>';
@@ -296,19 +370,19 @@ function handle_(p){
     // Writes return as fast as possible — no synchronous email (it blocked the
     // response by 1-3s). Change notifications are logged and emailed hourly by the
     // emailChangeDigest_ time-trigger instead.
-    if(action==='insert'){ appendRows_(p.collection, [p.row]); logChange_('INSERT', p.collection, p.row); return json_({ ok:true, row:p.row }); }
+    if(action==='insert'){ appendRows_(p.collection, [p.row]); logChange_('INSERT', p.collection, p.row, mailFlag_(p)); return json_({ ok:true, row:p.row }); }
     if(action==='bulkUpdateTags') return doBulkUpdateTags_(p);
     if(action==='bulkSetTags') return doBulkSetTags_(p);
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
       tab_(p.collection).getRange(rn,1,1,HEADERS[p.collection].length).setValues([rowFromObj_(p.collection,p.row)]);
-      logChange_('UPDATE', p.collection, p.row);
+      logChange_('UPDATE', p.collection, p.row, mailFlag_(p), p.changed);
       return json_({ ok:true });
     }
     if(action==='remove'){
       var r=findRow_(p.collection, p.keyField||'id', p.key);
-      if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key, name: p.name, actor: p.actor }); }
+      if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key, name: p.name, actor: p.actor }, mailFlag_(p)); }
       return json_({ ok:true });
     }
     if(action==='markAttendance') { return doMark_(p); }
@@ -338,6 +412,7 @@ function handle_(p){
       PropertiesService.getScriptProperties().setProperty('mailEnabled', (p.enabled===true||p.enabled==='true') ? 'true' : 'false');
       return json_({ ok:true, enabled: mailEnabled_() });
     }
+    if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
@@ -413,7 +488,17 @@ function doDeleteUser_(p){
 
 // Lightweight change log (replaces the slow per-write email). Appends one compact
 // row to the Changes tab; emailChangeDigest_ emails these hourly if a trigger is set.
-function logChange_(action, collection, row){
+// Per-request mail intent (#104): the client stamps each write with the mail
+// on/off state at the MOMENT the user made the change, so optimistic writes that
+// reach the server later (after the admin flips the toggle) still honour what was
+// true when they acted. `p.mail === false` suppresses; otherwise fall back to the
+// global server flag. Returns false only when explicitly suppressed.
+function mailFlag_(p){
+  if(p && (p.mail === false || p.mail === 'false')) return false;
+  if(p && (p.mail === true  || p.mail === 'true'))  return true;
+  return null; // not specified → use global
+}
+function logChange_(action, collection, row, mailAllowed, changedKeys){
   try{
     var who = (row && (row.name || row.updatedBy || row.key)) || '';
     var summary = String(who).slice(0,120);
@@ -422,7 +507,10 @@ function logChange_(action, collection, row){
   // Email runs on the server AFTER the client already got its optimistic response,
   // so the user never waits for it. Wrapped in try/catch so a mail failure never
   // breaks the write. Admin can switch mail OFF (#100). Bulk tag ops don't call this.
-  if(!mailEnabled_()) return;
+  // Area-master edits never email (metadata, protects the Gmail quota) (#104/#105).
+  if(collection === 'Areas') return;
+  if(mailAllowed === false) return;              // client said mail was OFF when they acted (#104)
+  if(mailAllowed !== true && !mailEnabled_()) return; // else honour the global flag
   try{
     if(collection === 'Devotees' && action === 'DELETE'){
       // Delete mail: name + ID + who deleted + when (#95).
@@ -445,9 +533,21 @@ function logChange_(action, collection, row){
       return;
     }
     if(collection === 'Devotees' && (action === 'INSERT' || action === 'UPDATE')){
-      // Profile-style HTML mail, no base64 photo (#93).
+      // Profile-style HTML mail with changed-field highlights + inline photo (#108).
       var plain = (action === 'INSERT' ? 'Added' : 'Updated') + ' devotee: ' + ((row && row.name) || '');
-      sendMail_('Akshar Connect: ' + (action === 'INSERT' ? 'New devotee' : 'Updated') + ' — ' + ((row && row.name) || ''), plain, null, devoteeEmailHtml_(action, row || {}));
+      var inline = null;
+      var ph = row && row.photo ? String(row.photo) : '';
+      if (ph.indexOf('data:') === 0) {
+        var blob = dataUriToBlob_(ph, 'photo');
+        if (blob) inline = { devpic: blob };
+      } else if (ph.indexOf('http') === 0) {
+        // New Drive-hosted photo (#107): fetch the file and inline it so it shows
+        // in Gmail without relying on remote image loading.
+        var pid = photoIdFromUrl_(ph);
+        try { if (pid) { var b = DriveApp.getFileById(pid).getBlob(); if (b) inline = { devpic: b }; } } catch (e) {}
+      }
+      var html = devoteeEmailHtml_(action, row || {}, changedKeys, !!inline);
+      sendMail_('Akshar Connect: ' + (action === 'INSERT' ? 'New devotee' : 'Updated') + ' — ' + ((row && row.name) || ''), plain, null, html, inline);
       return;
     }
     // Other collections: simple text (skip base64/huge values).

@@ -8,6 +8,14 @@ const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') 
 
 const SESSION_KEY = 'ac_session_v1';
 const CACHE_KEY = 'ac_cache_v1';
+const MAIL_KEY = 'ac_mail_v1';
+
+// The admin's email-notification preference, cached locally so every write can be
+// stamped with the state that was true AT THE MOMENT of the change (#104). Default
+// ON to match the server default. Writing `false` means "mail is off right now".
+function mailCached_() {
+  try { return localStorage.getItem(MAIL_KEY) !== 'false'; } catch { return true; }
+}
 
 const ADMIN_SEED = { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' };
 
@@ -81,6 +89,19 @@ function changedFieldLabels_(prev, next) {
   }
   return labels;
 }
+// The backend-row keys that changed between two devotee records — sent to the
+// server so the edit email can highlight exactly what was updated (#108).
+function changedFieldKeys_(prev, next) {
+  const keys = [];
+  for (const k in ACTIVITY_FIELD_LABELS) {
+    const a = k === 'tags' ? (prev[k] || []).join('|') : (prev[k] ?? '');
+    const b = k === 'tags' ? (next[k] || []).join('|') : (next[k] ?? '');
+    if (String(a) !== String(b)) keys.push(k);
+  }
+  // Name is shown in the email header; surface it when any name part changed.
+  if (['firstName', 'middleName', 'lastName'].some(k => keys.includes(k))) keys.push('name');
+  return keys;
+}
 function humanList_(arr) {
   if (!arr.length) return '';
   if (arr.length === 1) return arr[0];
@@ -115,7 +136,14 @@ async function api(action, payload = {}) {
 // Fire-and-forget write with retry; keeps UI snappy (optimistic).
 function push(action, payload) {
   if (!hasBackend()) return;
-  api(action, payload).catch(err => console.warn('sync failed:', action, err.message));
+  // Stamp the mail-on/off intent as it is RIGHT NOW onto every notifying write, so
+  // a later toggle can't resurrect suppressed emails (#104). The server honours
+  // this per-request flag over its global setting.
+  let body = payload;
+  if (action === 'insert' || action === 'update' || action === 'remove') {
+    body = { ...payload, mail: mailCached_() };
+  }
+  api(action, body).catch(err => console.warn('sync failed:', action, err.message));
 }
 
 function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB)); } catch (e) {} }
@@ -305,12 +333,30 @@ export const dataService = {
   getMailEnabled: async () => {
     if (!hasBackend()) return true;
     const r = await api('getMailEnabled', {});
-    return !!(r && r.enabled);
+    const on = !!(r && r.enabled);
+    try { localStorage.setItem(MAIL_KEY, on ? 'true' : 'false'); } catch { /* ignore */ }
+    return on;
   },
   setMailEnabled: async (enabled) => {
+    // Cache immediately so writes made right after the toggle carry the new intent.
+    try { localStorage.setItem(MAIL_KEY, enabled ? 'true' : 'false'); } catch { /* ignore */ }
     if (!hasBackend()) return enabled;
     const r = await api('setMailEnabled', { enabled: !!enabled });
-    return !!(r && r.enabled);
+    const on = !!(r && r.enabled);
+    try { localStorage.setItem(MAIL_KEY, on ? 'true' : 'false'); } catch { /* ignore */ }
+    return on;
+  },
+
+  // Upload a cropped photo (data URI) to Google Drive and get back a stable URL
+  // to store on the devotee record instead of the heavy base64 string (#107).
+  // Falls back to the original data URI if there's no backend or the upload fails,
+  // so photos still work offline / before the backend is redeployed.
+  uploadPhoto: async (dataUri, id = '') => {
+    if (!hasBackend() || !dataUri || dataUri.indexOf('data:') !== 0) return dataUri;
+    try {
+      const r = await api('uploadPhoto', { dataUri, id });
+      return (r && r.url) ? r.url : dataUri;
+    } catch { return dataUri; }
   },
 
   // Fire-and-forget: email the admin when a user hits a runtime error.
@@ -452,9 +498,10 @@ export const dataService = {
   updateDevotee: (id, updatedFields) => {
     const idx = DB.devotees.findIndex(d => d.id === id);
     if (idx === -1) return null;
-    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: actorLabel() });
+    const prev = DB.devotees[idx];
+    const merged = normalizeDevotee({ ...prev, ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: actorLabel() });
     DB.devotees[idx] = merged; saveCache();
-    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged), changed: changedFieldKeys_(prev, merged) });
     return merged;
   },
 
@@ -467,7 +514,7 @@ export const dataService = {
     DB.devotees[idx] = merged;
     saveCache();
     // Optimistic: return immediately; the write syncs in the background (with retry).
-    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged), changed: changedFieldKeys_(prev, merged) });
     const changed = humanList_(changedFieldLabels_(prev, merged));
     if (changed) logActivity_('update-devotee', merged.name, `updated ${changed} of ${merged.name}`);
     return merged;
