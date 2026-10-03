@@ -24,6 +24,19 @@ const blank = () => ({
 });
 
 const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 py-3 text-sm font-semibold text-text-main outline-none transition-colors placeholder:font-medium placeholder:text-text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
+
+// Colorful section cards (#56) — each step section gets its own soft gradient wash
+// and matching border so the Add form isn't a wall of white. Dark mode falls back
+// to a subtle slate tint. Inputs stay white for contrast.
+const DARK_CARD = 'dark:from-slate-800/40 dark:to-slate-800/40 dark:border-border-light';
+const CARD_BASE = 'rounded-3xl border bg-gradient-to-br p-5 sm:p-6 shadow-xs space-y-5';
+const CARD = {
+  basics:     `${CARD_BASE} from-orange-50 to-amber-50 border-orange-200/70 ${DARK_CARD}`,
+  contact:    `${CARD_BASE} from-sky-50 to-cyan-50 border-sky-200/70 ${DARK_CARD}`,
+  education:  `${CARD_BASE} from-emerald-50 to-teal-50 border-emerald-200/70 ${DARK_CARD}`,
+  profession: `${CARD_BASE} from-violet-50 to-fuchsia-50 border-violet-200/70 ${DARK_CARD}`,
+  family:     `${CARD_BASE} from-rose-50 to-pink-50 border-rose-200/70 ${DARK_CARD}`,
+};
 const Label = ({ children, req }) => (
   <label className="block text-sm font-bold text-text-main mb-1.5">
     {children}{req && <span className="text-red-500"> *</span>}
@@ -267,7 +280,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
         <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 space-y-4" data-enter-nav onKeyDown={focusNextOnEnter}>
 
           {step === 0 && (
-            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+            <div className={CARD.basics}>
               <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[0]}</h3>
               <div className="flex items-center gap-4">
                 <img src={avatar} alt="" className="h-20 w-20 rounded-2xl object-cover border-2 border-border-light bg-surface" />
@@ -326,7 +339,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               </div>
 
               {/* Contact & personal */}
-              <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+              <div className={CARD.contact}>
                 <h3 className="flex items-center gap-2 text-lg font-black text-text-main">📞 Contact & Personal</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -356,7 +369,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               {(() => {
                 const showGrade = isBal || form.educationStatus === 'Pursuing';
                 return (
-                  <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                  <div className={CARD.education}>
                     <h3 className="flex items-center gap-2 text-lg font-black text-text-main">🎓 Education</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {!isBal && (
@@ -388,7 +401,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
               {/* Profession — hidden for Bal (children) */}
               {!isBal && (
-                <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                <div className={CARD.profession}>
                   <h3 className="flex items-center gap-2 text-lg font-black text-text-main">💼 Profession</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label>💼 Profession</Label>
@@ -404,7 +417,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           })()}
 
           {step === 2 && (
-            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+            <div className={CARD.family}>
               <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[2]}</h3>
               <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
                 <Label>Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></Label>
