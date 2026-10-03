@@ -32,18 +32,61 @@ var MAIL_TO = 'aksharconnect01@gmail.com';
 var MAIL_FROM = 'aksharconnect01@gmail.com';
 var MAIL_FROM_NAME = 'Akshar Connect';
 
+// Admin ON/OFF switch for all notification mail (#100). Stored in Script Properties.
+function mailEnabled_(){ return PropertiesService.getScriptProperties().getProperty('mailEnabled') !== 'false'; }
+
 // Central mailer — always shows "Akshar Connect" as the sender name, and sends
 // AS aksharconnect01 when the alias is verified. Falls back (keeps the name) if
-// the alias isn't set up yet, so mail is never lost. Returns the sender used.
-function sendMail_(subject, body, toOverride){
+// the alias isn't set up yet, so mail is never lost. Supports an optional HTML body.
+function sendMail_(subject, body, toOverride, htmlBody){
   var to = toOverride || MAIL_TO;
+  var opts = { to: to, subject: subject, body: body, name: MAIL_FROM_NAME };
+  if (htmlBody) opts.htmlBody = htmlBody;
   try {
-    MailApp.sendEmail({ to: to, subject: subject, body: body, name: MAIL_FROM_NAME, from: MAIL_FROM });
+    opts.from = MAIL_FROM;
+    MailApp.sendEmail(opts);
     return MAIL_FROM;
   } catch (e) {
-    MailApp.sendEmail({ to: to, subject: subject, body: body, name: MAIL_FROM_NAME }); // alias not ready yet
+    delete opts.from;
+    MailApp.sendEmail(opts); // alias not ready yet
     return 'owner-fallback';
   }
+}
+
+// Pretty, profile-style HTML email for a devotee add/edit (#93). No base64 photo.
+function devoteeEmailHtml_(action, row){
+  var FIELDS = [
+    ['mobile','📱 Mobile'],['whatsapp','💬 WhatsApp'],['email','📧 Email'],
+    ['gender','⚧ Gender'],['dob','🎂 Date of Birth'],['bloodGroup','🩸 Blood Group'],
+    ['maritalStatus','💍 Marital Status'],['anniversary','💕 Anniversary'],
+    ['address','📍 Address'],['area','🗺️ Area'],['city','🏙️ City'],
+    ['yuvakType','🧑 Yuvak Type'],['qualification','🎓 Qualification'],['grade','📘 Grade'],
+    ['education','📚 Education'],['educationStatus','⏳ Status'],['school','🏫 School'],
+    ['profession','💼 Profession'],['professionField','🛠️ Field'],['companyName','🏢 Company'],
+    ['relation','🔗 Relation'],['followupKaryakarta','🙏 Karyakarta'],['reference','🤝 Reference'],
+    ['tags','🏷️ Tags'],['notes','📝 Notes'],['id','🆔 ID'],
+  ];
+  var rows = '';
+  for (var i=0;i<FIELDS.length;i++){
+    var k = FIELDS[i][0], v = row[k];
+    if (v === undefined || v === null || v === '') continue;
+    rows += '<tr>'
+      + '<td style="padding:7px 12px;color:#7A7369;font-size:12px;font-weight:700;white-space:nowrap;border-bottom:1px solid #F0E6DC;vertical-align:top">'+FIELDS[i][1]+'</td>'
+      + '<td style="padding:7px 12px;color:#26303B;font-size:13px;font-weight:600;border-bottom:1px solid #F0E6DC">'+String(v).replace(/</g,'&lt;')+'</td>'
+      + '</tr>';
+  }
+  var who = row.updatedBy || row.createdBy || '';
+  var verb = action === 'INSERT' ? 'added' : 'updated';
+  return ''
+    + '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;background:#FBF5EF;padding:18px;border-radius:16px">'
+    + '<div style="background:linear-gradient(135deg,#FF9D52,#E56F18);color:#fff;padding:18px 20px;border-radius:14px 14px 0 0">'
+    +   '<div style="font-size:11px;font-weight:800;letter-spacing:1px;opacity:.9">AKSHAR CONNECT</div>'
+    +   '<div style="font-size:20px;font-weight:800;margin-top:2px">'+(row.name||'Devotee')+'</div>'
+    +   '<div style="font-size:12px;opacity:.95;margin-top:2px">Devotee '+verb+(who?(' by '+who):'')+'</div>'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 14px 14px;overflow:hidden">'+rows+'</table>'
+    + '<div style="color:#9b9183;font-size:11px;text-align:center;margin-top:12px">Sent automatically by Akshar Connect</div>'
+    + '</div>';
 }
 
 /**
@@ -265,7 +308,7 @@ function handle_(p){
     }
     if(action==='remove'){
       var r=findRow_(p.collection, p.keyField||'id', p.key);
-      if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key }); }
+      if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key, name: p.name, actor: p.actor }); }
       return json_({ ok:true });
     }
     if(action==='markAttendance') { return doMark_(p); }
@@ -289,6 +332,11 @@ function handle_(p){
       var lim = Math.min(parseInt(p.limit,10)||300, 1000);
       var out = all.slice(Math.max(0, all.length-lim)).reverse(); // newest first
       return json_({ ok:true, activity: out });
+    }
+    if(action==='getMailEnabled') return json_({ ok:true, enabled: mailEnabled_() });
+    if(action==='setMailEnabled'){
+      PropertiesService.getScriptProperties().setProperty('mailEnabled', (p.enabled===true||p.enabled==='true') ? 'true' : 'false');
+      return json_({ ok:true, enabled: mailEnabled_() });
     }
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
@@ -372,12 +420,39 @@ function logChange_(action, collection, row){
     tab_('Changes').appendRow([ new Date().toISOString(), action, collection, summary, 'yes' ]);
   }catch(e){}
   // Email runs on the server AFTER the client already got its optimistic response,
-  // so the user never waits for it. Wrapped in try/catch so a mail failure (quota,
-  // etc.) never breaks the write. Only single add/edit/delete call this — bulk tag
-  // ops do not, so the Gmail daily quota is not a concern.
+  // so the user never waits for it. Wrapped in try/catch so a mail failure never
+  // breaks the write. Admin can switch mail OFF (#100). Bulk tag ops don't call this.
+  if(!mailEnabled_()) return;
   try{
+    if(collection === 'Devotees' && action === 'DELETE'){
+      // Delete mail: name + ID + who deleted + when (#95).
+      var when = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd-MMM-yyyy hh:mm a');
+      var nm = (row && row.name) || '(unknown)';
+      var id = (row && (row.key || row.id)) || '';
+      var by = (row && row.actor) || '';
+      var dbody = 'Devotee deleted\n\nName: ' + nm + '\nID: ' + id + '\nDeleted by: ' + by + '\nWhen: ' + when;
+      var dhtml = '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FBF5EF;padding:18px;border-radius:16px">'
+        + '<div style="background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;padding:16px 20px;border-radius:14px 14px 0 0">'
+        +   '<div style="font-size:11px;font-weight:800;letter-spacing:1px;opacity:.9">AKSHAR CONNECT</div>'
+        +   '<div style="font-size:19px;font-weight:800;margin-top:2px">🗑️ Devotee Deleted</div></div>'
+        + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 14px 14px;overflow:hidden">'
+        +   '<tr><td style="padding:8px 12px;color:#7A7369;font-size:12px;font-weight:700;border-bottom:1px solid #F0E6DC">👤 Name</td><td style="padding:8px 12px;color:#26303B;font-size:13px;font-weight:700;border-bottom:1px solid #F0E6DC">'+nm+'</td></tr>'
+        +   '<tr><td style="padding:8px 12px;color:#7A7369;font-size:12px;font-weight:700;border-bottom:1px solid #F0E6DC">🆔 ID</td><td style="padding:8px 12px;color:#26303B;font-size:13px;font-weight:600;border-bottom:1px solid #F0E6DC">'+id+'</td></tr>'
+        +   '<tr><td style="padding:8px 12px;color:#7A7369;font-size:12px;font-weight:700;border-bottom:1px solid #F0E6DC">🧑 Deleted by</td><td style="padding:8px 12px;color:#26303B;font-size:13px;font-weight:600;border-bottom:1px solid #F0E6DC">'+by+'</td></tr>'
+        +   '<tr><td style="padding:8px 12px;color:#7A7369;font-size:12px;font-weight:700">🕒 When</td><td style="padding:8px 12px;color:#26303B;font-size:13px;font-weight:600">'+when+'</td></tr>'
+        + '</table></div>';
+      sendMail_('Akshar Connect: Deleted — ' + nm + (id?(' ('+id+')'):''), dbody, null, dhtml);
+      return;
+    }
+    if(collection === 'Devotees' && (action === 'INSERT' || action === 'UPDATE')){
+      // Profile-style HTML mail, no base64 photo (#93).
+      var plain = (action === 'INSERT' ? 'Added' : 'Updated') + ' devotee: ' + ((row && row.name) || '');
+      sendMail_('Akshar Connect: ' + (action === 'INSERT' ? 'New devotee' : 'Updated') + ' — ' + ((row && row.name) || ''), plain, null, devoteeEmailHtml_(action, row || {}));
+      return;
+    }
+    // Other collections: simple text (skip base64/huge values).
     var body = action + ' on ' + collection + '\n\n';
-    if(row && typeof row === 'object'){ for(var k in row){ if(row[k]) body += k + ': ' + row[k] + '\n'; } }
+    if(row && typeof row === 'object'){ for(var k in row){ var vv=row[k]; if(vv && String(vv).length < 300) body += k + ': ' + vv + '\n'; } }
     sendMail_('Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body);
   }catch(e){}
 }

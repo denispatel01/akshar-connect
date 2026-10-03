@@ -301,6 +301,18 @@ export const dataService = {
   },
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
+  // Admin: turn notification email on/off (server-side flag).
+  getMailEnabled: async () => {
+    if (!hasBackend()) return true;
+    const r = await api('getMailEnabled', {});
+    return !!(r && r.enabled);
+  },
+  setMailEnabled: async (enabled) => {
+    if (!hasBackend()) return enabled;
+    const r = await api('setMailEnabled', { enabled: !!enabled });
+    return !!(r && r.enabled);
+  },
+
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
     try {
@@ -547,7 +559,7 @@ export const dataService = {
   deleteDevotee: (id) => {
     const gone = DB.devotees.find(d => d.id === id);
     DB.devotees = DB.devotees.filter(d => d.id !== id); saveCache();
-    push('remove', { collection: 'Devotees', keyField: 'id', key: id });
+    push('remove', { collection: 'Devotees', keyField: 'id', key: id, name: gone?.name || '', actor: actorLabel() });
     if (gone) logActivity_('delete-devotee', gone.name, `deleted ${gone.name}`);
   },
 
