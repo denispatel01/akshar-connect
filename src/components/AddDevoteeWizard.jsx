@@ -22,8 +22,12 @@ const blank = () => ({
   familyId: '', type: 'Primary', relation: 'Self', dateOfJoining: todayISO(),
 });
 
-const inputCls = 'w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary';
-const Label = ({ children }) => <label className="block text-xs font-bold text-text-main mb-1">{children}</label>;
+const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 py-3 text-sm font-semibold text-text-main outline-none transition-colors placeholder:font-medium placeholder:text-text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
+const Label = ({ children, req }) => (
+  <label className="block text-sm font-bold text-text-main mb-1.5">
+    {children}{req && <span className="text-red-500"> *</span>}
+  </label>
+);
 
 // Small searchable family-head picker.
 function HeadPicker({ heads, value, onChange }) {
@@ -133,6 +137,23 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const step0Valid = form.firstName.trim() && form.mobile.length === 10;
   const canNext = step === 0 ? step0Valid : true;
 
+  // Per-step completion % for the circular stepper (feels like the reference).
+  const STEP_FIELDS = [
+    ['firstName', 'middleName', 'lastName', 'mobile', 'dob', 'gender'],
+    ['whatsapp', 'email', 'area', 'city', 'address', 'qualification', 'profession'],
+    ['followupKaryakarta', 'reference'],
+  ];
+  const stepPct = (i) => {
+    if (i >= 3) return Math.round([0, 1, 2].reduce((a, k) => a + stepPct(k), 0) / 3);
+    const fields = STEP_FIELDS[i] || [];
+    const extra = i === 2 ? 1 : 0;                       // tags count as one more field on step 2
+    const total = fields.length + extra;
+    let filled = fields.filter((k) => String(form[k] || '').trim()).length;
+    if (i === 2 && form.tags.length) filled += 1;
+    return total ? Math.round((filled / total) * 100) : 0;
+  };
+  const SECTION_TITLE = ['Personal Details', 'Contact & Background', 'Family, Satsang & Tags', 'Review & Save'];
+
   const buildPayload = () => ({
     ...form, name: fullName || form.name,
     whatsapp: waSame ? form.mobile : form.whatsapp,
@@ -170,24 +191,46 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
-      <div className="border-b border-border-light bg-surface px-4 sm:px-6 py-3 shrink-0">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base sm:text-lg font-black text-text-main">Add New Devotee</h2>
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main"><X className="h-5 w-5" /></button>
+      <div className="border-b border-border-light bg-surface px-4 sm:px-6 py-4 shrink-0">
+        {/* Header: back + title + Cancel */}
+        <div className="mx-auto w-full max-w-3xl flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button type="button" onClick={() => (step === 0 ? onClose() : setStep(step - 1))}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base hover:border-primary transition-colors">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <h2 className="text-lg sm:text-xl font-black text-text-main truncate">Add New Devotee</h2>
+          </div>
+          <button type="button" onClick={onClose}
+            className="shrink-0 rounded-2xl border border-border-light bg-surface px-4 sm:px-5 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base hover:border-primary transition-colors">
+            Cancel
+          </button>
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          {STEPS.map((s, i) => (
-            <React.Fragment key={s}>
-              <button type="button" onClick={() => (i < step || canNext) && setStep(i)}
-                className={`flex items-center gap-1.5 text-[11px] font-bold ${i === step ? 'text-primary' : i < step ? 'text-emerald-600' : 'text-text-muted'}`}>
-                <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${i === step ? 'bg-primary text-white' : i < step ? 'bg-emerald-500 text-white' : 'bg-bg-base border border-border-light'}`}>
-                  {i < step ? <Check className="h-3 w-3" /> : i + 1}
-                </span>
-                <span className="hidden sm:inline">{s}</span>
-              </button>
-              {i < STEPS.length - 1 && <div className={`h-0.5 flex-1 rounded ${i < step ? 'bg-emerald-500' : 'bg-border-light'}`} />}
-            </React.Fragment>
-          ))}
+
+        {/* Circular % stepper */}
+        <div className="mx-auto w-full max-w-3xl mt-4 flex items-end">
+          {STEPS.map((s, i) => {
+            const p = stepPct(i);
+            const active = i === step;
+            const done = p === 100;
+            return (
+              <React.Fragment key={s}>
+                <button type="button" onClick={() => (i < step || canNext) && setStep(i)}
+                  className="flex flex-col items-center gap-1.5 w-16 sm:w-20 shrink-0 focus:outline-none">
+                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-primary' : 'text-text-muted'}`}>{s}</span>
+                  <span className={`grid h-10 w-10 place-items-center rounded-full text-[11px] font-black transition-all
+                    ${active ? 'bg-primary text-white ring-4 ring-primary/25'
+                      : done ? 'bg-emerald-500 text-white'
+                      : 'bg-surface text-text-muted border border-border-light'}`}>
+                    {done ? <Check className="h-4 w-4" /> : `${p}%`}
+                  </span>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={`h-[2px] flex-1 rounded -translate-y-[20px] ${i < step ? 'bg-primary' : 'bg-border-light'}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -197,23 +240,24 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
         <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 space-y-4">
 
           {step === 0 && (
-            <div className="space-y-4">
+            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[0]}</h3>
               <div className="flex items-center gap-4">
                 <img src={avatar} alt="" className="h-20 w-20 rounded-2xl object-cover border-2 border-border-light bg-surface" />
                 <div>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPhotoFile(e.target.files && e.target.files[0])} />
                   <button type="button" onClick={() => fileRef.current && fileRef.current.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-2 text-xs font-bold text-text-main hover:border-primary">
-                    <Camera className="h-4 w-4" /> {form.photo ? 'Change photo' : 'Upload photo'}
+                    <Camera className="h-4 w-4" /> {form.photo ? '📷 Change photo' : '📷 Upload photo'}
                   </button>
                   {form.photo && <button type="button" onClick={() => set({ photo: '' })} className="ml-2 text-xs font-bold text-red-500">Remove</button>}
                   <p className="mt-1 text-[10px] text-text-muted">Auto-cropped to a square.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div><Label>First Name *</Label><input value={form.firstName} onChange={(e) => set({ firstName: e.target.value })} className={inputCls} /></div>
-                <div><Label>Middle Name</Label><input value={form.middleName} onChange={(e) => set({ middleName: e.target.value })} className={inputCls} /></div>
-                <div><Label>Last Name</Label><input value={form.lastName} onChange={(e) => set({ lastName: e.target.value })} className={inputCls} /></div>
-                <div><Label>Mobile *</Label><input required maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} className={inputCls} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><Label req>First Name</Label><input value={form.firstName} onChange={(e) => set({ firstName: e.target.value })} placeholder="Enter first name" className={inputCls} /></div>
+                <div><Label>Middle Name</Label><input value={form.middleName} onChange={(e) => set({ middleName: e.target.value })} placeholder="Enter middle name" className={inputCls} /></div>
+                <div><Label>Last Name</Label><input value={form.lastName} onChange={(e) => set({ lastName: e.target.value })} placeholder="Enter surname" className={inputCls} /></div>
+                <div><Label req>Mobile Number</Label><input required maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
                 <div><Label>Date of Birth</Label><input type="date" value={form.dob} onChange={(e) => set({ dob: e.target.value })} className={inputCls} /></div>
                 <div><Label>Gender</Label>
                   <select value={form.gender} onChange={(e) => set({ gender: e.target.value })} className={inputCls}>
@@ -233,16 +277,17 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           )}
 
           {step === 1 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[1]}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-text-main">WhatsApp</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-bold text-text-main">WhatsApp Number</label>
                     <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer">
                       <input type="checkbox" checked={waSame} onChange={(e) => { setWaSame(e.target.checked); if (e.target.checked) set({ whatsapp: form.mobile }); }} className="rounded" /> Same as mobile
                     </label>
                   </div>
-                  <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
+                  <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} placeholder="10-digit WhatsApp number" className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
                 </div>
                 <div><Label>Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} className={inputCls} /></div>
                 <div><Label>Area</Label>
@@ -277,8 +322,9 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border-light bg-surface p-3 space-y-2">
+            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[2]}</h3>
+              <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
                 <Label>Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></Label>
                 <HeadPicker heads={familyHeads} value={form.familyId} onChange={pickHead} />
                 {form.familyId && (

@@ -138,4 +138,6 @@ Done 68.Still created by is not saved on add devotees. If i have logged in with 
 85.Still desktop view for admin tab is not proper. user management section is required very less space then also it is showing it in whole screen 100% width.
 	you can add as much as possible cards (section) in 1 row as per screen resolution.
 86.Created by column (in sheet) should be besides created on (left side)
-87.Use orange color in our theme. reference image given.
+87.profile picture should be big and cover page should be "simple life, high thinking" image. image attached.
+
+Use orange color in our theme. reference image given.
