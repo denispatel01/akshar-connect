@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','city','address','education','occupation','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','city','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
@@ -20,7 +20,7 @@ var HEADERS = {
   Changes:    ['ts','action','collection','summary','emailed']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-04c';
+var SCHEMA_VERSION = '2026-10-05a';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -292,6 +292,11 @@ function migrateHeaders_(name){
     });
     sh.getRange(1,1,sh.getMaxRows(),need).setNumberFormat('@'); // keep all-text
     sh.getRange(1,1,out.length,need).setValues(out);
+    // When a column was REMOVED, the rebuilt data occupies the first `need`
+    // columns but stale orphan columns can linger to the right — delete them so
+    // the sheet matches HEADERS exactly (data was already remapped by name above).
+    var extra = sh.getMaxColumns() - need;
+    if(extra > 0) { try { sh.deleteColumns(need + 1, extra); } catch(e) {} }
   } finally {
     try { lock.releaseLock(); } catch(e) {}
   }
