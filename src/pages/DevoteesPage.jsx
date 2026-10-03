@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2, Camera } from 'lucide-react';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
-import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys } from '../services/tagCatalog';
+import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, devoteeSearchText } from '../utils/search';
 import { focusNextOnEnter } from '../utils/formNav';
 import EmptyState from '../components/EmptyState';
 import { ListSkeleton } from '../components/SkeletonLoader';
 import {
-  hasAnyTag, deriveAge, AREAS, GENDERS, QUALIFICATIONS, EDUCATION_STATUS,
-  PROFESSIONS, MARITAL_STATUS, RELATIONS, YUVAK_TYPES, STATUSES, BLOOD_GROUPS, GRADES,
-  FAMILY_RECORD_TYPES, formatFamilyRecordType, formatFamilyMembershipContext
+  hasAnyTag, deriveAge, QUALIFICATIONS, formatFamilyRecordType
 } from '../services/devoteeSchema';
 
 // Age bands for the Divine Devotees filter.
@@ -83,47 +80,6 @@ function MultiSelect({ label, options, selected, onChange }) {
   );
 }
 
-// Searchable Family Head picker — type to filter heads by name/area instead of
-// scrolling a long dropdown.
-function FamilyHeadPicker({ heads, value, onChange, inputCls }) {
-  const [q, setQ] = React.useState('');
-  const [open, setOpen] = React.useState(false);
-  const selected = heads.find((h) => h.familyId === value);
-  const ql = q.trim().toLowerCase();
-  const matches = (ql
-    ? heads.filter((h) => (h.name || '').toLowerCase().includes(ql) || (h.area || '').toLowerCase().includes(ql))
-    : heads
-  ).slice(0, 40);
-  return (
-    <div className="relative">
-      <input
-        value={open ? q : (selected ? `${selected.name}${selected.area ? ` — ${selected.area}` : ''}` : '')}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => { setQ(''); setOpen(true); }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Search head by name or area…"
-        className={inputCls + ' bg-surface'} />
-      {open && (
-        <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-border-light bg-surface shadow-lg">
-          {matches.length === 0 && <p className="px-3 py-2 text-xs font-semibold text-text-muted">No matching head</p>}
-          {value && (
-            <button type="button" onMouseDown={(e) => { e.preventDefault(); onChange(''); setOpen(false); setQ(''); }}
-              className="block w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-bg-base border-b border-border-light">Clear</button>
-          )}
-          {matches.map((h) => (
-            <button type="button" key={h.familyId}
-              onMouseDown={(e) => { e.preventDefault(); onChange(h.familyId); setOpen(false); setQ(''); }}
-              className={`block w-full text-left px-3 py-2 text-sm hover:bg-bg-base ${h.familyId === value ? 'bg-primary/5 font-bold text-primary' : 'text-text-main'}`}>
-              {h.name}{h.area ? <span className="text-text-muted"> — {h.area}</span> : ''}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-const ALL_FIELDS = Object.values(TABS).flat();
-const READ_ONLY_FIELDS = new Set(['id', 'familyId']);
 const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
 
 const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
@@ -133,18 +89,6 @@ const firstLastName = (full) => {
   const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
   return parts.length <= 2 ? parts.join(' ') : `${parts[0]} ${parts[parts.length - 1]}`;
 };
-
-// Map field keys to dropdown options (from devoteeSchema) for smart rendering
-const FIELD_OPTIONS = {
-  gender: GENDERS, bloodGroup: BLOOD_GROUPS, maritalStatus: MARITAL_STATUS,
-  area: AREAS, qualification: QUALIFICATIONS, educationStatus: EDUCATION_STATUS,
-  profession: PROFESSIONS, relation: RELATIONS, yuvakType: YUVAK_TYPES,
-  status: STATUSES, wing: WINGS, type: FAMILY_RECORD_TYPES,
-};
-// Fields that should render as textarea
-const TEXTAREA_FIELDS = new Set(['address', 'notes']);
-// Fields that allow both dropdown + manual entry (datalist pattern)
-const COMBO_FIELDS = new Set(['area', 'followupKaryakarta', 'reference', 'school']);
 
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
@@ -166,9 +110,6 @@ const PRESET_META = {
   },
 };
 
-// Capitalize the first letter of every word (#89). Applied to name/text fields only.
-const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
-const CAP_FIELDS = new Set(['firstName', 'middleName', 'lastName', 'city', 'school', 'grade', 'education', 'professionField', 'companyName', 'address', 'reference', 'followupKaryakarta', 'notes', 'area']);
 // Emoji per profile field for extra visual cues (#98).
 const FIELD_EMOJI = {
   firstName: '🪪', middleName: '🪪', lastName: '🪪', gender: '⚧️', dob: '🎂', bloodGroup: '🩸',
@@ -231,34 +172,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedDevotee, setSelectedDevotee] = useState(null);
   const [qrModalDevotee, setQrModalDevotee] = useState(null);
   const [activeTab, setActiveTab] = useState('Personal');
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState({});
-  const photoInputRef = useRef(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  // Crop an uploaded image to a square, then store it on Drive and keep only its
-  // URL on the record (#107/#88). Shows the cropped image instantly, then swaps in
-  // the Drive URL; falls back to the data URI if the upload fails.
-  const handleProfilePhoto = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = async () => {
-        const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
-        const ctx = c.getContext('2d');
-        const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
-        ctx.drawImage(img, sx, sy, m, m, 0, 0, S, S);
-        const dataUri = c.toDataURL('image/jpeg', 0.72);
-        setEditData((d) => ({ ...d, photo: dataUri }));
-        setPhotoUploading(true);
-        const url = await dataService.uploadPhoto(dataUri, editData?.mobile || selectedDevotee?.mobile || '');
-        setEditData((d) => ({ ...d, photo: url }));
-        setPhotoUploading(false);
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  };
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [showTags, setShowTags] = useState(false); // separate Tags filter section (outside Filters)
@@ -279,9 +192,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [filterTypes, setFilterTypes] = useState([]); // 'Primary' | 'Family'
   const [filterOldNews, setFilterOldNews] = useState([]); // 'Old' | 'Reference' | 'New'
   const anyFilterActive = filterKaryakartas.length || filterAreas.length || filterReferences.length || filterQualifications.length || filterAges.length || filterGenders.length || filterTypes.length || filterOldNews.length;
-  const [whatsappSameAsMobile, setWhatsappSameAsMobile] = useState(false);
   const [addWhatsappSameAsMobile, setAddWhatsappSameAsMobile] = useState(false);
-  const [manualOverride, setManualOverride] = useState({});
   const [saving, setSaving] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -327,8 +238,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
-  // Distinct existing school names, so edits reuse them for consistency (#111).
-  const uniqueSchools = useMemo(() => [...new Set(devotees.map(d => String(d.school || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
   // Reference picker: existing reference values first, then every devotee name, + free typing.
   const referenceOptions = useMemo(
     () => [...new Set([...uniqueReferences, ...devotees.map(d => d.name).filter(Boolean)])],
@@ -407,18 +316,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     devotees.forEach((d) => { if (d.type === 'Primary') m.set(d.familyId || d.id, d); });
     return m;
   }, [devotees]);
-  // Fields a family member inherits from their head (non-empty head values win).
-  const inheritFromHead = (familyId, data) => {
-    const h = headRecordByFamilyId.get(familyId);
-    if (!h) return {};
-    return {
-      address: h.address || data.address || '',
-      area: h.area || data.area || '',
-      followupKaryakarta: h.followupKaryakarta || data.followupKaryakarta || '',
-      followupKaryakartaMobile: h.followupKaryakartaMobile || data.followupKaryakartaMobile || '',
-    };
-  };
-
   // All members of the open devotee's family (head first), for the Family tab.
   const familyMembers = useMemo(() => {
     if (!selectedDevotee) return [];
@@ -518,7 +415,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
   };
 
-  const openProfile = (d) => { setSelectedDevotee(d); setActiveTab('Personal'); setEditing(false); };
+  const openProfile = (d) => { setSelectedDevotee(d); setActiveTab('Personal'); };
 
   // --- Profile tab swipe navigation ---
   const TAB_KEYS = Object.keys(TABS);
@@ -551,17 +448,16 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
   const onBodyTouchStart = (e) => {
-    if (editing) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     touchDeltaX.current = 0;
   };
   const onBodyTouchMove = (e) => {
-    if (editing || touchStartX.current == null) return;
+    if (touchStartX.current == null) return;
     touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
   };
   const onBodyTouchEnd = (e) => {
-    if (editing || touchStartX.current == null) return;
+    if (touchStartX.current == null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
@@ -580,61 +476,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDevoteeId]);
 
-  const startEdit = () => {
-    const seed = {}; ALL_FIELDS.forEach(([f]) => seed[f] = selectedDevotee[f] ?? '');
-    seed.type = selectedDevotee.type ?? ''; // membership is derived via the family-role block, not a visible field
-    seed.tags = Array.isArray(selectedDevotee.tags) ? [...selectedDevotee.tags] : []; // tags buffer until Save (#112)
-    setEditData(seed);
-    const mob = String(selectedDevotee.mobile || '');
-    const wa = String(selectedDevotee.whatsapp || '');
-    setWhatsappSameAsMobile(Boolean(mob && wa === mob));
-    setEditing(true);
-  };
-
-  const buildSavePayload = () => {
-    const payload = { ...editData };
-    READ_ONLY_FIELDS.forEach((f) => { delete payload[f]; });
-    payload.id = selectedDevotee.id;
-    payload.familyId = editData.familyId ?? selectedDevotee.familyId;
-    if (whatsappSameAsMobile) payload.whatsapp = payload.mobile ?? selectedDevotee.mobile;
-    payload.name = [payload.firstName, payload.middleName, payload.lastName].filter(Boolean).join(' ')
-      || selectedDevotee.name;
-    return payload;
-  };
-
-  const saveEdit = async () => {
-    setSaving(true);
-    const displayName = buildSavePayload().name;
-    try {
-      const updated = await dataService.updateDevoteeAndSync(selectedDevotee.id, buildSavePayload());
-      setSelectedDevotee(updated);
-      setEditing(false);
-      loadDevotees();
-      await alertDevoteeSaved(displayName);
-    } catch (err) {
-      loadDevotees();
-      await alertDevoteeSaveFailed(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Tag edits now buffer into editData and persist only on Save (#112) — they no
-  // longer write to the backend on every tap.
-  const toggleProfileTag = (key, nextOn) => {
-    const exclusiveKeys = nextOn ? getMutuallyExclusiveKeys(key) : [];
-    setEditData((d) => {
-      let tags = Array.isArray(d.tags) ? [...d.tags] : [];
-      if (nextOn) {
-        tags = tags.filter((k) => !exclusiveKeys.includes(k));
-        if (!tags.includes(key)) tags.push(key);
-      } else {
-        tags = tags.filter((k) => k !== key);
-      }
-      return { ...d, tags };
-    });
-  };
-
   const handleDelete = (id) => {
     if (window.confirm('Delete this devotee record?')) { dataService.deleteDevotee(id); loadDevotees(); setSelectedDevotee(null); }
   };
@@ -645,209 +486,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     return v;
   };
 
-  const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 py-3 text-sm font-semibold text-text-main outline-none transition-colors placeholder:font-medium placeholder:text-text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
-
-  // Smart field renderer for edit mode — dropdowns, datalist, textarea, date, tel as appropriate
-  const renderEditField = (f, data, setData) => {
-    // Family Head picker. "Self" means this person heads their own family (Primary);
-    // choosing someone else makes this person a Family member under them. The old
-    // separate "Family membership" field is gone — membership is derived here.
-    if (f === 'familyId') {
-      const ownId = selectedDevotee?.id;
-      const isSelf = data.type === 'Primary';
-      const selectValue = isSelf ? '__self__' : (data.familyId || '');
-      return (
-        <div>
-          <select value={selectValue} onChange={(e) => {
-            const v = e.target.value;
-            if (v === '__self__') {
-              setData({ ...data, type: 'Primary', relation: 'Self', familyId: data.familyId || ownId || '' });
-            } else if (v === '') {
-              setData({ ...data, familyId: '', type: '' });
-            } else {
-              setData({ ...data, familyId: v, type: 'Family', relation: data.relation === 'Self' ? '' : data.relation });
-            }
-          }} className={inputCls + ' bg-surface'}>
-            <option value="__self__">★ This person is the family head (Self)</option>
-            <option value="">— Not linked yet —</option>
-            {familyHeads.filter(h => h.id !== ownId).map(h => (
-              <option key={h.familyId} value={h.familyId}>{h.name}{h.area ? ` — ${h.area}` : ''}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-[10px] font-semibold text-text-muted">
-            Pick <strong>Self</strong> if this person heads their own family (they become the primary member). Otherwise choose the head they live under — that makes them a family member, and you can set their relation below.
-          </p>
-        </div>
-      );
-    }
-    if (READ_ONLY_FIELDS.has(f)) {
-      return (
-        <div className="rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-sm font-semibold text-text-main break-words">
-          {val(data[f], f)}
-        </div>
-      );
-    }
-    const value = data[f] ?? '';
-    const onChange = (e) => {
-      let next = e.target.value;
-      if (CAP_FIELDS.has(f)) next = capWords(next); // auto-capitalize words (#89)
-      if (f === 'mobile' && whatsappSameAsMobile) {
-        setData({ ...data, mobile: next, whatsapp: next });
-      } else {
-        setData({ ...data, [f]: next });
-      }
-    };
-    const options = FIELD_OPTIONS[f];
-
-    // Bal (children): Grade is a fixed dropdown Nursery → Grade 12 (#111).
-    if (f === 'grade' && data.yuvakType === 'Bal') {
-      return (
-        <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
-          <option value="">— Select —</option>
-          {GRADES.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      );
-    }
-
-    // Dropdown with manual entry fallback
-    if (COMBO_FIELDS.has(f)) {
-      const listOptions = f === 'followupKaryakarta' ? karyakartaOptions : f === 'reference' ? uniqueReferences : f === 'school' ? uniqueSchools : (FIELD_OPTIONS[f] || []);
-      const isManual = manualOverride[f];
-      // Selecting a follow-up karyakarta also auto-fills their mobile from the Devotees tab.
-      const comboOnChange = f === 'followupKaryakarta'
-        ? (e) => { const name = e.target.value; setData({ ...data, followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || data.followupKaryakartaMobile || '' }); }
-        : onChange;
-      return (
-        <div>
-          {isManual ? (
-            <input value={value} onChange={comboOnChange} className={inputCls} placeholder="Type manually..." />
-          ) : (
-            <select value={value} onChange={comboOnChange} className={inputCls + ' bg-surface'}>
-              <option value="">- Select -</option>
-              {listOptions.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          )}
-          <label className="flex items-center gap-1.5 mt-1.5 text-[10px] font-bold text-text-muted cursor-pointer hover:text-text-main">
-            <input type="checkbox" checked={!!isManual} onChange={(e) => {
-               setManualOverride({...manualOverride, [f]: e.target.checked});
-               if (!e.target.checked && value && !listOptions.includes(value)) {
-                 setData({ ...data, [f]: '' });
-               }
-            }} className="rounded focus:ring-primary" />
-            If not listed then tick here
-          </label>
-        </div>
-      );
-    }
-    // Pure select dropdown
-    if (options) {
-      const labelFor = (o) => (f === 'type' ? formatFamilyRecordType(o) : o);
-      return (
-        <select value={value} onChange={onChange} className={inputCls + ' bg-surface'}>
-          <option value="">— Select —</option>
-          {options.map(o => <option key={o} value={o}>{labelFor(o)}</option>)}
-        </select>
-      );
-    }
-    // Textarea fields (auto-grow; no trimming)
-    if (TEXTAREA_FIELDS.has(f)) {
-      return (
-        <AutoResizeTextarea
-          value={value}
-          onChange={onChange}
-          minRows={f === 'address' ? 3 : 2}
-          className={inputCls}
-        />
-      );
-    }
-    // Date fields
-    if (f === 'dob' || f === 'anniversary' || f === 'dateOfJoining') {
-      return <input type="date" value={value} onChange={onChange} className={inputCls} />;
-    }
-    // Tel fields
-    if (f === 'mobile' || f === 'whatsapp' || f === 'secondaryMobile' || f === 'followupKaryakartaMobile') {
-      const onTelChange = (e) => {
-        const next = e.target.value.replace(/\D/g, '');
-        if (f === 'mobile' && whatsappSameAsMobile) setData({ ...data, mobile: next, whatsapp: next });
-        else setData({ ...data, [f]: next });
-      };
-      return (
-        <div className="space-y-1">
-          <input
-            type="tel"
-            inputMode="numeric"
-            value={value}
-            onChange={onTelChange}
-            disabled={f === 'whatsapp' && whatsappSameAsMobile}
-            className={inputCls + (f === 'whatsapp' && whatsappSameAsMobile ? ' bg-bg-base opacity-80' : '')}
-          />
-          {f === 'whatsapp' && (
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer hover:text-text-main w-fit">
-              <input type="checkbox" checked={whatsappSameAsMobile} onChange={(e) => {
-                setWhatsappSameAsMobile(e.target.checked);
-                if (e.target.checked) setData(prev => ({ ...prev, whatsapp: prev.mobile }));
-              }} className="rounded text-text-main focus:ring-[#003158]" />
-              Same as mobile
-            </label>
-          )}
-        </div>
-      );
-    }
-    // Email
-    if (f === 'email') {
-      return <input type="email" value={value} onChange={onChange} className={inputCls} />;
-    }
-    // Default text
-    return <input type="text" value={value} onChange={onChange} className={inputCls} />;
-  };
-
-  // Family role editor (replaces the separate Family Head + Relation + membership
-  // fields). Self = head of own family → relation/head are implied and hidden.
-  const renderFamilyRoleEdit = () => {
-    const data = editData, setData = setEditData;
-    const ownId = selectedDevotee?.id;
-    const isSelf = data.type === 'Primary';
-    return (
-      <div className="col-span-full rounded-2xl border border-border-light bg-bg-base p-4 space-y-3">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Family role</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button"
-            onClick={() => setData({ ...data, type: 'Primary', relation: 'Self', familyId: data.familyId || ownId || '' })}
-            className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${isSelf ? 'border-primary bg-primary text-white shadow-sm' : 'border-border-light bg-surface text-text-main hover:border-primary'}`}>
-            ★ Head of own family
-          </button>
-          <button type="button"
-            onClick={() => setData({ ...data, type: 'Family', relation: data.relation === 'Self' ? '' : data.relation })}
-            className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${!isSelf ? 'border-primary bg-primary text-white shadow-sm' : 'border-border-light bg-surface text-text-main hover:border-primary'}`}>
-            Member of a family
-          </button>
-        </div>
-        {isSelf ? (
-          <p className="text-[11px] font-semibold text-text-muted">This person is the head of their own family — relation and family head are set automatically.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Family Head</div>
-              <FamilyHeadPicker
-                heads={familyHeads.filter(h => h.id !== ownId)}
-                value={data.familyId || ''}
-                onChange={(fid) => setData({ ...data, familyId: fid, ...(fid ? inheritFromHead(fid, data) : {}) })}
-                inputCls={inputCls}
-              />
-              <p className="mt-1 text-[10px] font-semibold text-text-muted">Choosing a head copies the family's address and follow-up karyakarta onto this member.</p>
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Relation to family head</div>
-              <select value={data.relation || ''} onChange={(e) => setData({ ...data, relation: e.target.value })} className={inputCls + ' bg-surface'}>
-                <option value="">— Select —</option>
-                {RELATIONS.filter(r => r !== 'Self').map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderFamilyRoleView = () => {
     const d = selectedDevotee;
@@ -1466,7 +1104,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             `}</style>
 
             {/* Floating close — stays visible while the whole profile (header included) scrolls */}
-            <button onClick={() => { setSelectedDevotee(null); setEditing(false); }}
+            <button onClick={() => setSelectedDevotee(null)}
               className="absolute right-4 z-30 grid h-9 w-9 place-items-center rounded-full bg-black/25 text-white hover:bg-black/45 backdrop-blur-sm transition-colors"
               style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
               <X className="h-5 w-5" />
@@ -1484,26 +1122,11 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               </div>
 
               <div className="px-5 sm:px-7 pb-4 flex flex-col items-center text-center">
-                {/* Big centered avatar overlapping the cover (#99). In edit mode, tap to change photo (#88). */}
+                {/* Big centered avatar overlapping the cover (#99). Editing is done in the gradient wizard. */}
                 <div className="relative -mt-24 sm:-mt-32">
-                  <img src={(editing ? editData.photo : selectedDevotee.photo) || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=FF862A&color=ffffff&bold=true&size=400&name=' + encodeURIComponent(selectedDevotee.name || '?')}
+                  <img src={selectedDevotee.photo || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=FF862A&color=ffffff&bold=true&size=400&name=' + encodeURIComponent(selectedDevotee.name || '?')}
                     alt={selectedDevotee.name}
                     className="h-44 w-44 sm:h-56 sm:w-56 max-w-[70vw] rounded-3xl object-cover ring-4 ring-surface shadow-2xl bg-surface" />
-                  {editing && (
-                    <>
-                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhoto(e.target.files && e.target.files[0])} />
-                      <button type="button" onClick={() => photoInputRef.current && photoInputRef.current.click()}
-                        className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg hover:bg-primary-hover">
-                        <Camera className="h-4 w-4" /> {photoUploading ? 'Uploading…' : (editData.photo ? 'Change' : 'Add photo')}
-                      </button>
-                      {editData.photo && (
-                        <button type="button" onClick={() => setEditData((d) => ({ ...d, photo: '' }))}
-                          className="absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-black/40 text-white hover:bg-black/60" title="Remove photo">
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </>
-                  )}
                 </div>
 
                 <h2 className="mt-3 text-2xl sm:text-3xl font-black text-text-main leading-tight break-words">{selectedDevotee.name}</h2>
@@ -1627,14 +1250,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
                   // ── Tags card ──
                   if (sec === 'Tags') {
+                    const activeTags = selectedDevotee.tags || [];
                     return (
                       <div key="Tags" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                         <h3 className="text-sm font-black text-text-main mb-3">🏷️ Tags</h3>
-                        {(() => {
-                          const activeTags = editing ? (editData.tags || []) : (selectedDevotee.tags || []);
-                          return (
-                        <div className="mb-3">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags{editing ? ' (saved on Save Changes)' : ''}</div>
+                        <div className="mb-1">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
                           {activeTags.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
                               {activeTags.map((key) => (
@@ -1645,70 +1266,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                             <p className="text-sm font-semibold text-text-muted">No tags yet.</p>
                           )}
                         </div>
-                          );
-                        })()}
-                        {canEdit && editing && (
-                          <div className="mt-4 space-y-5">
-                            <p className="text-[11px] font-bold text-text-muted">Tap a tag to add or remove it. Changes apply when you press <strong>Save Changes</strong>.</p>
-                            {tagsByCategory().map(({ category, tags: catTags }) => {
-                              const groups = [];
-                              const seen = new Set();
-                              catTags.forEach(t => {
-                                if (t.mutuallyExclusiveGroup && !seen.has(t.mutuallyExclusiveGroup)) {
-                                  seen.add(t.mutuallyExclusiveGroup);
-                                  groups.push({ type: 'mutex', group: t.mutuallyExclusiveGroup, tags: catTags.filter(x => x.mutuallyExclusiveGroup === t.mutuallyExclusiveGroup) });
-                                } else if (!t.mutuallyExclusiveGroup) {
-                                  groups.push({ type: 'single', tags: [t] });
-                                }
-                              });
-                              return (
-                                <div key={category.key}>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: category.color.dot }} />
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-main">{category.label}</span>
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {groups.map((g, gi) =>
-                                      g.type === 'mutex' ? (
-                                        <span key={gi} className="inline-flex flex-wrap items-center rounded-2xl border border-dashed border-border-light gap-0.5 p-0.5 max-w-full" title="Only one may be active">
-                                          {g.tags.map(t => {
-                                            const active = (editData.tags || []).includes(t.key);
-                                            return (
-                                              <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                                style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
-                                                className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
-                                                  (active ? '' : 'text-text-muted hover:text-text-main hover:bg-bg-base')}>
-                                                {t.label}
-                                              </button>
-                                            );
-                                          })}
-                                        </span>
-                                      ) : (
-                                        g.tags.map(t => {
-                                          const active = (editData.tags || []).includes(t.key);
-                                          return (
-                                            <button key={t.key} onClick={() => toggleProfileTag(t.key, !active)}
-                                              style={active ? tagChipStyle(t.key) : undefined} title={t.desc}
-                                              className={'rounded-full px-3 py-1 text-[11px] font-bold transition-all ' +
-                                                (active ? '' : 'border border-border-light bg-surface text-text-muted hover:border-primary hover:text-text-main')}>
-                                              {t.label}
-                                            </button>
-                                          );
-                                        })
-                                      )
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {canEdit && <p className="mt-3 text-[11px] font-semibold text-text-muted">Edit tags from <strong>Edit Profile</strong>.</p>}
                       </div>
                     );
                   }
 
                   // ── Field section card (Personal / Contact / Satsang / Education / Profession / System) ──
-                  const pdata = editing ? editData : selectedDevotee;
+                  const pdata = selectedDevotee;
                   const isBalP = pdata.yuvakType === 'Bal';
                   const showGradeP = isBalP || pdata.educationStatus === 'Pursuing';
                   const fields = (TABS[sec] || []).filter(([f]) => {
@@ -1720,46 +1284,29 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     }
                     return true;
                   });
-                  // View mode mirrors the Add-wizard Review tab exactly (#106):
-                  // single-column (two on wide screens) icon-chip tiles, only for
-                  // fields that have a value. Edit mode keeps the input grid.
-                  if (!editing) {
-                    const filled = fields.filter(([f]) => {
-                      const v = val(selectedDevotee[f], f);
-                      return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '—';
-                    });
-                    const showFamily = sec === 'Satsang';
-                    if (!filled.length && !showFamily && sec !== 'System') return null;
-                    return (
-                      <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                        <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {filled.map(([f, label]) => (
-                            <div key={f} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}`}>
-                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{FIELD_EMOJI[f] || '•'}</span>
-                              <div className="min-w-0">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
-                                <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
-                              </div>
-                            </div>
-                          ))}
-                          {showFamily && renderFamilyRoleView()}
-                        </div>
-                        {sec === 'System' && <AuditFooter d={selectedDevotee} />}
-                      </div>
-                    );
-                  }
+                  // Profile view mirrors the Add/Edit wizard Review tab (#106):
+                  // single-column (two on wide screens) icon-chip tiles, for fields
+                  // that have a value. Editing happens in the gradient wizard.
+                  const filled = fields.filter(([f]) => {
+                    const v = val(selectedDevotee[f], f);
+                    return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '—';
+                  });
+                  const showFamily = sec === 'Satsang';
+                  if (!filled.length && !showFamily && sec !== 'System') return null;
                   return (
                     <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                       <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-4">
-                        {fields.map(([f, label]) => (
-                          <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3 xl:col-span-4' : ''}>
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{FIELD_EMOJI[f] ? `${FIELD_EMOJI[f]} ` : ''}{label}</div>
-                            {renderEditField(f, editData, setEditData)}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {filled.map(([f, label]) => (
+                          <div key={f} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}`}>
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{FIELD_EMOJI[f] || '•'}</span>
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
+                              <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                            </div>
                           </div>
                         ))}
-                        {sec === 'Satsang' && renderFamilyRoleEdit()}
+                        {showFamily && renderFamilyRoleView()}
                       </div>
                       {sec === 'System' && <AuditFooter d={selectedDevotee} />}
                     </div>
@@ -1771,27 +1318,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             {/* Footer actions — safe-area handled by the overlay padding now */}
             {canEditProfile && (
               <div className="flex items-center gap-2 px-4 py-3.5 border-t border-border-light bg-surface shrink-0">
-                {editing ? (
-                  <>
-                    <button onClick={saveEdit} disabled={saving} aria-busy={saving}
-                      className={`relative overflow-hidden flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white transition-colors ${saving ? 'cursor-wait' : 'hover:bg-[#00223f]'}`}>
-                      {saving && <span className="ac-sweep" aria-hidden="true" />}
-                      <span className="relative flex items-center gap-2">
-                        {saving
-                          ? <><span className="ac-beads" aria-hidden="true"><i /><i /><i /></span> Saving…</>
-                          : <><Save className="h-4 w-4" /> Save Changes</>}
-                      </span>
-                    </button>
-                    <button onClick={() => setEditing(false)} disabled={saving}
-                      className="rounded-2xl border border-border-light px-4 py-2.5 text-xs font-bold text-text-main hover:bg-bg-base disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => setEditWizard(selectedDevotee)} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
-                    {canDelete && (
-                      <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
-                    )}
-                  </>
+                <button onClick={() => setEditWizard(selectedDevotee)} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
+                {canDelete && (
+                  <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
                 )}
               </div>
             )}
