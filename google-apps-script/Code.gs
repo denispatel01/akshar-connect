@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','secondaryMobile','whatsapp','email','mandal','wing','area','city','address','education','occupation','ambrish','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','city','address','education','occupation','ambrish','familyId','relation','type','dateOfJoining','createdBy','attendanceRate','status','tags','qualification','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdOn','updatedOn','updatedBy','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
@@ -18,7 +18,7 @@ var HEADERS = {
   Changes:    ['ts','action','collection','summary','emailed']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-03b';
+var SCHEMA_VERSION = '2026-10-03c';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -181,6 +181,10 @@ function handle_(p){
   var action = p.action || 'bootstrap';
   try{
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
+    if(action==='peekHeaders'){ var _sh=tab_('Devotees'); return json_({ ok:true, physical:_sh.getRange(1,1,1,_sh.getLastColumn()).getValues()[0], target:HEADERS.Devotees, ensured:PropertiesService.getScriptProperties().getProperty('ensuredSchema') }); }
+    if(action==='listTabs'){ return json_({ ok:true, tabs: ss_().getSheets().map(function(s){ return { name:s.getName(), rows:s.getLastRow(), cols:s.getLastColumn() }; }) }); }
+    if(action==='repairFromBackup') return json_({ ok:true, result: repairFromBackup_(p.tab) });
+    if(action==='peekTab'){ var _t=ss_().getSheetByName(p.tab); if(!_t) return json_({ok:false,error:'no tab'}); var lc=_t.getLastColumn(); return json_({ ok:true, header:_t.getRange(1,1,1,lc).getValues()[0], row2:_t.getLastRow()>1?_t.getRange(2,1,1,lc).getValues()[0]:[] }); }
     ensureSheets_();
     if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
     if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
@@ -301,7 +305,16 @@ function logChange_(action, collection, row){
   try{
     var who = (row && (row.name || row.updatedBy || row.key)) || '';
     var summary = String(who).slice(0,120);
-    tab_('Changes').appendRow([ new Date().toISOString(), action, collection, summary, '' ]);
+    tab_('Changes').appendRow([ new Date().toISOString(), action, collection, summary, 'yes' ]);
+  }catch(e){}
+  // Email runs on the server AFTER the client already got its optimistic response,
+  // so the user never waits for it. Wrapped in try/catch so a mail failure (quota,
+  // etc.) never breaks the write. Only single add/edit/delete call this — bulk tag
+  // ops do not, so the Gmail daily quota is not a concern.
+  try{
+    var body = action + ' on ' + collection + '\n\n';
+    if(row && typeof row === 'object'){ for(var k in row){ if(row[k]) body += k + ': ' + row[k] + '\n'; } }
+    MailApp.sendEmail({ to:'aksharconnect01@gmail.com', subject:'Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body:body });
   }catch(e){}
 }
 
@@ -316,7 +329,7 @@ function emailChangeDigest_(){
   if(!pending.length) return;
   var body = 'Akshar Connect — ' + pending.length + ' change(s):\n\n'
     + pending.map(function(r){ return r[0]+'  '+r[1]+' '+r[2]+'  '+r[3]; }).join('\n');
-  try{ MailApp.sendEmail({ to:'denispatel01@gmail.com', subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
+  try{ MailApp.sendEmail({ to:'aksharconnect01@gmail.com', subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
   rows.forEach(function(rn){ sh.getRange(rn, eI+1).setValue('yes'); });
 }
 function setupChangeDigest_(){
@@ -327,7 +340,7 @@ function setupChangeDigest_(){
 // Mail shooter: email the admin when a user hits a runtime error in the app.
 function sendErrorEmail_(p){
   try{
-    var email='denispatel01@gmail.com';
+    var email='aksharconnect01@gmail.com';
     var who=(p && (p.user||p.mobile)) || 'unknown user';
     var subject='Akshar Connect ERROR — '+String(p && p.message || 'app error').slice(0,120);
     var body='A user hit an error in Akshar Connect.\n\n'
@@ -363,6 +376,30 @@ function doBulkSetTags_(p){
     if(n>0) sh.getRange(2,1,last-1,H.length).setValues(data);
     return json_({ ok:true, count:n });
   } finally { lock.releaseLock(); }
+}
+
+// One-time repair: rebuild the Devotees sheet from a known-good backup tab,
+// mapping every column BY NAME into the current HEADERS (drops legacy columns,
+// fixes any positional shift). Saves the current (corrupt) sheet first.
+function repairFromBackup_(bakName){
+  var bak = ss_().getSheetByName(bakName); if(!bak) return 'no backup: '+bakName;
+  var lc = bak.getLastColumn(), lr = bak.getLastRow();
+  var head = bak.getRange(1,1,1,lc).getValues()[0].map(function(x){ return String(x); });
+  var data = lr>1 ? bak.getRange(2,1,lr-1,lc).getValues() : [];
+  var pos = {}; head.forEach(function(h,i){ if(!(h in pos)) pos[h]=i; });
+  var target = HEADERS.Devotees, need = target.length;
+  var out = [target.slice()];
+  data.forEach(function(r){
+    out.push(target.map(function(h){ var i=pos[h]; return (i===undefined||r[i]==null)?'':r[i]; }));
+  });
+  var sh = tab_('Devotees');
+  try{ sh.copyTo(ss_()).setName('Devotees_corrupt_'+Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); }catch(e){}
+  sh.clear();
+  sh.getRange(1,1,sh.getMaxRows(),need).setNumberFormat('@');
+  sh.getRange(1,1,out.length,need).setValues(out);
+  var extra = sh.getMaxColumns() - need;
+  if(extra>0) sh.deleteColumns(need+1, extra);
+  return 'restored '+(out.length-1)+' rows from '+bakName;
 }
 
 function doBulkUpdateTags_(p) {

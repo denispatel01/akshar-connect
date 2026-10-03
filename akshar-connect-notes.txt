@@ -1,0 +1,101 @@
+1. After clicking on followup tab, app hang. Not to do anything. 
+Done 2. ⁠Rename papoliwala from system user
+Done 3. ⁠Make UI to add/edit/delete system user
+Done 4. ⁠Make my profile section
+Done 5. Add edit/delete event option
+Done 6. ⁠Add notifications popup on open
+7. ⁠Mail shooter (Exception log) -  If some user get error then shoot a mail to me. 
+Done 8. ⁠Make 1 google email id for the app and use wherever needed.
+Later 9. ⁠News feed (latest update) all users can post their seva with photos and descriptions
+Done 10. ⁠Allow all user to change passwords
+Done 11. ⁠If i click on +10 (tags) in devotees cards then show all the tags assigned to that devotees (expand card)
+Done 12. ⁠Call tab rename to follow-up
+Done 13. ⁠Bulk tag update. 1 screen only show 1 devotees details (fullname, dob, mobile, address, reference, followup karyakarta and all the tags. No need to click on edit and then select tags. Directly select the appropriate tags and then swipe left will show next devotees. Once all devotees tags are selected then one save button on top which saves all the tags of all devotees. 
+Done 14. ⁠Follow-up tab should filter of karyakarta so karyakarta can select their name and follow up for only their devotees.
+Done 15. ⁠Dashboard showing 161 and directory showing 218 family heads
+
+Done 1. followup tab > i am searching Ravi and it is showing all the devotees whoose karyakarta name is ravi that is wrong. show only ravi
+Done 2. also show the system user password to admin
+Done 3. profile > edit profile > Denis patel > email > when i am click on p (last character on extreme right in keyboard) then i am getting out of edit screen.
+Done 4. id ont like the profile section. profile section should be like linked in. it should be extra ordinary.
+Done 5. followup > event > add event > i should have option to select tags. if i select tags "friday sabha" then only those devotees should be display who has friday sabha tag is ON. so karyakarta will not get to see unnecessary records.
+Done 6. followup > event > add event > Date and time are overlapping each other in mobile.
+Done 7. followup > event > add event > type > add "Samaiyo", "Karyakarta Sabha/Shibir"
+Done 8. followup > event > add event > add one more field i.e. description which is optional
+Done 9. Devotees > when i finding "ravi" then it shows me 33 devotees. give me proper explanations with all the name
+Done 10.Devotees > Search > if i write ravi papoliwala an i want to clear that then small clear icon should be there on extrem right of search bar
+Done 11.Devotees > Search > if i find "01-12-1995" then it is showing 11 devotees. why?
+Done 12.Devotees > Search > if i find "992459843" then i am getting record also whoose number is "9924590491" why? it should not happen.
+
+Done 13.followup > Search > if i search ravi and result shows 10 results then i should able to see 10/562 which is earlier visible but not now.
+Done 14.Still i am not able to see system user mobile, pin and password in cards with edit delete and user type option
+Done 15.followup > don't use audience word anywhere. use devotee related word as devotees are divine for us and we cant use laukik word audiance.
+Done 16.followup event > lsiting of devotees screen gets mess in mobile as event title is big and cards trying to show whole title in 1 smal card (3 cards in 1 row)
+Done 17.followup > Search > if i write ravi papoliwala an i want to clear that then small clear icon should be there on extrem right of search bar.
+	- every search bar in this app and future should apply this rule
+Done 18.In iphone when i am clicking on search bar, it is little bit zoom in so when complete the type then i need to do zoom out manually which is very tedious. what is the solution?
+Done 19.all filters in app should allow multi select.
+Done 20.I didnt told you to remove tags from devotees screen. i told you that remove from filter section. you need to keep outside the filter section. toggle to show/hide section
+Done 21.Dashboard Families = 161 and Divine Devotees shows 162 family heads (not match). basically we needs to show how many families we have in our directory. so number can be anything but should be match at everywhere where we are showing family count
+Done 22.In desktop, i want 0 margin. utilize whole screen. currently you are wasting too much space and showing whole screen in center only.
+Done 23.Edit devotees > remove pencil icons from every sections as we are already giving edit button at bottom
+Done 24.Profile > show address, followup karyakarta and reference also in header as name, address mobile, dob, followup karyakarta and reference is most important for us in satsang contact
+Done 25.i am checking ravi papoliwala profile. every fields are in new row? why? i need to scroll too much. you can make 2/3 columns (responsive with screen size) in 1 row.
+26.current profile view is nice but how can i make it extra ordinary? can you please suggest me?
+Done 27.Add new devotee screen should not be popup, whole screen. if i save and some fields are missing then i should be get popup that what i am missing. and if saved then so appropriate message.
+Done 28.System user accounts and existing users showing almost same details. merge it. System user accounts design is looking good.
+
+Done 29.what if i want to see recently joined devotees. in short, sort by joined date
+Done 30.I dont like UI of add devotees. make it extra ordinary. suggest me idea even if it is not possible for this app now.
+Done 31.Add devotees > we are taking job/business in profession and company name in occupation. is it correct? i feel something wrong.
+Done 32.Add devotees > Area should be dropdown as well manually adding both
+Done 34.Add devotees > we dont need wing now. i told you earlier.
+Done 35.Add devotees > followup karyakarta should be dropdown with prefiled values. devotees who has karyakarta tag.
+Done 36.Add devotees > reference should be dropdown with prefiled values. who is already in reference list. also allow from all devotees and manual typing.
+Done 37.Profile > half of the mobile screen is occupied with fixed details so dificult to see other details. so scroll everything. no fix details.
+Done 38.Add devotees > Missing - Email, Mandal (Adajan - no need to take input), created by (logged in user name - no need to take input.), tags, qualification (dropdown), education status (complete by default), professionField, companyName, yuvaktype, photo, notes.
+Done 39.why we have "gharNo" column in sheet? if not required then delete.
+Done 40.can i changed the id of devotees as some id is missing inbetween.
+Done 41.when we are shooting mail and on which email?
+
+42.made 1 email just for akshar connect app so whenever in app need email to send mail, use "aksharconnect01@gmail.com" email.
+43.follow-up > event > add event > unable to save as save button hides behind bottom nav bar.
+	- popup creating issue at everywhere so remove popup from entire app and make whole screen view.
+44.if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
+	-  edit should allowed add/remove tag options.
+45.system user name getting cut-down so show all the details in 1st part and then in bottom of card, show all the action icons i.e. edit and delete.
+46.More > click on cancel (more) hang the app. it should be toggle (show/hide).
+47.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
+	- slider getting cutdown in hights as header is fixed. i think you can make slider fit to screen.
+	- instead of showing 1 card in 1 row for upcoming birthday. you can show multiple cards as much as fits in screen (responsive). it will apply on entire app.
+	- today's inspiration should be fit width of screen and image wallpaper should come below it (fit to screen)
+	- Devotees > in desktop view, you can give 2 options, grid (by default) and cards. grid header should be fixed and grid data should be scrollable.
+48.Export to excel should be export all the fields with below order
+	- SN
+	- Fullname
+	- Address
+	- MobileNo
+	- DOB
+	- Followup Karyakarta
+	- Reference
+	- YuvakType (Ambrish/Yuvak/Vadil etc)
+	then other fields.
+49.Profile > Contact > Address should be first as it needs 2 columns (more space). it is not looking good inbetween. you should have this basic sense.
+50.Add devotees screen > DOB and Gender getting overlapped in mobile. 
+	- this kind of things you should test everytime for every design. i am very much frustrated now as i need to test every small things and ask you.
+51.add devotee > profile photo should be photo upload option with camera take. ask for photo at last.
+52."secondary mobile" is not needed really. remove from sheet as well and from entire app.
+53.it is suggesting me values in keyboard top but I cant see any dropdown in add devotees (iphone). 
+54.I have deleted "wing" column from the sheet. you manage app. nothing should be crash or misbehave.
+55.Didn't getting mail. send mail on add/edit/delete devotees and other actions. but mail sending processing should be in background. user should feel quick action.
+56.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
+57.add devotees > DOB should allow seletion from calendar as well manual typing (show placeholder)
+
+58.add devotees > tag > allow select all options with different sections.
+59.add devotees > review tab is not showing all the details entered like, education, qualification,jon etc
+60. you are not using icons and emoji in entire app. use too many emoji and icons to convey details in short and to make app attractive.
+	- if you have some other idea to make app attractive then apply that also.
+61.Make area master tab where show all the area entered by devotees and give add/edit/delete options. admin can assign number to area.
+	- dont show area route number in add devotees screen
+62.profile should also show created by created date and updated by and updated date (only if updated)
+63.family

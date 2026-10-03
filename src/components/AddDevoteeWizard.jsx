@@ -15,7 +15,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const blank = () => ({
   firstName: '', middleName: '', lastName: '', name: '', gender: 'Male', dob: '', bloodGroup: '',
   maritalStatus: '', anniversary: '', yuvakType: '', photo: '',
-  mobile: '', whatsapp: '', secondaryMobile: '', email: '', area: '', city: 'Surat', address: '', mandal: 'Adajan',
+  mobile: '', whatsapp: '', email: '', area: '', city: 'Surat', address: '', mandal: 'Adajan',
   qualification: '', education: '', educationStatus: 'Completed', school: '',
   profession: '', professionField: '', companyName: '',
   followupKaryakarta: '', followupKaryakartaMobile: '', reference: '', notes: '', tags: [],
@@ -183,7 +183,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   <p className="mt-1 text-[10px] text-text-muted">Auto-cropped to a square.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div><Label>First Name *</Label><input value={form.firstName} onChange={(e) => set({ firstName: e.target.value })} className={inputCls} /></div>
                 <div><Label>Middle Name</Label><input value={form.middleName} onChange={(e) => set({ middleName: e.target.value })} className={inputCls} /></div>
                 <div><Label>Last Name</Label><input value={form.lastName} onChange={(e) => set({ lastName: e.target.value })} className={inputCls} /></div>
@@ -218,7 +218,6 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   </div>
                   <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
                 </div>
-                <div><Label>Secondary Mobile</Label><input maxLength={10} inputMode="numeric" value={form.secondaryMobile} onChange={(e) => set({ secondaryMobile: e.target.value.replace(/\D/g, '') })} className={inputCls} /></div>
                 <div><Label>Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} className={inputCls} /></div>
                 <div><Label>Area</Label>
                   <input list="dl-wz-area" value={form.area} onChange={(e) => set({ area: e.target.value })} placeholder="Select or type" className={inputCls} />

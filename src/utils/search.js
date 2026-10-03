@@ -53,7 +53,7 @@ export function dobSearchForms(dob) {
 export function devoteeSearchText(d) {
   return [
     d.firstName, d.middleName, d.lastName, d.name,
-    d.mobile, d.whatsapp, d.secondaryMobile,
+    d.mobile, d.whatsapp,
     dobSearchForms(d.dob),
   ].filter(Boolean).join(' ').toLowerCase();
 }
