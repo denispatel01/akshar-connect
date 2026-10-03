@@ -1430,9 +1430,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             {/* Header: cover banner, overlapping avatar, headline, quick actions */}
             <div className="relative border-b border-border-light">
 
-              {/* Cover — full "Simple Life, High Thinking" image (tagline kept visible) */}
-              <div className="bg-[#eaf1f0]">
-                <img src={`${import.meta.env.BASE_URL}images/profile-cover.webp`} alt="Simple Life, High Thinking"
+              {/* Cover — full "Akshardham" image (tagline kept visible) */}
+              <div className="bg-[#2a2550]">
+                <img src={`${import.meta.env.BASE_URL}images/profile-cover.jpg`} alt="Binsharti Jivan etle Akshardham"
                   className="block w-full h-auto" loading="lazy" />
               </div>
 

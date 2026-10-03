@@ -123,21 +123,21 @@ Done 76.Still i am feeling app is equipped with very few emoji (specifically) an
 Done 77.still i can see area route number in ad/edit devotees screen. i dont want to take input at the time of devotees add/edit. it is backend (admin) work.
 	- i want area master UI in more tab where i can make route by assigning appropriate number to area.
 	- then add 1 more sorting option i.e. area (vaishnodevi to palanpur) or (palanpur to vaishnodevi). Here, area number 1 is from area and last area is to area.
-78.Still updated by and updated on not showing.
-79.I want 1 activity log of entire app. if anyone performs anything in app then i could see that activity in admin tab (only admin can see)
+Done 78.Still updated by and updated on not showing.
+Done 79.I want 1 activity log of entire app. if anyone performs anything in app then i could see that activity in admin tab (only admin can see)
 	- activity log should be like, Digesh Patel added new yuvak namely Nikunj Ramani, Digesh Patel updated DOB, Address and Mobile of Nikunj Ramani,
 		added followup, login (also log mobile/desktop model) , logout etc. i want each and every actions logged. (in background, so app should not became slow)
-80.individual user should also see their own activity (all the actions) in one new tab.
-81.followup > add event > devotee tags section should not be fixed height. section should be grow with more content.
-82.create event should give success message and focus should be seted on newely created event automatically (cards view where all the events shown).
-83.Report > By Karyakarta > 2 download options should be there.
+Done 80.individual user should also see their own activity (all the actions) in one new tab.
+Done 81.followup > add event > devotee tags section should not be fixed height. section should be grow with more content.
+Done 82.create event should give success message and focus should be seted on newely created event automatically (cards view where all the events shown).
+Done 83.Report > By Karyakarta > 2 download options should be there.
 	1. Only family heads
 	2. with family members (pdf should contains relation colum to identify who is wife/brother/sister of whooom
-84.Report > Remove "By wing" report and add "Yuvak (15-45 age)" - pdf should contains DOB (with Age in bracket) column
-85.Still desktop view for admin tab is not proper. user management section is required very less space then also it is showing it in whole screen 100% width.
+Done 84.Report > Remove "By wing" report and add "Yuvak (15-45 age)" - pdf should contains DOB (with Age in bracket) column
+Done 85.Still desktop view for admin tab is not proper. user management section is required very less space then also it is showing it in whole screen 100% width.
 	you can add as much as possible cards (section) in 1 row as per screen resolution.
-86.Created by column (in sheet) should be besides created on (left side)
-87.add new devotees > rename "Details" to "Additional", "Family&Satsang" to "Satsang"
+Done 86.Created by column (in sheet) should be besides created on (left side)
+Done 87.add new devotees > rename "Details" to "Additional", "Family&Satsang" to "Satsang"
 ---
 88.Edit photo option is not available.
 89.Add/edit profile > Any field > after space auto capital of first character of word.
@@ -154,7 +154,14 @@ Done 77.still i can see area route number in ad/edit devotees screen. i dont wan
 100.give me (admin) rights to ON/OFF mail. so i can decide to send mail or not.
 --
 101.Nikunj Nareshbhai  Ramani has details for updatedby and updated on then why are you not showing that details in his profile. i told you earlier also.
-102.
+102.create event or add/edit anything should give success/error message in center. sweet alert very attractive. when user click on ok then close the popup.
+103.Still desktop view for admin tab is not proper. test on your own, take screenshot and check if required.
+--
+104.If i OFF the mail then dont send mail for add/edit/delete (any mail). currently what happened is, i off the mail, update the area and on the mail. so basically i should not get the email but when i turned on the email i got mail for every area update.
+105.Area is not visible as of now in grid. make number label small and save/delete also. whole text of area should be clearly visible.
+106.Profile should exactly look like review tab in add devotees. currently profile showing in 2 column. review screen is in 1 column.
+
+
 
 
 
