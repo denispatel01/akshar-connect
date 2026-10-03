@@ -103,10 +103,29 @@ function Combo({ options, value, onChange, placeholder, capitalize }) {
   );
 }
 
-export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakartaOptions, karyakartaMobileFor, referenceOptions, headRecordByFamilyId, onClose, onCreated }) {
-  const [form, setForm] = useState(blank());
+export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakartaOptions, karyakartaMobileFor, referenceOptions, headRecordByFamilyId, onClose, onCreated, editDevotee, onSaved }) {
+  const isEdit = !!editDevotee;
+  // Seed the form from an existing devotee when editing (#edit-wizard).
+  const initialForm = () => {
+    if (!editDevotee) return blank();
+    const b = blank();
+    Object.keys(b).forEach((k) => { if (editDevotee[k] !== undefined && editDevotee[k] !== null) b[k] = editDevotee[k]; });
+    b.tags = Array.isArray(editDevotee.tags) ? [...editDevotee.tags] : [];
+    b.name = editDevotee.name || b.name;
+    // A family head's familyId points at their own record. Show the head picker as
+    // blank ("heads own family"); buildPayload restores the id on save.
+    if (editDevotee.type === 'Primary' || (editDevotee.familyId && editDevotee.familyId === editDevotee.id)) {
+      b.familyId = ''; b.type = 'Primary'; b.relation = 'Self';
+    }
+    return b;
+  };
+  const [form, setForm] = useState(initialForm);
   const [step, setStep] = useState(0);
-  const [waSame, setWaSame] = useState(false);
+  const [waSame, setWaSame] = useState(() => {
+    if (!editDevotee) return false;
+    const m = String(editDevotee.mobile || '');
+    return !!(m && String(editDevotee.whatsapp || '') === m);
+  });
   const [savedMsg, setSavedMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
@@ -126,14 +145,15 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   // Name of the chosen family head, for the review summary (#92).
   const headName = (familyHeads.find((h) => h.familyId === form.familyId) || {}).name || '';
 
+  const selfId = editDevotee?.id;
   const dupMobile = useMemo(
-    () => (form.mobile.length === 10 ? devotees.find((d) => String(d.mobile) === form.mobile) : null),
-    [form.mobile, devotees]);
+    () => (form.mobile.length === 10 ? devotees.find((d) => String(d.mobile) === form.mobile && d.id !== selfId) : null),
+    [form.mobile, devotees, selfId]);
   const dupNames = useMemo(() => {
     const fn = form.firstName.trim().toLowerCase(), ln = form.lastName.trim().toLowerCase();
     if (!fn || !ln) return [];
-    return devotees.filter((d) => (d.firstName || '').toLowerCase() === fn && (d.lastName || '').toLowerCase() === ln).slice(0, 3);
-  }, [form.firstName, form.lastName, devotees]);
+    return devotees.filter((d) => d.id !== selfId && (d.firstName || '').toLowerCase() === fn && (d.lastName || '').toLowerCase() === ln).slice(0, 3);
+  }, [form.firstName, form.lastName, devotees, selfId]);
 
   const pickHead = (fid) => {
     if (!fid) { set({ familyId: '', type: 'Primary', relation: 'Self' }); return; }
@@ -179,16 +199,30 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
   const SECTION_TITLE = ['Personal Details', 'Contact & Background', 'Family, Satsang & Tags', 'Review & Save'];
 
-  const buildPayload = () => ({
-    ...form, name: fullName || form.name,
-    whatsapp: waSame ? form.mobile : form.whatsapp,
-    mandal: form.mandal || 'Adajan',
-  });
+  const buildPayload = () => {
+    const p = {
+      ...form, name: fullName || form.name,
+      whatsapp: waSame ? form.mobile : form.whatsapp,
+      mandal: form.mandal || 'Adajan',
+    };
+    // On edit, a self-headed devotee keeps their own family id even though the
+    // picker showed blank; don't wipe it.
+    if (isEdit && !p.familyId && (p.type === 'Primary' || !p.type)) {
+      p.familyId = editDevotee.familyId || editDevotee.id;
+      p.type = 'Primary'; p.relation = 'Self';
+    }
+    return p;
+  };
 
   const save = async (addAnother) => {
     if (!step0Valid) { setStep(0); return; }
     setSaving(true);
     try {
+      if (isEdit) {
+        const updated = await dataService.updateDevoteeAndSync(editDevotee.id, buildPayload());
+        onSaved?.(updated);
+        return;
+      }
       const created = await dataService.addDevoteeAndSync(buildPayload());
       if (addAnother) {
         const keep = {
@@ -224,7 +258,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base hover:border-primary transition-colors">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <h2 className="text-lg sm:text-xl font-black text-text-main truncate">Add New Devotee</h2>
+            <h2 className="text-lg sm:text-xl font-black text-text-main truncate">{isEdit ? 'Edit Devotee' : 'Add New Devotee'}</h2>
           </div>
           <button type="button" onClick={onClose}
             className="shrink-0 rounded-2xl border border-border-light bg-surface px-4 sm:px-5 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base hover:border-primary transition-colors">
@@ -571,13 +605,15 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <button type="button" disabled={saving} onClick={() => save(true)}
-              className="inline-flex items-center gap-1.5 rounded-2xl border border-primary bg-surface px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary/5 disabled:opacity-50">
-              <UserPlus className="h-4 w-4" /> Save &amp; add another
-            </button>
+            {!isEdit && (
+              <button type="button" disabled={saving} onClick={() => save(true)}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-primary bg-surface px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary/5 disabled:opacity-50">
+                <UserPlus className="h-4 w-4" /> Save &amp; add another
+              </button>
+            )}
             <button type="button" disabled={saving} onClick={() => save(false)}
               className="inline-flex items-center gap-1.5 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">
-              <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save Devotee'}
+              <Save className="h-4 w-4" /> {saving ? 'Saving…' : (isEdit ? 'Save Changes' : 'Save Devotee')}
             </button>
           </div>
         )}

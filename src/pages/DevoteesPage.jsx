@@ -227,6 +227,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editWizard, setEditWizard] = useState(null); // devotee being edited in the gradient wizard
   const [selectedDevotee, setSelectedDevotee] = useState(null);
   const [qrModalDevotee, setQrModalDevotee] = useState(null);
   const [activeTab, setActiveTab] = useState('Personal');
@@ -1410,6 +1411,21 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         />
       )}
 
+      {editWizard && (
+        <AddDevoteeWizard
+          user={user}
+          devotees={devotees}
+          familyHeads={familyHeads}
+          karyakartaOptions={karyakartaOptions}
+          karyakartaMobileFor={karyakartaMobileFor}
+          referenceOptions={referenceOptions}
+          headRecordByFamilyId={headRecordByFamilyId}
+          editDevotee={editWizard}
+          onClose={() => setEditWizard(null)}
+          onSaved={(updated) => { setEditWizard(null); loadDevotees(); if (updated) setSelectedDevotee(updated); alertDevoteeSaved(updated?.name); }}
+        />
+      )}
+
       
 
       {/* Profile — FULL-SCREEN (not a popup): the most-used view, so it fills the
@@ -1771,7 +1787,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   </>
                 ) : (
                   <>
-                    <button onClick={startEdit} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
+                    <button onClick={() => setEditWizard(selectedDevotee)} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-xs font-bold text-white hover:bg-[#00223f]"><Pencil className="h-4 w-4" /> Edit Profile</button>
                     {canDelete && (
                       <button onClick={() => handleDelete(selectedDevotee.id)} className="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
                     )}
