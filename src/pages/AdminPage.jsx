@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 export default function AdminPage({ user }) {
@@ -10,7 +10,7 @@ export default function AdminPage({ user }) {
   const bundledCount = dataService.bundledDevoteeCount();
   const isAdmin = user?.role === 'Admin';
 
-  const emptyForm = { mobile: '', name: '', pin: '', role: 'Devotee' };
+  const emptyForm = { mobile: '', name: '', pin: '', password: '', role: 'Devotee' };
   const [form, setForm] = useState(emptyForm);
   const [formErr, setFormErr] = useState('');
   const [formMsg, setFormMsg] = useState('');
@@ -32,7 +32,7 @@ export default function AdminPage({ user }) {
     // PIN required for a NEW user; optional when editing (blank = keep current).
     if (!editingMobile && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
     if (pin && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits (leave blank to keep current).'); return; }
-    dataService.saveUser({ mobile, name: form.name.trim(), pin, role: form.role });
+    dataService.saveUser({ mobile, name: form.name.trim(), pin, password: form.password, role: form.role });
     setUsers([...dataService.getUsers()]);
     setForm(emptyForm); setEditingMobile(null);
     setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
@@ -40,7 +40,7 @@ export default function AdminPage({ user }) {
 
   const editUser = (u) => {
     setEditingMobile(String(u.mobile));
-    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', role: u.role || 'Devotee' });
+    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', password: '', role: u.role || 'Devotee' });
     setFormErr(''); setFormMsg('');
   };
 
@@ -96,7 +96,7 @@ export default function AdminPage({ user }) {
   return (
     <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-main">Admin Settings & Control</h1>
+        <h1 className="text-2xl font-bold text-text-main">⚙️ Admin Settings & Control</h1>
         <p className="text-sm font-medium text-text-muted">
           Access codes, user management, and system database settings.
         </p>
@@ -106,20 +106,11 @@ export default function AdminPage({ user }) {
       {isAdmin && (
         <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-            <UserPlus className="h-4 w-4 text-[#FF862A]" /> User Management
+            <UserPlus className="h-4 w-4 text-[#FF862A]" /> 👥 User Management
           </div>
-          <form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={handleAddUser} className="grid grid-cols-1 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Mobile Number</label>
-              <input
-                type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
-                onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
-                placeholder="10-digit mobile" required disabled={!!editingMobile}
-                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A] disabled:opacity-60"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Name</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">👤 Name</label>
               <input
                 type="text" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -128,7 +119,16 @@ export default function AdminPage({ user }) {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">PIN {editingMobile && <span className="font-semibold text-slate-400">(blank = keep)</span>}</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">📱 Mobile Number</label>
+              <input
+                type="tel" inputMode="numeric" maxLength={10} value={form.mobile}
+                onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
+                placeholder="10-digit mobile" required disabled={!!editingMobile}
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A] disabled:opacity-60"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">🔢 PIN {editingMobile && <span className="font-semibold text-slate-400">(blank = keep)</span>}</label>
               <input
                 type="text" inputMode="numeric" maxLength={6} value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
@@ -137,7 +137,16 @@ export default function AdminPage({ user }) {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Role</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">🔑 Password <span className="font-semibold text-slate-400">({editingMobile ? 'blank = keep' : 'optional'})</span></label>
+              <input
+                type="text" value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder={editingMobile ? 'Leave blank to keep' : 'Optional password for login'}
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1">🛡️ Role</label>
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
@@ -148,7 +157,7 @@ export default function AdminPage({ user }) {
                 <option value="Devotee">Devotee</option>
               </select>
             </div>
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button type="submit"
                 className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
                 <UserPlus className="h-4 w-4" /> {editingMobile ? 'Save Changes' : 'Add User'}
@@ -170,10 +179,13 @@ export default function AdminPage({ user }) {
         </div>
       )}
 
+      {/* Area Master Card (Admin only) */}
+      {isAdmin && <AreaMaster />}
+
       {/* Devotee Database Card */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-          <Database className="h-4 w-4 text-[#FF862A]" /> Devotee Database
+          <Database className="h-4 w-4 text-[#FF862A]" /> 🗄️ Devotee Database
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-border-light bg-bg-base p-4">
@@ -305,6 +317,119 @@ export default function AdminPage({ user }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Area Master ────────────────────────────────────────────────────────────
+// Lists every area (those typed on devotee records + any admin-added ones) and
+// lets an admin assign a number/order to each, add new areas, and delete entries.
+function AreaMaster() {
+  const [areas, setAreas] = useState(() => dataService.getAreas());
+  const [devotees] = useState(() => dataService.getDevotees());
+  const [edits, setEdits] = useState({});       // name(lower) -> number being edited
+  const [newName, setNewName] = useState('');
+  const [newNumber, setNewNumber] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+  const refresh = () => setAreas([...dataService.getAreas()]);
+
+  // Union of master areas + distinct devotee areas, with a devotee count each.
+  const rows = React.useMemo(() => {
+    const counts = {};
+    devotees.forEach(d => {
+      const a = String(d.area || '').trim();
+      if (a) counts[a.toLowerCase()] = (counts[a.toLowerCase()] || 0) + 1;
+    });
+    const byKey = {};
+    areas.forEach(a => {
+      const name = String(a.name || '').trim();
+      if (name) byKey[name.toLowerCase()] = { name, number: a.number || '', inMaster: true, count: counts[name.toLowerCase()] || 0 };
+    });
+    devotees.forEach(d => {
+      const name = String(d.area || '').trim();
+      if (name && !byKey[name.toLowerCase()]) byKey[name.toLowerCase()] = { name, number: '', inMaster: false, count: counts[name.toLowerCase()] || 0 };
+    });
+    return Object.values(byKey).sort((a, b) => {
+      const na = parseInt(a.number, 10), nb = parseInt(b.number, 10);
+      if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+      if (!isNaN(na) && isNaN(nb)) return -1;
+      if (isNaN(na) && !isNaN(nb)) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [areas, devotees]);
+
+  const numFor = (r) => (edits[r.name.toLowerCase()] ?? r.number);
+
+  const save = async (r) => {
+    try {
+      await dataService.saveAreaAndSync(r.name, { number: numFor(r) });
+      refresh(); flash(`✅ Saved "${r.name}"`);
+    } catch (e) { flash('⚠️ ' + e.message); }
+  };
+  const remove = async (r) => {
+    if (!window.confirm(`Remove "${r.name}" from Area Master? (Devotee records keep their area text.)`)) return;
+    await dataService.deleteAreaAndSync(r.name);
+    refresh(); flash(`🗑️ Removed "${r.name}"`);
+  };
+  const add = async () => {
+    const name = newName.trim();
+    if (!name) { flash('⚠️ Enter an area name'); return; }
+    try {
+      await dataService.saveAreaAndSync(name, { number: newNumber });
+      setNewName(''); setNewNumber(''); refresh(); flash(`✅ Added "${name}"`);
+    } catch (e) { flash('⚠️ ' + e.message); }
+  };
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+      <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+        <MapPin className="h-4 w-4 text-[#FF862A]" /> 🗺️ Area Master
+        <span className="ml-auto normal-case font-semibold text-text-muted">{rows.length} areas</span>
+      </div>
+      <p className="text-xs font-medium text-text-muted">
+        All areas devotees belong to. Assign each a number to control its order in lists and reports.
+      </p>
+
+      {/* Add new area */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="➕ New area name"
+          className="flex-1 rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        <input value={newNumber} onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="No."
+          className="w-full sm:w-24 rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        <button onClick={add} className="flex items-center justify-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
+          <Plus className="h-4 w-4" /> Add
+        </button>
+      </div>
+
+      {msg && <p className="text-xs font-bold text-emerald-600">{msg}</p>}
+
+      {/* Area list */}
+      <div className="divide-y divide-border-light rounded-2xl border border-border-light overflow-hidden">
+        <div className="grid grid-cols-[1fr_5rem_4rem_auto] gap-2 items-center bg-bg-base px-4 py-2 text-[11px] font-black uppercase tracking-wider text-text-muted">
+          <span>🗺️ Area</span><span>🔢 No.</span><span>👥</span><span className="text-right"></span>
+        </div>
+        {rows.map((r) => (
+          <div key={r.name.toLowerCase()} className="grid grid-cols-[1fr_5rem_4rem_auto] gap-2 items-center px-4 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-text-main truncate">{r.name}</p>
+              {!r.inMaster && <span className="text-[10px] font-bold text-amber-600">unassigned</span>}
+            </div>
+            <input value={numFor(r)} onChange={(e) => setEdits({ ...edits, [r.name.toLowerCase()]: e.target.value.replace(/\D/g, '') })}
+              inputMode="numeric" placeholder="—"
+              className="w-full rounded-lg border border-border-light bg-bg-base px-2 py-1.5 text-sm text-text-main text-center focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+            <span className="text-xs font-bold text-text-muted">{r.count}</span>
+            <div className="flex items-center justify-end gap-1.5">
+              <button onClick={() => save(r)} title="Save number" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-hover"><Save className="h-4 w-4" /></button>
+              {r.inMaster && (
+                <button onClick={() => remove(r)} title="Remove from Area Master" className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950"><Trash2 className="h-4 w-4" /></button>
+              )}
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="px-4 py-6 text-center text-sm font-semibold text-text-muted">No areas yet.</p>}
       </div>
     </div>
   );

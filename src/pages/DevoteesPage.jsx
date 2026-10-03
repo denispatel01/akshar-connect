@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck } from 'lucide-react';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
@@ -38,6 +38,11 @@ const TABS = {
 const SATSANG_ROLE_FIELDS = new Set(['familyId', 'relation']);
 // Order of sections in the single-scroll LinkedIn-style profile.
 const PROFILE_SECTION_ORDER = ['Personal', 'Contact', 'Satsang', 'Family', 'Education', 'Profession', 'Tags', 'System'];
+// Emoji per profile section — quick visual scanning of the single-scroll profile.
+const SECTION_EMOJI = {
+  Personal: '👤', Contact: '📞', Satsang: '🙏', Family: '👨‍👩‍👧', Education: '🎓',
+  Profession: '💼', Tags: '🏷️', System: '⚙️',
+};
 
 // Multi-select dropdown (checkbox list). `options` is an array of strings or
 // {value,label}. `selected` is an array of values. Used for every directory filter.
@@ -168,6 +173,41 @@ function dobShort(dob) {
   return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_ABBR[d.getMonth()]}-${d.getFullYear()}`;
 }
 
+// Read-only audit footer for the profile's System card — shows who created the
+// record and when, and (only if it was later edited) who last updated it.
+function AuditFooter({ d }) {
+  const fmt = (v) => {
+    if (!v) return '';
+    const dt = new Date(v);
+    if (isNaN(dt.getTime())) return String(v);
+    return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ' · ' + dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  };
+  const createdOn = fmt(d.createdOn);
+  const updatedOn = fmt(d.updatedOn);
+  // Only show "updated" when it actually differs from creation.
+  const wasUpdated = d.updatedOn && d.createdOn && new Date(d.updatedOn).getTime() - new Date(d.createdOn).getTime() > 60000;
+  if (!d.createdBy && !createdOn && !wasUpdated) return null;
+  return (
+    <div className="mt-4 pt-3 border-t border-dashed border-border-light space-y-1.5">
+      {(d.createdBy || createdOn) && (
+        <p className="text-[11px] font-semibold text-text-muted flex flex-wrap items-center gap-x-1.5">
+          <span>🆕 Created by</span>
+          <span className="text-text-main font-bold">{d.createdBy || '—'}</span>
+          {createdOn && <span>· {createdOn}</span>}
+        </p>
+      )}
+      {wasUpdated && (
+        <p className="text-[11px] font-semibold text-text-muted flex flex-wrap items-center gap-x-1.5">
+          <span>✏️ Last updated by</span>
+          <span className="text-text-main font-bold">{d.updatedBy || '—'}</span>
+          {updatedOn && <span>· {updatedOn}</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DevoteesPage({ user, devoteesPreset, filterPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing }) {
   const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,6 +240,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
   const [tagsExpandedId, setTagsExpandedId] = useState(null); // devotee id whose full tags are shown
+  // Desktop-only layout: 'grid' (dense scrollable table, default) or 'cards'.
+  // Remembered per browser. Mobile always renders cards regardless.
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('ac-devotees-view') || 'grid'; } catch { return 'grid'; }
+  });
+  const setView = (v) => { setViewMode(v); try { localStorage.setItem('ac-devotees-view', v); } catch {} };
 
   // Family heads (primary members) — used to link a family member to their head.
   const familyHeads = useMemo(() => devotees
@@ -395,7 +441,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
     setSaving(true);
     try {
-      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name, mandal: formData.mandal || 'Adajan', createdBy: user?.name || '' });
+      const created = await dataService.addDevoteeAndSync({ ...formData, whatsapp, name, mandal: formData.mandal || 'Adajan' });
       loadDevotees();
       setShowAddModal(false);
       setFormData(blankForm);
@@ -768,7 +814,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       {!isDevotee && (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-main">Devotee Directory</h1>
+          <h1 className="text-2xl font-bold text-text-main">🧑‍🤝‍🧑 Devotee Directory</h1>
           <p className="text-sm font-medium text-text-muted">
             {filteredDevotees.length === devotees.length
               ? `${devotees.length} members`
@@ -1045,14 +1091,106 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       )}
 
-      <p className="text-xs font-semibold text-text-muted">
-        Showing {filteredDevotees.length}{isPlainBrowse ? ' family heads (open a family to see its members)' : ' devotees'}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-text-muted">
+          Showing {filteredDevotees.length}{isPlainBrowse ? ' family heads (open a family to see its members)' : ' devotees'}
+        </p>
+        {/* Desktop view switch — grid (table) vs cards. Hidden on mobile. */}
+        <div className="hidden md:inline-flex items-center rounded-xl border border-border-light bg-bg-base p-0.5">
+          <button onClick={() => setView('grid')} title="Grid view"
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${viewMode === 'grid' ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
+            <Table2 className="h-4 w-4" /> Grid
+          </button>
+          <button onClick={() => setView('cards')} title="Card view"
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${viewMode === 'cards' ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
+            <LayoutGrid className="h-4 w-4" /> Cards
+          </button>
+        </div>
+      </div>
       </>)}
 
       {refreshing ? (
         <ListSkeleton count={6} />
       ) : filteredDevotees.length > 0 ? (
+        <>
+        {/* ── Desktop GRID (table) view — sticky header, scrollable body ── */}
+        {viewMode === 'grid' && (
+          <div className="hidden md:block rounded-2xl border border-border-light bg-surface shadow-sm overflow-hidden">
+            <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-bg-base text-left text-[11px] font-black uppercase tracking-wider text-text-muted">
+                    {selectMode && <th className="px-3 py-3 w-10 border-b border-border-light"></th>}
+                    <th className="px-4 py-3 border-b border-border-light">👤 Devotee</th>
+                    <th className="px-3 py-3 border-b border-border-light">🆔 ID</th>
+                    <th className="px-3 py-3 border-b border-border-light">📱 Mobile</th>
+                    <th className="px-3 py-3 border-b border-border-light">🎂 DOB</th>
+                    <th className="px-3 py-3 border-b border-border-light">🗺️ Area</th>
+                    <th className="px-3 py-3 border-b border-border-light">🙏 Karyakarta</th>
+                    <th className="px-3 py-3 border-b border-border-light">🏷️ Tags</th>
+                    <th className="px-3 py-3 border-b border-border-light text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDevotees.map((devotee) => {
+                    const sel = selectedIds.has(devotee.id);
+                    const rowClick = () => {
+                      if (selectMode) {
+                        const n = new Set(selectedIds);
+                        n.has(devotee.id) ? n.delete(devotee.id) : n.add(devotee.id);
+                        setSelectedIds(n);
+                      } else openProfile(devotee);
+                    };
+                    return (
+                      <tr key={devotee.id} onClick={rowClick}
+                        className={`cursor-pointer border-b border-border-light transition-colors ${sel ? 'bg-primary/5' : 'hover:bg-bg-base'}`}>
+                        {selectMode && (
+                          <td className="px-3 py-2.5">
+                            <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${sel ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface'}`}>
+                              {sel && <CheckSquare className="h-3.5 w-3.5" />}
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img src={devotee.photo || devotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&name=' + encodeURIComponent(devotee.name || '?')}
+                              alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border-light" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-text-main truncate max-w-[220px]">{devotee.name}</p>
+                              {devotee.yuvakType && <p className="text-[11px] font-semibold text-text-muted truncate">{devotee.yuvakType}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[11px] font-bold text-text-muted whitespace-nowrap">{devotee.id}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-text-main">{val(devotee.mobile)}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{devotee.dob ? dobShort(devotee.dob) : '—'}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{[devotee.area, devotee.city].filter(Boolean).join(', ') || '—'}</td>
+                        <td className="px-3 py-2.5 text-text-muted"><span className="block truncate max-w-[160px]">{devotee.followupKaryakarta || '—'}</span></td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {(devotee.tags || []).slice(0, 3).map((k) => (
+                              <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[10px] font-bold">{tagLabel(k)}</span>
+                            ))}
+                            {(devotee.tags || []).length > 3 && <span className="text-[10px] font-bold text-text-muted">+{devotee.tags.length - 3}</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => setQrModalDevotee(devotee)} title="QR Pass" className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-accent hover:bg-amber-100 dark:bg-amber-950"><QrCode className="h-4 w-4" /></button>
+                            <button onClick={() => openProfile(devotee)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Profile</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Card view — always on mobile; on desktop only when 'cards' selected ── */}
+        <div className={viewMode === 'grid' ? 'md:hidden' : ''}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredDevotees.map((devotee) => {
             const expanded = expandedCard === devotee.id;
@@ -1164,10 +1302,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             );
           })}
         </div>
+        </div>
+        </>
       ) : (
-        <EmptyState 
-          icon={Search} 
-          title="No devotees found" 
+        <EmptyState
+          icon={Search}
+          title="No devotees found"
           description={searchQuery || selectedTags.length ? "Try adjusting your search query or filters." : "Your directory is empty."}
         />
       )}
@@ -1328,7 +1468,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     return (
                       <div key="Family" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-sm font-black text-text-main">Family <span className="text-text-muted font-bold">· {familyMembers.length}</span></h3>
+                          <h3 className="text-sm font-black text-text-main">👨‍👩‍👧 Family <span className="text-text-muted font-bold">· {familyMembers.length}</span></h3>
                           <span className="font-mono text-[10px] font-bold text-text-muted bg-bg-base border border-border-light rounded-lg px-2 py-0.5">ID: {selectedDevotee.familyId || '—'}</span>
                         </div>
                         <div className="space-y-2">
@@ -1370,7 +1510,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   if (sec === 'Tags') {
                     return (
                       <div key="Tags" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                        <h3 className="text-sm font-black text-text-main mb-3">Tags</h3>
+                        <h3 className="text-sm font-black text-text-main mb-3">🏷️ Tags</h3>
                         <div className="mb-3">
                           <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
                           {Array.isArray(selectedDevotee.tags) && selectedDevotee.tags.length > 0 ? (
@@ -1447,7 +1587,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   const fields = (TABS[sec] || []).filter(([f]) => !(sec === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)));
                   return (
                     <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                      <h3 className="text-sm font-black text-text-main mb-3">{sec}</h3>
+                      <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
                       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-4">
                         {fields.map(([f, label]) => (
                           <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3 xl:col-span-4' : ''}>
@@ -1463,6 +1603,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                         ))}
                         {sec === 'Satsang' && (editing ? renderFamilyRoleEdit() : renderFamilyRoleView())}
                       </div>
+                      {sec === 'System' && <AuditFooter d={selectedDevotee} />}
                     </div>
                   );
                 })}

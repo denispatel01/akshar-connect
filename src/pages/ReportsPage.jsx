@@ -172,7 +172,7 @@ export default function ReportsPage({ setActivePage }) {
     <div className="w-full max-w-none px-4 py-6 sm:px-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-black text-text-main tracking-tight">Reports & Insights</h1>
+          <h1 className="text-2xl font-black text-text-main tracking-tight">📊 Reports & Insights</h1>
           <p className="text-sm font-semibold text-text-muted mt-1">Analytics and data export for your mandal.</p>
         </div>
         <button

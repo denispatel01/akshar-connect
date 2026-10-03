@@ -93,8 +93,10 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   return (
     <>
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/95 backdrop-blur-md shadow-xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
+        {/* Thin saffron→primary accent line for a premium feel */}
+        <div className="h-0.5 w-full bg-gradient-to-r from-[#FF862A] via-[#FFB26B] to-[#003158]" />
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-2.5 sm:px-6">
 
           {/* Left: back + refresh + brand */}
           <div className="flex items-center gap-2">
@@ -125,15 +127,17 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           </div>
 
           {/* Centre: desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 bg-bg-base p-1 rounded-2xl border border-border-light">
+          <nav className="hidden md:flex items-center gap-1 bg-bg-base/70 p-1.5 rounded-2xl border border-border-light shadow-inner">
             {allNavItems.map(({ id, label, icon: Icon, adminOnly }) => {
               const active = activePage === id;
               return (
                 <button key={id} onClick={() => setActivePage(id)}
-                  className={`relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200 ${active ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
-                  <Icon className={`h-4 w-4 ${active ? 'text-accent' : ''}`} />
+                  className={`group relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${active
+                    ? 'bg-gradient-to-br from-primary to-[#00223f] text-white shadow-md shadow-primary/25'
+                    : 'text-text-muted hover:text-text-main hover:bg-surface'}`}>
+                  <Icon className={`h-4 w-4 transition-transform duration-200 ${active ? 'text-[#FFB26B]' : 'text-text-muted group-hover:text-accent group-hover:scale-110'}`} strokeWidth={active ? 2.5 : 2} />
                   {label}
-                  {adminOnly && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 ring-1 ring-bg-base" />}
+                  {adminOnly && <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ${active ? 'ring-primary' : 'ring-bg-base'}`} />}
                 </button>
               );
             })}
@@ -212,11 +216,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       {/* ── More Bottom Sheet ────────────────────────────────────────────────── */}
       {/* Backdrop */}
       {moreOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
+        <div className="md:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
       )}
 
-      <div className={`md:hidden fixed left-0 right-0 z-50 transition-all duration-300 ease-out ${moreOpen ? 'bottom-[56px] translate-y-0 opacity-100' : 'bottom-[56px] translate-y-full opacity-0 pointer-events-none'}`}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Sheet sits BELOW the tab bar (z-40 < z-50) so the "More" button is never
+          covered by the sheet's transparent padding — otherwise taps meant to
+          close it land on the sheet instead (hide appeared broken). It also
+          clears the tab bar height including the safe-area inset. */}
+      <div className={`md:hidden fixed left-0 right-0 z-40 transition-all duration-300 ease-out ${moreOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+        style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
         <div className="mx-3 mb-3 rounded-3xl bg-surface border border-border-light shadow-2xl overflow-hidden">
 
           {/* User card → My Account */}

@@ -136,7 +136,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const buildPayload = () => ({
     ...form, name: fullName || form.name,
     whatsapp: waSame ? form.mobile : form.whatsapp,
-    mandal: form.mandal || 'Adajan', createdBy: user?.name || '',
+    mandal: form.mandal || 'Adajan',
   });
 
   const save = async (addAnother) => {
@@ -299,12 +299,37 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   <Combo options={referenceOptions} value={form.reference} onChange={(v) => set({ reference: v })} placeholder="Select or type" /></div>
               </div>
               <div>
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-border-light bg-surface p-2">
-                  {tagsByCategory().flatMap(({ tags }) => tags).map((t) => {
-                    const on = form.tags.includes(t.key);
-                    return <button type="button" key={t.key} onClick={() => set({ tags: on ? form.tags.filter((k) => k !== t.key) : [...form.tags, t.key] })}
-                      style={on ? tagChipStyle(t.key) : undefined} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>;
+                <Label>🏷️ Tags</Label>
+                <div className="space-y-3 max-h-64 overflow-y-auto rounded-xl border border-border-light bg-surface p-3">
+                  {tagsByCategory().map(({ category, tags }) => {
+                    const keys = tags.map((t) => t.key);
+                    const allOn = keys.length > 0 && keys.every((k) => form.tags.includes(k));
+                    const toggleAll = () => set({
+                      tags: allOn
+                        ? form.tags.filter((k) => !keys.includes(k))
+                        : [...new Set([...form.tags, ...keys])],
+                    });
+                    return (
+                      <div key={category.key}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-text-main">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color?.dot }} />
+                            {category.label}
+                          </span>
+                          <button type="button" onClick={toggleAll}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold border transition-colors ${allOn ? 'border-primary bg-primary/10 text-primary' : 'border-border-light text-text-muted hover:border-primary hover:text-primary'}`}>
+                            {allOn ? '✓ All selected' : 'Select all'}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {tags.map((t) => {
+                            const on = form.tags.includes(t.key);
+                            return <button type="button" key={t.key} onClick={() => set({ tags: on ? form.tags.filter((k) => k !== t.key) : [...form.tags, t.key] })}
+                              style={on ? tagChipStyle(t.key) : undefined} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>;
+                          })}
+                        </div>
+                      </div>
+                    );
                   })}
                 </div>
               </div>
@@ -333,6 +358,54 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   )}
                 </div>
               </div>
+
+              {/* Full entered-details review so nothing is hidden before saving. */}
+              {(() => {
+                const age = deriveAge(form.dob);
+                const rows = [
+                  ['👤', 'Gender', form.gender],
+                  ['🎂', 'Date of Birth', form.dob ? `${form.dob}${age !== '' ? `  ·  ${age} yrs` : ''}` : ''],
+                  ['🩸', 'Blood Group', form.bloodGroup],
+                  ['💍', 'Marital Status', form.maritalStatus],
+                  ['📅', 'Anniversary', form.anniversary],
+                  ['📱', 'Mobile', form.mobile],
+                  ['💬', 'WhatsApp', waSame ? `${form.mobile} (same)` : form.whatsapp],
+                  ['📧', 'Email', form.email],
+                  ['📍', 'Address', form.address],
+                  ['🗺️', 'Area', form.area],
+                  ['🏙️', 'City', form.city],
+                  ['🎓', 'Qualification', form.qualification],
+                  ['📚', 'Education / Stream', [form.education, form.educationStatus].filter(Boolean).join('  ·  ')],
+                  ['🏫', 'School / College', form.school],
+                  ['💼', 'Profession', form.profession],
+                  ['🛠️', 'Field', form.professionField],
+                  ['🏢', 'Company', form.companyName],
+                  ['🧑‍🤝‍🧑', 'Yuvak Type', form.yuvakType],
+                  ['👨‍👩‍👧', 'Family Role', form.familyId ? `Member (${form.relation || '—'})` : 'Head of own family'],
+                  ['🙏', 'Follow-up Karyakarta', [form.followupKaryakarta, form.followupKaryakartaMobile].filter(Boolean).join('  ·  ')],
+                  ['🔗', 'Reference', form.reference],
+                  ['🗓️', 'Date of Joining', form.dateOfJoining],
+                  ['📝', 'Notes', form.notes],
+                ].filter(([, , v]) => v && String(v).trim());
+                if (!rows.length) return null;
+                return (
+                  <div className="rounded-2xl border border-border-light bg-surface p-4">
+                    <p className="mb-3 text-xs font-black uppercase tracking-wider text-text-main">📋 All entered details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                      {rows.map(([icon, label, value]) => (
+                        <div key={label} className="flex items-start gap-2">
+                          <span className="text-sm leading-5 shrink-0">{icon}</span>
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
+                            <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{value}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {(dupMobile || dupNames.length > 0) && (
                 <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" /> Possible duplicate — {dupMobile ? `mobile matches ${dupMobile.name}` : `name matches ${dupNames[0].name}`}. Save anyway if this is a different person.

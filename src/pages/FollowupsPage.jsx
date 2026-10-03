@@ -41,6 +41,7 @@ export default function FollowupsPage({ user }) {
   const [events, setEvents] = useState([]);
   const [devotees, setDevotees] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventMsg, setEventMsg] = useState(''); // transient success toast after create/edit
   const [fmap, setFmap] = useState({});           // devoteeId -> followup record (for selected event)
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
@@ -91,12 +92,16 @@ export default function FollowupsPage({ user }) {
       description: eventForm.description || '',
       tags: parseEventTags(eventForm.tags).join('|'),
     };
-    if (editingEventId) dataService.updateSabha(editingEventId, payload);
-    else dataService.addSabha(payload);
+    const isNew = !editingEventId;
+    const saved = editingEventId ? dataService.updateSabha(editingEventId, payload) : dataService.addSabha(payload);
     setEvents(dataService.getEvents());
     setShowEventModal(false);
     setEventForm(emptyEventForm());
     setEditingEventId(null);
+    // Success feedback + auto-focus the newly created event's drive board (#63).
+    setEventMsg(isNew ? `✅ Event "${payload.title}" created` : `✅ Event "${payload.title}" updated`);
+    setTimeout(() => setEventMsg(''), 4000);
+    if (isNew && saved) openEvent(saved);
   };
 
   const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
@@ -116,8 +121,14 @@ export default function FollowupsPage({ user }) {
     setFmap(prev => ({ ...prev, [devId]: rec }));
   };
 
-  const toggleTag = (key) =>
+  // Tags the event was created with are LOCKED during follow-up — they define the
+  // event's audience, so a sevak must not be able to remove them by mistake (#64).
+  // They can still ADD extra filter tags to narrow the list further.
+  const lockedEventTags = useMemo(() => parseEventTags(selectedEvent?.tags), [selectedEvent]);
+  const toggleTag = (key) => {
+    if (lockedEventTags.includes(key)) return; // locked — cannot remove/toggle off
     setSelectedTags(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
 
   // Audience = devotees matching search + tag filter (+ pending filter)
   const audience = useMemo(() => {
@@ -159,12 +170,21 @@ export default function FollowupsPage({ user }) {
   };
 
   // ---------------- EVENT LIST VIEW ----------------
+  // Transient success toast shown after creating / editing an event (#63).
+  const eventToast = eventMsg ? (
+    <div className="fixed left-1/2 top-4 z-[70] -translate-x-1/2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-xl animate-[fadeIn_0.2s_ease-out]">
+      {eventMsg}
+    </div>
+  ) : null;
+
   if (!selectedEvent) {
     return (
+      <>
+      {eventToast}
       <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-text-main">Event Follow-ups</h1>
+            <h1 className="text-2xl font-bold text-text-main">📞 Event Follow-ups</h1>
             <p className="text-sm font-medium text-text-muted">
               Pick an event to run a follow-up drive — call, meet, or message devotees and track who is coming.
             </p>
@@ -312,6 +332,7 @@ export default function FollowupsPage({ user }) {
           </div>
         , document.body)}
       </div>
+      </>
     );
   }
 
@@ -326,6 +347,8 @@ export default function FollowupsPage({ user }) {
   ];
 
   return (
+    <>
+    {eventToast}
     <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-5">
       <button onClick={() => setSelectedEvent(null)} className="flex items-center gap-1.5 text-xs font-bold text-text-main hover:text-[#FF862A]">
         <ArrowLeft className="h-4 w-4" /> All events
@@ -385,21 +408,28 @@ export default function FollowupsPage({ user }) {
           <div className="rounded-2xl border border-border-light bg-surface p-4 space-y-3 max-h-[40vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-text-main">Filter devotees by tag — showing devotees with ANY selected tag</p>
-              {selectedTags.length > 0 && (
-                <button onClick={() => setSelectedTags([])} className="text-xs font-bold text-[#FF862A]">Clear</button>
+              {selectedTags.some(k => !lockedEventTags.includes(k)) && (
+                <button onClick={() => setSelectedTags(prev => prev.filter(k => lockedEventTags.includes(k)))} className="text-xs font-bold text-[#FF862A]">Clear</button>
               )}
             </div>
+            {lockedEventTags.length > 0 && (
+              <p className="flex items-center gap-1.5 rounded-xl bg-[#EAF0F7] px-3 py-2 text-[11px] font-semibold text-[#1F3A5F]">
+                🔒 This event's tags are fixed and cannot be removed during follow-up. You can add more tags to narrow the list.
+              </p>
+            )}
             {tagsByCategory().map(({ category, tags }) => (
               <div key={category.key}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{category.label}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {tags.map(t => {
                     const on = selectedTags.includes(t.key);
+                    const locked = lockedEventTags.includes(t.key);
                     return (
-                      <button key={t.key} onClick={() => toggleTag(t.key)}
+                      <button key={t.key} onClick={() => toggleTag(t.key)} disabled={locked}
+                        title={locked ? "Fixed by this event — can't be removed" : undefined}
                         style={on ? tagChipStyle(t.key) : undefined}
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>
-                        {t.label}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'} ${locked ? 'cursor-not-allowed ring-1 ring-[#1F3A5F]/30' : ''}`}>
+                        {locked && '🔒 '}{t.label}
                       </button>
                     );
                   })}
@@ -475,5 +505,6 @@ export default function FollowupsPage({ user }) {
         )}
       </div>
     </div>
+    </>
   );
 }

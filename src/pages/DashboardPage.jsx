@@ -192,7 +192,7 @@ export default function DashboardPage({ setActivePage, user }) {
         {upcoming.length === 0 ? (
           <p className="text-sm font-semibold text-text-muted">No birthdays in the next 30 days.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-start">
             {upcoming.map(({ devotee, info }) => {
               const open = expandedBday === devotee.id;
               const wa = birthdayWaLink(devotee);
@@ -259,9 +259,9 @@ export default function DashboardPage({ setActivePage, user }) {
         )}
       </div>
 
-      {/* Today's Inspiration — swipeable slider */}
-      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col sm:flex-row">
-        <div className="flex-1 p-6 min-w-0">
+      {/* Today's Inspiration — full-width text with the wallpaper below it */}
+      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col">
+        <div className="w-full p-6 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
               <Sparkles className="h-4 w-4" /> Today's Inspiration
@@ -301,7 +301,7 @@ export default function DashboardPage({ setActivePage, user }) {
         <img
           src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}
           alt="Kariye aej kaam jema Taro Rajipo"
-          className="h-40 w-full object-cover object-center sm:h-auto sm:w-64 sm:rounded-r-3xl"
+          className="w-full object-contain bg-[#001a33]"
           loading="lazy"
         />
       </div>
@@ -309,7 +309,7 @@ export default function DashboardPage({ setActivePage, user }) {
       {/* Quick Actions */}
       {!isDevotee && (
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
-        <h2 className="text-base font-bold text-text-main mb-4">Quick Actions</h2>
+        <h2 className="text-base font-bold text-text-main mb-4">⚡ Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
             onClick={() => setActivePage('devotees')}

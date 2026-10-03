@@ -1,4 +1,4 @@
-1. After clicking on followup tab, app hang. Not to do anything. 
+Done 1. After clicking on followup tab, app hang. Not to do anything. 
 Done 2. ⁠Rename papoliwala from system user
 Done 3. ⁠Make UI to add/edit/delete system user
 Done 4. ⁠Make my profile section
@@ -58,19 +58,19 @@ Done 39.why we have "gharNo" column in sheet? if not required then delete.
 Done 40.can i changed the id of devotees as some id is missing inbetween.
 Done 41.when we are shooting mail and on which email?
 
-42.made 1 email just for akshar connect app so whenever in app need email to send mail, use "aksharconnect01@gmail.com" email.
-43.follow-up > event > add event > unable to save as save button hides behind bottom nav bar.
+Done 42.made 1 email just for akshar connect app so whenever in app need email to send mail, use "aksharconnect01@gmail.com" email.
+Done 43.follow-up > event > add event > unable to save as save button hides behind bottom nav bar.
 	- popup creating issue at everywhere so remove popup from entire app and make whole screen view.
-44.if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
+Done 44.if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
 	-  edit should allowed add/remove tag options.
-45.system user name getting cut-down so show all the details in 1st part and then in bottom of card, show all the action icons i.e. edit and delete.
-46.More > click on cancel (more) hang the app. it should be toggle (show/hide).
-47.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
+Done 45.system user name getting cut-down so show all the details in 1st part and then in bottom of card, show all the action icons i.e. edit and delete.
+Done 46.More > click on cancel (more) hang the app. it should be toggle (show/hide).
+Done 47.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
 	- slider getting cutdown in hights as header is fixed. i think you can make slider fit to screen.
 	- instead of showing 1 card in 1 row for upcoming birthday. you can show multiple cards as much as fits in screen (responsive). it will apply on entire app.
 	- today's inspiration should be fit width of screen and image wallpaper should come below it (fit to screen)
 	- Devotees > in desktop view, you can give 2 options, grid (by default) and cards. grid header should be fixed and grid data should be scrollable.
-48.Export to excel should be export all the fields with below order
+Done 48.Export to excel should be export all the fields with below order
 	- SN
 	- Fullname
 	- Address
@@ -80,10 +80,10 @@ Done 41.when we are shooting mail and on which email?
 	- Reference
 	- YuvakType (Ambrish/Yuvak/Vadil etc)
 	then other fields.
-49.Profile > Contact > Address should be first as it needs 2 columns (more space). it is not looking good inbetween. you should have this basic sense.
-50.Add devotees screen > DOB and Gender getting overlapped in mobile. 
+Done 49.Profile > Contact > Address should be first as it needs 2 columns (more space). it is not looking good inbetween. you should have this basic sense.
+Done 50.Add devotees screen > DOB and Gender getting overlapped in mobile. 
 	- this kind of things you should test everytime for every design. i am very much frustrated now as i need to test every small things and ask you.
-51.add devotee > profile photo should be photo upload option with camera take. ask for photo at last.
+Done 51.add devotee > profile photo should be photo upload option with camera take. ask for photo at last.
 52."secondary mobile" is not needed really. remove from sheet as well and from entire app.
 53.it is suggesting me values in keyboard top but I cant see any dropdown in add devotees (iphone). 
 54.I have deleted "wing" column from the sheet. you manage app. nothing should be crash or misbehave.
@@ -98,4 +98,15 @@ Done 41.when we are shooting mail and on which email?
 61.Make area master tab where show all the area entered by devotees and give add/edit/delete options. admin can assign number to area.
 	- dont show area route number in add devotees screen
 62.profile should also show created by created date and updated by and updated date (only if updated)
-63.family
+
+63.create event should give success message and focus should be seted on newely created event automatically.
+64.still issue not resolved. if i applied friday sabha tag at the time of event creation then no one should be allowed to remove that tag while doing folowup.
+	- if admin created event with friday sabha tag and some sevak removed tag from his end by mistakenely then now anyone dont know (suppose) which tag is applied then what to do ? thatswhy i am telling that dont allow removing tag at the time of followup.
+65.system user > 1st row should be Name, then mobile,PIN,Password (every field in new row). got it?
+66.More > still toggle (show/hide) not working. showing works fine but hide is not working.
+67.Desktop UI > Header navbar is very very bad looking. make it extra ordinary even if it is not possible in this app then also suggest me but i want best.
+	- slider getting cutdown in hights as header is fixed. i think you can make slider fit to screen.
+	- instead of showing 1 card in 1 row for upcoming birthday. you can show multiple cards as much as fits in screen (responsive). it will apply on entire app.
+	- today's inspiration should be fit width of screen and image wallpaper should come below it (fit to screen)
+	- Devotees > in desktop view, you can give 2 options, grid (by default) and cards. grid header should be fixed and grid data should be scrollable.
+68.Still created by is not saved on add devotees. If i have logged in with "Digesh Patel" account then save Digesh Patel (ID) in CreatedBy column (sheet)

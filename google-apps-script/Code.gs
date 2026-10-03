@@ -15,10 +15,11 @@ var HEADERS = {
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date'],
+  Areas:      ['name','number','notes'],
   Changes:    ['ts','action','collection','summary','emailed']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-03c';
+var SCHEMA_VERSION = '2026-10-04a';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -129,7 +130,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -192,7 +193,7 @@ function handle_(p){
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
-      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups') });
+      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups'), areas:readAll_('Areas') });
     if(action==='seedDevotees'){
       if(readAll_('Devotees').length===0) appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
