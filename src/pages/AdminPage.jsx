@@ -277,27 +277,29 @@ export default function AdminPage({ user }) {
         <div className="space-y-3">
           {users.length === 0 && <p className="text-xs text-text-muted">No users yet.</p>}
           {users.map((u, i) => (
-            <div key={i} className="flex items-center gap-3 p-3.5 rounded-2xl border border-border-light bg-bg-base">
-              <div className="h-10 w-10 shrink-0 grid place-items-center rounded-xl bg-primary text-white text-sm font-bold">{(u.name || 'U')[0]}</div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-text-main truncate">
-                  {u.name || 'User'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}
-                </p>
-                <p className="text-[11px] font-semibold text-text-muted">+91 {u.mobile}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  PIN: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.pin || '—') : '••••'}</span>
-                  {' • '}Password: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.password || '—') : '••••••••'}</span>
-                </p>
+            <div key={i} className="p-3.5 rounded-2xl border border-border-light bg-bg-base">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 shrink-0 grid place-items-center rounded-xl bg-primary text-white text-sm font-bold">{(u.name || 'U')[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-text-main break-words">
+                    {u.name || 'User'} {String(u.mobile) === String(user?.mobile) && <span className="text-[10px] font-bold text-primary">(you)</span>}
+                  </p>
+                  <p className="text-[11px] font-semibold text-text-muted">+91 {u.mobile}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 break-words">
+                    PIN: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.pin || '—') : '••••'}</span>
+                    {' • '}Password: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.password || '—') : '••••••••'}</span>
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                  u.role === 'Admin' ? 'bg-red-100 text-red-700' : u.role === 'Sevak' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {u.role || 'Devotee'}
+                </span>
               </div>
-              <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                u.role === 'Admin' ? 'bg-red-100 text-red-700' : u.role === 'Sevak' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {u.role || 'Devotee'}
-              </span>
               {isAdmin && (
-                <div className="flex shrink-0 items-center gap-1">
-                  <button onClick={() => editUser(u)} title="Edit" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
-                  <button onClick={() => removeUser(u)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                <div className="mt-3 flex items-center justify-end gap-2 border-t border-border-light pt-2">
+                  <button onClick={() => editUser(u)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /> Edit</button>
+                  <button onClick={() => removeUser(u)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /> Delete</button>
                 </div>
               )}
             </div>

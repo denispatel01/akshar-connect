@@ -64,7 +64,6 @@ export const DEVOTEE_SECTIONS = [
     fields: [
       { key: 'mobile',          label: 'Mobile',          type: 'tel' },
       { key: 'whatsapp',        label: 'WhatsApp',        type: 'tel' },
-      { key: 'secondaryMobile', label: 'Secondary Mobile', type: 'tel' },
       { key: 'email',           label: 'Email',           type: 'email' },
       { key: 'address',         label: 'Address',         type: 'textarea' },
       { key: 'area',            label: 'Area',            type: 'select', options: AREAS },

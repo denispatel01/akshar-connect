@@ -26,7 +26,7 @@ const AGE_BANDS = {
 // Profile tabs -> [field, label]. 'Tags' is a special tab (no fields, renders tag UI).
 const TABS = {
   'Personal':    [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  'Contact':     [['mobile','Mobile'],['whatsapp','WhatsApp'],['secondaryMobile','Secondary Mobile'],['email','Email'],['address','Address'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
+  'Contact':     [['address','Address'],['mobile','Mobile'],['whatsapp','WhatsApp'],['email','Email'],['area','Area'],['city','City'],['areaRoute','Area Route No.']],
   'Education':   [['qualification','Qualification'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
@@ -900,21 +900,46 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                <button onClick={async () => {
                   // Real .xlsx so it opens straight in Google Sheets / Excel (incl. mobile).
                   const XLSX = await import('xlsx');
-                  const data = filteredDevotees.map(d => {
+                  const ddmmyyyy = (s) => s ? String(s).replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '';
+                  const data = filteredDevotees.map((d, i) => {
                     const age = deriveAge(d.dob);
                     return {
-                      'ID': d.id || '',
-                      'Name': d.name || '',
-                      'Mobile': d.mobile || '',
-                      'WhatsApp': d.whatsapp || '',
-                      'DOB': d.dob ? d.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '',
-                      'Age': age === '' ? '' : age,
-                      'Area': d.area || '',
+                      // Requested leading order:
+                      'SN': i + 1,
+                      'Full Name': d.name || '',
+                      'Address': d.address || '',
+                      'Mobile No': d.mobile || '',
+                      'DOB': ddmmyyyy(d.dob),
+                      'Follow-up Karyakarta': d.followupKaryakarta || '',
                       'Reference': d.reference || '',
-                      'Karyakarta': d.followupKaryakarta || '',
-                      'Qualification': d.qualification || '',
+                      'Yuvak Type': d.yuvakType || '',
+                      // then the rest of the fields:
+                      'ID': d.id || '',
+                      'Age': age === '' ? '' : age,
                       'Gender': d.gender || '',
-                      'Membership': d.type || '',
+                      'WhatsApp': d.whatsapp || '',
+                      'Email': d.email || '',
+                      'Area': d.area || '',
+                      'City': d.city || '',
+                      'Blood Group': d.bloodGroup || '',
+                      'Marital Status': d.maritalStatus || '',
+                      'Qualification': d.qualification || '',
+                      'Education': d.education || '',
+                      'Education Status': d.educationStatus || '',
+                      'School/College': d.school || '',
+                      'Profession': d.profession || '',
+                      'Field': d.professionField || '',
+                      'Company': d.companyName || '',
+                      'Karyakarta Mobile': d.followupKaryakartaMobile || '',
+                      'Family ID': d.familyId || '',
+                      'Relation': d.relation || '',
+                      'Membership': d.type === 'Primary' ? 'Head' : (d.type || ''),
+                      'Old/New': d.oldNew || '',
+                      'Status': d.status || '',
+                      'Date of Joining': ddmmyyyy(d.dateOfJoining),
+                      'Tags': Array.isArray(d.tags) ? d.tags.map(k => tagLabel(k)).join(', ') : '',
+                      'Notes': d.notes || '',
+                      'Created By': d.createdBy || '',
                     };
                   });
                   const ws = XLSX.utils.json_to_sheet(data);
