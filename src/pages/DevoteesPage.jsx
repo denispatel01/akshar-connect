@@ -26,7 +26,7 @@ const TABS = {
   'Personal':    [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
   'Contact':     [['address','Address'],['mobile','Mobile'],['whatsapp','WhatsApp'],['email','Email'],['area','Area'],['city','City']],
   'Education':   [['qualification','Qualification'],['grade','Grade / Standard'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
-  'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company'],['occupation','Occupation (legacy)']],
+  'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
   'Family':      [], // special tab: lists everyone in this devotee's family (+ shows Family ID)
   'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
@@ -115,7 +115,7 @@ const FIELD_EMOJI = {
   firstName: '🪪', middleName: '🪪', lastName: '🪪', gender: '⚧️', dob: '🎂', bloodGroup: '🩸',
   maritalStatus: '💍', anniversary: '💕', address: '📍', mobile: '📱', whatsapp: '💬', email: '📧',
   area: '🗺️', city: '🏙️', qualification: '🎓', grade: '📘', education: '📚', educationStatus: '⏳',
-  school: '🏫', profession: '💼', professionField: '🛠️', companyName: '🏢', occupation: '💼',
+  school: '🏫', profession: '💼', professionField: '🛠️', companyName: '🏢',
   yuvakType: '🧑‍🤝‍🧑', familyId: '👨‍👩‍👧', relation: '🔗', followupKaryakarta: '🙏', followupKaryakartaMobile: '📞',
   reference: '🤝', id: '🆔', status: '✅', dateOfJoining: '🗓️', notes: '📝',
 };
