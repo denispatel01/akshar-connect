@@ -1378,14 +1378,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             {/* Header: cover banner, overlapping avatar, headline, quick actions */}
             <div className="relative border-b border-border-light">
 
-              {/* Cover */}
-              <div className="h-24 sm:h-28 bg-gradient-to-br from-[#FF9D52] via-[#FF862A] to-[#E56F18]" />
+              {/* Cover — "Simple Life, High Thinking" banner */}
+              <div className="h-36 sm:h-52 overflow-hidden bg-[#cfe0e6]">
+                <img src={`${import.meta.env.BASE_URL}images/profile-cover.webp`} alt=""
+                  className="h-full w-full object-cover object-[center_35%]" loading="lazy" />
+              </div>
 
               <div className="px-5 sm:px-7 pb-4">
-                {/* Avatar overlapping the cover */}
-                <img src={selectedDevotee.photo || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=003158&color=ffffff&bold=true&size=128&name=' + encodeURIComponent(selectedDevotee.name || '?')}
+                {/* Avatar overlapping the cover — large */}
+                <img src={selectedDevotee.photo || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=FF862A&color=ffffff&bold=true&size=256&name=' + encodeURIComponent(selectedDevotee.name || '?')}
                   alt={selectedDevotee.name}
-                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl object-cover ring-4 ring-surface shadow-lg bg-surface -mt-10 sm:-mt-12" />
+                  className="h-32 w-32 sm:h-40 sm:w-40 rounded-3xl object-cover ring-4 ring-surface shadow-xl bg-surface -mt-16 sm:-mt-24" />
 
                 <h2 className="mt-2 text-xl sm:text-2xl font-black text-text-main leading-tight break-words">{selectedDevotee.name}</h2>
                 {(() => {
