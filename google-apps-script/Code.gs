@@ -27,6 +27,24 @@ var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
 
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
+// Send AS this address, shown with this display name. `from` only works once it
+// is a verified "Send mail as" alias on the script owner's Gmail (see DEPLOY.md).
+var MAIL_FROM = 'aksharconnect01@gmail.com';
+var MAIL_FROM_NAME = 'Akshar Connect';
+
+// Central mailer — always shows "Akshar Connect" as the sender name, and sends
+// AS aksharconnect01 when the alias is verified. Falls back (keeps the name) if
+// the alias isn't set up yet, so mail is never lost. Returns the sender used.
+function sendMail_(subject, body, toOverride){
+  var to = toOverride || MAIL_TO;
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: body, name: MAIL_FROM_NAME, from: MAIL_FROM });
+    return MAIL_FROM;
+  } catch (e) {
+    MailApp.sendEmail({ to: to, subject: subject, body: body, name: MAIL_FROM_NAME }); // alias not ready yet
+    return 'owner-fallback';
+  }
+}
 
 /**
  * RUN THIS ONCE from the editor to grant the "Send email as you" permission,
@@ -34,8 +52,12 @@ var MAIL_TO = 'aksharconnect01@gmail.com';
  * (Pick `testMail` in the toolbar function dropdown → Run.)
  */
 function testMail(){
-  MailApp.sendEmail({ to: MAIL_TO, subject: 'Akshar Connect — test mail', body: 'Test email from the Apps Script editor at ' + new Date() });
-  Logger.log('Sent test mail to ' + MAIL_TO + '. Remaining daily quota: ' + MailApp.getRemainingDailyQuota());
+  var sender = sendMail_('Akshar Connect — test mail', 'Test email from the Apps Script editor at ' + new Date());
+  Logger.log('Sent test mail to ' + MAIL_TO + ' (sent as: ' + sender + ', name: "' + MAIL_FROM_NAME + '"). '
+    + (sender === 'owner-fallback'
+       ? 'NOTE: the aksharconnect01 alias is NOT verified yet, so it went from the owner address. Add & verify the "Send mail as" alias to send as aksharconnect01.'
+       : 'The aksharconnect01 alias is working.')
+    + ' Remaining daily quota: ' + MailApp.getRemainingDailyQuota());
 }
 // Alias — same thing, clearer name in the dropdown.
 function authorizeEmail(){ return testMail(); }
@@ -201,8 +223,8 @@ function handle_(p){
     if(action==='testMail'){
       var to = p.to || MAIL_TO;
       try{
-        MailApp.sendEmail({ to:to, subject:'Akshar Connect — test mail', body:'This is a test from the backend at '+new Date().toISOString() });
-        return json_({ ok:true, sent:true, to:to, remainingQuota: MailApp.getRemainingDailyQuota() });
+        var sender = sendMail_('Akshar Connect — test mail', 'This is a test from the backend at '+new Date().toISOString(), to);
+        return json_({ ok:true, sent:true, to:to, sentAs:sender, fromName:MAIL_FROM_NAME, remainingQuota: MailApp.getRemainingDailyQuota() });
       }catch(err){ return json_({ ok:false, sent:false, to:to, error:String(err), remainingQuota:(function(){try{return MailApp.getRemainingDailyQuota();}catch(e){return 'n/a';}})() }); }
     }
     if(action==='peekHeaders'){ var _sh=tab_('Devotees'); return json_({ ok:true, physical:_sh.getRange(1,1,1,_sh.getLastColumn()).getValues()[0], target:HEADERS.Devotees, ensured:PropertiesService.getScriptProperties().getProperty('ensuredSchema') }); }
@@ -356,7 +378,7 @@ function logChange_(action, collection, row){
   try{
     var body = action + ' on ' + collection + '\n\n';
     if(row && typeof row === 'object'){ for(var k in row){ if(row[k]) body += k + ': ' + row[k] + '\n'; } }
-    MailApp.sendEmail({ to:MAIL_TO, subject:'Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body:body });
+    sendMail_('Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body);
   }catch(e){}
 }
 
@@ -371,7 +393,7 @@ function emailChangeDigest_(){
   if(!pending.length) return;
   var body = 'Akshar Connect — ' + pending.length + ' change(s):\n\n'
     + pending.map(function(r){ return r[0]+'  '+r[1]+' '+r[2]+'  '+r[3]; }).join('\n');
-  try{ MailApp.sendEmail({ to:MAIL_TO, subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
+  try{ sendMail_('Akshar Connect — '+pending.length+' changes', body); }catch(e){ return; }
   rows.forEach(function(rn){ sh.getRange(rn, eI+1).setValue('yes'); });
 }
 function setupChangeDigest_(){
