@@ -6,7 +6,7 @@ import {
   AREAS, GENDERS, BLOOD_GROUPS, MARITAL_STATUS, YUVAK_TYPES,
   QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, deriveAge,
 } from '../services/devoteeSchema';
-import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
+import { tagsByCategory, tagChipStyle, tagLabel, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import AutoResizeTextarea from './AutoResizeTextarea';
 import { alertDevoteeSaveFailed } from '../utils/sweetAlert';
 
@@ -403,28 +403,38 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div className="space-y-3 rounded-xl border border-border-light bg-surface p-3">
                   {tagsByCategory().map(({ category, tags }) => {
                     const keys = tags.map((t) => t.key);
+                    const hasMutex = tags.some((t) => t.mutuallyExclusiveGroup);
                     const allOn = keys.length > 0 && keys.every((k) => form.tags.includes(k));
                     const toggleAll = () => set({
                       tags: allOn
                         ? form.tags.filter((k) => !keys.includes(k))
                         : [...new Set([...form.tags, ...keys])],
                     });
+                    // Toggle one tag, clearing any mutually-exclusive siblings (#91).
+                    const toggleTag = (t) => {
+                      const on = form.tags.includes(t.key);
+                      if (on) { set({ tags: form.tags.filter((k) => k !== t.key) }); return; }
+                      const excl = getMutuallyExclusiveKeys(t.key);
+                      set({ tags: [...form.tags.filter((k) => !excl.includes(k)), t.key] });
+                    };
                     return (
                       <div key={category.key}>
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-text-main">
                             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color?.dot }} />
-                            {category.label}
+                            {category.label}{hasMutex && <span className="normal-case font-semibold text-text-muted">(pick one)</span>}
                           </span>
-                          <button type="button" onClick={toggleAll}
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold border transition-colors ${allOn ? 'border-primary bg-primary/10 text-primary' : 'border-border-light text-text-muted hover:border-primary hover:text-primary'}`}>
-                            {allOn ? '✓ All selected' : 'Select all'}
-                          </button>
+                          {!hasMutex && (
+                            <button type="button" onClick={toggleAll}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold border transition-colors ${allOn ? 'border-primary bg-primary/10 text-primary' : 'border-border-light text-text-muted hover:border-primary hover:text-primary'}`}>
+                              {allOn ? '✓ All selected' : 'Select all'}
+                            </button>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {tags.map((t) => {
                             const on = form.tags.includes(t.key);
-                            return <button type="button" key={t.key} onClick={() => set({ tags: on ? form.tags.filter((k) => k !== t.key) : [...form.tags, t.key] })}
+                            return <button type="button" key={t.key} onClick={() => toggleTag(t)}
                               style={on ? tagChipStyle(t.key) : undefined} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>;
                           })}
                         </div>
