@@ -94,8 +94,8 @@ export default function AdminPage({ user }) {
   };
 
   return (
-    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
-      <div>
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 grid gap-6 lg:grid-cols-2 2xl:grid-cols-3 items-start">
+      <div className="col-span-full">
         <h1 className="text-2xl font-bold text-text-main">⚙️ Admin Settings & Control</h1>
         <p className="text-sm font-medium text-text-muted">
           Access codes, user management, and system database settings.
@@ -180,7 +180,7 @@ export default function AdminPage({ user }) {
       )}
 
       {/* Area Master Card (Admin only) */}
-      {isAdmin && <AreaMaster />}
+      {isAdmin && <div className="lg:col-span-2"><AreaMaster /></div>}
 
       {/* Devotee Database Card */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
@@ -275,9 +275,9 @@ export default function AdminPage({ user }) {
       )}
 
       {/* Registered System Users */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold text-text-main">System User Accounts</h2>
+          <h2 className="text-base font-bold text-text-main">👥 System User Accounts</h2>
           {isAdmin && (
             <button onClick={() => setShowCreds(s => !s)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-1.5 text-xs font-bold text-text-main hover:border-primary">
