@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Save, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2, Camera } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
@@ -165,6 +165,19 @@ const PRESET_META = {
   },
 };
 
+// Capitalize the first letter of every word (#89). Applied to name/text fields only.
+const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
+const CAP_FIELDS = new Set(['firstName', 'middleName', 'lastName', 'city', 'school', 'grade', 'education', 'professionField', 'companyName', 'address', 'reference', 'followupKaryakarta', 'notes']);
+// Emoji per profile field for extra visual cues (#98).
+const FIELD_EMOJI = {
+  firstName: '🪪', middleName: '🪪', lastName: '🪪', gender: '⚧️', dob: '🎂', bloodGroup: '🩸',
+  maritalStatus: '💍', anniversary: '💕', address: '📍', mobile: '📱', whatsapp: '💬', email: '📧',
+  area: '🗺️', city: '🏙️', qualification: '🎓', grade: '📘', education: '📚', educationStatus: '⏳',
+  school: '🏫', profession: '💼', professionField: '🛠️', companyName: '🏢', occupation: '💼',
+  yuvakType: '🧑‍🤝‍🧑', familyId: '👨‍👩‍👧', relation: '🔗', followupKaryakarta: '🙏', followupKaryakartaMobile: '📞',
+  reference: '🤝', id: '🆔', status: '✅', dateOfJoining: '🗓️', notes: '📝',
+};
+
 const MONTHS_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function dobShort(dob) {
   if (!dob) return '';
@@ -220,6 +233,24 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [activeTab, setActiveTab] = useState('Personal');
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
+  const photoInputRef = useRef(null);
+  // Crop an uploaded image to a square and store as base64 on the edit form (#88).
+  const handleProfilePhoto = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
+        const ctx = c.getContext('2d');
+        const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
+        ctx.drawImage(img, sx, sy, m, m, 0, 0, S, S);
+        setEditData((d) => ({ ...d, photo: c.toDataURL('image/jpeg', 0.72) }));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [showTags, setShowTags] = useState(false); // separate Tags filter section (outside Filters)
@@ -638,7 +669,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     const value = data[f] ?? '';
     const onChange = (e) => {
-      const next = e.target.value;
+      let next = e.target.value;
+      if (CAP_FIELDS.has(f)) next = capWords(next); // auto-capitalize words (#89)
       if (f === 'mobile' && whatsappSameAsMobile) {
         setData({ ...data, mobile: next, whatsapp: next });
       } else {
@@ -1406,21 +1438,38 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   className="block w-full h-auto" loading="lazy" />
               </div>
 
-              <div className="px-5 sm:px-7 pb-4">
-                {/* Avatar overlapping the cover — large */}
-                <img src={selectedDevotee.photo || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=FF862A&color=ffffff&bold=true&size=256&name=' + encodeURIComponent(selectedDevotee.name || '?')}
-                  alt={selectedDevotee.name}
-                  className="h-32 w-32 sm:h-40 sm:w-40 rounded-3xl object-cover ring-4 ring-surface shadow-xl bg-surface -mt-16 sm:-mt-24" />
+              <div className="px-5 sm:px-7 pb-4 flex flex-col items-center text-center">
+                {/* Big centered avatar overlapping the cover (#99). In edit mode, tap to change photo (#88). */}
+                <div className="relative -mt-24 sm:-mt-32">
+                  <img src={(editing ? editData.photo : selectedDevotee.photo) || selectedDevotee.avatar || 'https://ui-avatars.com/api/?background=FF862A&color=ffffff&bold=true&size=400&name=' + encodeURIComponent(selectedDevotee.name || '?')}
+                    alt={selectedDevotee.name}
+                    className="h-44 w-44 sm:h-56 sm:w-56 max-w-[70vw] rounded-3xl object-cover ring-4 ring-surface shadow-2xl bg-surface" />
+                  {editing && (
+                    <>
+                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhoto(e.target.files && e.target.files[0])} />
+                      <button type="button" onClick={() => photoInputRef.current && photoInputRef.current.click()}
+                        className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg hover:bg-primary-hover">
+                        <Camera className="h-4 w-4" /> {editData.photo ? 'Change' : 'Add photo'}
+                      </button>
+                      {editData.photo && (
+                        <button type="button" onClick={() => setEditData((d) => ({ ...d, photo: '' }))}
+                          className="absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-black/40 text-white hover:bg-black/60" title="Remove photo">
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
 
-                <h2 className="mt-2 text-xl sm:text-2xl font-black text-text-main leading-tight break-words">{selectedDevotee.name}</h2>
+                <h2 className="mt-3 text-2xl sm:text-3xl font-black text-text-main leading-tight break-words">{selectedDevotee.name}</h2>
                 {(() => {
                   const age = deriveAge(selectedDevotee.dob);
                   const headline = [selectedDevotee.yuvakType, selectedDevotee.professionField || selectedDevotee.profession, age !== '' ? `${age} yrs` : '']
                     .filter(Boolean).join('  ·  ');
-                  return headline ? <p className="mt-0.5 text-sm font-semibold text-text-muted">{headline}</p> : null;
+                  return headline ? <p className="mt-1 text-sm font-semibold text-text-muted">{headline}</p> : null;
                 })()}
 
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
                   {selectedDevotee.type && (
                     <span className="text-[10px] sm:text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full" title="Family membership">
                       {selectedDevotee.type === 'Primary' ? 'Head of family' : 'Family member'}
@@ -1609,14 +1658,25 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   }
 
                   // ── Field section card (Personal / Contact / Satsang / Education / Profession / System) ──
-                  const fields = (TABS[sec] || []).filter(([f]) => !(sec === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)));
+                  const pdata = editing ? editData : selectedDevotee;
+                  const isBalP = pdata.yuvakType === 'Bal';
+                  const showGradeP = isBalP || pdata.educationStatus === 'Pursuing';
+                  const fields = (TABS[sec] || []).filter(([f]) => {
+                    if (sec === 'Satsang' && SATSANG_ROLE_FIELDS.has(f)) return false;
+                    // Bal: no college qualification/stream/status; Grade only for Bal or students (#90/#97)
+                    if (sec === 'Education') {
+                      if (isBalP && (f === 'qualification' || f === 'education' || f === 'educationStatus')) return false;
+                      if (f === 'grade' && !showGradeP) return false;
+                    }
+                    return true;
+                  });
                   return (
                     <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
                       <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
                       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-4">
                         {fields.map(([f, label]) => (
                           <div key={f} className={FULL_WIDTH_FIELDS.has(f) ? 'col-span-2 lg:col-span-3 xl:col-span-4' : ''}>
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{label}</div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">{FIELD_EMOJI[f] ? `${FIELD_EMOJI[f]} ` : ''}{label}</div>
                             {editing ? (
                               renderEditField(f, editData, setEditData)
                             ) : (

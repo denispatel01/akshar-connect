@@ -110,18 +110,17 @@ Done 67.Desktop UI > Header navbar is very very bad looking. make it extra ordin
 	- Devotees > in desktop view, you can give 2 options, grid (by default) and cards. grid header should be fixed and grid data should be scrollable.
 Done 68.Still created by is not saved on add devotees. If i have logged in with "Digesh Patel" account then save Digesh Patel (ID) in CreatedBy column (sheet)
 ----
-69.Stil Didn't getting mail. send mail on add/edit/delete devotees and other actions.
-70.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
-71.Add devotees > tags > showing section wise and added select all options (section wise) that is good but still tags section is fixed height. i dont want to show it in fixed height div. it should grow with tags. i dont mind if it looks very big.
-72.Where are we taking grade details of students? which column?
+Done 69.Stil Didn't getting mail. send mail on add/edit/delete devotees and other actions.
+Done 70.add devotee screen should be little bit colorful. currently it is looking so simple. make it extra ordinary.
+Done 71.Add devotees > tags > showing section wise and added select all options (section wise) that is good but still tags section is fixed height. i dont want to show it in fixed height div. it should grow with tags. i dont mind if it looks very big.
+Done 72.Where are we taking grade details of students? which column?
 	- show further fields based on the yuvak type (Ambrish/Yuvak/Bal). if Bal selected then no need to show unnecessary input like job/company etc
-73.Edit profile > family role is more content but showing in half screen (width) it should be shown in full width screen.
-74.Edit profile > Satsang > show all the input in next line. 1 row 1 field because label are long and "if not listed" checkbox so that section is not looking aligned.
-75.Add devotees > Review > screen looking very good but icon is of 1 row and label is in 2 rows (Gender, Male) so looking unaligned. icon should also be of 2 rows big.
+Done 73.Add/Edit profile > family role is more content but showing in half screen (width) it should be shown in full width screen.
+Done 75.Add devotees > Review > screen looking very good but icon is of 1 row and label is in 2 rows (Gender, Male) so looking unaligned. icon should also be of 2 rows big.
 	- and too much space is blank at right side as gender mobile qualification etc is not taking too much space so utilize the space by showing details in 
 	2 parts (responsive design - it content is big then show in 1 part only)
-76.Still i am feeling app is equipped with very few emoji (specifically) and icons. i want extreme usage. app should look very modern and smart.
-77.still i can see area route number in ad/edit devotees screen. i dont want to take input at the time of devotees add/edit. it is backend (admin) work.
+Done 76.Still i am feeling app is equipped with very few emoji (specifically) and icons. i want extreme usage. app should look very modern and smart.
+Done 77.still i can see area route number in ad/edit devotees screen. i dont want to take input at the time of devotees add/edit. it is backend (admin) work.
 	- i want area master UI in more tab where i can make route by assigning appropriate number to area.
 	- then add 1 more sorting option i.e. area (vaishnodevi to palanpur) or (palanpur to vaishnodevi). Here, area number 1 is from area and last area is to area.
 78.Still updated by and updated on not showing.
@@ -138,6 +137,26 @@ Done 68.Still created by is not saved on add devotees. If i have logged in with 
 85.Still desktop view for admin tab is not proper. user management section is required very less space then also it is showing it in whole screen 100% width.
 	you can add as much as possible cards (section) in 1 row as per screen resolution.
 86.Created by column (in sheet) should be besides created on (left side)
-87.profile picture should be big and cover page should be "simple life, high thinking" image. image attached.
+87.add new devotees > rename "Details" to "Additional", "Family&Satsang" to "Satsang"
+---
+88.Edit photo option is not available.
+89.Add/edit profile > Any field > after space auto capital of first character of word.
+90.Edit profile > selected ambrish as yuvak type then changed to Bal and then again changed to ambrish so it is asking for grade even my education is completed.
+91.add/edit profile > tag > sabha attendance > only 1 option should be allowed, regular attending or irregular attending or not attending or bal sabha or balika sabha.
+92.review tab showing family role: member brother but not showing whoose brother.
+93.Email for add devotee > photo base64 should be not shown in email. email looks very simple. it should also looks same like profile in app. same to same.
+94.add devotee does not saving DOB. make it working.
+95.delete devotee mail > only showing ID. it should be shown name with ID and who is deleted their name also with date time.
+96.add devotee screen should be little bit colorful instead of white background.
+97.if user select Bal then why are we asking, diploma, bachelor, master etc?
+98.devotees profile > equipped with very few emoji and icons. add more emoji and icons.
+99.review screen telling that this is how the profile will look like but profile showing something else design. review screen design is very good so you can apply the same. just increase the size of profile picture (almost fit to screen) and keep in center
+100.give me (admin) rights to ON/OFF mail. so i can decide to send mail or not.
+--
+101.Nikunj Nareshbhai  Ramani has details for updatedby and updated on then why are you not showing that details in his profile. i told you earlier also.
+102.
 
+
+
+profile picture should be big and cover page should be "simple life, high thinking" image. image attached.
 Use orange color in our theme. reference image given.
