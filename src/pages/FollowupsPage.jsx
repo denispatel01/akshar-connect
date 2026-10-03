@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   PhoneCall, Phone, Users2, ArrowLeft, Search, Filter, X, Check,
   CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus, Pencil, Trash2
@@ -219,17 +220,20 @@ export default function FollowupsPage({ user }) {
           })}
         </div>
 
-        {showEventModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-3xl bg-surface p-6 shadow-xl max-h-[85vh] overflow-y-auto">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-text-main">{editingEventId ? 'Edit Event' : 'New Event'}</h2>
-                <button onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
-                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-slate-400 hover:text-text-main">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <form onSubmit={submitEvent} className="space-y-3">
+        {showEventModal && createPortal(
+          <div className="fixed inset-0 z-[60] bg-bg-base flex flex-col"
+            style={{ paddingTop:'env(safe-area-inset-top)', paddingBottom:'env(safe-area-inset-bottom)', paddingLeft:'env(safe-area-inset-left)', paddingRight:'env(safe-area-inset-right)' }}
+            onTouchStart={(e)=>e.stopPropagation()} onTouchEnd={(e)=>e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border-light bg-surface px-4 sm:px-6 py-4 shrink-0">
+              <h2 className="text-lg font-bold text-text-main">{editingEventId ? 'Edit Event' : 'New Event'}</h2>
+              <button onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
+                className="grid h-9 w-9 place-items-center rounded-full text-text-muted hover:bg-bg-base hover:text-text-main">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={submitEvent} className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="mx-auto w-full max-w-2xl p-4 sm:p-6 space-y-3">
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Title *</label>
                   <input required value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
@@ -292,20 +296,21 @@ export default function FollowupsPage({ user }) {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
-                    className="rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
-                    Cancel
-                  </button>
-                  <button type="submit"
-                    className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00264a] active:scale-95">
-                    {editingEventId ? 'Save Changes' : 'Create Event'}
-                  </button>
                 </div>
-              </form>
-            </div>
+              </div>
+              <div className="shrink-0 border-t border-border-light bg-surface px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
+                <button type="button" onClick={() => { setShowEventModal(false); setEditingEventId(null); }}
+                  className="rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00264a] active:scale-95">
+                  {editingEventId ? 'Save Changes' : 'Create Event'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        , document.body)}
       </div>
     );
   }
