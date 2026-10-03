@@ -71,10 +71,14 @@ function dataUriToBlob_(dataUri, name){
 // Instead of storing a big base64 string on every devotee row (bloats the Sheet,
 // slows bootstrap, and Gmail won't render it), the photo is saved as a file in a
 // dedicated Drive folder and only its URL is kept on the record.
-var PHOTO_FOLDER_NAME = 'Akshar Connect Photos';
+// Photos live in Drive under akshar-connect/profile-photo (#124).
+function subFolder_(parent, name){
+  var it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
 function photoFolder_(){
-  var it = DriveApp.getFoldersByName(PHOTO_FOLDER_NAME);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(PHOTO_FOLDER_NAME);
+  var root = subFolder_(DriveApp.getRootFolder(), 'akshar-connect');
+  return subFolder_(root, 'profile-photo');
 }
 // A URL that renders reliably both in the app and inside Gmail.
 function photoUrl_(id){ return 'https://lh3.googleusercontent.com/d/' + id; }
