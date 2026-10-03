@@ -1,5 +1,5 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const BUILD_ID = '1791015084815'; // replaced at build time so each deploy ships a new SW
+const BUILD_ID = '1791015962599'; // replaced at build time so each deploy ships a new SW
 const CACHE_NAME = 'akshar-connect-' + BUILD_ID;
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
