@@ -223,7 +223,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [showTags, setShowTags] = useState(false); // separate Tags filter section (outside Filters)
-  const [sortBy, setSortBy] = useState(''); // '' = default | name | joinedDesc | joinedAsc
+  const [sortBy, setSortBy] = useState(''); // '' = default | name | joinedDesc | joinedAsc | areaAsc | areaDesc
+  // Area name (lowercased) -> assigned number from the Area Master, for area sorting.
+  const areaNumMap = useMemo(() => {
+    const m = {};
+    (dataService.getAreas() || []).forEach(a => { if (a.name) m[String(a.name).trim().toLowerCase()] = a.number; });
+    return m;
+  }, [devotees]);
   // All directory filters are multi-select (arrays of selected values).
   const [filterKaryakartas, setFilterKaryakartas] = useState([]);
   const [filterAreas, setFilterAreas] = useState([]);
@@ -415,15 +421,26 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         .sort((a, b) => b.s - a.s) // exact first, then partial, then fuzzy
         .map((x) => x.d);
     } else if (sortBy) {
+      const areaNum = (d) => {
+        const n = areaNumMap[String(d.area || '').trim().toLowerCase()];
+        return (n === undefined || n === '' || isNaN(parseInt(n, 10))) ? null : parseInt(n, 10);
+      };
       base = [...base].sort((a, b) => {
         if (sortBy === 'joinedDesc') return String(b.dateOfJoining || '').localeCompare(String(a.dateOfJoining || ''));
         if (sortBy === 'joinedAsc') return String(a.dateOfJoining || '').localeCompare(String(b.dateOfJoining || ''));
+        if (sortBy === 'areaAsc' || sortBy === 'areaDesc') {
+          const na = areaNum(a), nb = areaNum(b);
+          if (na === null && nb === null) return String(a.area || '').localeCompare(String(b.area || ''));
+          if (na === null) return 1;   // unnumbered areas last
+          if (nb === null) return -1;
+          return sortBy === 'areaAsc' ? na - nb : nb - na;
+        }
         return String(a.name || '').localeCompare(String(b.name || '')); // name A-Z
       });
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, sortBy, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, sortBy, areaNumMap, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -882,6 +899,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
               <option value="name">Name (A–Z)</option>
               <option value="joinedDesc">Recently joined</option>
               <option value="joinedAsc">Oldest joined</option>
+              <option value="areaAsc">Area (1 → last)</option>
+              <option value="areaDesc">Area (last → 1)</option>
             </select>
             
             <div className="flex gap-2">

@@ -21,6 +21,16 @@ const isYuva = (d) => {
   return age !== '' && age >= 15 && age <= 45;
 };
 
+// "01-Dec-1995 (29)" — DOB with age in brackets, for PDF columns.
+const reportDobAge = (dob) => {
+  const base = reportDob(dob);
+  if (!base) return '';
+  const age = deriveAge(dob);
+  return age !== '' ? `${base} (${age})` : base;
+};
+// Relation label for the "with family members" report.
+const relationLabel = (d) => (d.type === 'Primary' ? 'Head' : (d.relation || 'Member'));
+
 // Defined at module scope (NOT inside ReportsPage) so their identity is stable
 // across renders — otherwise a state change on click remounts the list and the
 // first click is lost, forcing a double-click.
@@ -82,6 +92,8 @@ export default function ReportsPage({ setActivePage }) {
 
   // Which report is currently being generated (its label), for the busy overlay.
   const [busy, setBusy] = useState(null);
+  // Karyakarta chosen for a report — opens a chooser (heads only vs with members).
+  const [kkChoice, setKkChoice] = useState(null);
 
   // Tap a row / card → build and download an attractive PDF of that group.
   const makeReport = async (rows, title, subtitle, columns) => {
@@ -186,9 +198,20 @@ export default function ReportsPage({ setActivePage }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <Card title="Total Devotees" count={stats.total} icon={Users} color="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
         <Card title="Active Devotees" count={stats.active} icon={Activity} color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
-        <Card title="Yuva (Male 15–45)" count={stats.yuva} icon={User} color="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+        <Card title="Yuvak (15–45 age)" count={stats.yuva} icon={User} color="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
           hint="Tap to download PDF"
-          onClick={() => makeReport(devotees.filter(isYuva), 'Yuva Report (Male 15-45)', 'Adajan Satsang Mandal')} />
+          onClick={() => makeReport(
+            devotees.filter(isYuva),
+            'Yuvak Report (15-45 age)',
+            'Adajan Satsang Mandal',
+            [
+              { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
+              { header: 'Full Name', get: (d) => d.name || '' },
+              { header: 'DOB (Age)', get: (d) => reportDobAge(d.dob), width: 110 },
+              { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
+              { header: 'Address', get: (d) => [d.address, d.area].filter(Boolean).join(', ') },
+            ],
+          )} />
         <Card title="Upcoming Birthdays" count={stats.upcomingBirthdays} icon={Calendar} color="bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400" />
         <Card title="Total Areas" count={Object.keys(stats.areaStats).length} icon={MapPin} color="bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" />
       </div>
@@ -200,23 +223,62 @@ export default function ReportsPage({ setActivePage }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatList title="By Karyakarta" data={stats.karyakartaStats} icon={ShieldCheck} isComplex={true}
-          onRowClick={(k) => makeReport(
-            devotees.filter(d => (d.followupKaryakarta || '') === k),
-            `Karyakarta — ${k}`,
-            'Devotees under this karyakarta',
-            [
-              { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
-              { header: 'Full Name', get: (d) => d.name || '' },
-              { header: 'Date of Birth', get: (d) => reportDob(d.dob), width: 88 },
-              { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
-              { header: 'Address', get: (d) => [d.address, d.area].filter(Boolean).join(', ') },
-            ],
-          )} />
+          onRowClick={(k) => setKkChoice(k)} />
         <StatList title="By Area" data={stats.areaStats} icon={MapPin}
           onRowClick={(k) => makeReport(devotees.filter(d => (d.area || '') === k), `Area — ${k}`, 'Devotees in this area')} />
-        <StatList title="By Wing" data={stats.wingStats} icon={Users}
-          onRowClick={(k) => makeReport(devotees.filter(d => (d.wing || '') === k), `Wing — ${k}`, 'Devotees in this wing')} />
       </div>
+
+      {/* Karyakarta report chooser (#83) */}
+      {kkChoice && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setKkChoice(null)}>
+          <div className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-text-main flex items-center gap-2">🙏 {kkChoice}</h3>
+            <p className="mt-1 text-sm font-semibold text-text-muted">Choose which PDF to download:</p>
+            <div className="mt-4 space-y-2.5">
+              <button
+                onClick={() => {
+                  const rows = devotees.filter(d => (d.followupKaryakarta || '') === kkChoice && d.type === 'Primary');
+                  setKkChoice(null);
+                  makeReport(rows, `Karyakarta — ${kkChoice} (Family Heads)`, 'Family heads only', [
+                    { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
+                    { header: 'Full Name', get: (d) => d.name || '' },
+                    { header: 'DOB (Age)', get: (d) => reportDobAge(d.dob), width: 110 },
+                    { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
+                    { header: 'Address', get: (d) => [d.address, d.area].filter(Boolean).join(', ') },
+                  ]);
+                }}
+                className="w-full flex items-center gap-3 rounded-2xl border-2 border-border-light bg-surface px-4 py-3 text-left font-bold text-text-main hover:border-primary transition-colors">
+                <span className="text-xl">👤</span>
+                <div><div className="text-sm">Only family heads</div><div className="text-[11px] font-semibold text-text-muted">One row per family</div></div>
+              </button>
+              <button
+                onClick={() => {
+                  const rows = devotees
+                    .filter(d => (d.followupKaryakarta || '') === kkChoice)
+                    .sort((a, b) => {
+                      const fa = a.familyId || a.id, fb = b.familyId || b.id;
+                      if (fa !== fb) return String(fa).localeCompare(String(fb));
+                      return (a.type === 'Primary' ? 0 : 1) - (b.type === 'Primary' ? 0 : 1); // head first
+                    });
+                  setKkChoice(null);
+                  makeReport(rows, `Karyakarta — ${kkChoice} (With Family)`, 'Family heads with members', [
+                    { header: '#', get: (_d, i) => String(i + 1), width: 26, halign: 'center' },
+                    { header: 'Full Name', get: (d) => d.name || '' },
+                    { header: 'Relation', get: (d) => relationLabel(d), width: 70 },
+                    { header: 'DOB (Age)', get: (d) => reportDobAge(d.dob), width: 100 },
+                    { header: 'Mobile', get: (d) => d.mobile || '', width: 78 },
+                    { header: 'Address', get: (d) => [d.address, d.area].filter(Boolean).join(', ') },
+                  ]);
+                }}
+                className="w-full flex items-center gap-3 rounded-2xl border-2 border-border-light bg-surface px-4 py-3 text-left font-bold text-text-main hover:border-primary transition-colors">
+                <span className="text-xl">👨‍👩‍👧</span>
+                <div><div className="text-sm">With family members</div><div className="text-[11px] font-semibold text-text-muted">Includes a Relation column</div></div>
+              </button>
+            </div>
+            <button onClick={() => setKkChoice(null)} className="mt-4 w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-bold text-text-muted hover:text-text-main">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {busy && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
