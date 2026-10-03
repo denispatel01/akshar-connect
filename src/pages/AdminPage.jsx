@@ -455,26 +455,31 @@ function AreaMaster() {
 
       {msg && <p className="text-xs font-bold text-emerald-600">{msg}</p>}
 
-      {/* Area list */}
+      {/* Area list — the full area name gets its own line (never clipped); the
+          number input, devotee count and compact Save/Delete sit on a second row. */}
       <div className="divide-y divide-border-light rounded-2xl border border-border-light overflow-hidden">
-        <div className="grid grid-cols-[1fr_5rem_4rem_auto] gap-2 items-center bg-bg-base px-4 py-2 text-[11px] font-black uppercase tracking-wider text-text-muted">
-          <span>🗺️ Area</span><span>🔢 No.</span><span>👥</span><span className="text-right"></span>
-        </div>
         {rows.map((r) => (
-          <div key={r.name.toLowerCase()} className="grid grid-cols-[1fr_5rem_4rem_auto] gap-2 items-center px-4 py-2.5">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-text-main truncate">{r.name}</p>
-              {!r.inMaster && <span className="text-[10px] font-bold text-amber-600">unassigned</span>}
+          <div key={r.name.toLowerCase()} className="px-4 py-2.5">
+            {/* Full area name — wraps, never truncated */}
+            <div className="flex items-start gap-1.5">
+              <p className="flex-1 break-words text-sm font-bold text-text-main leading-snug">{r.name}</p>
+              {!r.inMaster && <span className="shrink-0 mt-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950">unassigned</span>}
             </div>
-            <input value={numFor(r)} onChange={(e) => setEdits({ ...edits, [r.name.toLowerCase()]: e.target.value.replace(/\D/g, '') })}
-              inputMode="numeric" placeholder="—"
-              className="w-full rounded-lg border border-border-light bg-bg-base px-2 py-1.5 text-sm text-text-main text-center focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-            <span className="text-xs font-bold text-text-muted">{r.count}</span>
-            <div className="flex items-center justify-end gap-1.5">
-              <button onClick={() => save(r)} title="Save number" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-hover"><Save className="h-4 w-4" /></button>
-              {r.inMaster && (
-                <button onClick={() => remove(r)} title="Remove from Area Master" className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950"><Trash2 className="h-4 w-4" /></button>
-              )}
+            {/* Compact controls row */}
+            <div className="mt-1.5 flex items-center gap-2">
+              <label className="flex items-center gap-1 text-[10px] font-bold text-text-muted">
+                <span>🔢</span>
+                <input value={numFor(r)} onChange={(e) => setEdits({ ...edits, [r.name.toLowerCase()]: e.target.value.replace(/\D/g, '') })}
+                  inputMode="numeric" placeholder="—"
+                  className="w-12 rounded-md border border-border-light bg-bg-base px-1.5 py-1 text-sm text-text-main text-center focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+              </label>
+              <span className="text-[11px] font-bold text-text-muted">👥 {r.count}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <button onClick={() => save(r)} title="Save number" className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary-hover"><Save className="h-3.5 w-3.5" /></button>
+                {r.inMaster && (
+                  <button onClick={() => remove(r)} title="Remove from Area Master" className="flex h-7 w-7 items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950"><Trash2 className="h-3.5 w-3.5" /></button>
+                )}
+              </div>
             </div>
           </div>
         ))}
