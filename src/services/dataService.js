@@ -330,6 +330,9 @@ export const dataService = {
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
   // Admin: turn notification email on/off (server-side flag).
+  // Synchronous cached value — lets the UI show the toggle instantly instead of a
+  // "Loading…" state while the (sometimes slow) server call is in flight.
+  mailEnabledCached: () => mailCached_(),
   getMailEnabled: async () => {
     if (!hasBackend()) return true;
     const r = await api('getMailEnabled', {});
