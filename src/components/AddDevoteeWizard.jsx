@@ -177,21 +177,6 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const step0Valid = form.firstName.trim() && form.mobile.length === 10;
   const canNext = step === 0 ? step0Valid : true;
 
-  // Per-step completion % for the circular stepper (feels like the reference).
-  const STEP_FIELDS = [
-    ['firstName', 'middleName', 'lastName', 'mobile', 'dob', 'gender'],
-    ['whatsapp', 'email', 'area', 'city', 'address', 'qualification', 'profession'],
-    ['followupKaryakarta', 'reference'],
-  ];
-  const stepPct = (i) => {
-    if (i >= 3) return Math.round([0, 1, 2].reduce((a, k) => a + stepPct(k), 0) / 3);
-    const fields = STEP_FIELDS[i] || [];
-    const extra = i === 2 ? 1 : 0;                       // tags count as one more field on step 2
-    const total = fields.length + extra;
-    let filled = fields.filter((k) => String(form[k] || '').trim()).length;
-    if (i === 2 && form.tags.length) filled += 1;
-    return total ? Math.round((filled / total) * 100) : 0;
-  };
   const SECTION_TITLE = ['Personal Details', 'Contact & Background', 'Family, Satsang & Tags', 'Review & Save'];
 
   const buildPayload = () => ({
@@ -247,26 +232,30 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           </button>
         </div>
 
-        {/* Circular % stepper */}
-        <div className="mx-auto w-full max-w-3xl mt-4 flex items-end">
+        {/* Gradient wizard step rail (FORM A) — gradient-filled dots + colored
+            progress connectors, with a label under each step. */}
+        <div className="mx-auto w-full max-w-3xl mt-4 flex items-start">
           {STEPS.map((s, i) => {
-            const p = stepPct(i);
             const active = i === step;
-            const done = p === 100;
+            const done = i < step;
             return (
               <React.Fragment key={s}>
                 <button type="button" onClick={() => (i < step || canNext) && setStep(i)}
                   className="flex flex-col items-center gap-1.5 w-16 sm:w-20 shrink-0 focus:outline-none">
-                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-primary' : 'text-text-muted'}`}>{s}</span>
-                  <span className={`grid h-10 w-10 place-items-center rounded-full text-[11px] font-black transition-all
-                    ${active ? 'bg-primary text-white ring-4 ring-primary/25'
-                      : done ? 'bg-emerald-500 text-white'
-                      : 'bg-surface text-text-muted border border-border-light'}`}>
-                    {done ? <Check className="h-4 w-4" /> : `${p}%`}
+                  <span className={`grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-full text-[12px] font-black text-white transition-all
+                    ${active
+                      ? 'bg-gradient-to-br from-[#FF9D52] to-[#E5741F] ring-4 ring-[#FF862A]/25 shadow-md'
+                      : done
+                      ? 'bg-gradient-to-br from-[#FF9D52] to-[#003158]'
+                      : 'bg-white text-text-muted border border-border-light dark:bg-slate-800'}`}>
+                    {done ? <Check className="h-4 w-4" /> : i + 1}
                   </span>
+                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-primary' : done ? 'text-[#E5741F]' : 'text-text-muted'}`}>{s}</span>
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className={`h-[2px] flex-1 rounded -translate-y-[20px] ${i < step ? 'bg-primary' : 'bg-border-light'}`} />
+                  <div className="h-1 flex-1 rounded-full mt-4 sm:mt-[18px] bg-border-light overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-300 ${i < step ? 'w-full bg-gradient-to-r from-[#FF9D52] to-[#E5741F]' : 'w-0'}`} />
+                  </div>
                 )}
               </React.Fragment>
             );
