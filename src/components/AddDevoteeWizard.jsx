@@ -10,13 +10,13 @@ import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import AutoResizeTextarea from './AutoResizeTextarea';
 import { alertDevoteeSaveFailed } from '../utils/sweetAlert';
 
-const STEPS = ['Basics', 'Details', 'Family & Satsang', 'Review'];
+const STEPS = ['Basics', 'Additional', 'Satsang', 'Review'];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const blank = () => ({
   firstName: '', middleName: '', lastName: '', name: '', gender: 'Male', dob: '', bloodGroup: '',
   maritalStatus: '', anniversary: '', yuvakType: '', photo: '',
   mobile: '', whatsapp: '', email: '', area: '', city: 'Surat', address: '', mandal: 'Adajan',
-  qualification: '', education: '', educationStatus: 'Completed', school: '',
+  qualification: '', education: '', educationStatus: 'Completed', school: '', grade: '',
   profession: '', professionField: '', companyName: '',
   followupKaryakarta: '', followupKaryakartaMobile: '', reference: '', notes: '', tags: [],
   familyId: '', type: 'Primary', relation: 'Self', dateOfJoining: todayISO(),
@@ -276,50 +276,86 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
             </div>
           )}
 
-          {step === 1 && (
-            <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
-              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[1]}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-sm font-bold text-text-main">WhatsApp Number</label>
-                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer">
-                      <input type="checkbox" checked={waSame} onChange={(e) => { setWaSame(e.target.checked); if (e.target.checked) set({ whatsapp: form.mobile }); }} className="rounded" /> Same as mobile
-                    </label>
-                  </div>
-                  <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} placeholder="10-digit WhatsApp number" className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
+          {step === 1 && (() => {
+            const isBal = form.yuvakType === 'Bal';
+            const YT_META = { Ambrish: '🙏', Yuvak: '🧑', Bal: '🧒', New: '🌱' };
+            return (
+            <div className="space-y-4">
+              {/* Yuvak type — prominent, drives which fields show below */}
+              <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 to-amber-50 p-5 shadow-xs">
+                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-primary mb-3">🧑‍🤝‍🧑 Yuvak Type</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {YUVAK_TYPES.map((t) => {
+                    const on = form.yuvakType === t;
+                    return (
+                      <button type="button" key={t} onClick={() => set({ yuvakType: t })}
+                        className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-3 py-3 text-sm font-bold transition-all ${on ? 'border-primary bg-primary text-white shadow-md' : 'border-border-light bg-surface text-text-main hover:border-primary/50'}`}>
+                        <span className="text-xl">{YT_META[t] || '•'}</span>{t}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div><Label>Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} className={inputCls} /></div>
-                <div><Label>Area</Label>
-                  <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" /></div>
-                <div><Label>City</Label><input value={form.city} onChange={(e) => set({ city: e.target.value })} className={inputCls} /></div>
-                <div><Label>Blood Group</Label>
-                  <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
-                    <option value="">— Select —</option>{BLOOD_GROUPS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                <div><Label>Marital Status</Label>
-                  <select value={form.maritalStatus} onChange={(e) => set({ maritalStatus: e.target.value })} className={inputCls}>
-                    <option value="">— Select —</option>{MARITAL_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                <div><Label>Yuvak Type</Label>
-                  <select value={form.yuvakType} onChange={(e) => set({ yuvakType: e.target.value })} className={inputCls}>
-                    <option value="">— Select —</option>{YUVAK_TYPES.map((o) => <option key={o}>{o}</option>)}</select></div>
+                {isBal && <p className="mt-2 text-[11px] font-bold text-primary">🧒 Bal selected — job/company fields are hidden; add their school grade below.</p>}
               </div>
-              <div><Label>Address</Label><AutoResizeTextarea value={form.address} onChange={(e) => set({ address: e.target.value })} minRows={2} className={inputCls} /></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div><Label>Qualification</Label>
-                  <select value={form.qualification} onChange={(e) => set({ qualification: e.target.value })} className={inputCls}>
-                    <option value="">— Select —</option>{QUALIFICATIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                <div><Label>Education / Stream</Label><input value={form.education} onChange={(e) => set({ education: e.target.value })} placeholder="e.g. B.Tech Computer" className={inputCls} /></div>
-                <div><Label>Education Status</Label>
-                  <select value={form.educationStatus} onChange={(e) => set({ educationStatus: e.target.value })} className={inputCls}>{EDUCATION_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                <div><Label>School / College</Label><input value={form.school} onChange={(e) => set({ school: e.target.value })} className={inputCls} /></div>
-                <div><Label>Profession</Label>
-                  <select value={form.profession} onChange={(e) => set({ profession: e.target.value })} className={inputCls}>
-                    <option value="">— Select —</option>{PROFESSIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                <div><Label>Field</Label><input value={form.professionField} onChange={(e) => set({ professionField: e.target.value })} placeholder="e.g. Software Developer" className={inputCls} /></div>
-                <div><Label>Company</Label><input value={form.companyName} onChange={(e) => set({ companyName: e.target.value })} className={inputCls} /></div>
+
+              {/* Contact & personal */}
+              <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                <h3 className="flex items-center gap-2 text-lg font-black text-text-main">📞 Contact & Personal</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-bold text-text-main">💬 WhatsApp Number</label>
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted cursor-pointer">
+                        <input type="checkbox" checked={waSame} onChange={(e) => { setWaSame(e.target.checked); if (e.target.checked) set({ whatsapp: form.mobile }); }} className="rounded" /> Same as mobile
+                      </label>
+                    </div>
+                    <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} placeholder="10-digit WhatsApp number" className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
+                  </div>
+                  <div><Label>📧 Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@example.com" className={inputCls} /></div>
+                  <div><Label>🗺️ Area</Label>
+                    <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" /></div>
+                  <div><Label>🏙️ City</Label><input value={form.city} onChange={(e) => set({ city: e.target.value })} className={inputCls} /></div>
+                  <div><Label>🩸 Blood Group</Label>
+                    <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
+                      <option value="">— Select —</option>{BLOOD_GROUPS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                  <div><Label>💍 Marital Status</Label>
+                    <select value={form.maritalStatus} onChange={(e) => set({ maritalStatus: e.target.value })} className={inputCls}>
+                      <option value="">— Select —</option>{MARITAL_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                </div>
+                <div><Label>📍 Address</Label><AutoResizeTextarea value={form.address} onChange={(e) => set({ address: e.target.value })} minRows={2} className={inputCls} /></div>
               </div>
+
+              {/* Education */}
+              <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                <h3 className="flex items-center gap-2 text-lg font-black text-text-main">🎓 Education</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div><Label>🎓 Qualification</Label>
+                    <select value={form.qualification} onChange={(e) => set({ qualification: e.target.value })} className={inputCls}>
+                      <option value="">— Select —</option>{QUALIFICATIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                  <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={(e) => set({ grade: e.target.value })} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
+                  <div><Label>📚 Education / Stream</Label><input value={form.education} onChange={(e) => set({ education: e.target.value })} placeholder="e.g. B.Tech Computer" className={inputCls} /></div>
+                  <div><Label>⏳ Education Status</Label>
+                    <select value={form.educationStatus} onChange={(e) => set({ educationStatus: e.target.value })} className={inputCls}>{EDUCATION_STATUS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                  <div><Label>🏫 School / College</Label><input value={form.school} onChange={(e) => set({ school: e.target.value })} className={inputCls} /></div>
+                </div>
+              </div>
+
+              {/* Profession — hidden for Bal (children) */}
+              {!isBal && (
+                <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
+                  <h3 className="flex items-center gap-2 text-lg font-black text-text-main">💼 Profession</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div><Label>💼 Profession</Label>
+                      <select value={form.profession} onChange={(e) => set({ profession: e.target.value })} className={inputCls}>
+                        <option value="">— Select —</option>{PROFESSIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
+                    <div><Label>🛠️ Field</Label><input value={form.professionField} onChange={(e) => set({ professionField: e.target.value })} placeholder="e.g. Software Developer" className={inputCls} /></div>
+                    <div><Label>🏢 Company</Label><input value={form.companyName} onChange={(e) => set({ companyName: e.target.value })} className={inputCls} /></div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {step === 2 && (
             <div className="rounded-3xl border border-border-light bg-surface p-5 sm:p-6 shadow-xs space-y-5">
@@ -346,7 +382,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               </div>
               <div>
                 <Label>🏷️ Tags</Label>
-                <div className="space-y-3 max-h-64 overflow-y-auto rounded-xl border border-border-light bg-surface p-3">
+                <div className="space-y-3 rounded-xl border border-border-light bg-surface p-3">
                   {tagsByCategory().map(({ category, tags }) => {
                     const keys = tags.map((t) => t.key);
                     const allOn = keys.length > 0 && keys.every((k) => form.tags.includes(k));
@@ -408,6 +444,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               {/* Full entered-details review so nothing is hidden before saving. */}
               {(() => {
                 const age = deriveAge(form.dob);
+                // [icon, label, value, wide?] — wide items span the full width.
                 const rows = [
                   ['👤', 'Gender', form.gender],
                   ['🎂', 'Date of Birth', form.dob ? `${form.dob}${age !== '' ? `  ·  ${age} yrs` : ''}` : ''],
@@ -417,33 +454,34 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   ['📱', 'Mobile', form.mobile],
                   ['💬', 'WhatsApp', waSame ? `${form.mobile} (same)` : form.whatsapp],
                   ['📧', 'Email', form.email],
-                  ['📍', 'Address', form.address],
+                  ['📍', 'Address', form.address, true],
                   ['🗺️', 'Area', form.area],
                   ['🏙️', 'City', form.city],
+                  ['🧑‍🤝‍🧑', 'Yuvak Type', form.yuvakType],
                   ['🎓', 'Qualification', form.qualification],
-                  ['📚', 'Education / Stream', [form.education, form.educationStatus].filter(Boolean).join('  ·  ')],
-                  ['🏫', 'School / College', form.school],
+                  ['📘', 'Grade / Standard', form.grade],
+                  ['📚', 'Education / Stream', [form.education, form.educationStatus].filter(Boolean).join('  ·  '), true],
+                  ['🏫', 'School / College', form.school, true],
                   ['💼', 'Profession', form.profession],
                   ['🛠️', 'Field', form.professionField],
                   ['🏢', 'Company', form.companyName],
-                  ['🧑‍🤝‍🧑', 'Yuvak Type', form.yuvakType],
-                  ['👨‍👩‍👧', 'Family Role', form.familyId ? `Member (${form.relation || '—'})` : 'Head of own family'],
-                  ['🙏', 'Follow-up Karyakarta', [form.followupKaryakarta, form.followupKaryakartaMobile].filter(Boolean).join('  ·  ')],
-                  ['🔗', 'Reference', form.reference],
+                  ['👨‍👩‍👧', 'Family Role', form.familyId ? `Member (${form.relation || '—'})` : 'Head of own family', true],
+                  ['🙏', 'Follow-up Karyakarta', [form.followupKaryakarta, form.followupKaryakartaMobile].filter(Boolean).join('  ·  '), true],
+                  ['🔗', 'Reference', form.reference, true],
                   ['🗓️', 'Date of Joining', form.dateOfJoining],
-                  ['📝', 'Notes', form.notes],
+                  ['📝', 'Notes', form.notes, true],
                 ].filter(([, , v]) => v && String(v).trim());
                 if (!rows.length) return null;
                 return (
                   <div className="rounded-2xl border border-border-light bg-surface p-4">
                     <p className="mb-3 text-xs font-black uppercase tracking-wider text-text-main">📋 All entered details</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
-                      {rows.map(([icon, label, value]) => (
-                        <div key={label} className="flex items-start gap-2">
-                          <span className="text-sm leading-5 shrink-0">{icon}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {rows.map(([icon, label, value, wide]) => (
+                        <div key={label} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${wide ? 'sm:col-span-2' : ''}`}>
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{icon}</span>
                           <div className="min-w-0">
                             <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
-                            <div className="text-sm font-semibold text-text-main break-words whitespace-pre-wrap">{value}</div>
+                            <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap">{value}</div>
                           </div>
                         </div>
                       ))}

@@ -75,6 +75,7 @@ export const DEVOTEE_SECTIONS = [
     key: 'education', label: 'Education',
     fields: [
       { key: 'qualification',   label: 'Qualification',   type: 'select', options: QUALIFICATIONS, isNew: true },
+      { key: 'grade',           label: 'Grade / Standard', type: 'text', isNew: true, help: 'School class or current year, e.g. 8th std, FY B.Com' },
       { key: 'education',       label: 'Education / Stream', type: 'text', help: 'e.g. M.Tech Computer, B.Tech Electrical' },
       { key: 'educationStatus', label: 'Education Status', type: 'select', options: EDUCATION_STATUS, isNew: true },
       { key: 'school',          label: 'School / College', type: 'text', isNew: true },
