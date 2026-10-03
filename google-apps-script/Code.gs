@@ -28,6 +28,18 @@ var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
 
+/**
+ * RUN THIS ONCE from the editor to grant the "Send email as you" permission,
+ * then approve the prompt. After that, all add/edit/delete emails will work.
+ * (Pick `testMail` in the toolbar function dropdown → Run.)
+ */
+function testMail(){
+  MailApp.sendEmail({ to: MAIL_TO, subject: 'Akshar Connect — test mail', body: 'Test email from the Apps Script editor at ' + new Date() });
+  Logger.log('Sent test mail to ' + MAIL_TO + '. Remaining daily quota: ' + MailApp.getRemainingDailyQuota());
+}
+// Alias — same thing, clearer name in the dropdown.
+function authorizeEmail(){ return testMail(); }
+
 var SEED_USERS = [
   { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' }
 ];
