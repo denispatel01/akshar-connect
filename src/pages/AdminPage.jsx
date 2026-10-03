@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import ActivityFeed from '../components/ActivityFeed';
 
@@ -388,6 +388,12 @@ function AreaMaster() {
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
   const refresh = () => setTick((n) => n + 1);
+  // Re-render when the background bootstrap finishes loading areas/devotees (#125).
+  useEffect(() => {
+    const onRefresh = () => setTick((n) => n + 1);
+    window.addEventListener('ac-data-refreshed', onRefresh);
+    return () => window.removeEventListener('ac-data-refreshed', onRefresh);
+  }, []);
 
   // Union of master areas + distinct devotee areas, with a devotee count each.
   const rows = React.useMemo(() => {
@@ -437,6 +443,25 @@ function AreaMaster() {
     } catch (e) { flash('⚠️ ' + e.message); }
   };
 
+  // Drag-and-drop reorder (#121): dropping a row renumbers every area 1..N by its
+  // new position, so you can slot an area in between without hand-editing numbers.
+  const [dragIdx, setDragIdx] = useState(null);
+  const reorder = async (from, to) => {
+    if (from == null || to == null || from === to) return;
+    const order = rows.map((r) => r.name);
+    const [moved] = order.splice(from, 1);
+    order.splice(to, 0, moved);
+    setEdits({});
+    for (let i = 0; i < order.length; i++) {
+      const r = rows.find((x) => x.name === order[i]);
+      const newNum = String(i + 1);
+      if (r && String(r.number) !== newNum) {
+        try { await dataService.saveAreaAndSync(r.name, { number: newNum }); } catch (e) { /* optimistic */ }
+      }
+    }
+    refresh(); flash('✅ Reordered');
+  };
+
   return (
     <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
       <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
@@ -444,7 +469,7 @@ function AreaMaster() {
         <span className="ml-auto normal-case font-semibold text-text-muted">{rows.length} areas</span>
       </div>
       <p className="text-xs font-medium text-text-muted">
-        All areas devotees belong to. Assign each a number to control its order in lists and reports.
+        All areas devotees belong to. Drag ⠿ to reorder (numbers auto-adjust), or type a number directly.
       </p>
 
       {/* Add new area */}
@@ -463,10 +488,17 @@ function AreaMaster() {
       {/* Area list — the full area name gets its own line (never clipped); the
           number input, devotee count and compact Save/Delete sit on a second row. */}
       <div className="divide-y divide-border-light rounded-2xl border border-border-light overflow-hidden">
-        {rows.map((r) => (
-          <div key={r.name.toLowerCase()} className="px-4 py-2.5">
+        {rows.map((r, i) => (
+          <div key={r.name.toLowerCase()}
+            draggable
+            onDragStart={() => setDragIdx(i)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => { reorder(dragIdx, i); setDragIdx(null); }}
+            onDragEnd={() => setDragIdx(null)}
+            className={`px-4 py-2.5 transition-colors ${dragIdx === i ? 'opacity-50 bg-primary/5' : ''}`}>
             {/* Full area name — wraps, never truncated */}
             <div className="flex items-start gap-1.5">
+              <span className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-text-muted" title="Drag to reorder"><GripVertical className="h-4 w-4" /></span>
               <p className="flex-1 break-words text-sm font-bold text-text-main leading-snug">{r.name}</p>
               {!r.inMaster && <span className="shrink-0 mt-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950">unassigned</span>}
             </div>

@@ -56,7 +56,7 @@ export default function ActivityFeed({ mine = false, limit = 300 }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold text-text-muted">{loading ? 'Loading…' : `${rows.length} ${mine ? 'of your actions' : 'recent actions'}`}</p>
+        <p className="text-xs font-semibold text-text-muted">{loading ? 'Loading…' : `${rows.length}${loadingMore ? '+' : ''} ${mine ? 'of your actions' : 'recent actions'}${loadingMore ? ' · loading more…' : ''}`}</p>
         <button onClick={load} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
