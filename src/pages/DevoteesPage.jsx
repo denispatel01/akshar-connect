@@ -1378,10 +1378,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             {/* Header: cover banner, overlapping avatar, headline, quick actions */}
             <div className="relative border-b border-border-light">
 
-              {/* Cover — "Simple Life, High Thinking" banner */}
-              <div className="h-36 sm:h-52 overflow-hidden bg-[#cfe0e6]">
-                <img src={`${import.meta.env.BASE_URL}images/profile-cover.webp`} alt=""
-                  className="h-full w-full object-cover object-[center_35%]" loading="lazy" />
+              {/* Cover — full "Simple Life, High Thinking" image (tagline kept visible) */}
+              <div className="bg-[#eaf1f0]">
+                <img src={`${import.meta.env.BASE_URL}images/profile-cover.webp`} alt="Simple Life, High Thinking"
+                  className="block w-full h-auto" loading="lazy" />
               </div>
 
               <div className="px-5 sm:px-7 pb-4">
