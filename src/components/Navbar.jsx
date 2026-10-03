@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   X,
   ChevronRight,
+  Activity,
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
@@ -34,6 +35,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'devotees', label: 'My Profile', icon: User },
+        { id: 'activity', label: 'My Activity', icon: Activity },
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -54,6 +56,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
             ]
           : []),
+        { id: 'activity', label: 'My Activity', icon: Activity },
       ];
 
   // ── Mobile: primary tabs (max 4) + overflow into More sheet ────────────────
@@ -69,7 +72,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ];
 
   const moreItems = isDevotee
-    ? []
+    ? [{ id: 'activity', label: 'My Activity', icon: Activity }]
     : [
         ...(isAdmin || isSevak ? [
           { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
@@ -80,6 +83,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
           { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
         ] : []),
+        { id: 'activity', label: 'My Activity', icon: Activity },
       ];
 
   // Is the active page inside the "More" sheet?
