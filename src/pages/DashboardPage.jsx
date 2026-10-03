@@ -98,14 +98,14 @@ export default function DashboardPage({ setActivePage, user }) {
           className="absolute inset-y-0 right-0 z-0 hidden h-full w-1/2 object-cover object-[center_25%] opacity-90 sm:block"
           loading="lazy"
         />
-        <div className="absolute inset-0 z-0 hidden bg-gradient-to-r from-[#003158] via-[#003158]/95 to-[#003158]/30 sm:block" />
+        <div className="absolute inset-0 z-0 hidden bg-gradient-to-r from-[#E56F18] via-[#E56F18]/95 to-[#E56F18]/30 sm:block" />
         <div
-          className="absolute -right-10 -top-10 h-64 w-64 rounded-full opacity-20 z-0"
-          style={{ background: 'radial-gradient(circle, rgba(255,134,42,1) 0%, transparent 70%)' }}
+          className="absolute -right-10 -top-10 h-64 w-64 rounded-full opacity-25 z-0"
+          style={{ background: 'radial-gradient(circle, rgba(255,210,170,1) 0%, transparent 70%)' }}
         />
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-[#FF862A] uppercase tracking-widest mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold text-white/90 uppercase tracking-widest mb-1">
               <ShieldCheck className="h-4 w-4" /> Role: {user?.role || 'Devotee'}
             </div>
             <h1 className="font-display text-2xl font-bold sm:text-3xl">
@@ -118,7 +118,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
           <button
             onClick={() => setActivePage('devotees')}
-            className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-[#e06f19] active:scale-95"
+            className="flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-bold text-[#E56F18] shadow-md transition-all hover:bg-white/90 active:scale-95"
           >
             <Users className="h-5 w-5" /> View Devotees
           </button>

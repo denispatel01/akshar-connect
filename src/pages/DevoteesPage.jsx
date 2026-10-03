@@ -1379,7 +1379,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <div className="relative border-b border-border-light">
 
               {/* Cover */}
-              <div className="h-24 sm:h-28 bg-gradient-to-br from-primary via-[#013a6b] to-[#00223f]" />
+              <div className="h-24 sm:h-28 bg-gradient-to-br from-[#FF9D52] via-[#FF862A] to-[#E56F18]" />
 
               <div className="px-5 sm:px-7 pb-4">
                 {/* Avatar overlapping the cover */}
