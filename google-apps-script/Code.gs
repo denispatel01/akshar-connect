@@ -24,6 +24,9 @@ var SCHEMA_VERSION = '2026-10-04b';
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
 
+// Where all notification mail goes. Change here only.
+var MAIL_TO = 'aksharconnect01@gmail.com';
+
 var SEED_USERS = [
   { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' }
 ];
@@ -182,6 +185,13 @@ function handle_(p){
   var action = p.action || 'bootstrap';
   try{
     if(action==='ping') return json_({ ok:true, ts:Date.now() });
+    if(action==='testMail'){
+      var to = p.to || MAIL_TO;
+      try{
+        MailApp.sendEmail({ to:to, subject:'Akshar Connect — test mail', body:'This is a test from the backend at '+new Date().toISOString() });
+        return json_({ ok:true, sent:true, to:to, remainingQuota: MailApp.getRemainingDailyQuota() });
+      }catch(err){ return json_({ ok:false, sent:false, to:to, error:String(err), remainingQuota:(function(){try{return MailApp.getRemainingDailyQuota();}catch(e){return 'n/a';}})() }); }
+    }
     if(action==='peekHeaders'){ var _sh=tab_('Devotees'); return json_({ ok:true, physical:_sh.getRange(1,1,1,_sh.getLastColumn()).getValues()[0], target:HEADERS.Devotees, ensured:PropertiesService.getScriptProperties().getProperty('ensuredSchema') }); }
     if(action==='listTabs'){ return json_({ ok:true, tabs: ss_().getSheets().map(function(s){ return { name:s.getName(), rows:s.getLastRow(), cols:s.getLastColumn() }; }) }); }
     if(action==='repairFromBackup') return json_({ ok:true, result: repairFromBackup_(p.tab) });
@@ -315,7 +325,7 @@ function logChange_(action, collection, row){
   try{
     var body = action + ' on ' + collection + '\n\n';
     if(row && typeof row === 'object'){ for(var k in row){ if(row[k]) body += k + ': ' + row[k] + '\n'; } }
-    MailApp.sendEmail({ to:'aksharconnect01@gmail.com', subject:'Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body:body });
+    MailApp.sendEmail({ to:MAIL_TO, subject:'Akshar Connect: ' + action + ' ' + collection + (row && row.name ? ' — ' + row.name : ''), body:body });
   }catch(e){}
 }
 
@@ -330,7 +340,7 @@ function emailChangeDigest_(){
   if(!pending.length) return;
   var body = 'Akshar Connect — ' + pending.length + ' change(s):\n\n'
     + pending.map(function(r){ return r[0]+'  '+r[1]+' '+r[2]+'  '+r[3]; }).join('\n');
-  try{ MailApp.sendEmail({ to:'aksharconnect01@gmail.com', subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
+  try{ MailApp.sendEmail({ to:MAIL_TO, subject:'Akshar Connect — '+pending.length+' changes', body:body }); }catch(e){ return; }
   rows.forEach(function(rn){ sh.getRange(rn, eI+1).setValue('yes'); });
 }
 function setupChangeDigest_(){
