@@ -292,7 +292,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const avatar = form.photo || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&size=128&name=' + encodeURIComponent(fullName || '?');
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-[#EFF6FF] dark:bg-[#0d1420] flex flex-col"
+    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#FFF4EA] to-[#FCEEE1] dark:from-[#1b140d] dark:to-[#140d07] flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
@@ -322,19 +322,19 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               <React.Fragment key={s}>
                 <button type="button" onClick={() => (i < step || canNext) && setStep(i)}
                   className="flex flex-col items-center gap-1.5 w-16 sm:w-20 shrink-0 focus:outline-none">
-                  <span className={`grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-full text-[12px] font-black text-white transition-all
+                  <span className={`grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-full text-[13px] font-black text-white transition-all
                     ${active
-                      ? 'bg-gradient-to-br from-[#FF9D52] to-[#E5741F] ring-4 ring-[#FF862A]/25 shadow-md'
+                      ? 'bg-[#FF862A] ring-4 ring-[#FF862A]/20 shadow-md'
                       : done
-                      ? 'bg-gradient-to-br from-[#FF9D52] to-[#003158]'
-                      : 'bg-white text-text-muted border border-border-light dark:bg-slate-800'}`}>
+                      ? 'bg-[#FF862A]'
+                      : 'bg-slate-300 dark:bg-slate-600'}`}>
                     {done ? <Check className="h-4 w-4" /> : i + 1}
                   </span>
-                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-primary' : done ? 'text-[#E5741F]' : 'text-text-muted'}`}>{s}</span>
+                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-[#E5741F]' : done ? 'text-[#E5741F]' : 'text-text-muted'}`}>{s}</span>
                 </button>
                 {i < STEPS.length - 1 && (
                   <div className="h-1 flex-1 rounded-full mt-4 sm:mt-[18px] bg-border-light overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-300 ${i < step ? 'w-full bg-gradient-to-r from-[#FF9D52] to-[#E5741F]' : 'w-0'}`} />
+                    <div className={`h-full rounded-full transition-all duration-300 ${i < step ? 'w-full bg-[#FF862A]' : 'w-0'}`} />
                   </div>
                 )}
               </React.Fragment>

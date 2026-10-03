@@ -277,7 +277,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     familyId:'', type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
 
-  useEffect(() => { loadDevotees(); }, []);
+  useEffect(() => {
+    loadDevotees();
+    // The background bootstrap can finish AFTER this page mounts; reload so devotees
+    // and the Area dropdown (from AreaMaster) fill in without a manual navigate (#125).
+    const onRefresh = () => loadDevotees();
+    window.addEventListener('ac-data-refreshed', onRefresh);
+    return () => window.removeEventListener('ac-data-refreshed', onRefresh);
+  }, []);
 
   useEffect(() => {
     if (devoteesPreset && PRESET_META[devoteesPreset]) {
