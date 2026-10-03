@@ -340,11 +340,13 @@ export default function AdminPage({ user }) {
 
 // ── Email notifications on/off (#100) ───────────────────────────────────────
 function MailToggle() {
-  const [enabled, setEnabled] = useState(null); // null = loading
+  // Start from the cached value so the toggle is usable immediately (no stuck
+  // "Loading…"); refine from the server once it responds.
+  const [enabled, setEnabled] = useState(() => dataService.mailEnabledCached());
   const [saving, setSaving] = useState(false);
-  useEffect(() => { dataService.getMailEnabled().then(setEnabled).catch(() => setEnabled(true)); }, []);
+  useEffect(() => { dataService.getMailEnabled().then(setEnabled).catch(() => {}); }, []);
   const toggle = async () => {
-    if (saving || enabled === null) return;
+    if (saving) return;
     setSaving(true);
     try { setEnabled(await dataService.setMailEnabled(!enabled)); }
     catch (e) { /* ignore */ }
@@ -358,10 +360,10 @@ function MailToggle() {
       <p className="mb-4 text-sm font-medium text-text-muted">
         Send an email to <strong>aksharconnect01@gmail.com</strong> on every add / edit / delete.
       </p>
-      <button onClick={toggle} disabled={enabled === null || saving}
+      <button onClick={toggle} disabled={saving}
         className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3.5 transition-all ${enabled ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950' : 'border-border-light bg-bg-base'}`}>
         <span className="text-sm font-bold text-text-main">
-          {enabled === null ? 'Loading…' : enabled ? '✅ Emails are ON' : '🔕 Emails are OFF'}
+          {saving ? 'Saving…' : enabled ? '✅ Emails are ON' : '🔕 Emails are OFF'}
         </span>
         <span className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
           <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -375,15 +377,18 @@ function MailToggle() {
 // Lists every area (those typed on devotee records + any admin-added ones) and
 // lets an admin assign a number/order to each, add new areas, and delete entries.
 function AreaMaster() {
-  const [areas, setAreas] = useState(() => dataService.getAreas());
-  const [devotees] = useState(() => dataService.getDevotees());
+  // Read live each render — do NOT snapshot in useState, or the card stays empty
+  // ("0 areas") when Admin mounts before bootstrap finishes loading devotees/areas.
+  const [tick, setTick] = useState(0);
+  const areas = dataService.getAreas();
+  const devotees = dataService.getDevotees();
   const [edits, setEdits] = useState({});       // name(lower) -> number being edited
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
   const [msg, setMsg] = useState('');
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
-  const refresh = () => setAreas([...dataService.getAreas()]);
+  const refresh = () => setTick((n) => n + 1);
 
   // Union of master areas + distinct devotee areas, with a devotee count each.
   const rows = React.useMemo(() => {
@@ -408,7 +413,8 @@ function AreaMaster() {
       if (isNaN(na) && !isNaN(nb)) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [areas, devotees]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas, devotees, tick]);
 
   const numFor = (r) => (edits[r.name.toLowerCase()] ?? r.number);
 
