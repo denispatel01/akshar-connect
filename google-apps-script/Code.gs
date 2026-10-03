@@ -96,6 +96,24 @@ function doUploadPhoto_(p){
     return json_({ ok:true, id:id, url:photoUrl_(id) });
   }catch(e){ return json_({ ok:false, error:String(e) }); }
 }
+// One-time cleanup (#107): blank every devotee photo still stored as base64, so
+// the Sheet shrinks and photos get re-added as Drive URLs going forward. Hit
+// `?action=clearBase64Photos` or run clearBase64Photos() in the editor.
+function doClearBase64Photos_(){
+  var sh = tab_('Devotees');
+  var last = sh.getLastRow(); if(last < 2) return json_({ ok:true, cleared:0 });
+  var pIdx = HEADERS.Devotees.indexOf('photo');
+  if(pIdx < 0) return json_({ ok:false, error:'no photo column' });
+  var rng = sh.getRange(2, pIdx+1, last-1, 1);
+  var vals = rng.getValues(), cleared = 0;
+  for(var i=0;i<vals.length;i++){
+    if(String(vals[i][0]||'').indexOf('data:') === 0){ vals[i][0] = ''; cleared++; }
+  }
+  if(cleared) rng.setValues(vals);
+  return json_({ ok:true, cleared:cleared });
+}
+function clearBase64Photos(){ Logger.log(doClearBase64Photos_().getContent()); }
+
 /** RUN ONCE from the editor to grant the Drive permission (like testMail). */
 function authorizeDrive(){
   var f = photoFolder_();
@@ -413,6 +431,7 @@ function handle_(p){
       return json_({ ok:true, enabled: mailEnabled_() });
     }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
+    if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
