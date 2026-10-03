@@ -53,6 +53,32 @@ function HeadPicker({ heads, value, onChange }) {
   );
 }
 
+// Searchable combo that works on iOS (real dropdown, unlike <datalist>). Allows
+// free typing AND picking from the list.
+function Combo({ options, value, onChange, placeholder }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const ql = q.trim().toLowerCase();
+  const matches = (ql ? options.filter((o) => String(o).toLowerCase().includes(ql)) : options).slice(0, 50);
+  return (
+    <div className="relative">
+      <input value={open ? q : (value || '')}
+        onChange={(e) => { setQ(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onFocus={() => { setQ(value || ''); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder} className={inputCls} />
+      {open && matches.length > 0 && (
+        <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto rounded-xl border border-border-light bg-surface shadow-lg">
+          {matches.map((o) => (
+            <button type="button" key={o} onMouseDown={(e) => { e.preventDefault(); onChange(o); setQ(o); setOpen(false); }}
+              className="block w-full text-left px-3 py-2 text-sm text-text-main hover:bg-bg-base">{o}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakartaOptions, karyakartaMobileFor, referenceOptions, headRecordByFamilyId, onClose, onCreated }) {
   const [form, setForm] = useState(blank());
   const [step, setStep] = useState(0);
@@ -220,8 +246,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 </div>
                 <div><Label>Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} className={inputCls} /></div>
                 <div><Label>Area</Label>
-                  <input list="dl-wz-area" value={form.area} onChange={(e) => set({ area: e.target.value })} placeholder="Select or type" className={inputCls} />
-                  <datalist id="dl-wz-area">{AREAS.map((o) => <option key={o} value={o} />)}</datalist></div>
+                  <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" /></div>
                 <div><Label>City</Label><input value={form.city} onChange={(e) => set({ city: e.target.value })} className={inputCls} /></div>
                 <div><Label>Blood Group</Label>
                   <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
@@ -267,12 +292,11 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div><Label>Follow-up Karyakarta</Label>
-                  <input list="dl-wz-kk" value={form.followupKaryakarta} onChange={(e) => { const name = e.target.value; set({ followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : form.followupKaryakartaMobile) }); }} placeholder="Select or type" className={inputCls} />
-                  <datalist id="dl-wz-kk">{karyakartaOptions.map((o) => <option key={o} value={o} />)}</datalist></div>
+                  <Combo options={karyakartaOptions} value={form.followupKaryakarta} placeholder="Select or type"
+                    onChange={(name) => set({ followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : form.followupKaryakartaMobile) })} /></div>
                 <div><Label>Karyakarta Mobile</Label><input maxLength={10} inputMode="numeric" value={form.followupKaryakartaMobile} onChange={(e) => set({ followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })} placeholder="Auto-fills on select" className={inputCls} /></div>
                 <div><Label>Reference / Introduced By</Label>
-                  <input list="dl-wz-ref" value={form.reference} onChange={(e) => set({ reference: e.target.value })} placeholder="Select or type" className={inputCls} />
-                  <datalist id="dl-wz-ref">{referenceOptions.map((o) => <option key={o} value={o} />)}</datalist></div>
+                  <Combo options={referenceOptions} value={form.reference} onChange={(v) => set({ reference: v })} placeholder="Select or type" /></div>
               </div>
               <div>
                 <Label>Tags</Label>
