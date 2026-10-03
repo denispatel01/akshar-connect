@@ -32,7 +32,7 @@ export default function DarshanSlider() {
       </div>
 
       <div
-        className="group relative overflow-hidden rounded-2xl bg-[#001a33] aspect-[16/10] sm:aspect-[16/8]"
+        className="group relative overflow-hidden rounded-2xl bg-[#001a33] aspect-[16/10] sm:aspect-[16/7] lg:aspect-[21/8]"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={(e) => { startX.current = e.touches[0].clientX; setPaused(true); }}
@@ -44,13 +44,23 @@ export default function DarshanSlider() {
         }}
       >
         {IMAGES.map((src, idx) => (
-          <img
-            key={idx}
-            src={src}
-            alt="Prabodh Swamiji darshan"
-            loading={idx <= 1 ? 'eager' : 'lazy'}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out ${idx === i ? 'opacity-100' : 'opacity-0'}`}
-          />
+          <React.Fragment key={idx}>
+            {/* Blurred fill so the whole darshan image is shown (object-contain) —
+                no more cropped heads — while the frame stays edge-to-edge. */}
+            <img
+              src={src}
+              alt=""
+              aria-hidden="true"
+              loading={idx <= 1 ? 'eager' : 'lazy'}
+              className={`absolute inset-0 h-full w-full object-cover scale-110 blur-2xl brightness-75 transition-opacity duration-700 ease-in-out ${idx === i ? 'opacity-100' : 'opacity-0'}`}
+            />
+            <img
+              src={src}
+              alt="Prabodh Swamiji darshan"
+              loading={idx <= 1 ? 'eager' : 'lazy'}
+              className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-700 ease-in-out ${idx === i ? 'opacity-100' : 'opacity-0'}`}
+            />
+          </React.Fragment>
         ))}
 
         {/* arrows */}

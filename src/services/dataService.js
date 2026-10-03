@@ -11,8 +11,22 @@ const CACHE_KEY = 'ac_cache_v1';
 
 const ADMIN_SEED = { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' };
 
+// The signed-in actor as a stable "Name (mobile)" label for audit columns
+// (createdBy / updatedBy). Reads the real session key — earlier code read a
+// non-existent 'ac-session' key, so these columns were never populated.
+function actorLabel() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (!s) return 'System';
+    const name = (s.name || '').trim();
+    const mobile = (s.mobile || '').toString().trim();
+    if (name && mobile) return `${name} (${mobile})`;
+    return name || mobile || 'System';
+  } catch { return 'System'; }
+}
+
 // In-memory database (populated by bootstrap before the app renders).
-let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [] };
+let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [], areas: [] };
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -54,6 +68,7 @@ function hydrateSync() {
         users: parsed.users || [], devotees: (parsed.devotees || []).map(normalizeDevotee),
         sabhas: parsed.sabhas || [], thoughts: parsed.thoughts || [],
         attendance: parsed.attendance || [], followups: parsed.followups || [],
+        areas: parsed.areas || [],
       };
       ensureSeedAdminPin_();
       return 'cache';
@@ -67,7 +82,7 @@ function hydrateSync() {
 function loadDemo() {
   DB = {
     users: [...INITIAL_USERS], devotees: INITIAL_DEVOTEES.map(normalizeDevotee),
-    sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: [], followups: []
+    sabhas: [...INITIAL_SABHAS], thoughts: [...INITIAL_THOUGHTS], attendance: [], followups: [], areas: []
   };
 }
 
@@ -126,6 +141,7 @@ async function bootstrap() {
     DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
     DB.attendance = d.attendance || []; DB.followups = d.followups || [];
+    DB.areas = d.areas || [];
     // Self-healing: if any stored devotee still carries a tag that is no longer
     // in the catalog (e.g. a removed tag) or a duplicate, rewrite the cleaned
     // rows once. normalizeDevotee already stripped them in-memory, so this just
@@ -325,6 +341,11 @@ export const dataService = {
   getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
   logout: () => localStorage.removeItem(SESSION_KEY),
 
+  // Who is acting right now — used to stamp createdBy / updatedBy. Returns a
+  // stable, human-readable identity "Name (mobile)" so the actor is unambiguous
+  // even when two people share a name. Falls back to 'System' when signed out.
+  currentActor: () => actorLabel(),
+
   // ---- Devotees ----
   getDevotees: () => DB.devotees,
   getDevoteeById: (id) => DB.devotees.find(d => d.id === id) || null,
@@ -338,7 +359,7 @@ export const dataService = {
       attendanceRate: devotee.attendanceRate ?? 0,
       status: devotee.status || 'Active',
       oldNew: devotee.oldNew || 'New', // newly added devotees default to New
-      createdOn: now, updatedOn: now, createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', createdBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System',
+      createdOn: now, updatedOn: now, createdBy: actorLabel(), updatedBy: actorLabel(),
     });
     DB.devotees.unshift(newDevotee); saveCache();
     push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
@@ -348,7 +369,7 @@ export const dataService = {
   updateDevotee: (id, updatedFields) => {
     const idx = DB.devotees.findIndex(d => d.id === id);
     if (idx === -1) return null;
-    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System', updatedBy: JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System' });
+    const merged = normalizeDevotee({ ...DB.devotees[idx], ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: actorLabel() });
     DB.devotees[idx] = merged; saveCache();
     push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
     return merged;
@@ -359,7 +380,7 @@ export const dataService = {
     const idx = DB.devotees.findIndex(d => d.id === id);
     if (idx === -1) throw new Error('Devotee record not found.');
     const prev = DB.devotees[idx];
-    const merged = normalizeDevotee({ ...prev, ...updatedFields, updatedOn: new Date().toISOString() });
+    const merged = normalizeDevotee({ ...prev, ...updatedFields, updatedOn: new Date().toISOString(), updatedBy: actorLabel() });
     DB.devotees[idx] = merged;
     saveCache();
     // Optimistic: return immediately; the write syncs in the background (with retry).
@@ -383,6 +404,10 @@ export const dataService = {
       status: devotee.status || 'Active',
       oldNew: devotee.oldNew || 'New', // newly added devotees default to New
       createdOn: now, updatedOn: now,
+      // Always stamp the acting user centrally so audit columns are reliable,
+      // regardless of what the caller passed (fixes empty createdBy).
+      createdBy: devotee.createdBy || actorLabel(),
+      updatedBy: actorLabel(),
     });
     DB.devotees.unshift(newDevotee);
     saveCache();
@@ -394,7 +419,7 @@ export const dataService = {
   // Assign/unassign a single tag; returns the updated devotee.
   bulkUpdateTagsAndSync: async (ids, tagsToAdd, tagsToRemove) => {
     const now = new Date().toISOString();
-    const user = JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System';
+    const user = actorLabel();
     const toSync = [];
     ids.forEach(id => {
       const idx = DB.devotees.findIndex(d => d.id === id);
@@ -417,7 +442,7 @@ export const dataService = {
   // are synced to the backend.
   bulkSetTagsAndSync: async (entries) => {
     const now = new Date().toISOString();
-    const user = JSON.parse(localStorage.getItem('ac-session') || '{}')?.name || 'System';
+    const user = actorLabel();
     const toSync = [];
     entries.forEach(({ id, tags }) => {
       const idx = DB.devotees.findIndex(d => d.id === id);
@@ -513,6 +538,37 @@ export const dataService = {
     DB.followups = DB.followups.filter(f => f.eventId !== id);
     saveCache();
     push('remove', { collection: 'Sabhas', keyField: 'id', key: id });
+  },
+
+  // ---- Area master (admin) ----
+  // Stored area records assign a number/label to an area name. The directory's
+  // actual area strings live on devotee records; this is a lookup layer.
+  getAreas: () => DB.areas,
+
+  // Create or update an area by name (name is the key). Optimistic + background sync.
+  saveAreaAndSync: async (name, { number = '', notes = '', prevName } = {}) => {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('Area name is required.');
+    const key = (prevName || clean).trim();
+    const idx = DB.areas.findIndex(a => String(a.name).trim().toLowerCase() === key.toLowerCase());
+    const row = { name: clean, number: String(number ?? '').trim(), notes: String(notes ?? '').trim() };
+    if (idx >= 0) {
+      DB.areas[idx] = { ...DB.areas[idx], ...row };
+      saveCache();
+      push('update', { collection: 'Areas', keyField: 'name', key, row });
+    } else {
+      DB.areas.push(row);
+      saveCache();
+      push('insert', { collection: 'Areas', row });
+    }
+    return row;
+  },
+
+  deleteAreaAndSync: async (name) => {
+    const key = String(name || '').trim();
+    DB.areas = DB.areas.filter(a => String(a.name).trim().toLowerCase() !== key.toLowerCase());
+    saveCache();
+    push('remove', { collection: 'Areas', keyField: 'name', key });
   },
 
   markAttendance: (sabhaId, devoteeId, present = true) => {
