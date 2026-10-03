@@ -19,7 +19,10 @@
     <meta name="apple-mobile-web-app-title" content="Akshar Connect" />
     <title>Akshar Connect</title>
     <style>
-      #ac-splash{position:fixed;inset:0;z-index:9999;background:#001a33;display:flex;align-items:flex-end;justify-content:center;transition:opacity .45s ease}
+      /* Start hidden; only reveal if the app takes >1s to mount, so a fast load
+         never flashes the splash image (#119). */
+      #ac-splash{position:fixed;inset:0;z-index:9999;background:#001a33;display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .45s ease}
+      #ac-splash.ac-show{opacity:1}
       #ac-splash.ac-hide{opacity:0;pointer-events:none}
       #ac-splash .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
       #ac-splash .grad{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,20,45,.35) 0%,rgba(0,20,45,.55) 55%,rgba(0,20,45,.92) 100%)}
@@ -41,6 +44,7 @@
       </div>
     </div>
     <div id="root"></div>
+    <script>window.__acSplashTimer=setTimeout(function(){var e=document.getElementById('ac-splash');if(e)e.classList.add('ac-show');},1000);</script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

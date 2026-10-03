@@ -23,8 +23,8 @@ const AGE_BANDS = {
 
 // Profile tabs -> [field, label]. 'Tags' is a special tab (no fields, renders tag UI).
 const TABS = {
-  'Personal':    [['firstName','First Name'],['middleName','Middle Name'],['lastName','Last Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
-  'Contact':     [['address','Address'],['mobile','Mobile'],['whatsapp','WhatsApp'],['email','Email'],['area','Area'],['city','City']],
+  'Personal':    [['name','Name'],['gender','Gender'],['dob','Date of Birth'],['bloodGroup','Blood Group'],['maritalStatus','Marital Status'],['anniversary','Anniversary']],
+  'Contact':     [['mobileWhatsapp','Mobile / WhatsApp'],['address','Address'],['email','Email'],['area','Area']],
   'Education':   [['qualification','Qualification'],['grade','Grade / Standard'],['education','Education / Stream'],['educationStatus','Education Status'],['school','School / College']],
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
@@ -112,6 +112,7 @@ const PRESET_META = {
 
 // Emoji per profile field for extra visual cues (#98).
 const FIELD_EMOJI = {
+  name: '🪪', mobileWhatsapp: '📱',
   firstName: '🪪', middleName: '🪪', lastName: '🪪', gender: '⚧️', dob: '🎂', bloodGroup: '🩸',
   maritalStatus: '💍', anniversary: '💕', address: '📍', mobile: '📱', whatsapp: '💬', email: '📧',
   area: '🗺️', city: '🏙️', qualification: '🎓', grade: '📘', education: '📚', educationStatus: '⏳',
@@ -238,6 +239,24 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
+  // Area dropdown source (#125): the Area Master sheet names first (by their assigned
+  // order), then any extra areas typed on devotee records — NOT a hardcoded list.
+  const areaOptions = useMemo(() => {
+    const master = (dataService.getAreas() || [])
+      .filter(a => a && a.name)
+      .sort((a, b) => {
+        const na = parseInt(a.number, 10), nb = parseInt(b.number, 10);
+        if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+        if (!isNaN(na) && isNaN(nb)) return -1;
+        if (isNaN(na) && !isNaN(nb)) return 1;
+        return String(a.name).localeCompare(String(b.name));
+      })
+      .map(a => String(a.name).trim());
+    const seen = new Set(master.map(n => n.toLowerCase()));
+    const extra = [...new Set(devotees.map(d => String(d.area || '').trim()).filter(Boolean))]
+      .filter(n => !seen.has(n.toLowerCase())).sort((a, b) => a.localeCompare(b));
+    return [...master, ...extra];
+  }, [devotees]);
   // Reference picker: existing reference values first, then every devotee name, + free typing.
   const referenceOptions = useMemo(
     () => [...new Set([...uniqueReferences, ...devotees.map(d => d.name).filter(Boolean)])],
@@ -484,6 +503,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     if (v === undefined || v === null || v === '') return '—';
     if (fieldKey === 'type') return formatFamilyRecordType(v);
     return v;
+  };
+  // Combined display values for the profile view (#115/#116): full name in one line,
+  // mobile + WhatsApp together.
+  const fieldDisplay = (d, f) => {
+    if (f === 'name') return d.name || [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ');
+    if (f === 'mobileWhatsapp') {
+      const m = String(d.mobile || '').trim(), w = String(d.whatsapp || '').trim();
+      if (m && w && w === m) return `${m}  ·  WhatsApp same`;
+      return [m && `📱 ${m}`, w && `💬 ${w}`].filter(Boolean).join('  ·  ');
+    }
+    return d[f];
   };
 
 
@@ -1044,6 +1074,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           karyakartaMobileFor={karyakartaMobileFor}
           referenceOptions={referenceOptions}
           headRecordByFamilyId={headRecordByFamilyId}
+          areaOptions={areaOptions}
           onClose={() => setShowAddModal(false)}
           onCreated={(created) => { setShowAddModal(false); loadDevotees(); alertDevoteeCreated(created?.name); if (created) openProfile(created); }}
         />
@@ -1058,6 +1089,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           karyakartaMobileFor={karyakartaMobileFor}
           referenceOptions={referenceOptions}
           headRecordByFamilyId={headRecordByFamilyId}
+          areaOptions={areaOptions}
           editDevotee={editWizard}
           onClose={() => setEditWizard(null)}
           onSaved={(updated) => { setEditWizard(null); loadDevotees(); if (updated) setSelectedDevotee(updated); alertDevoteeSaved(updated?.name); }}
@@ -1288,7 +1320,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   // single-column (two on wide screens) icon-chip tiles, for fields
                   // that have a value. Editing happens in the gradient wizard.
                   const filled = fields.filter(([f]) => {
-                    const v = val(selectedDevotee[f], f);
+                    const v = val(fieldDisplay(selectedDevotee, f), f);
                     return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '—';
                   });
                   const showFamily = sec === 'Satsang';
@@ -1300,9 +1332,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                         {filled.map(([f, label]) => (
                           <div key={f} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}`}>
                             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{FIELD_EMOJI[f] || '•'}</span>
-                            <div className="min-w-0">
+                            <div className="min-w-0 text-left">
                               <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</div>
-                              <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap">{val(selectedDevotee[f], f)}</div>
+                              <div className="text-sm font-bold text-text-main break-words whitespace-pre-wrap text-left">{val(fieldDisplay(selectedDevotee, f), f)}</div>
                             </div>
                           </div>
                         ))}

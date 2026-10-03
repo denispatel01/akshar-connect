@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, Check, Camera, Phone, MapPin, User, UserCheck, AlertTriangle, UserPlus, Save } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Camera, Phone, MapPin, User, UserCheck, AlertTriangle, UserPlus, Save, Calendar } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import {
   AREAS, GENDERS, BLOOD_GROUPS, MARITAL_STATUS, YUVAK_TYPES,
@@ -16,7 +16,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const blank = () => ({
   firstName: '', middleName: '', lastName: '', name: '', gender: 'Male', dob: '', bloodGroup: '',
   maritalStatus: '', anniversary: '', yuvakType: '', photo: '',
-  mobile: '', whatsapp: '', email: '', area: '', city: 'Surat', address: '', mandal: 'Adajan',
+  mobile: '', whatsapp: '', email: '', area: '', city: '', address: '', mandal: 'Adajan',
   qualification: '', education: '', educationStatus: 'Completed', school: '', grade: '',
   profession: '', professionField: '', companyName: '',
   followupKaryakarta: '', followupKaryakartaMobile: '', reference: '', notes: '', tags: [],
@@ -76,6 +76,42 @@ function HeadPicker({ heads, value, onChange }) {
 // Capitalize the first letter of every word (#89/#110).
 const capWordsFn = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
 
+// Date of birth input (#127): type it as DD-MM-YYYY (free text) OR pick from the
+// calendar. Stores ISO (yyyy-mm-dd) internally. The 📅 button opens the native picker.
+const isoToDisplay = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : (iso || '');
+};
+const displayToIso = (s) => {
+  const m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/.exec(String(s || '').trim());
+  if (!m) return null;
+  let [, d, mo, y] = m;
+  if (y.length === 2) y = (parseInt(y, 10) > 30 ? '19' : '20') + y;
+  d = d.padStart(2, '0'); mo = mo.padStart(2, '0');
+  if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;
+  return `${y}-${mo}-${d}`;
+};
+function DobField({ value, onChange }) {
+  const [text, setText] = useState(isoToDisplay(value));
+  const dateRef = useRef(null);
+  useEffect(() => { setText(isoToDisplay(value)); }, [value]);
+  const commit = (raw) => { const iso = displayToIso(raw); if (iso) onChange(iso); };
+  return (
+    <div className="relative">
+      <input value={text} inputMode="numeric" placeholder="DD-MM-YYYY"
+        onChange={(e) => { const v = e.target.value; setText(v); const iso = displayToIso(v); if (iso) onChange(iso); }}
+        onBlur={(e) => commit(e.target.value)}
+        className={inputCls + ' pr-11'} />
+      <button type="button" onClick={() => { try { dateRef.current.showPicker(); } catch { dateRef.current.focus(); } }}
+        className="absolute right-2 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:text-primary" aria-label="Open calendar">
+        <Calendar className="h-4 w-4" />
+      </button>
+      <input ref={dateRef} type="date" value={value || ''} onChange={(e) => onChange(e.target.value)}
+        className="absolute right-2 top-1/2 h-0 w-0 opacity-0 pointer-events-none" tabIndex={-1} aria-hidden="true" />
+    </div>
+  );
+}
+
 function Combo({ options, value, onChange, placeholder, capitalize }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -103,7 +139,7 @@ function Combo({ options, value, onChange, placeholder, capitalize }) {
   );
 }
 
-export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakartaOptions, karyakartaMobileFor, referenceOptions, headRecordByFamilyId, onClose, onCreated, editDevotee, onSaved }) {
+export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakartaOptions, karyakartaMobileFor, referenceOptions, headRecordByFamilyId, areaOptions = AREAS, onClose, onCreated, editDevotee, onSaved }) {
   const isEdit = !!editDevotee;
   // Seed the form from an existing devotee when editing (#edit-wizard).
   const initialForm = () => {
@@ -142,6 +178,16 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [devotees]);
   const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
+  // Profile completion % across the key fields (#114).
+  const completionPct = useMemo(() => {
+    const checks = [
+      form.firstName, form.lastName, form.mobile, form.dob, form.gender, form.area, form.address,
+      form.yuvakType, (form.school || form.profession || form.qualification),
+      (form.followupKaryakarta || form.reference), form.photo, (form.tags && form.tags.length),
+    ];
+    const filled = checks.filter((v) => Array.isArray(v) ? v.length : String(v || '').trim()).length;
+    return Math.round((filled / checks.length) * 100);
+  }, [form]);
   // Name of the chosen family head, for the review summary (#92).
   const headName = (familyHeads.find((h) => h.familyId === form.familyId) || {}).name || '';
 
@@ -246,7 +292,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const avatar = form.photo || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&size=128&name=' + encodeURIComponent(fullName || '?');
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#FFF1E2] via-[#FBF5EF] to-[#E9F2F1] flex flex-col"
+    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#EEF3FB] via-[#F3F0FA] to-[#F6EEF6] dark:from-[#141019] dark:via-[#120d09] dark:to-[#15101a] flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
@@ -295,6 +341,14 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
             );
           })}
         </div>
+
+        {/* Profile completion (#114) */}
+        <div className="mx-auto w-full max-w-3xl mt-3 flex items-center gap-2">
+          <div className="h-1.5 flex-1 rounded-full bg-border-light overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#FF9D52] to-[#E5741F] transition-all duration-300" style={{ width: completionPct + '%' }} />
+          </div>
+          <span className="text-[11px] font-bold text-text-muted shrink-0">{completionPct}% complete</span>
+        </div>
       </div>
 
       {savedMsg && <div className="shrink-0 bg-emerald-50 text-emerald-700 text-xs font-bold px-4 py-2 border-b border-emerald-200">{savedMsg}</div>}
@@ -320,8 +374,8 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label req>First Name</Label><input value={form.firstName} onChange={setCap('firstName')} placeholder="Enter first name" className={inputCls} /></div>
                 <div><Label>Middle Name</Label><input value={form.middleName} onChange={setCap('middleName')} placeholder="Enter middle name" className={inputCls} /></div>
                 <div><Label>Last Name</Label><input value={form.lastName} onChange={setCap('lastName')} placeholder="Enter surname" className={inputCls} /></div>
+                <div><Label>Date of Birth</Label><DobField value={form.dob} onChange={(v) => set({ dob: v })} /></div>
                 <div><Label req>Mobile Number</Label><input required maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
-                <div><Label>Date of Birth</Label><input type="date" value={form.dob} onChange={(e) => set({ dob: e.target.value })} className={inputCls} /></div>
                 <div><Label>Gender</Label>
                   <select value={form.gender} onChange={(e) => set({ gender: e.target.value })} className={inputCls}>
                     <option value="">— Select —</option>{GENDERS.map((o) => <option key={o}>{o}</option>)}</select></div>
@@ -376,8 +430,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   </div>
                   <div><Label>📧 Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@example.com" className={inputCls} /></div>
                   <div><Label>🗺️ Area</Label>
-                    <Combo options={AREAS} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" capitalize /></div>
-                  <div><Label>🏙️ City</Label><input value={form.city} onChange={setCap('city')} className={inputCls} /></div>
+                    <Combo options={areaOptions} value={form.area} onChange={(v) => set({ area: v })} placeholder="Select or type" capitalize /></div>
                   <div><Label>🩸 Blood Group</Label>
                     <select value={form.bloodGroup} onChange={(e) => set({ bloodGroup: e.target.value })} className={inputCls}>
                       <option value="">— Select —</option>{BLOOD_GROUPS.map((o) => <option key={o}>{o}</option>)}</select></div>
@@ -548,7 +601,6 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   ['📧', 'Email', form.email],
                   ['📍', 'Address', form.address, true],
                   ['🗺️', 'Area', form.area],
-                  ['🏙️', 'City', form.city],
                   ['🧑‍🤝‍🧑', 'Yuvak Type', form.yuvakType],
                   ['🎓', 'Qualification', form.qualification],
                   ['📘', 'Grade / Standard', form.grade],

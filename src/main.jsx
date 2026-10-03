@@ -42,8 +42,11 @@ root.render(
 
 // 3) Fade out the branded splash (declared in index.html) once we've mounted.
 function hideSplash() {
+  try { clearTimeout(window.__acSplashTimer) } catch { /* ignore */ }
   const el = document.getElementById('ac-splash')
   if (!el) return
+  // If it never became visible (fast load), just remove it — no fade, no flash.
+  if (!el.classList.contains('ac-show')) { el.remove(); return }
   el.classList.add('ac-hide')
   setTimeout(() => el.remove(), 450)
 }

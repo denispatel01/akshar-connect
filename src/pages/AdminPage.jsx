@@ -343,14 +343,13 @@ function MailToggle() {
   // Start from the cached value so the toggle is usable immediately (no stuck
   // "Loading…"); refine from the server once it responds.
   const [enabled, setEnabled] = useState(() => dataService.mailEnabledCached());
-  const [saving, setSaving] = useState(false);
   useEffect(() => { dataService.getMailEnabled().then(setEnabled).catch(() => {}); }, []);
-  const toggle = async () => {
-    if (saving) return;
-    setSaving(true);
-    try { setEnabled(await dataService.setMailEnabled(!enabled)); }
-    catch (e) { /* ignore */ }
-    finally { setSaving(false); }
+  const toggle = () => {
+    // Optimistic (#118): flip instantly, sync in the background (the cache is
+    // updated immediately by setMailEnabled, so writes already honour the new state).
+    const next = !enabled;
+    setEnabled(next);
+    dataService.setMailEnabled(next).then((v) => setEnabled(v)).catch(() => {});
   };
   return (
     <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
@@ -360,10 +359,10 @@ function MailToggle() {
       <p className="mb-4 text-sm font-medium text-text-muted">
         Send an email to <strong>aksharconnect01@gmail.com</strong> on every add / edit / delete.
       </p>
-      <button onClick={toggle} disabled={saving}
+      <button onClick={toggle}
         className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3.5 transition-all ${enabled ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950' : 'border-border-light bg-bg-base'}`}>
         <span className="text-sm font-bold text-text-main">
-          {saving ? 'Saving…' : enabled ? '✅ Emails are ON' : '🔕 Emails are OFF'}
+          {enabled ? '✅ Emails are ON' : '🔕 Emails are OFF'}
         </span>
         <span className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
           <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />

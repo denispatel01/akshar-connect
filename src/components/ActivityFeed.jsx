@@ -27,18 +27,29 @@ function fullTime(ts) {
 // "Digesh Patel (99…)" -> "Digesh Patel"
 const actorName = (a) => String(a || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || 'Someone';
 
+const FIRST_BATCH = 15;
 export default function ActivityFeed({ mine = false, limit = 300 }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState('');
 
+  // Progressive load (#120): show the first few newest actions immediately, then
+  // fetch the rest in the background so the user isn't staring at a spinner.
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const data = await dataService.getActivity({ mine, limit });
-      setRows(data);
-    } catch (e) { setErr('Could not load activity. Pull to refresh.'); }
-    finally { setLoading(false); }
+      const first = await dataService.getActivity({ mine, limit: FIRST_BATCH });
+      setRows(first);
+      setLoading(false);
+      if (first.length >= FIRST_BATCH) {
+        setLoadingMore(true);
+        try {
+          const full = await dataService.getActivity({ mine, limit });
+          setRows(full);
+        } finally { setLoadingMore(false); }
+      }
+    } catch (e) { setErr('Could not load activity. Pull to refresh.'); setLoading(false); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mine]);
 
