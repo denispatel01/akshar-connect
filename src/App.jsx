@@ -9,6 +9,7 @@ import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
 import AccountPage from './pages/AccountPage';
+import ActivityPage from './pages/ActivityPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -190,6 +191,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
+        {activePage === 'activity' && <ActivityPage user={user} />}
         </ErrorBoundary>
       </main>
 

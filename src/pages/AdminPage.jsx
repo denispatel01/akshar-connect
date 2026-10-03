@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import ActivityFeed from '../components/ActivityFeed';
 
 export default function AdminPage({ user }) {
   const [users, setUsers] = useState([]);
@@ -181,6 +182,18 @@ export default function AdminPage({ user }) {
 
       {/* Area Master Card (Admin only) */}
       {isAdmin && <div className="lg:col-span-2"><AreaMaster /></div>}
+
+      {/* Activity Log (Admin only) — everything everyone does in the app */}
+      {isAdmin && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2 2xl:col-span-3">
+          <div className="mb-4 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+            <Activity className="h-4 w-4 text-[#FF862A]" /> 📜 Activity Log
+          </div>
+          <div className="max-h-[32rem] overflow-y-auto pr-1">
+            <ActivityFeed limit={400} />
+          </div>
+        </div>
+      )}
 
       {/* Devotee Database Card */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">

@@ -24,6 +24,69 @@ function actorLabel() {
     return name || mobile || 'System';
   } catch { return 'System'; }
 }
+function actorMobile_() {
+  try { return (JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.mobile || '').toString(); }
+  catch { return ''; }
+}
+function actorName_() {
+  try { return (JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.name || 'Someone'); }
+  catch { return 'Someone'; }
+}
+// Short device label from the user agent, e.g. "Android · Chrome" / "Windows · Chrome".
+function deviceLabel_() {
+  try {
+    const ua = navigator.userAgent || '';
+    let os = 'Device';
+    if (/Android/i.test(ua)) os = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if (/Windows/i.test(ua)) os = 'Windows';
+    else if (/Mac OS X|Macintosh/i.test(ua)) os = 'Mac';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+    let br = 'Browser';
+    if (/Edg\//i.test(ua)) br = 'Edge';
+    else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) br = 'Chrome';
+    else if (/Firefox\//i.test(ua)) br = 'Firefox';
+    else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) br = 'Safari';
+    const form = /Mobi|Android|iPhone/i.test(ua) ? 'Mobile' : 'Desktop';
+    return `${form} · ${os} · ${br}`;
+  } catch { return 'Device'; }
+}
+// Fire-and-forget activity logger — never blocks the UI (same pattern as push()).
+function logActivity_(action, target, detail) {
+  try {
+    const row = {
+      ts: new Date().toISOString(), actor: actorLabel(), actorMobile: actorMobile_(),
+      action: action || '', target: target || '', detail: detail || '', device: deviceLabel_(),
+    };
+    push('logActivity', { row });
+  } catch (e) { /* never break the app for logging */ }
+}
+// Human list of changed field labels between two devotee records (for the log).
+const ACTIVITY_FIELD_LABELS = {
+  firstName: 'First Name', middleName: 'Middle Name', lastName: 'Last Name', gender: 'Gender',
+  dob: 'DOB', bloodGroup: 'Blood Group', maritalStatus: 'Marital Status', anniversary: 'Anniversary',
+  mobile: 'Mobile', whatsapp: 'WhatsApp', email: 'Email', area: 'Area', city: 'City', address: 'Address',
+  qualification: 'Qualification', grade: 'Grade', education: 'Education', educationStatus: 'Education Status',
+  school: 'School', profession: 'Profession', professionField: 'Field', companyName: 'Company',
+  yuvakType: 'Yuvak Type', familyId: 'Family', relation: 'Relation', type: 'Family Role',
+  followupKaryakarta: 'Karyakarta', reference: 'Reference', tags: 'Tags', notes: 'Notes', status: 'Status',
+  dateOfJoining: 'Date of Joining', photo: 'Photo',
+};
+function changedFieldLabels_(prev, next) {
+  const labels = [];
+  for (const k in ACTIVITY_FIELD_LABELS) {
+    const a = k === 'tags' ? (prev[k] || []).join('|') : (prev[k] ?? '');
+    const b = k === 'tags' ? (next[k] || []).join('|') : (next[k] ?? '');
+    if (String(a) !== String(b)) labels.push(ACTIVITY_FIELD_LABELS[k]);
+  }
+  return labels;
+}
+function humanList_(arr) {
+  if (!arr.length) return '';
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return `${arr[0]} and ${arr[1]}`;
+  return `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`;
+}
 
 // In-memory database (populated by bootstrap before the app renders).
 let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [], areas: [] };
@@ -198,7 +261,7 @@ export const dataService = {
   // ---- Auth ----
   loginWithPin: async (mobile, pin) => {
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
-    if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return { success: true, user }; }
+    if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); logActivity_('login', '', `logged in (${deviceLabel_()})`); return { success: true, user }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 
@@ -227,8 +290,16 @@ export const dataService = {
       familyId: devotee.familyId || devotee.id,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    logActivity_('login', '', `logged in (${deviceLabel_()})`);
     return { success: true, user: sessionUser };
   },
+
+  getActivity: async ({ mine = false, limit = 300 } = {}) => {
+    if (!hasBackend()) return [];
+    const res = await api('activity', { actor: mine ? actorLabel() : '', limit });
+    return (res && res.activity) || [];
+  },
+  logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
@@ -339,7 +410,7 @@ export const dataService = {
   },
 
   getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
-  logout: () => localStorage.removeItem(SESSION_KEY),
+  logout: () => { logActivity_('logout', '', `logged out (${deviceLabel_()})`); localStorage.removeItem(SESSION_KEY); },
 
   // Who is acting right now — used to stamp createdBy / updatedBy. Returns a
   // stable, human-readable identity "Name (mobile)" so the actor is unambiguous
@@ -385,6 +456,8 @@ export const dataService = {
     saveCache();
     // Optimistic: return immediately; the write syncs in the background (with retry).
     push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged) });
+    const changed = humanList_(changedFieldLabels_(prev, merged));
+    if (changed) logActivity_('update-devotee', merged.name, `updated ${changed} of ${merged.name}`);
     return merged;
   },
 
@@ -413,6 +486,8 @@ export const dataService = {
     saveCache();
     // Optimistic: return immediately; the insert syncs in the background (with retry).
     push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
+    const kind = newDevotee.yuvakType ? newDevotee.yuvakType.toLowerCase() : 'devotee';
+    logActivity_('add-devotee', newDevotee.name, `added new ${kind} namely ${newDevotee.name}`);
     return newDevotee;
   },
 
@@ -433,7 +508,7 @@ export const dataService = {
     });
     saveCache();
     // One batched background request instead of one per devotee.
-    if (toSync.length) push('bulkUpdateTags', { ids, tagsToAdd, tagsToRemove, updatedBy: user });
+    if (toSync.length) { push('bulkUpdateTags', { ids, tagsToAdd, tagsToRemove, updatedBy: user }); logActivity_('bulk-tags', '', `updated tags on ${toSync.length} devotee(s)`); }
   },
 
   // Replace the full tag array for several devotees at once. `entries` is
@@ -456,7 +531,7 @@ export const dataService = {
     });
     saveCache();
     // One batched background request instead of one per devotee.
-    if (toSync.length) push('bulkSetTags', { rows: toSync.map(d => ({ id: d.id, tags: toBackendRow(d).tags })), updatedBy: user });
+    if (toSync.length) { push('bulkSetTags', { rows: toSync.map(d => ({ id: d.id, tags: toBackendRow(d).tags })), updatedBy: user }); logActivity_('bulk-tags', '', `set tags on ${toSync.length} devotee(s)`); }
     return toSync.length;
   },
 
@@ -470,8 +545,10 @@ export const dataService = {
   },
 
   deleteDevotee: (id) => {
+    const gone = DB.devotees.find(d => d.id === id);
     DB.devotees = DB.devotees.filter(d => d.id !== id); saveCache();
     push('remove', { collection: 'Devotees', keyField: 'id', key: id });
+    if (gone) logActivity_('delete-devotee', gone.name, `deleted ${gone.name}`);
   },
 
   // Admin: replace ALL devotees (live sheet + memory) with the bundled merged
@@ -521,6 +598,7 @@ export const dataService = {
     const newSabha = { ...sabha, id: `SAB-2026-0${DB.sabhas.length + 1}`, type: sabha.type || 'Sabha', presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
     DB.sabhas.unshift(newSabha); saveCache();
     push('insert', { collection: 'Sabhas', row: newSabha });
+    logActivity_('add-event', newSabha.title, `created event "${newSabha.title}" (${newSabha.type}) on ${newSabha.date}`);
     return newSabha;
   },
 
@@ -530,14 +608,17 @@ export const dataService = {
     const merged = { ...DB.sabhas[idx], ...fields, id };
     DB.sabhas[idx] = merged; saveCache();
     push('update', { collection: 'Sabhas', keyField: 'id', key: id, row: merged });
+    logActivity_('update-event', merged.title, `updated event "${merged.title}"`);
     return merged;
   },
 
   deleteSabha: (id) => {
+    const gone = DB.sabhas.find(s => s.id === id);
     DB.sabhas = DB.sabhas.filter(s => s.id !== id);
     DB.followups = DB.followups.filter(f => f.eventId !== id);
     saveCache();
     push('remove', { collection: 'Sabhas', keyField: 'id', key: id });
+    if (gone) logActivity_('delete-event', gone.title, `deleted event "${gone.title}"`);
   },
 
   // ---- Area master (admin) ----
@@ -561,6 +642,7 @@ export const dataService = {
       saveCache();
       push('insert', { collection: 'Areas', row });
     }
+    logActivity_('area', clean, `set area "${clean}" number to ${row.number || '—'}`);
     return row;
   },
 
@@ -569,6 +651,7 @@ export const dataService = {
     DB.areas = DB.areas.filter(a => String(a.name).trim().toLowerCase() !== key.toLowerCase());
     saveCache();
     push('remove', { collection: 'Areas', keyField: 'name', key });
+    logActivity_('area', key, `removed area "${key}" from Area Master`);
   },
 
   markAttendance: (sabhaId, devoteeId, present = true) => {
@@ -605,6 +688,9 @@ export const dataService = {
       call: rec.call, inPerson: rec.inPerson, message: rec.message,
       outcome: rec.outcome, remark: rec.remark, contactedBy: rec.contactedBy,
     });
+    const dev = DB.devotees.find(d => d.id === devoteeId);
+    const ev = DB.sabhas.find(s => s.id === eventId);
+    logActivity_('followup', dev?.name || devoteeId, `added follow-up for ${dev?.name || devoteeId}${ev ? ` (${ev.title})` : ''}${rec.outcome ? ` — ${rec.outcome}` : ''}`);
     return rec;
   },
 

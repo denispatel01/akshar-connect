@@ -16,10 +16,11 @@ var HEADERS = {
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date'],
   Areas:      ['name','number','notes'],
+  Activity:   ['ts','actor','actorMobile','action','target','detail','device'],
   Changes:    ['ts','action','collection','summary','emailed']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-04b';
+var SCHEMA_VERSION = '2026-10-04c';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -133,7 +134,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -237,6 +238,24 @@ function handle_(p){
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
     if(action==='deleteUser') return doDeleteUser_(p);
+    if(action==='logActivity'){
+      // Fire-and-forget app activity log. Never throws back to the client.
+      try{
+        var a = p.row || {};
+        appendRows_('Activity', [{
+          ts: a.ts || new Date().toISOString(), actor: a.actor||'', actorMobile: a.actorMobile||'',
+          action: a.action||'', target: a.target||'', detail: a.detail||'', device: a.device||''
+        }]);
+      }catch(e){}
+      return json_({ ok:true });
+    }
+    if(action==='activity'){
+      var all = readAll_('Activity');
+      if(p.actor) all = all.filter(function(r){ return String(r.actor)===String(p.actor); });
+      var lim = Math.min(parseInt(p.limit,10)||300, 1000);
+      var out = all.slice(Math.max(0, all.length-lim)).reverse(); // newest first
+      return json_({ ok:true, activity: out });
+    }
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
