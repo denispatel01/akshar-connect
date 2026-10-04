@@ -368,7 +368,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
           {step === 0 && (
             <div className={CARD.basics}>
-              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[0]}</h3>
+              <h3 className="flex items-center gap-2 text-lg font-black text-orange-700">👤 {SECTION_TITLE[0]}</h3>
               <div className="flex items-center gap-4">
                 <img src={avatar} alt="" className="h-20 w-20 rounded-2xl object-cover border-2 border-border-light bg-surface" />
                 <div>
@@ -427,7 +427,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
               {/* Contact & personal */}
               <div className={CARD.contact}>
-                <h3 className="flex items-center gap-2 text-lg font-black text-text-main">📞 Contact & Personal</h3>
+                <h3 className="flex items-center gap-2 text-lg font-black text-sky-700">📞 Contact & Personal</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -456,7 +456,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 const showGrade = isBal || form.educationStatus === 'Pursuing';
                 return (
                   <div className={CARD.education}>
-                    <h3 className="flex items-center gap-2 text-lg font-black text-text-main">🎓 Education</h3>
+                    <h3 className="flex items-center gap-2 text-lg font-black text-emerald-700">🎓 Education</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {!isBal && (
                         <div><Label>🎓 Qualification</Label>
@@ -488,7 +488,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
               {/* Profession — hidden for Bal (children) */}
               {!isBal && (
                 <div className={CARD.profession}>
-                  <h3 className="flex items-center gap-2 text-lg font-black text-text-main">💼 Profession</h3>
+                  <h3 className="flex items-center gap-2 text-lg font-black text-violet-700">💼 Profession</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label>💼 Profession</Label>
                       <select value={form.profession} onChange={(e) => set({ profession: e.target.value })} className={inputCls}>
@@ -504,7 +504,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
           {step === 2 && (
             <div className={CARD.family}>
-              <h3 className="text-lg font-black text-text-main">{SECTION_TITLE[2]}</h3>
+              <h3 className="flex items-center gap-2 text-lg font-black text-rose-700">🙏 {SECTION_TITLE[2]}</h3>
               <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
                 <Label>Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></Label>
                 <HeadPicker heads={familyHeads} value={form.familyId} onChange={pickHead} />
