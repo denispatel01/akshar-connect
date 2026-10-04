@@ -1201,8 +1201,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   </div>
                 )}
 
-                {/* Key satsang-contact info */}
-                <div className="mt-3 space-y-1.5">
+                {/* Key satsang-contact info — left-aligned (#115) */}
+                <div className="mt-3 space-y-1.5 self-stretch text-left">
                   {selectedDevotee.mobile && (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-text-muted">
                       <Phone className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words">{selectedDevotee.mobile}</span>

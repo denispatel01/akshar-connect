@@ -240,7 +240,12 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     reader.readAsDataURL(file);
   };
 
-  const step0Valid = form.firstName.trim() && form.mobile.length === 10;
+  // Mobile is optional for female devotees (#114); for others it must be 10 digits.
+  // A partial number (1–9 digits) is always invalid.
+  const mobileOk = form.gender === 'Female'
+    ? (form.mobile.length === 0 || form.mobile.length === 10)
+    : form.mobile.length === 10;
+  const step0Valid = !!form.firstName.trim() && mobileOk;
   const canNext = step === 0 ? step0Valid : true;
 
   const SECTION_TITLE = ['Personal Details', 'Contact & Background', 'Family, Satsang & Tags', 'Review & Save'];
@@ -385,7 +390,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label>Middle Name</Label><input value={form.middleName} onChange={setCap('middleName')} placeholder="Enter middle name" className={inputCls} /></div>
                 <div><Label>Last Name</Label><input value={form.lastName} onChange={setCap('lastName')} placeholder="Enter surname" className={inputCls} /></div>
                 <div><Label>Date of Birth</Label><DobField value={form.dob} onChange={(v) => set({ dob: v })} /></div>
-                <div><Label req>Mobile Number</Label><input required maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
+                <div><Label req={form.gender !== 'Female'}>Mobile Number {form.gender === 'Female' && <span className="font-semibold text-text-muted">(optional)</span>}</Label><input required={form.gender !== 'Female'} maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
                 <div><Label>Gender</Label>
                   <select value={form.gender} onChange={(e) => set({ gender: e.target.value })} className={inputCls}>
                     <option value="">— Select —</option>{GENDERS.map((o) => <option key={o}>{o}</option>)}</select></div>
