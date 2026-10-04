@@ -292,8 +292,18 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const avatar = form.photo || 'https://ui-avatars.com/api/?background=003158&color=fff&bold=true&size=128&name=' + encodeURIComponent(fullName || '?');
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#FFF4EA] to-[#FCEEE1] dark:from-[#1b140d] dark:to-[#140d07] flex flex-col"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
+    <div className="fixed inset-0 z-[60] flex flex-col"
+      style={{
+        // Light-blue background, and force the LIGHT theme for the whole wizard
+        // (override the theme tokens) so it stays light even in dark mode.
+        background: '#EAF4FF',
+        // Override the resolved --color-* tokens (what Tailwind utilities read) so
+        // the whole wizard renders LIGHT even when the app is in dark mode.
+        '--color-surface': '#FFFFFF', '--color-surface-hover': '#F3F8FF', '--color-bg-base': '#EAF4FF',
+        '--color-text-main': '#26303B', '--color-text-muted': '#6B7684', '--color-border-light': '#DCE8F5',
+        '--color-primary': '#FF862A', '--color-primary-hover': '#E56F18', '--color-accent': '#FF862A',
+        paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
+      }}
       onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
 
       <div className="border-b border-border-light bg-surface px-4 sm:px-6 py-4 shrink-0">
