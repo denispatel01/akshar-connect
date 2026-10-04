@@ -96,21 +96,32 @@ const displayToIso = (s) => {
 };
 function DobField({ value, onChange }) {
   const [text, setText] = useState(isoToDisplay(value));
-  const dateRef = useRef(null);
   useEffect(() => { setText(isoToDisplay(value)); }, [value]);
-  const commit = (raw) => { const iso = displayToIso(raw); if (iso) onChange(iso); };
+  // Auto-format digits as DD-MM-YYYY while typing (#127): "01121995" → "01-12-1995".
+  const handleType = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    let out = digits;
+    if (digits.length > 4) out = digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4);
+    else if (digits.length > 2) out = digits.slice(0, 2) + '-' + digits.slice(2);
+    setText(out);
+    const iso = displayToIso(out);
+    if (iso) onChange(iso);
+  };
   return (
     <div className="relative">
       <input value={text} inputMode="numeric" placeholder="DD-MM-YYYY"
-        onChange={(e) => { const v = e.target.value; setText(v); const iso = displayToIso(v); if (iso) onChange(iso); }}
-        onBlur={(e) => commit(e.target.value)}
+        onChange={handleType}
+        onBlur={(e) => { const iso = displayToIso(e.target.value); if (iso) onChange(iso); }}
         className={inputCls + ' pr-11'} />
-      <button type="button" onClick={() => { try { dateRef.current.showPicker(); } catch { dateRef.current.focus(); } }}
-        className="absolute right-2 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:text-primary" aria-label="Open calendar">
+      <span className="absolute right-2 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center text-text-muted pointer-events-none">
         <Calendar className="h-4 w-4" />
-      </button>
-      <input ref={dateRef} type="date" value={value || ''} onChange={(e) => onChange(e.target.value)}
-        className="absolute right-2 top-1/2 h-0 w-0 opacity-0 pointer-events-none" tabIndex={-1} aria-hidden="true" />
+      </span>
+      {/* A real date input sits (invisibly) over the icon, so tapping it opens the
+          native calendar reliably across browsers. */}
+      <input type="date" value={value || ''} max="2100-12-31"
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 cursor-pointer opacity-0"
+        aria-label="Pick date from calendar" />
     </div>
   );
 }
