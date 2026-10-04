@@ -434,6 +434,7 @@ function handle_(p){
       var out = all.slice(Math.max(0, all.length-lim)).reverse(); // newest first
       return json_({ ok:true, activity: out });
     }
+    if(action==='getUsers') return json_({ ok:true, users: readAll_('Users') });
     if(action==='getMailEnabled') return json_({ ok:true, enabled: mailEnabled_() });
     if(action==='setMailEnabled'){
       PropertiesService.getScriptProperties().setProperty('mailEnabled', (p.enabled===true||p.enabled==='true') ? 'true' : 'false');

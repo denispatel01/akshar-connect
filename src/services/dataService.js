@@ -288,6 +288,14 @@ export const dataService = {
 
   // ---- Auth ----
   loginWithPin: async (mobile, pin) => {
+    // Always check the LIVE Users sheet first so a just-added/edited account works
+    // even if this device still has a stale cached users list (#116).
+    if (hasBackend()) {
+      try {
+        const r = await api('getUsers', {});
+        if (r && Array.isArray(r.users)) { DB.users = r.users; saveCache(); }
+      } catch (e) { /* offline — fall back to cached users */ }
+    }
     const user = DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
     if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); logActivity_('login', '', `logged in (${deviceLabel_()})`); return { success: true, user }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
