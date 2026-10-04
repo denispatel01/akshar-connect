@@ -191,6 +191,20 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     const filled = checks.filter((v) => Array.isArray(v) ? v.length : String(v || '').trim()).length;
     return Math.round((filled / checks.length) * 100);
   }, [form]);
+
+  // Per-step completion % shown inside each step circle (#114 reference).
+  const STEP_FIELDS = [
+    ['firstName', 'lastName', 'dob', 'gender', 'mobile', 'photo'],
+    ['area', 'city', 'address', 'yuvakType', 'bloodGroup', 'maritalStatus',
+      'qualification', 'education', 'school', 'profession', 'whatsapp', 'email'],
+    ['followupKaryakarta', 'reference', 'tags'],
+  ];
+  const stepPct = (i) => {
+    if (i >= 3) return completionPct; // Review step mirrors the overall completion
+    const f = STEP_FIELDS[i] || [];
+    const filled = f.filter((k) => k === 'tags' ? (form.tags && form.tags.length) : String(form[k] || '').trim()).length;
+    return f.length ? Math.round((filled / f.length) * 100) : 0;
+  };
   // Name of the chosen family head, for the review summary (#92).
   const headName = (familyHeads.find((h) => h.familyId === form.familyId) || {}).name || '';
 
@@ -330,28 +344,27 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           </button>
         </div>
 
-        {/* Gradient wizard step rail (FORM A) — gradient-filled dots + colored
-            progress connectors, with a label under each step. */}
-        <div className="mx-auto w-full max-w-3xl mt-4 flex items-start">
+        {/* Step rail — label on top, each circle shows that step's completion %. */}
+        <div className="mx-auto w-full max-w-3xl mt-4 flex items-end">
           {STEPS.map((s, i) => {
             const active = i === step;
-            const done = i < step;
+            const pct = stepPct(i);
             return (
               <React.Fragment key={s}>
                 <button type="button" onClick={() => (i < step || canNext) && setStep(i)}
                   className="flex flex-col items-center gap-1.5 w-16 sm:w-20 shrink-0 focus:outline-none">
-                  <span className={`grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-full text-[13px] font-black text-white transition-all
+                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-[#E5741F]' : 'text-text-muted'}`}>{s}</span>
+                  <span className={`grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-full text-[11px] sm:text-xs font-black transition-all
                     ${active
-                      ? 'bg-[#FF862A] ring-4 ring-[#FF862A]/20 shadow-md'
-                      : done
-                      ? 'bg-[#FF862A]'
-                      : 'bg-slate-300 dark:bg-slate-600'}`}>
-                    {done ? <Check className="h-4 w-4" /> : i + 1}
+                      ? 'bg-[#FF862A] text-white ring-4 ring-[#FF862A]/20 shadow-md'
+                      : pct === 100
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-surface text-text-muted border border-border-light'}`}>
+                    {pct === 100 ? <Check className="h-4 w-4" /> : `${pct}%`}
                   </span>
-                  <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight ${active ? 'text-[#E5741F]' : done ? 'text-[#E5741F]' : 'text-text-muted'}`}>{s}</span>
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className="h-1 flex-1 rounded-full mt-4 sm:mt-[18px] bg-border-light overflow-hidden">
+                  <div className="h-0.5 flex-1 rounded-full mb-5 bg-border-light overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-300 ${i < step ? 'w-full bg-[#FF862A]' : 'w-0'}`} />
                   </div>
                 )}
