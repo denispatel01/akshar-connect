@@ -28,7 +28,10 @@ const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 
 // Colorful section cards (#56) — each step section gets its own soft gradient wash
 // and matching border so the Add form isn't a wall of white. Dark mode falls back
 // to a subtle slate tint. Inputs stay white for contrast.
-const DARK_CARD = 'dark:from-slate-800/40 dark:to-slate-800/40 dark:border-border-light';
+// The wizard is force-rendered in the LIGHT gradient theme (see the root --color-*
+// overrides), so the section cards keep their light gradients even in dark mode —
+// no dark: variants here, guaranteeing it always matches the target design.
+const DARK_CARD = '';
 const CARD_BASE = 'rounded-3xl border bg-gradient-to-br p-5 sm:p-6 shadow-xs space-y-5';
 const CARD = {
   basics:     `${CARD_BASE} from-orange-50 to-amber-50 border-orange-200/70 ${DARK_CARD}`,
