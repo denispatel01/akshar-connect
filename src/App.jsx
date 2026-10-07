@@ -48,12 +48,12 @@ export default function App() {
   const [filterPreset, setFilterPreset] = useState(null);
   const [openDevoteeId, setOpenDevoteeId] = useState(null);
 
-  // When the background live-refresh finishes, re-read fresh data into the pages.
-  useEffect(() => {
-    const onRefreshed = () => setRefreshKey((k) => k + 1);
-    window.addEventListener('ac-data-refreshed', onRefreshed);
-    return () => window.removeEventListener('ac-data-refreshed', onRefreshed);
-  }, []);
+  // NOTE: the background live-refresh (ac-data-refreshed) intentionally does NOT
+  // bump refreshKey anymore — remounting the active page here wiped the user's
+  // in-progress search/scroll ~2s after opening (#147). Pages that need the fresh
+  // data listen for 'ac-data-refreshed' themselves and re-read in place, so state
+  // (search, filters) is preserved. refreshKey is now only bumped by a manual
+  // pull-to-refresh / refresh button, which the user initiates on purpose.
 
   // Navigate with history tracking
   const navigate = (page, options) => {

@@ -48,8 +48,11 @@ export default function DashboardPage({ setActivePage, user }) {
   const [showTodayBdays, setShowTodayBdays] = useState(false);
 
   useEffect(() => {
-    setDevotees(dataService.getDevotees());
-    setThoughts(dataService.getThoughts());
+    const read = () => { setDevotees(dataService.getDevotees()); setThoughts(dataService.getThoughts()); };
+    read();
+    // Refresh counts in place when the background live-refresh finishes (#147).
+    window.addEventListener('ac-data-refreshed', read);
+    return () => window.removeEventListener('ac-data-refreshed', read);
   }, []);
 
   const totalDevotees = devotees.length;

@@ -62,11 +62,15 @@ function MultiSelect({ label, options, selected, onChange }) {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute z-30 mt-1 w-full min-w-[11rem] max-h-56 overflow-y-auto rounded-xl border border-border-light bg-surface shadow-lg p-1">
-            {selected.length > 0 && (
-              <button type="button" onClick={() => onChange([])} className="block w-full text-left px-2 py-1.5 text-[11px] font-bold text-red-500 hover:bg-bg-base rounded-lg">Clear</button>
-            )}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 mt-1 w-full min-w-[11rem] max-h-72 overflow-y-auto rounded-xl border border-border-light bg-surface shadow-xl p-1">
+            {/* Select all / Clear (#135) */}
+            <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-border-light mb-1 sticky top-0 bg-surface">
+              <button type="button" onClick={() => onChange(opts.map((o) => o.value))} className="text-[11px] font-bold text-primary hover:underline">Select all</button>
+              {selected.length > 0 && (
+                <button type="button" onClick={() => onChange([])} className="text-[11px] font-bold text-red-500 hover:underline">Clear</button>
+              )}
+            </div>
             {opts.map((o) => (
               <label key={o.value} className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-text-main hover:bg-bg-base rounded-lg cursor-pointer">
                 <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} className="rounded text-primary focus:ring-primary" />
@@ -309,6 +313,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   }, [filterPreset]);
 
   const loadDevotees = () => setDevotees([...dataService.getDevotees()]);
+
+  // Re-read fresh data in place when the background live-refresh finishes, so the
+  // list updates WITHOUT remounting (keeps the user's search/filters/scroll) (#147).
+  useEffect(() => {
+    const onRefreshed = () => setDevotees([...dataService.getDevotees()]);
+    window.addEventListener('ac-data-refreshed', onRefreshed);
+    return () => window.removeEventListener('ac-data-refreshed', onRefreshed);
+  }, []);
 
   const presetMeta = devoteesPreset ? PRESET_META[devoteesPreset] : null;
   const presetMatch = presetMeta?.match ?? (() => true);
