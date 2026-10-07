@@ -4,7 +4,7 @@ import { X, ChevronLeft, ChevronRight, Check, Camera, Phone, MapPin, User, UserC
 import { dataService } from '../services/dataService';
 import {
   AREAS, GENDERS, BLOOD_GROUPS, MARITAL_STATUS, YUVAK_TYPES,
-  QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, GRADES, deriveAge,
+  QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, GRADES, deriveAge, gradeDisplay,
 } from '../services/devoteeSchema';
 import { tagsByCategory, tagChipStyle, tagLabel, getMutuallyExclusiveKeys } from '../services/tagCatalog';
 import AutoResizeTextarea from './AutoResizeTextarea';
@@ -17,7 +17,7 @@ const blank = () => ({
   firstName: '', middleName: '', lastName: '', name: '', gender: 'Male', dob: '', bloodGroup: '',
   maritalStatus: '', anniversary: '', yuvakType: '', photo: '',
   mobile: '', whatsapp: '', email: '', area: '', address: '', mandal: 'Adajan',
-  qualification: '', education: '', educationStatus: 'Completed', school: '', grade: '',
+  qualification: '', education: '', educationStatus: 'Completed', school: '', grade: '', gradeAsOf: '',
   profession: '', professionField: '', companyName: '',
   followupKaryakarta: '', followupKaryakartaMobile: '', reference: '', notes: '', tags: [],
   familyId: '', type: 'Primary', relation: 'Self', dateOfJoining: todayISO(), oldNew: 'New',
@@ -502,10 +502,11 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                       {showGrade && (
                         isBal ? (
                           <div><Label>📘 Grade / Standard</Label>
-                            <select value={form.grade} onChange={(e) => set({ grade: e.target.value })} className={inputCls}>
+                            {/* Stamp the date the grade is recorded so it can auto-advance by academic year (#138/#139). */}
+                            <select value={form.grade} onChange={(e) => set({ grade: e.target.value, gradeAsOf: e.target.value ? todayISO() : '' })} className={inputCls}>
                               <option value="">— Select —</option>{GRADES.map((o) => <option key={o}>{o}</option>)}</select></div>
                         ) : (
-                          <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={setCap('grade')} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
+                          <div><Label>📘 Grade / Standard</Label><input value={form.grade} onChange={(e) => set({ grade: capWords(e.target.value), gradeAsOf: e.target.value ? todayISO() : '' })} placeholder="e.g. 8th std, FY B.Com" className={inputCls} /></div>
                         )
                       )}
                       {!isBal && (
@@ -651,7 +652,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   ['🗺️', 'Area', form.area],
                   ['🧑‍🤝‍🧑', 'Yuvak Type', form.yuvakType],
                   ['🎓', 'Qualification', form.qualification],
-                  ['📘', 'Grade / Standard', form.grade],
+                  ['📘', 'Grade / Standard', gradeDisplay(form.grade, form.gradeAsOf)],
                   ['📚', 'Education / Stream', [form.education, form.educationStatus].filter(Boolean).join('  ·  '), true],
                   ['🏫', 'School / College', form.school, true],
                   ['💼', 'Profession', form.profession],

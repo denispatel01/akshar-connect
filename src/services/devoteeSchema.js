@@ -25,6 +25,44 @@ export const GRADES = [
   'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
   'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
 ];
+
+// Academic-year grade auto-advance (#138/#139). A grade is recorded on a date
+// (`gradeAsOf`); the academic year runs 1 June – 31 March, so a student moves up
+// one grade each 1 June. Count the June-1 boundaries strictly after the recorded
+// date up to today to compute how many grades to advance.
+function academicAdvances_(fromISO, now = new Date()) {
+  const from = new Date(fromISO);
+  if (!fromISO || isNaN(from.getTime())) return 0;
+  let count = 0;
+  for (let y = from.getFullYear(); y <= now.getFullYear(); y++) {
+    const jun1 = new Date(y, 5, 1); // month index 5 = June
+    if (jun1 > from && jun1 <= now) count++;
+  }
+  return count;
+}
+// Current grade label given the recorded grade + the date it was recorded.
+// Non–numbered grades (Nursery/KG) advance through the list too; caps at Grade 12.
+export function currentGrade(grade, gradeAsOf) {
+  if (!grade) return '';
+  const adv = academicAdvances_(gradeAsOf);
+  if (!adv) return grade;
+  const idx = GRADES.indexOf(grade);
+  if (idx < 0) return grade; // unknown value — leave as-is
+  return GRADES[Math.min(GRADES.length - 1, idx + adv)];
+}
+// Display string: "Grade 11 (was Grade 10 · as on 05-Oct-2025)" when it advanced,
+// otherwise just "Grade 10 (as on 05-Oct-2025)". Falls back to the raw grade.
+export function gradeDisplay(grade, gradeAsOf) {
+  if (!grade) return '';
+  const asOf = gradeAsOf ? (() => {
+    const d = new Date(gradeAsOf); if (isNaN(d.getTime())) return '';
+    const MM = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${String(d.getDate()).padStart(2, '0')}-${MM[d.getMonth()]}-${d.getFullYear()}`;
+  })() : '';
+  const cur = currentGrade(grade, gradeAsOf);
+  if (cur !== grade) return `${cur} (was ${grade}${asOf ? ` · as on ${asOf}` : ''})`;
+  return asOf ? `${grade} (as on ${asOf})` : grade;
+}
 /** Primary = head of family; Family = other member linked to that family ID. */
 export const FAMILY_RECORD_TYPES = ['Primary', 'Family'];
 export const STATUSES = ['Active', 'Inactive', 'Moved', 'Deceased'];

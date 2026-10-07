@@ -11,7 +11,7 @@ import { focusNextOnEnter } from '../utils/formNav';
 import EmptyState from '../components/EmptyState';
 import { ListSkeleton } from '../components/SkeletonLoader';
 import {
-  hasAnyTag, deriveAge, QUALIFICATIONS, formatFamilyRecordType
+  hasAnyTag, deriveAge, QUALIFICATIONS, formatFamilyRecordType, gradeDisplay
 } from '../services/devoteeSchema';
 
 // Age bands for the Divine Devotees filter.
@@ -538,6 +538,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       if (m && w && w === m) return `${m}  ·  WhatsApp same`;
       return [m && `📱 ${m}`, w && `💬 ${w}`].filter(Boolean).join('  ·  ');
     }
+    if (f === 'grade') return gradeDisplay(d.grade, d.gradeAsOf); // current grade + as-on date (#138/#139)
     return d[f];
   };
 
