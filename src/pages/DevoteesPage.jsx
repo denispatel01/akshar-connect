@@ -29,7 +29,7 @@ const TABS = {
   'Profession':  [['profession','Profession'],['professionField','Field'],['companyName','Company']],
   'Satsang':     [['yuvakType','Yuvak Type'],['familyId','Family Head'],['relation','Relation to family head'],['followupKaryakarta','Follow-up Karyakarta'],['followupKaryakartaMobile','Karyakarta Mobile'],['reference','Reference']],
   'Family':      [], // special tab: lists everyone in this devotee's family (+ shows Family ID)
-  'System':      [['id','Yuvak ID'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
+  'System':      [['id','Yuvak ID'],['oldNew','Devotee Type'],['status','Status'],['dateOfJoining','Date of Joining'],['notes','Notes']],
   'Tags':        [], // rendered separately
 };
 // Satsang fields handled by the custom family-role block (not the generic grid).
@@ -122,7 +122,7 @@ const FIELD_EMOJI = {
   area: '🗺️', city: '🏙️', qualification: '🎓', grade: '📘', education: '📚', educationStatus: '⏳',
   school: '🏫', profession: '💼', professionField: '🛠️', companyName: '🏢',
   yuvakType: '🧑‍🤝‍🧑', familyId: '👨‍👩‍👧', relation: '🔗', followupKaryakarta: '🙏', followupKaryakartaMobile: '📞',
-  reference: '🤝', id: '🆔', status: '✅', dateOfJoining: '🗓️', notes: '📝',
+  reference: '🤝', id: '🆔', status: '✅', dateOfJoining: '🗓️', notes: '📝', oldNew: '🏷️',
 };
 
 const MONTHS_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -276,7 +276,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     gender:'Male', dob:'', bloodGroup:'', maritalStatus:'', anniversary:'', yuvakType:'', photo:'',
     qualification:'', education:'', educationStatus:'Completed', school:'',
     profession:'', professionField:'', companyName:'',
-    address:'', area:'', city:'Surat', mandal:'Adajan',
+    address:'', area:'', mandal:'Adajan',
     followupKaryakarta:'', followupKaryakartaMobile:'', reference:'', notes:'', tags:[],
     familyId:'', type:'Primary', relation:'Self', dateOfJoining: todayISO };
   const [formData, setFormData] = useState(blankForm);
@@ -737,7 +737,6 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       'WhatsApp': d.whatsapp || '',
                       'Email': d.email || '',
                       'Area': d.area || '',
-                      'City': d.city || '',
                       'Blood Group': d.bloodGroup || '',
                       'Marital Status': d.maritalStatus || '',
                       'Qualification': d.qualification || '',
@@ -935,7 +934,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                         <td className="px-3 py-2.5 font-mono text-[11px] font-bold text-text-muted whitespace-nowrap">{devotee.id}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-text-main">{val(devotee.mobile)}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{devotee.dob ? dobShort(devotee.dob) : '—'}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{[devotee.area, devotee.city].filter(Boolean).join(', ') || '—'}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{devotee.area || '—'}</td>
                         <td className="px-3 py-2.5 text-text-muted"><span className="block truncate max-w-[160px]">{devotee.followupKaryakarta || '—'}</span></td>
                         <td className="px-3 py-2.5">
                           <div className="flex flex-wrap gap-1 max-w-[220px]">
@@ -1034,8 +1033,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   {/* Spacer aligns content under the text column, matching avatar width */}
                   <div className="h-14 w-14 sm:h-16 sm:w-16 shrink-0" />
                   <div className="flex-1 min-w-0 border-t border-border-light pt-2.5 space-y-1.5">
-                    {[devotee.area, devotee.city].filter(Boolean).length > 0 && (
-                      <Row icon={MapPin} color="bg-slate-100 text-slate-500" text={[devotee.area, devotee.city].filter(Boolean).join(', ')} />
+                    {devotee.area && (
+                      <Row icon={MapPin} color="bg-slate-100 text-slate-500" text={devotee.area} />
                     )}
                     {devotee.gender && <Row icon={User} color="bg-slate-100 text-slate-500" text={devotee.gender} />}
                     {(devotee.profession || devotee.education) && (

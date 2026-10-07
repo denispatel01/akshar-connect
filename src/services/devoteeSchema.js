@@ -73,7 +73,6 @@ export const DEVOTEE_SECTIONS = [
       { key: 'email',           label: 'Email',           type: 'email' },
       { key: 'address',         label: 'Address',         type: 'textarea' },
       { key: 'area',            label: 'Area',            type: 'select', options: AREAS },
-      { key: 'city',            label: 'City',            type: 'text' },
       { key: 'areaRoute',       label: 'Area Route No.',  type: 'number', isNew: true, help: 'Pickup / padhramani order within the area.' },
     ],
   },

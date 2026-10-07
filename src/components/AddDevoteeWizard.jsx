@@ -16,11 +16,11 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const blank = () => ({
   firstName: '', middleName: '', lastName: '', name: '', gender: 'Male', dob: '', bloodGroup: '',
   maritalStatus: '', anniversary: '', yuvakType: '', photo: '',
-  mobile: '', whatsapp: '', email: '', area: '', city: '', address: '', mandal: 'Adajan',
+  mobile: '', whatsapp: '', email: '', area: '', address: '', mandal: 'Adajan',
   qualification: '', education: '', educationStatus: 'Completed', school: '', grade: '',
   profession: '', professionField: '', companyName: '',
   followupKaryakarta: '', followupKaryakartaMobile: '', reference: '', notes: '', tags: [],
-  familyId: '', type: 'Primary', relation: 'Self', dateOfJoining: todayISO(),
+  familyId: '', type: 'Primary', relation: 'Self', dateOfJoining: todayISO(), oldNew: 'New',
 });
 
 const inputCls = 'w-full rounded-2xl border border-border-light bg-surface px-4 py-3 text-sm font-semibold text-text-main outline-none transition-colors placeholder:font-medium placeholder:text-text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
@@ -206,7 +206,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   // Per-step completion % shown inside each step circle (#114 reference).
   const STEP_FIELDS = [
     ['firstName', 'lastName', 'dob', 'gender', 'mobile', 'photo'],
-    ['area', 'city', 'address', 'yuvakType', 'bloodGroup', 'maritalStatus',
+    ['area', 'address', 'yuvakType', 'bloodGroup', 'maritalStatus',
       'qualification', 'education', 'school', 'profession', 'whatsapp', 'email'],
     ['followupKaryakarta', 'reference', 'tags'],
   ];
@@ -235,7 +235,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     set({
       familyId: fid, type: 'Family', relation: form.relation === 'Self' ? '' : form.relation,
       ...(h ? {
-        address: h.address || form.address, area: h.area || form.area, city: h.city || form.city,
+        address: h.address || form.address, area: h.area || form.area,
         followupKaryakarta: h.followupKaryakarta || form.followupKaryakarta,
         followupKaryakartaMobile: h.followupKaryakartaMobile || form.followupKaryakartaMobile,
         lastName: form.lastName || h.lastName || '',
@@ -306,7 +306,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
       if (addAnother) {
         const keep = {
           familyId: (!form.familyId && created.familyId) ? created.familyId : form.familyId,
-          address: form.address, area: form.area, city: form.city, mandal: form.mandal,
+          address: form.address, area: form.area, mandal: form.mandal,
           followupKaryakarta: form.followupKaryakarta, followupKaryakartaMobile: form.followupKaryakartaMobile,
           reference: form.reference,
         };
@@ -556,6 +556,12 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label>Karyakarta Mobile</Label><input maxLength={10} inputMode="numeric" value={form.followupKaryakartaMobile} onChange={(e) => set({ followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })} placeholder="Auto-fills on select" className={inputCls} /></div>
                 <div><Label>Reference / Introduced By</Label>
                   <Combo options={referenceOptions} value={form.reference} onChange={(v) => set({ reference: v })} placeholder="Select or type" /></div>
+                <div><Label>🏷️ Devotee Type</Label>
+                  <select value={form.oldNew || 'New'} onChange={(e) => set({ oldNew: e.target.value })} className={inputCls}>
+                    <option value="New">New</option>
+                    <option value="Old">Old</option>
+                    <option value="Reference">Reference</option>
+                  </select></div>
               </div>
               <div>
                 <Label>🏷️ Tags</Label>

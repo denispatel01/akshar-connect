@@ -10,7 +10,7 @@
 
 var HEADERS = {
   Users:      ['mobile','pin','password','role','name'],
-  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','city','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
+  Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
@@ -20,7 +20,7 @@ var HEADERS = {
   Changes:    ['ts','action','collection','summary','emailed']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-05a';
+var SCHEMA_VERSION = '2026-10-07a';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
@@ -135,7 +135,7 @@ function devoteeEmailHtml_(action, row, changedKeys, hasPhoto){
     ['mobile','📱 Mobile'],['whatsapp','💬 WhatsApp'],['email','📧 Email'],
     ['gender','⚧ Gender'],['dob','🎂 Date of Birth'],['bloodGroup','🩸 Blood Group'],
     ['maritalStatus','💍 Marital Status'],['anniversary','💕 Anniversary'],
-    ['address','📍 Address'],['area','🗺️ Area'],['city','🏙️ City'],
+    ['address','📍 Address'],['area','🗺️ Area'],
     ['yuvakType','🧑 Yuvak Type'],['qualification','🎓 Qualification'],['grade','📘 Grade'],
     ['education','📚 Education'],['educationStatus','⏳ Status'],['school','🏫 School'],
     ['profession','💼 Profession'],['professionField','🛠️ Field'],['companyName','🏢 Company'],
