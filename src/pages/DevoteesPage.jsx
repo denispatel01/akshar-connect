@@ -387,7 +387,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       if (filterQualifications.length && !filterQualifications.includes(d.qualification)) return false;
       if (filterAges.length && !filterAges.some(a => AGE_BANDS[a]?.test(deriveAge(d.dob)))) return false;
       if (filterGenders.length && !filterGenders.includes(d.gender)) return false;
-      if (filterOldNews.length && !filterOldNews.some(v => String(d.oldNew || '').toLowerCase() === v.toLowerCase())) return false;
+      if (filterOldNews.length && !filterOldNews.some(v => {
+        const val = v.toLowerCase();
+        // "Reference" = explicitly typed Reference OR anyone introduced by a
+        // reference (non-empty reference field), so the filter isn't empty (#134).
+        if (val === 'reference') return String(d.oldNew || '').toLowerCase() === 'reference' || !!String(d.reference || '').trim();
+        return String(d.oldNew || '').toLowerCase() === val;
+      })) return false;
       return hasAnyTag(d, selectedTags) && presetMatch(d);
     });
     if (query) {
