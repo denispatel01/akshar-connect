@@ -158,6 +158,12 @@ function devoteeEmailHtml_(action, row, changedKeys, hasPhoto){
       + '<td style="'+valTd+'">'+String(v).replace(/</g,'&lt;')+'</td>'
       + '</tr>';
   }
+  // Name & Photo aren't rows in the table above (name is the header, photo is the
+  // avatar), so surface them in the "Updated" summary explicitly (#123 follow-up).
+  if (isEdit) {
+    if (changed['name'] || changed['firstName'] || changed['middleName'] || changed['lastName']) changedLabels.unshift('Name');
+    if (changed['photo']) changedLabels.push('Photo');
+  }
   var who = row.updatedBy || row.createdBy || '';
   var verb = action === 'INSERT' ? 'added' : 'updated';
   // On an edit, a one-line summary of what changed, right under the header.
