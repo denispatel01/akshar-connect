@@ -4,9 +4,17 @@ import {
   Calendar, MapPin, Phone, Check, X,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { deriveAge } from '../services/devoteeSchema';
+import { deriveAge, QUALIFICATIONS } from '../services/devoteeSchema';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { devoteeMatches } from '../utils/search';
+import MultiSelect from '../components/MultiSelect';
+import { Filter } from 'lucide-react';
+
+const AGE_BANDS = {
+  under15: { label: 'Under 15', test: (a) => a !== '' && a < 15 },
+  '15to45': { label: '15 – 45', test: (a) => a !== '' && a >= 15 && a <= 45 },
+  over45: { label: 'Over 45', test: (a) => a !== '' && a > 45 },
+};
 
 export default function BulkTagPage() {
   const tagGroups = useMemo(() => tagsByCategory(), []);
@@ -14,6 +22,15 @@ export default function BulkTagPage() {
   // Working deck of devotees (sorted by name) + search / karyakarta narrowing.
   const [searchQuery, setSearchQuery] = useState('');
   const [karyakarta, setKaryakarta] = useState('');
+  // Full Devotee-style filters (#141).
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterAreas, setFilterAreas] = useState([]);
+  const [filterReferences, setFilterReferences] = useState([]);
+  const [filterQualifications, setFilterQualifications] = useState([]);
+  const [filterAges, setFilterAges] = useState([]);
+  const [filterGenders, setFilterGenders] = useState([]);
+  const [filterTypes, setFilterTypes] = useState([]);
+  const [filterOldNews, setFilterOldNews] = useState([]);
   const allDevotees = useMemo(
     () => [...dataService.getDevotees()].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     [],
@@ -23,14 +40,28 @@ export default function BulkTagPage() {
     allDevotees.forEach(d => { const k = (d.followupKaryakarta || '').trim(); if (k) set.add(k); });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [allDevotees]);
+  const uniqueAreas = useMemo(() => [...new Set(allDevotees.map(d => d.area).filter(Boolean))].sort(), [allDevotees]);
+  const uniqueReferences = useMemo(() => [...new Set(allDevotees.map(d => d.reference).filter(Boolean))].sort(), [allDevotees]);
+  const anyFilter = filterAreas.length || filterReferences.length || filterQualifications.length || filterAges.length || filterGenders.length || filterTypes.length || filterOldNews.length;
   const deck = useMemo(() => {
     return allDevotees.filter(d => {
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       // Search matches name / DOB / mobile only (never karyakarta/reference).
       if (searchQuery.trim() && !devoteeMatches(d, searchQuery)) return false;
+      if (filterAreas.length && !filterAreas.includes(d.area)) return false;
+      if (filterReferences.length && !filterReferences.includes(d.reference)) return false;
+      if (filterQualifications.length && !filterQualifications.includes(d.qualification)) return false;
+      if (filterAges.length && !filterAges.some(a => AGE_BANDS[a]?.test(deriveAge(d.dob)))) return false;
+      if (filterGenders.length && !filterGenders.includes(d.gender)) return false;
+      if (filterTypes.length && !filterTypes.includes(d.type)) return false;
+      if (filterOldNews.length && !filterOldNews.some(v => {
+        const val = v.toLowerCase();
+        if (val === 'reference') return String(d.oldNew || '').toLowerCase() === 'reference' || !!String(d.reference || '').trim();
+        return String(d.oldNew || '').toLowerCase() === val;
+      })) return false;
       return true;
     });
-  }, [allDevotees, searchQuery, karyakarta]);
+  }, [allDevotees, searchQuery, karyakarta, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews]);
 
   // Per-devotee draft tag sets: { [id]: string[] }. Seeded from current tags.
   const [draft, setDraft] = useState(() => {
@@ -44,7 +75,7 @@ export default function BulkTagPage() {
   const [successMsg, setSuccessMsg] = useState('');
 
   // Reset the pointer when the filtered deck changes.
-  useEffect(() => { setIndex(0); }, [searchQuery, karyakarta]);
+  useEffect(() => { setIndex(0); }, [searchQuery, karyakarta, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews]);
 
   const current = deck[index] || null;
 
@@ -160,7 +191,30 @@ export default function BulkTagPage() {
             {karyakartaOptions.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         )}
+        <button type="button" onClick={() => setShowFilters(v => !v)}
+          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold ${anyFilter ? 'border-primary bg-primary/5 text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+          <Filter className="h-4 w-4" /> Filters{anyFilter ? ` (${[filterAreas,filterReferences,filterQualifications,filterAges,filterGenders,filterTypes,filterOldNews].reduce((n,a)=>n+a.length,0)})` : ''}
+        </button>
       </div>
+
+      {/* Full Devotee-style filter panel (#141) */}
+      {showFilters && (
+        <div className="mb-3 rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <MultiSelect label="All Areas" options={uniqueAreas} selected={filterAreas} onChange={setFilterAreas} />
+            <MultiSelect label="All References" options={uniqueReferences} selected={filterReferences} onChange={setFilterReferences} />
+            <MultiSelect label="All Qualifications" options={QUALIFICATIONS} selected={filterQualifications} onChange={setFilterQualifications} />
+            <MultiSelect label="All Ages" options={Object.entries(AGE_BANDS).map(([key, b]) => ({ value: key, label: b.label }))} selected={filterAges} onChange={setFilterAges} />
+            <MultiSelect label="All Genders" options={['Male', 'Female']} selected={filterGenders} onChange={setFilterGenders} />
+            <MultiSelect label="All Members" options={[{ value: 'Primary', label: 'Family Heads' }, { value: 'Family', label: 'Family Members' }]} selected={filterTypes} onChange={setFilterTypes} />
+            <MultiSelect label="All (Old/Ref/New)" options={['Old', 'Reference', 'New']} selected={filterOldNews} onChange={setFilterOldNews} />
+          </div>
+          {anyFilter ? (
+            <button onClick={() => { setFilterAreas([]); setFilterReferences([]); setFilterQualifications([]); setFilterAges([]); setFilterGenders([]); setFilterTypes([]); setFilterOldNews([]); }}
+              className="text-xs font-bold text-red-500 hover:underline">Clear all filters</button>
+          ) : null}
+        </div>
+      )}
 
       {deck.length === 0 || !current ? (
         <div className="p-10 text-center text-sm font-semibold text-text-muted">No devotees found.</div>
