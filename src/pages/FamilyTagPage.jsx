@@ -36,19 +36,19 @@ export default function FamilyTagPage({ user }) {
   // ── filter dropdown options ────────────────────────────────────────────────
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
   const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
-  const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
+  const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [devotees]);
 
   // ── filter state ───────────────────────────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false);
   const [filterKaryakarta, setFilterKaryakarta] = useState('');
   const [filterArea, setFilterArea] = useState('');
-  const [filterWing, setFilterWing] = useState('');
+  const [filterReference, setFilterReference] = useState('');
   const [filterBlood, setFilterBlood] = useState('');
   const [filterGender, setFilterGender] = useState('');
   const [filterType, setFilterType] = useState(''); // '' = heads only (default) | Family | all
   const [selectedTags, setSelectedTags] = useState([]);
   const toggleFilterTag = (key) => setSelectedTags(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-  const anyFilterActive = selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterWing || filterType;
+  const anyFilterActive = selectedTags.length > 0 || filterArea || filterKaryakarta || filterGender || filterBlood || filterReference || filterType;
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -76,7 +76,7 @@ export default function FamilyTagPage({ user }) {
         // filterType === 'all' → everyone
         if (filterKaryakarta && d.followupKaryakarta !== filterKaryakarta) return false;
         if (filterArea && d.area !== filterArea) return false;
-        if (filterWing && d.wing !== filterWing) return false;
+        if (filterReference && d.reference !== filterReference) return false;
         if (filterBlood && d.bloodGroup !== filterBlood) return false;
         if (filterGender && d.gender !== filterGender) return false;
         if (selectedTags.length && !selectedTags.every(t => (d.tags || []).includes(t))) return false;
@@ -88,7 +88,7 @@ export default function FamilyTagPage({ user }) {
         return true;
       })
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [devotees, search, filterType, filterKaryakarta, filterArea, filterWing, filterBlood, filterGender, selectedTags]);
+  }, [devotees, search, filterType, filterKaryakarta, filterArea, filterReference, filterBlood, filterGender, selectedTags]);
 
   // ── selection helpers ─────────────────────────────────────────────────────
   const toggleId = (id) => setSelectedIds(prev => {
@@ -272,10 +272,10 @@ export default function FamilyTagPage({ user }) {
               <option value="">All Blood Groups</option>
               {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b}>{b}</option>)}
             </select>
-            <select value={filterWing} onChange={e => setFilterWing(e.target.value)}
+            <select value={filterReference} onChange={e => setFilterReference(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
-              <option value="">All Wings</option>
-              {uniqueWings.map(w => <option key={w}>{w}</option>)}
+              <option value="">All References</option>
+              {uniqueReferences.map(r => <option key={r}>{r}</option>)}
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
               className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary">
@@ -303,7 +303,7 @@ export default function FamilyTagPage({ user }) {
           </div>
 
           {anyFilterActive && (
-            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterWing(''); setFilterType(''); }}
+            <button onClick={() => { setSelectedTags([]); setFilterArea(''); setFilterKaryakarta(''); setFilterGender(''); setFilterBlood(''); setFilterReference(''); setFilterType(''); }}
               className="text-xs font-bold text-red-500 hover:underline">
               Clear all filters
             </button>
