@@ -491,7 +491,7 @@ export const dataService = {
   getDevoteeById: (id) => DB.devotees.find(d => d.id === id) || null,
 
   addDevotee: (devotee) => {
-    const nextNum = DB.devotees.length + 1;
+    const nextNum = DB.devotees.reduce((m, d) => { const n = parseInt(String(d.id || '').replace(/\D/g, ''), 10); return (!isNaN(n) && n > m) ? n : m; }, 0) + 1; // max existing id + 1 — collision-proof (#145)
     const now = new Date().toISOString();
     const newDevotee = normalizeDevotee({
       ...devotee,
@@ -532,7 +532,7 @@ export const dataService = {
   },
 
   addDevoteeAndSync: async (devotee) => {
-    const nextNum = DB.devotees.length + 1;
+    const nextNum = DB.devotees.reduce((m, d) => { const n = parseInt(String(d.id || '').replace(/\D/g, ''), 10); return (!isNaN(n) && n > m) ? n : m; }, 0) + 1; // max existing id + 1 — collision-proof (#145)
     const now = new Date().toISOString();
     const id = `HPP-${nextNum}`;
     // A primary member (family head) is their own family — auto-generate the
