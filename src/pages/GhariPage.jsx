@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
+import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
 
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
@@ -78,12 +79,21 @@ function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, 
 }
 
 // ───────────────────────── Product stepper card ─────────────────────────────
+// Append an alpha byte to a #RRGGBB colour (a in 0..1) → a translucent tint.
+const tint = (hex, a) => `${hex}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
+
 function ProductCard({ product, qty, onChange }) {
   const cat = GHARI_CATEGORIES[product.category];
+  const color = cat?.color || '#E56F18';
   const active = qty > 0;
   return (
-    <div className={`relative overflow-hidden rounded-2xl border-2 p-3 transition-all ${active ? 'border-primary bg-primary/5 shadow-md' : 'border-border-light bg-surface'}`}>
-      <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: cat?.color }} />
+    <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
+      style={{
+        background: active ? tint(color, 0.18) : tint(color, 0.08),
+        borderColor: active ? color : tint(color, 0.35),
+        boxShadow: active ? `0 4px 14px ${tint(color, 0.25)}` : 'none',
+      }}>
+      <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
       <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
         <div className="flex items-start justify-between gap-1">
           <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name}</span>
@@ -110,8 +120,13 @@ function ProductCard({ product, qty, onChange }) {
 }
 
 // ───────────────────────── Order form (new + edit) ──────────────────────────
-function OrderForm({ initialOrder, onSaved, onCancel, embedded }) {
-  const products = useMemo(() => ghariService.getActiveProducts(), []);
+function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems }) {
+  // Show active items; if the admin has (accidentally) hidden them all, fall back
+  // to showing every item so entry is never blocked by an empty grid.
+  const products = useMemo(() => {
+    const active = ghariService.getActiveProducts();
+    return active.length ? active : ghariService.getProducts();
+  }, []);
   const bySku = useMemo(() => Object.fromEntries(products.map(p => [p.sku, p])), [products]);
   const isEdit = !!initialOrder;
 
@@ -174,9 +189,17 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded }) {
       {/* Products */}
       <div>
         <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-text-muted">Items — tap to add</label>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-          {products.map(p => <ProductCard key={p.sku} product={p} qty={cart[p.sku] || 0} onChange={(q) => setQty(p.sku, q)} />)}
-        </div>
+        {products.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border-light bg-surface py-8 text-center">
+            <Package className="mx-auto mb-2 h-9 w-9 text-text-muted" />
+            <p className="text-sm font-bold text-text-muted">No items in the catalog</p>
+            <button onClick={() => (onManageItems ? onManageItems() : ghariService.restoreDefaults())} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white">Add items in Settings</button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            {products.map(p => <ProductCard key={p.sku} product={p} qty={cart[p.sku] || 0} onChange={(q) => setQty(p.sku, q)} />)}
+          </div>
+        )}
       </div>
 
       {/* Payment + delivery */}
@@ -250,7 +273,10 @@ function OrderRow({ order, onOpen }) {
           {order.delivered && <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
         </div>
         <div className="truncate text-[11px] text-text-muted">{summary}</div>
-        {order.karyakarta && <div className="truncate text-[10px] font-semibold text-teal-600">via {order.karyakarta}</div>}
+        <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
+          {order.karyakarta && <span className="truncate text-teal-600">via {order.karyakarta}</span>}
+          {order.createdBy && <span className="truncate text-text-muted">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
+        </div>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-sm font-black text-text-main">{rupee(order.total)}</div>
@@ -339,15 +365,117 @@ function ReportView({ season }) {
   );
 }
 
+// ───────────────────────── Catalog item editor row ──────────────────────────
+function ItemRow({ product, onSave, onDelete }) {
+  const cat = GHARI_CATEGORIES[product.category];
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(product.name);
+  const [size, setSize] = useState(product.size);
+  const [category, setCategory] = useState(product.category);
+  const [price, setPrice] = useState(String(product.unitPrice));
+
+  const commit = () => {
+    onSave({ ...product, name: name.trim() || product.name, size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0 });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-primary bg-primary/5 p-2.5 space-y-2">
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Item name"
+          className="w-full rounded-lg border border-border-light bg-surface px-2.5 py-1.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
+        <div className="flex gap-1.5">
+          <input value={size} onChange={e => setSize(e.target.value)} placeholder="Size e.g. 500 gm"
+            className="w-28 rounded-lg border border-border-light bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary" />
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className="flex-1 rounded-lg border border-border-light bg-surface px-2 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary">
+            {Object.values(GHARI_CATEGORIES).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+          <div className="flex items-center gap-0.5 rounded-lg border border-border-light bg-surface px-2">
+            <span className="text-xs font-black text-text-main">₹</span>
+            <input inputMode="numeric" value={price} onChange={e => setPrice(e.target.value.replace(/[^\d]/g, ''))}
+              className="w-14 bg-transparent text-right text-xs font-black text-text-main outline-none" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-1.5">
+          <button onClick={() => setEditing(false)} className="rounded-lg border border-border-light px-3 py-1.5 text-xs font-bold text-text-muted">Cancel</button>
+          <button onClick={commit} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-black text-white">Save</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border p-2 ${product.active ? 'border-border-light' : 'border-dashed border-border-light opacity-60'}`}>
+      <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
+      <button onClick={() => setEditing(true)} className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-xs font-bold text-text-main">{product.name} <span className="text-text-muted">· {product.size}</span></span>
+        <span className="text-[10px] font-semibold text-text-muted">{cat?.label} · ₹{product.unitPrice}{!product.active && ' · hidden'}</span>
+      </button>
+      <button onClick={() => setEditing(true)} title="Edit" className="flex h-7 w-7 items-center justify-center rounded-lg bg-bg-base text-text-muted hover:text-primary">
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button onClick={() => onSave({ ...product, active: !product.active })} title={product.active ? 'Showing — tap to hide' : 'Hidden — tap to show'}
+        className={`flex h-7 items-center gap-1 rounded-lg px-2 text-[10px] font-bold ${product.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-bg-base text-text-muted'}`}>
+        {product.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}{product.active ? 'Shown' : 'Hidden'}
+      </button>
+      <button onClick={() => onDelete(product)} title="Delete item" className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950">
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ───────────────────────── Add-item form ────────────────────────────────────
+function AddItemForm({ onAdd, onClose }) {
+  const [name, setName] = useState('');
+  const [size, setSize] = useState('');
+  const [category, setCategory] = useState('ghee');
+  const [price, setPrice] = useState('');
+  const add = () => {
+    if (!name.trim()) { alertError('Name needed', 'Please enter the item name.'); return; }
+    onAdd({ name: name.trim(), size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0 });
+    onClose();
+  };
+  return (
+    <div className="rounded-xl border-2 border-primary bg-primary/5 p-2.5 space-y-2">
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="New item name e.g. Ghari (Ghee Wali)" autoFocus
+        className="w-full rounded-lg border border-border-light bg-surface px-2.5 py-1.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
+      <div className="flex gap-1.5">
+        <input value={size} onChange={e => setSize(e.target.value)} placeholder="Size e.g. 1 kg"
+          className="w-28 rounded-lg border border-border-light bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary" />
+        <select value={category} onChange={e => setCategory(e.target.value)}
+          className="flex-1 rounded-lg border border-border-light bg-surface px-2 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary">
+          {Object.values(GHARI_CATEGORIES).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+        <div className="flex items-center gap-0.5 rounded-lg border border-border-light bg-surface px-2">
+          <span className="text-xs font-black text-text-main">₹</span>
+          <input inputMode="numeric" value={price} onChange={e => setPrice(e.target.value.replace(/[^\d]/g, ''))} placeholder="0"
+            className="w-14 bg-transparent text-right text-xs font-black text-text-main outline-none" />
+        </div>
+      </div>
+      <div className="flex justify-end gap-1.5">
+        <button onClick={onClose} className="rounded-lg border border-border-light px-3 py-1.5 text-xs font-bold text-text-muted">Cancel</button>
+        <button onClick={add} className="rounded-lg bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-3 py-1.5 text-xs font-black text-white">Add item</button>
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Settings view ────────────────────────────────────
 function SettingsView({ season, onSeason }) {
   const [products, setProducts] = useState(ghariService.getProducts());
   const [newSeason, setNewSeason] = useState('');
-  const saveP = (sku, patch) => {
-    const p = products.find(x => x.sku === sku); if (!p) return;
-    const next = ghariService.saveProduct({ ...p, ...patch });
-    setProducts(ps => ps.map(x => x.sku === sku ? next : x));
+  const [adding, setAdding] = useState(false);
+  const refresh = () => setProducts(ghariService.getProducts());
+
+  const save = (p) => { ghariService.saveProduct(p); refresh(); };
+  const del = (p) => {
+    if (!window.confirm(`Delete "${p.name} ${p.size}"?\n\nPast orders keep their own saved copy, so totals won't change.`)) return;
+    ghariService.deleteProduct(p.sku); refresh();
   };
+  const add = (p) => { ghariService.saveProduct(p); refresh(); };
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border-light bg-surface p-4">
@@ -365,30 +493,20 @@ function SettingsView({ season, onSeason }) {
       </div>
 
       <div className="rounded-2xl border border-border-light bg-surface p-4">
-        <h3 className="mb-1 text-sm font-black text-text-main">Prices</h3>
-        <p className="mb-3 text-[11px] text-text-muted">Each order keeps the price it was sold at, so changing a price here only affects new orders.</p>
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-sm font-black text-text-main">Items & prices</h3>
+          {!adding && <button onClick={() => setAdding(true)} className="flex items-center gap-1 rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-3 py-1.5 text-xs font-black text-white"><Plus className="h-3.5 w-3.5" /> Add item</button>}
+        </div>
+        <p className="mb-3 text-[11px] text-text-muted">Tap an item to edit its name, size, category or price. <b>Shown/Hidden</b> controls what appears on the order screen — hidden items aren't deleted. Each order keeps the price it was sold at.</p>
         <div className="space-y-2">
-          {products.map(p => {
-            const cat = GHARI_CATEGORIES[p.category];
-            return (
-              <div key={p.sku} className={`flex items-center gap-2 rounded-xl border p-2 ${p.active ? 'border-border-light' : 'border-dashed border-border-light opacity-60'}`}>
-                <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-text-main">{p.name}</span>
-                  <span className="text-[10px] font-semibold text-text-muted">{p.size} · {cat?.label}</span>
-                </span>
-                <div className="flex items-center gap-0.5 rounded-lg border border-border-light bg-bg-base px-2 py-1">
-                  <span className="text-xs font-black text-text-main">₹</span>
-                  <input inputMode="numeric" defaultValue={p.unitPrice} onBlur={(e) => saveP(p.sku, { unitPrice: Number(e.target.value.replace(/[^\d]/g, '')) || 0 })}
-                    className="w-14 bg-transparent text-right text-xs font-black text-text-main outline-none" />
-                </div>
-                <button onClick={() => saveP(p.sku, { active: !p.active })} title={p.active ? 'Active' : 'Hidden'}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg ${p.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-bg-base text-text-muted'}`}>
-                  {p.active ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                </button>
-              </div>
-            );
-          })}
+          {adding && <AddItemForm onAdd={add} onClose={() => setAdding(false)} />}
+          {products.length === 0 && !adding && (
+            <div className="rounded-xl border border-dashed border-border-light py-6 text-center">
+              <p className="text-xs font-bold text-text-muted">No items yet</p>
+              <button onClick={() => { ghariService.restoreDefaults(); refresh(); }} className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-black text-white">Restore default items</button>
+            </div>
+          )}
+          {products.map(p => <ItemRow key={p.sku} product={p} onSave={save} onDelete={del} />)}
         </div>
       </div>
 
@@ -413,6 +531,12 @@ function EditModal({ order, onClose, onSaved }) {
         <button onClick={voidIt} className="flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-4 w-4" /> Void</button>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
+        {(order.createdBy || order.updatedBy) && (
+          <div className="mb-3 rounded-xl border border-border-light bg-surface px-3 py-2 text-[11px] font-semibold text-text-muted">
+            {order.createdBy && <span>Added by <b className="text-text-main">{order.createdBy}</b>{order.createdOn ? ` · ${new Date(order.createdOn).toLocaleDateString('en-IN')}` : ''}</span>}
+            {order.updatedBy && order.updatedBy !== order.createdBy && <span className="block">Last edited by <b className="text-text-main">{order.updatedBy}</b></span>}
+          </div>
+        )}
         <OrderForm initialOrder={order} onCancel={onClose} onSaved={() => onSaved?.()} />
       </div>
     </div>
@@ -449,12 +573,12 @@ export default function GhariPage({ user }) {
     return list;
   }, [season, search, filter, tick]);
 
-  if (user?.role !== 'Admin') {
+  if (!dataService.hasModule(user, 'ghari')) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <Package className="mx-auto mb-3 h-12 w-12 text-text-muted" />
         <h2 className="text-lg font-black text-text-main">Ghari Seva</h2>
-        <p className="mt-1 text-sm text-text-muted">This module is available to Admins only.</p>
+        <p className="mt-1 text-sm text-text-muted">You don't have access to this module. Ask an Admin to grant you Ghari Seva access.</p>
       </div>
     );
   }
@@ -494,7 +618,7 @@ export default function GhariPage({ user }) {
       )}
 
       {tab === 'entry' && (
-        <OrderForm key={tick} embedded onSaved={(o, again) => flash(again ? `Saved ✓ ${o.customerName} — add next` : `Order saved ✓ ${rupee(o.total)}`)} />
+        <OrderForm key={tick} embedded onManageItems={() => setTab('settings')} onSaved={(o, again) => flash(again ? `Saved ✓ ${o.customerName} — add next` : `Order saved ✓ ${rupee(o.total)}`)} />
       )}
 
       {tab === 'orders' && (

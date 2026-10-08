@@ -500,6 +500,7 @@ export const dataService = {
       role: (u.role ?? cur.role) || 'Devotee',
       pin: (u.pin !== undefined && u.pin !== '') ? String(u.pin) : (cur.pin || ''),
       password: (u.password !== undefined && u.password !== '') ? u.password : (cur.password || ''),
+      modules: (u.modules !== undefined) ? String(u.modules || '') : (cur.modules || ''),
     };
     if (idx >= 0) DB.users[idx] = user; else DB.users.push(user);
     saveCache();
@@ -507,6 +508,7 @@ export const dataService = {
     const payload = { mobile, name: user.name, role: user.role };
     if (u.pin !== undefined && u.pin !== '') payload.pin = String(u.pin);
     if (u.password !== undefined && u.password !== '') payload.password = u.password;
+    if (u.modules !== undefined) payload.modules = String(u.modules || '');
     push('upsertUser', payload);
     return user;
   },
@@ -545,6 +547,14 @@ export const dataService = {
   // stable, human-readable identity "Name (mobile)" so the actor is unambiguous
   // even when two people share a name. Falls back to 'System' when signed out.
   currentActor: () => actorLabel(),
+
+  // Does this user (session object or Users row) have a given module grant?
+  // Admins implicitly have every module; others need it listed in `modules`.
+  hasModule: (u, key) => {
+    if (!u) return false;
+    if (u.role === 'Admin') return true;
+    return String(u.modules || '').split(/[,|]/).map(s => s.trim().toLowerCase()).includes(String(key).toLowerCase());
+  },
 
   // ---- Devotees ----
   getDevotees: () => DB.devotees,

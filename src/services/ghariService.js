@@ -83,7 +83,10 @@ function meta_() {
 function products_() {
   if (!MEM.products) {
     let p = readJSON_(PRODUCTS_KEY, null);
-    if (!p || !Array.isArray(p) || !p.length) { p = DEFAULT_PRODUCTS.map(x => ({ ...x })); writeJSON_(PRODUCTS_KEY, p); }
+    // Seed the default catalog only on the VERY first run (key absent). Once the
+    // admin has edited the catalog — even down to an empty list — we respect it
+    // and never silently re-add deleted items.
+    if (p == null || !Array.isArray(p)) { p = DEFAULT_PRODUCTS.map(x => ({ ...x })); writeJSON_(PRODUCTS_KEY, p); }
     MEM.products = p.map(normalizeProduct_);
   }
   return MEM.products;
@@ -183,6 +186,16 @@ function enqueueUpsert_(action, keyField, row) {
   box.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, payload: { row }, tries: 0, queuedAt: nowISO_() });
   setOutbox_(box);
 }
+// Queue a delete, first dropping any pending upsert/delete for the same key (no
+// point syncing a row we're about to remove). Payload is just the key.
+function enqueueDelete_(action, upsertAction, keyField, keyVal) {
+  const box = outbox_().filter(op => {
+    const k = op.payload?.row?.[keyField] ?? op.payload?.[keyField];
+    return !((op.action === action || op.action === upsertAction) && k === keyVal);
+  });
+  box.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, payload: { [keyField]: keyVal }, tries: 0, queuedAt: nowISO_() });
+  setOutbox_(box);
+}
 
 async function flush() {
   if (flushing) return;
@@ -222,8 +235,8 @@ async function syncDown() {
   // Ids that still have pending local ops → KEEP the local copy (it's newer /
   // not yet on the server). Everything else takes the server's version.
   const box = outbox_();
-  const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder').map(o => o.payload?.row?.id));
-  const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct').map(o => o.payload?.row?.sku));
+  const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder' || o.action === 'ghariDeleteOrder').map(o => o.payload?.row?.id ?? o.payload?.id));
+  const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct' || o.action === 'ghariDeleteProduct').map(o => o.payload?.row?.sku ?? o.payload?.sku));
 
   if (serverProducts.length) {
     const localBySku = {}; products_().forEach(p => { localBySku[p.sku] = p; });
@@ -378,16 +391,39 @@ export const ghariService = {
     return ghariService.saveOrder({ ...o, paymentReceived: o.total, paymentType: paymentType || o.paymentType || 'Cash' });
   },
 
-  // ---- Catalog (prices change year to year) ----
+  // ---- Catalog (add / edit prices / hide / delete) ----
+  // Create a new item (no sku) or update an existing one. A new item gets a
+  // stable generated sku and is placed at the end of the list.
   saveProduct: (p) => {
-    const prod = normalizeProduct_(p);
-    const idx = products_().findIndex(x => x.sku === prod.sku);
+    const existing = p.sku ? products_().find(x => x.sku === p.sku) : null;
+    const sku = p.sku || `ITEM_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`.toUpperCase();
+    const maxSort = products_().reduce((m, x) => Math.max(m, x.sortOrder || 0), 0);
+    const prod = normalizeProduct_({ sortOrder: existing ? existing.sortOrder : maxSort + 1, active: true, ...p, sku });
+    const idx = products_().findIndex(x => x.sku === sku);
     if (idx >= 0) MEM.products[idx] = prod; else MEM.products.push(prod);
     saveProductsLocal_();
     enqueueUpsert_('ghariUpsertProduct', 'sku', prod);
     emit_('ac-ghari-changed');
     flush();
     return prod;
+  },
+
+  // Permanently remove a catalog item. Safe for history: every past order keeps
+  // its own snapshot of the item (name/size/price), so totals never change.
+  deleteProduct: (sku) => {
+    MEM.products = products_().filter(p => p.sku !== sku);
+    saveProductsLocal_();
+    enqueueDelete_('ghariDeleteProduct', 'ghariUpsertProduct', 'sku', sku);
+    emit_('ac-ghari-changed');
+    flush();
+  },
+
+  // Re-add any missing default items (used by the "restore defaults" action when
+  // the catalog has been emptied). Existing items and their prices are untouched.
+  restoreDefaults: () => {
+    const have = new Set(products_().map(p => p.sku));
+    DEFAULT_PRODUCTS.forEach(d => { if (!have.has(d.sku)) ghariService.saveProduct({ ...d }); });
+    return ghariService.getProducts();
   },
 
   // ---- Reporting ----

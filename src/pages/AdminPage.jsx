@@ -11,7 +11,7 @@ export default function AdminPage({ user }) {
   const bundledCount = dataService.bundledDevoteeCount();
   const isAdmin = user?.role === 'Admin';
 
-  const emptyForm = { mobile: '', name: '', pin: '', password: '', role: 'Devotee' };
+  const emptyForm = { mobile: '', name: '', pin: '', password: '', role: 'Devotee', ghari: false };
   const [form, setForm] = useState(emptyForm);
   const [formErr, setFormErr] = useState('');
   const [formMsg, setFormMsg] = useState('');
@@ -33,7 +33,10 @@ export default function AdminPage({ user }) {
     // PIN required for a NEW user; optional when editing (blank = keep current).
     if (!editingMobile && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits.'); return; }
     if (pin && !/^\d{6}$/.test(pin)) { setFormErr('PIN must be 6 digits (leave blank to keep current).'); return; }
-    dataService.saveUser({ mobile, name: form.name.trim(), pin, password: form.password, role: form.role });
+    // Grant/revoke the Ghari Seva module. Admins implicitly have every module, so
+    // the explicit grant only matters for non-admins.
+    const modules = form.ghari ? 'ghari' : '';
+    dataService.saveUser({ mobile, name: form.name.trim(), pin, password: form.password, role: form.role, modules });
     setUsers([...dataService.getUsers()]);
     setForm(emptyForm); setEditingMobile(null);
     setFormMsg(`User "${form.name.trim() || mobile}" saved.`);
@@ -41,7 +44,8 @@ export default function AdminPage({ user }) {
 
   const editUser = (u) => {
     setEditingMobile(String(u.mobile));
-    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', password: '', role: u.role || 'Devotee' });
+    const hasGhari = String(u.modules || '').split(/[,|]/).map((s) => s.trim().toLowerCase()).includes('ghari');
+    setForm({ mobile: String(u.mobile), name: u.name || '', pin: '', password: '', role: u.role || 'Devotee', ghari: hasGhari });
     setFormErr(''); setFormMsg('');
   };
 
@@ -158,6 +162,18 @@ export default function AdminPage({ user }) {
                 <option value="Devotee">Devotee</option>
               </select>
             </div>
+            {/* Module grants — Admins already have everything, so only offer this
+                for non-admin users. */}
+            {form.role !== 'Admin' && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">🧩 Module Access</label>
+                <button type="button" onClick={() => setForm({ ...form, ghari: !form.ghari })}
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${form.ghari ? 'border-[#FF862A] bg-[#FF862A]/10 text-[#E56F18]' : 'border-border-light bg-bg-base text-text-muted'}`}>
+                  <span className="flex items-center gap-2">🪔 Ghari Seva</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${form.ghari ? 'bg-[#FF862A] text-white' : 'bg-slate-200 text-slate-600'}`}>{form.ghari ? 'Allowed' : 'No access'}</span>
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <button type="submit"
                 className="flex items-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
@@ -317,6 +333,9 @@ export default function AdminPage({ user }) {
                     PIN: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.pin || '—') : '••••'}</span>
                     {' • '}Password: <span className="font-mono text-text-muted">{showCreds && isAdmin ? (u.password || '—') : '••••••••'}</span>
                   </p>
+                  {u.role !== 'Admin' && String(u.modules || '').toLowerCase().includes('ghari') && (
+                    <span className="mt-1 inline-block rounded-full bg-[#FF862A]/10 px-2 py-0.5 text-[10px] font-black text-[#E56F18]">🪔 Ghari Seva</span>
+                  )}
                 </div>
                 <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
                   u.role === 'Admin' ? 'bg-red-100 text-red-700' : u.role === 'Sevak' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'

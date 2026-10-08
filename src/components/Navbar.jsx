@@ -25,6 +25,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const isDevotee = user?.role === 'Devotee';
   const isAdmin = user?.role === 'Admin';
   const isSevak = user?.role === 'Sevak';
+  // Ghari Seva is visible to Admins and to any user explicitly granted the module.
+  const canGhari = isAdmin || String(user?.modules || '').split(/[,|]/).map((s) => s.trim().toLowerCase()).includes('ghari');
   const [moreOpen, setMoreOpen] = useState(false);
 
   const longPressTimer = useRef(null);

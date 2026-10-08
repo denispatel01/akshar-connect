@@ -9,7 +9,9 @@
  */
 
 var HEADERS = {
-  Users:      ['mobile','pin','password','role','name'],
+  // `modules` = comma-separated extra module grants (e.g. "ghari") so an Admin can
+  // give a non-admin access to a specific module like Ghari Seva.
+  Users:      ['mobile','pin','password','role','name','modules'],
   Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','gradeAsOf','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
   Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
@@ -29,7 +31,7 @@ var HEADERS = {
   GhariOrders: ['id','season','customerName','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-08a';
+var SCHEMA_VERSION = '2026-10-08b';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -462,6 +464,8 @@ function handle_(p){
     if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders') });
     if(action==='ghariUpsertOrder')   return doGhariUpsert_('GhariOrders', p.row || {}, 'id');
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
+    if(action==='ghariDeleteOrder')   return doGhariDelete_('GhariOrders', p.id, 'id');
+    if(action==='ghariDeleteProduct') return doGhariDelete_('GhariProducts', p.sku, 'sku');
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
@@ -516,7 +520,7 @@ function doUpsertUser_(p){
   var sh=tab_('Users'), rn=findRow_('Users','mobile',p.mobile);
   // Merge with the existing row so a partial update (e.g. only password) does
   // not wipe the other fields.
-  var cur={ mobile:p.mobile, pin:'', password:'', role:'Devotee', name:'Satsangi Devotee' };
+  var cur={ mobile:p.mobile, pin:'', password:'', role:'Devotee', name:'Satsangi Devotee', modules:'' };
   if(rn>0){ var v=sh.getRange(rn,1,1,HEADERS.Users.length).getValues()[0];
     HEADERS.Users.forEach(function(h,i){ cur[h]=v[i]; }); }
   var row={
@@ -524,7 +528,8 @@ function doUpsertUser_(p){
     pin: (p.pin!==undefined && p.pin!=='') ? p.pin : cur.pin,
     password: (p.password!==undefined && p.password!=='') ? p.password : cur.password,
     role: p.role || cur.role || 'Devotee',
-    name: p.name || cur.name || 'Satsangi Devotee'
+    name: p.name || cur.name || 'Satsangi Devotee',
+    modules: (p.modules!==undefined) ? p.modules : (cur.modules||'')
   };
   if(rn>0) sh.getRange(rn,1,1,HEADERS.Users.length).setValues([rowFromObj_('Users',row)]);
   else appendRows_('Users',[row]);
@@ -549,6 +554,19 @@ function doGhariUpsert_(collection, row, keyField){
     var rn=findRow_(collection, keyField, row[keyField]);
     if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
     else appendRows_(collection,[row]);
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
+// Delete one Ghari row by key. Used for catalog items (products admin removes)
+// and for cleanup. Orders in the app are soft-voided, not deleted, so this is
+// not reachable from normal order flow. Missing key is a safe no-op.
+function doGhariDelete_(collection, keyVal, keyField){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(keyVal===undefined || keyVal===null || keyVal==='') return json_({ ok:false, error:'missing '+keyField });
+    var rn=findRow_(collection, keyField, keyVal);
+    if(rn>0) tab_(collection).deleteRow(rn);
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
