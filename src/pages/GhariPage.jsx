@@ -344,53 +344,64 @@ function StatTile({ label, value, sub, color = '#E56F18', icon: Icon }) {
 }
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
-  const catMax = Math.max(1, ...Object.values(r.byCategory));
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label="Revenue" value={rupee(r.revenue)} sub={`${r.orderCount} orders`} icon={Wallet} />
-        <StatTile label="Received" value={rupee(r.received)} sub={`${rupee(r.outstanding)} outstanding`} color="#0D9488" icon={Check} />
-        <StatTile label="Boxes" value={r.boxes} sub="total sold" color="#7C3AED" icon={Package} />
+        <StatTile label="Received" value={rupee(r.received)} color="#0D9488" icon={Check} />
+        <StatTile label="Outstanding" value={rupee(r.outstanding)} sub="to collect" color="#EA580C" icon={Wallet} />
         <StatTile label="Delivery" value={`${r.delivered}/${r.orderCount}`} sub={`${r.pending} pending`} color="#2563EB" icon={Truck} />
         <StatTile label="Cash" value={rupee(r.cash)} color="#16A34A" />
         <StatTile label="G-Pay" value={rupee(r.gpay)} color="#2563EB" />
         <StatTile label="Unpaid" value={rupee(r.unpaid)} color="#E11D48" />
-        <StatTile label="Outstanding" value={rupee(r.outstanding)} color="#EA580C" />
       </div>
 
+      {/* Boxes to prepare — the authoritative, UNAMBIGUOUS count: one line per
+          exact item (weight + type), never a lumped "box" total. */}
       <div className="rounded-2xl border border-border-light bg-surface p-4">
-        <h3 className="mb-3 text-sm font-black text-text-main">Revenue by category</h3>
-        <div className="space-y-2.5">
-          {Object.values(GHARI_CATEGORIES).map(c => (
-            <div key={c.key}>
-              <div className="mb-0.5 flex justify-between text-[11px] font-bold"><span style={{ color: c.color }}>{c.label}</span><span className="text-text-main">{rupee(r.byCategory[c.key])}</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-bg-base"><div className="h-full rounded-full" style={{ width: `${(r.byCategory[c.key] / catMax) * 100}%`, background: c.color }} /></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border-light bg-surface p-4">
-        <h3 className="mb-3 text-sm font-black text-text-main">By product</h3>
-        <div className="space-y-1.5">
-          {Object.values(r.bySku).filter(s => s.qty > 0).map((s, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <span className="font-bold text-text-main">{s.name} <span className="text-text-muted">{s.size}</span></span>
-              <span className="font-black text-text-muted">{s.qty} × · {rupee(s.amount)}</span>
-            </div>
-          ))}
+        <h3 className="mb-1 text-sm font-black text-text-main">Boxes to prepare</h3>
+        <p className="mb-3 text-[11px] text-text-muted">Exact count of each item — by weight and type.</p>
+        <div className="space-y-2">
+          {Object.values(GHARI_CATEGORIES).map(c => {
+            const items = ghariService.getProducts().filter(p => p.category === c.key).map(p => ({ p, d: r.bySku[p.sku] })).filter(x => x.d && x.d.qty > 0);
+            if (!items.length) return null;
+            return (
+              <div key={c.key}>
+                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-black" style={{ color: c.color }}>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />{c.label} · {rupee(r.byCategory[c.key])}
+                </div>
+                <div className="space-y-1 pl-4">
+                  {items.map(({ p, d }) => (
+                    <div key={p.sku} className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{p.size}</span></span>
+                      <span className="font-black text-text-main"><span className="text-base">{d.qty}</span> <span className="text-[10px] font-bold text-text-muted">boxes · {rupee(d.amount)}</span></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
-          <h3 className="mb-3 text-sm font-black text-text-main">By karyakarta</h3>
-          <div className="space-y-1.5">
+          <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
+          <p className="mb-3 text-[11px] text-text-muted">What each karyakarta collected — with the exact items.</p>
+          <div className="space-y-2.5">
             {kkList.map(([name, d]) => (
-              <div key={name} className="flex items-center justify-between text-xs">
-                <span className="truncate font-bold text-text-main">{name}</span>
-                <span className="shrink-0 font-black text-text-muted">{d.boxes} box · {rupee(d.amount)} <span className={d.received >= d.amount ? 'text-emerald-600' : 'text-rose-600'}>({rupee(d.received)} rcvd)</span></span>
+              <div key={name} className="rounded-xl border border-border-light bg-bg-base p-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="truncate text-xs font-black text-text-main">{name}</span>
+                  <span className="shrink-0 text-xs font-black text-text-main">{rupee(d.amount)} <span className={`text-[10px] font-bold ${d.received >= d.amount ? 'text-emerald-600' : 'text-rose-600'}`}>({rupee(d.received)} rcvd)</span></span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {Object.entries(d.skus).map(([sku, qty]) => {
+                    const meta = r.bySku[sku]; if (!meta) return null;
+                    return <span key={sku} className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-text-muted">{meta.name.replace('Ghari ', '').replace(/[()]/g, '')} {meta.size} ×{qty}</span>;
+                  })}
+                </div>
               </div>
             ))}
           </div>

@@ -487,9 +487,10 @@ export const ghariService = {
         r.bySku[it.sku].qty += it.qty; r.bySku[it.sku].amount += it.qty * it.unitPrice;
       });
       const kk = o.karyakarta || '—';
-      if (!r.byKaryakarta[kk]) r.byKaryakarta[kk] = { orders: 0, boxes: 0, amount: 0, received: 0 };
-      r.byKaryakarta[kk].orders++; r.byKaryakarta[kk].boxes += t.boxes;
-      r.byKaryakarta[kk].amount += t.total; r.byKaryakarta[kk].received += num_(o.paymentReceived);
+      if (!r.byKaryakarta[kk]) r.byKaryakarta[kk] = { orders: 0, boxes: 0, amount: 0, received: 0, skus: {} };
+      const kr = r.byKaryakarta[kk];
+      kr.orders++; kr.boxes += t.boxes; kr.amount += t.total; kr.received += num_(o.paymentReceived);
+      o.items.forEach(it => { kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty; });
     });
     return r;
   },
