@@ -281,24 +281,84 @@ async function bootstrap() {
   }
 }
 
+// ---- Auth matchers (cache-based, format-tolerant) --------------------------
+// Compare mobiles by their last 10 digits so stored country codes / spaces / a
+// numeric-vs-string mismatch never block a valid login.
+function normMobile_(m) { return String(m || '').replace(/\D/g, '').slice(-10); }
+function matchUser_(mobile, pin) {
+  const nm = normMobile_(mobile), p = String(pin);
+  return DB.users.find(u => normMobile_(u.mobile) === nm && String(u.pin) === p) || null;
+}
+// Parse a stored DOB into zero-padded {d, mo, y} whether it's YYYY-MM-DD or
+// DD-MM-YYYY (or a 2-digit year), so DOB-PIN logins survive format drift.
+function parseDobParts_(dob) {
+  const s = String(dob || '').trim();
+  let m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s);
+  if (m) return { y: m[1], mo: m[2].padStart(2, '0'), d: m[3].padStart(2, '0') };
+  m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/.exec(s);
+  if (m) { let y = m[3]; if (y.length === 2) y = (+y > 30 ? '19' : '20') + y; return { y, mo: m[2].padStart(2, '0'), d: m[1].padStart(2, '0') }; }
+  return null;
+}
+function matchDevoteeDob_(mobile, pin) {
+  const nm = normMobile_(mobile);
+  const dev = DB.devotees.find(d => normMobile_(d.mobile) === nm);
+  if (!dev || !dev.dob) return null;
+  const p = parseDobParts_(dev.dob);
+  if (!p) return null;
+  const entered = String(pin).replace(/\D/g, '');
+  if (entered === `${p.d}${p.mo}${p.y}` || entered === `${p.d}${p.mo}${p.y.slice(2)}`) return dev;
+  return null;
+}
+// Is this mobile already present in the cached data (as a staff user or a
+// devotee)? If so, a failed login is a wrong PIN — no need to hit the network.
+function mobileKnown_(mobile) {
+  const nm = normMobile_(mobile);
+  return DB.users.some(u => normMobile_(u.mobile) === nm) || DB.devotees.some(d => normMobile_(d.mobile) === nm);
+}
+// Build a devotee session object from a matched devotee record.
+function devSession_(devotee) {
+  if (!devotee) return null;
+  return {
+    mobile: String(devotee.mobile || ''), name: devotee.name || 'Devotee', role: 'Devotee',
+    pin: '', password: '', devoteeId: devotee.id, familyId: devotee.familyId || devotee.id,
+  };
+}
+
 export const dataService = {
   bootstrap,
   hydrateSync,
   isLive: () => hasBackend(),
 
   // ---- Auth ----
+  // Unified login: cache-first (instant, no network) for BOTH a staff PIN and a
+  // devotee DOB-PIN. Only if nothing matches in cache do we refresh once from the
+  // backend and retry — so an existing devotee logs in instantly, and a newly
+  // added / stale-cache devotee still works after one refresh. Fixes slow logins
+  // and "can't log in" for recently added devotees.
+  login: async (mobile, pin) => {
+    const tryCache = () => matchUser_(mobile, pin) || devSession_(matchDevoteeDob_(mobile, pin));
+    let user = tryCache();
+    // Only hit the network when the mobile is UNKNOWN in cache (a possibly new /
+    // stale-cache account). A known mobile with a bad PIN is simply wrong — fail
+    // instantly, no slow network round-trip.
+    if (!user && !mobileKnown_(mobile) && hasBackend()) {
+      try { const r = await api('getUsers', {}); if (r && Array.isArray(r.users)) DB.users = r.users; } catch (e) { /* offline */ }
+      user = tryCache();
+      if (!user) { try { await bootstrap(); } catch (e) { /* offline */ } user = tryCache(); }
+      saveCache();
+    }
+    if (!user) throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    logActivity_('login', '', `logged in (${deviceLabel_()})`);
+    return { success: true, user };
+  },
+
+  // Kept for backward compatibility — both now delegate to the unified matchers.
   loginWithPin: async (mobile, pin) => {
-    const match = () => DB.users.find(u => String(u.mobile) === String(mobile) && String(u.pin) === String(pin));
-    // Fast path: match against the cached users first — instant login, no network.
-    let user = match();
-    // Only if not found do we refresh from the live Users sheet and retry, so a
-    // just-added/edited account still works without slowing down every login (#116).
+    let user = matchUser_(mobile, pin);
     if (!user && hasBackend()) {
-      try {
-        const r = await api('getUsers', {});
-        if (r && Array.isArray(r.users)) { DB.users = r.users; saveCache(); }
-      } catch (e) { /* offline — keep cached users */ }
-      user = match();
+      try { const r = await api('getUsers', {}); if (r && Array.isArray(r.users)) { DB.users = r.users; saveCache(); } } catch (e) { /* offline */ }
+      user = matchUser_(mobile, pin);
     }
     if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); logActivity_('login', '', `logged in (${deviceLabel_()})`); return { success: true, user }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
@@ -307,27 +367,17 @@ export const dataService = {
   // Devotee self-login: mobile + DOB. Password is the date of birth in
   // dd-MM-yyyy (e.g. 01121995). A 2-digit year (ddMMyy) is still accepted.
   loginWithDob: async (mobile, dob) => {
-    // Find matching devotee record
-    const devotee = DB.devotees.find(d => String(d.mobile) === String(mobile));
+    let devotee = DB.devotees.find(d => normMobile_(d.mobile) === normMobile_(mobile));
+    // Stale cache / newly added devotee: refresh once from the backend and retry.
+    if (!devotee && hasBackend()) {
+      try { await bootstrap(); saveCache(); } catch (e) { /* offline */ }
+      devotee = DB.devotees.find(d => normMobile_(d.mobile) === normMobile_(mobile));
+    }
     if (!devotee) throw new Error('No devotee found with this mobile number.');
     if (!devotee.dob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
-    // DOB stored as YYYY-MM-DD → build the accepted ddMMyyyy / ddMMyy forms.
-    const [y, m, d] = devotee.dob.split('-');
-    const entered = String(dob).replace(/\D/g, '');
-    const expectedFull  = `${d}${m}${y}`;          // ddMMyyyy
-    const expectedShort = `${d}${m}${y.slice(2)}`; // ddMMyy (legacy)
-    if (entered !== expectedFull && entered !== expectedShort)
+    if (!matchDevoteeDob_(mobile, dob))
       throw new Error('Incorrect date of birth. Use format DD-MM-YYYY (e.g. 01-12-1995).');
-    // Build a session user object for the devotee
-    const sessionUser = {
-      mobile: String(mobile),
-      name: devotee.name || 'Devotee',
-      role: 'Devotee',
-      pin: '',
-      password: '',
-      devoteeId: devotee.id,   // anchor to their own record
-      familyId: devotee.familyId || devotee.id,
-    };
+    const sessionUser = devSession_(devotee);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
     logActivity_('login', '', `logged in (${deviceLabel_()})`);
     return { success: true, user: sessionUser };

@@ -89,6 +89,12 @@
   border-radius: 1rem;
   transition: all 0.2s ease;
 }
+/* Mask PIN digits instantly as dots — avoids the mobile "reveal last character"
+   animation that briefly shows the typed digit on type=password fields. */
+.pin-mask {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
 
 .pin-digit:focus {
   outline: none;

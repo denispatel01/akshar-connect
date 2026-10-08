@@ -68,7 +68,7 @@ export default function PinDigitInput({
         <input
           key={index}
           ref={(el) => (inputRefs.current[index] = el)}
-          type={masked ? 'password' : 'text'}
+          type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={length}
@@ -76,7 +76,7 @@ export default function PinDigitInput({
           disabled={disabled}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
-          className="pin-digit min-w-0 flex-1 sm:flex-none"
+          className={`pin-digit min-w-0 flex-1 sm:flex-none ${masked ? 'pin-mask' : ''}`}
           aria-label={`Digit ${index + 1}`}
         />
       ))}

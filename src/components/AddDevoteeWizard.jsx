@@ -78,6 +78,9 @@ function HeadPicker({ heads, value, onChange }) {
 // free typing AND picking from the list.
 // Capitalize the first letter of every word (#89/#110).
 const capWordsFn = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
+// Keep the last 10 digits of a phone value, so pasting "+91 83472 29948" cleans
+// to "8347229948" (drops country code / spaces automatically).
+const last10 = (s) => { const d = String(s).replace(/\D/g, ''); return d.length > 10 ? d.slice(-10) : d; };
 
 // Date of birth input (#127): type it as DD-MM-YYYY (free text) OR pick from the
 // calendar. Stores ISO (yyyy-mm-dd) internally. The 📅 button opens the native picker.
@@ -417,7 +420,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label>Middle Name</Label><input value={form.middleName} onChange={setCap('middleName')} placeholder="Enter middle name" className={inputCls} /></div>
                 <div><Label>Last Name</Label><input value={form.lastName} onChange={setCap('lastName')} placeholder="Enter surname" className={inputCls} /></div>
                 <div><Label>Date of Birth</Label><DobField value={form.dob} onChange={(v) => set({ dob: v })} /></div>
-                <div><Label req={form.gender !== 'Female'}>Mobile Number {form.gender === 'Female' && <span className="font-semibold text-text-muted">(optional)</span>}</Label><input required={form.gender !== 'Female'} maxLength={10} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className={inputCls} /></div>
+                <div><Label req={form.gender !== 'Female'}>Mobile Number {form.gender === 'Female' && <span className="font-semibold text-text-muted">(optional)</span>}</Label><input required={form.gender !== 'Female'} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: last10(e.target.value) })} placeholder="10-digit mobile number" className={inputCls} /></div>
                 <div><Label>Gender</Label>
                   <select value={form.gender} onChange={(e) => set({ gender: e.target.value })} className={inputCls}>
                     <option value="">— Select —</option>{GENDERS.map((o) => <option key={o}>{o}</option>)}</select></div>
@@ -468,7 +471,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                         <input type="checkbox" checked={waSame} onChange={(e) => { setWaSame(e.target.checked); if (e.target.checked) set({ whatsapp: form.mobile }); }} className="rounded" /> Same as mobile
                       </label>
                     </div>
-                    <input maxLength={10} inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: e.target.value.replace(/\D/g, '') })} placeholder="10-digit WhatsApp number" className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
+                    <input inputMode="numeric" value={form.whatsapp} disabled={waSame} onChange={(e) => set({ whatsapp: last10(e.target.value) })} placeholder="10-digit WhatsApp number" className={inputCls + (waSame ? ' bg-bg-base opacity-80' : '')} />
                   </div>
                   <div><Label>📧 Email</Label><input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@example.com" className={inputCls} /></div>
                   <div><Label>🗺️ Area</Label>
@@ -554,7 +557,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label>Follow-up Karyakarta</Label>
                   <Combo options={karyakartaOptions} value={form.followupKaryakarta} placeholder="Select or type"
                     onChange={(name) => set({ followupKaryakarta: name, followupKaryakartaMobile: karyakartaMobileFor(name) || (karyakartaOptions.includes(name) ? '' : form.followupKaryakartaMobile) })} /></div>
-                <div><Label>Karyakarta Mobile</Label><input maxLength={10} inputMode="numeric" value={form.followupKaryakartaMobile} onChange={(e) => set({ followupKaryakartaMobile: e.target.value.replace(/\D/g, '') })} placeholder="Auto-fills on select" className={inputCls} /></div>
+                <div><Label>Karyakarta Mobile</Label><input inputMode="numeric" value={form.followupKaryakartaMobile} onChange={(e) => set({ followupKaryakartaMobile: last10(e.target.value) })} placeholder="Auto-fills on select" className={inputCls} /></div>
                 <div><Label>Reference / Introduced By</Label>
                   <Combo options={referenceOptions} value={form.reference} onChange={(v) => set({ reference: v })} placeholder="Select or type" /></div>
                 <div><Label>🏷️ Devotee Type</Label>

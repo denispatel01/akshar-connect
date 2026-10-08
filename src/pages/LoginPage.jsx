@@ -35,28 +35,27 @@ export default function LoginPage({ onLoginSuccess }) {
   const isPinValid = pin.length === 6;
 
   const handleMobileChange = (e) => {
-    setMobile(e.target.value.replace(/\D/g, ''));
+    // Strip everything non-numeric and keep the last 10 digits, so pasting
+    // "+91 83472 29948" auto-cleans to "8347229948" (drops country code/spaces).
+    let digits = e.target.value.replace(/\D/g, '');
+    if (digits.length > 10) digits = digits.slice(-10);
+    setMobile(digits);
     setErrorMessage('');
     setInfoMessage('');
   };
 
   // One login for everyone: Mobile + 6-digit PIN. Staff use their set PIN;
   // devotees use their date of birth as DDMMYY (e.g. 01-12-95 → 011295).
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
+  const submitLogin = async (pinValue = pin) => {
     setErrorMessage('');
     if (!isMobileValid) return setErrorMessage('Enter a valid 10-digit mobile number');
-    if (!isPinValid) return setErrorMessage('Enter your 6-digit PIN');
-
+    if (pinValue.length !== 6) return setErrorMessage('Enter your 6-digit PIN');
+    if (loading) return;
     setLoading(true);
     try {
-      let res;
-      try {
-        res = await dataService.loginWithPin(mobile, pin);
-      } catch (_) {
-        // Fall back to devotee login where the PIN is their DOB (DDMMYY).
-        res = await dataService.loginWithDob(mobile, pin);
-      }
+      // Unified login: cache-first staff-PIN or devotee DOB-PIN, single network
+      // fallback for newly added / stale-cache accounts.
+      const res = await dataService.login(mobile, pinValue);
       onLoginSuccess(res.user);
     } catch (err) {
       setErrorMessage('Invalid mobile number or PIN.');
@@ -64,6 +63,7 @@ export default function LoginPage({ onLoginSuccess }) {
       setLoading(false);
     }
   };
+  const handleLoginSubmit = (e) => { e.preventDefault(); submitLogin(); };
 
   const handleForgotOrSetup = async () => {
     if (!isMobileValid) return setErrorMessage('Enter your mobile number first');
@@ -190,7 +190,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     <div className="flex items-center gap-3">
                       <Phone className="h-5 w-5 text-text-muted" />
                       <span className="text-sm font-bold text-text-main">+91</span>
-                      <input type="text" inputMode="numeric" maxLength={10} value={mobile} onChange={handleMobileChange}
+                      <input type="text" inputMode="numeric" value={mobile} onChange={handleMobileChange}
                         placeholder="10-digit mobile number"
                         className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
                     </div>
@@ -199,7 +199,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   {/* PIN */}
                   <div>
                     <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
-                    <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={() => {}} masked={true} />
+                    <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={(val) => submitLogin(val)} masked={true} />
                     <p className="mt-2 px-1 text-[11px] text-text-muted">Devotees: your PIN is your date of birth as <span className="font-bold">DDMMYY</span> — e.g. 01-12-95 → <span className="font-bold">011295</span>.</p>
                   </div>
 
