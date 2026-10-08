@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -430,6 +430,32 @@ function ReportView({ season }) {
         </div>
       </div>
 
+      {/* Stock reconciliation — bought (purchases) vs sold (orders) vs remaining. */}
+      {r.purchasedBoxes > 0 && (
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h3 className="text-sm font-black text-text-main">Stock — bought vs sold</h3>
+            <span className="text-[11px] font-bold text-text-muted">{r.purchasedBoxes} bought · {r.boxes} sold</span>
+          </div>
+          <div className="space-y-1">
+            {ghariService.getProducts().map(p => {
+              const bought = r.purchased[p.sku] || 0; const sold = (r.bySku[p.sku]?.qty) || 0;
+              if (!bought && !sold) return null;
+              const left = bought - sold;
+              return (
+                <div key={p.sku} className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="text-text-muted">{p.size}</span></span>
+                  <span className="shrink-0 font-black text-text-muted">
+                    <span className="text-emerald-600">{bought} in</span> · <span className="text-rose-600">{sold} out</span> · <span className={left < 0 ? 'text-red-600' : 'text-text-main'}>{left} left</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {r.purchaseCost > 0 && <div className="mt-2 border-t border-border-light pt-2 text-[11px] font-bold text-text-muted">Purchase cost {rupee(r.purchaseCost)} · Revenue {rupee(r.revenue)} · <span className={r.revenue - r.purchaseCost >= 0 ? 'text-emerald-600' : 'text-rose-600'}>Margin {rupee(r.revenue - r.purchaseCost)}</span></div>}
+        </div>
+      )}
+
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
@@ -629,6 +655,217 @@ function EditModal({ order, onClose, onSaved }) {
   );
 }
 
+// ───────────────────────── Purchases (procurement) ──────────────────────────
+// Downscale a picked image to a reasonable JPEG data URI before upload/storage.
+function downscaleImage_(file, maxDim = 1400, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width >= height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height > width && height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        try { resolve(canvas.toDataURL('image/jpeg', quality)); } catch (e) { reject(e); }
+      };
+      img.onerror = reject; img.src = reader.result;
+    };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
+const toLocalInput_ = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d.getTime())) return ''; const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const fromLocalInput_ = (v) => { if (!v) return new Date().toISOString(); const d = new Date(v); return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString(); };
+const fmtDate_ = (iso) => { const d = new Date(iso); if (isNaN(d.getTime())) return ''; return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+
+// Simple colored quantity card for buying (no selling price shown).
+function BuyCard({ product, qty, onChange }) {
+  const cat = GHARI_CATEGORIES[product.category]; const color = cat?.color || '#EA580C'; const active = qty > 0;
+  return (
+    <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
+      style={{ background: active ? tint(color, 0.22) : tint(color, 0.11), borderColor: active ? color : tint(color, 0.5) }}>
+      <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
+      <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
+        <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name.replace('Ghari ', '').replace(/[()]/g, '')}</span>
+        <span className="mt-0.5 block"><span className="rounded-md bg-bg-base px-1.5 py-0.5 text-[10px] font-bold text-text-muted">{product.size}</span></span>
+      </button>
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty} className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95"><Minus className="h-4 w-4" /></button>
+        <span className={`min-w-8 text-center text-lg font-black ${active ? 'text-text-main' : 'text-text-muted'}`}>{qty}</span>
+        <button onClick={() => onChange(qty + 1)} className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
+      </div>
+    </div>
+  );
+}
+
+function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
+  const products = useMemo(() => { const a = ghariService.getActiveProducts(); return a.length ? a : ghariService.getProducts(); }, []);
+  const bySku = useMemo(() => Object.fromEntries(products.map(p => [p.sku, p])), [products]);
+  const isEdit = !!initialPurchase;
+  const [cart, setCart] = useState(() => { const c = {}; (initialPurchase?.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + it.qty; }); return c; });
+  const [supplier, setSupplier] = useState(initialPurchase?.supplier || '');
+  const [date, setDate] = useState(toLocalInput_(initialPurchase?.date) || toLocalInput_(new Date().toISOString()));
+  const [amount, setAmount] = useState(initialPurchase?.amount ? String(initialPurchase.amount) : '');
+  const [remarks, setRemarks] = useState(initialPurchase?.remarks || '');
+  const [challan, setChallan] = useState(initialPurchase?.challan || '');
+  const [busy, setBusy] = useState(false);
+  const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => { const p = bySku[sku]; return p ? { sku, name: p.name, size: p.size, category: p.category, qty } : null; }).filter(Boolean), [cart, bySku]);
+  const boxes = items.reduce((s, i) => s + i.qty, 0);
+  const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
+
+  const pickChallan = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { setChallan(await downscaleImage_(f)); } catch { alertError('Image error', 'Could not read that image. Try another.'); }
+    e.target.value = '';
+  };
+
+  const save = async () => {
+    if (!items.length) { alertError('Add items', 'Add at least one item you bought.'); return; }
+    if (!supplier.trim()) { alertError('Supplier needed', 'Enter the person/shop you bought from.'); return; }
+    setBusy(true);
+    try {
+      const pu = await ghariService.savePurchase({ id: initialPurchase?.id, season: initialPurchase?.season, date: fromLocalInput_(date), supplier: supplier.trim(), items, amount: Number(String(amount).replace(/[^\d]/g, '')) || 0, challan, remarks: remarks.trim(), status: initialPurchase?.status || 'active' });
+      onSaved?.(pu);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Bought from (supplier)</label>
+          <DevoteePicker value={supplier} icon={User} placeholder="Person / shop name"
+            onText={(t) => setSupplier(t)} onPick={(d) => setSupplier(d ? d.name : '')} />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Date &amp; time</label>
+          <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5 focus-within:border-primary">
+            <Calendar className="h-4 w-4 shrink-0 text-text-muted" />
+            <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-transparent text-sm font-semibold text-text-main outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-text-muted">Items bought — tap to add</label>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          {products.map(p => <BuyCard key={p.sku} product={p} qty={cart[p.sku] || 0} onChange={q => setQty(p.sku, q)} />)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Total cost (optional)</label>
+          <div className="flex items-center gap-1 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+            <span className="text-sm font-black text-text-main">₹</span>
+            <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ''))} placeholder="0" className="w-full bg-transparent text-sm font-black text-text-main outline-none" />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Challan / bill photo</label>
+          {challan ? (
+            <div className="relative overflow-hidden rounded-2xl border border-border-light">
+              <img src={challan} alt="challan" className="max-h-44 w-full object-contain bg-bg-base" />
+              <button onClick={() => setChallan('')} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"><X className="h-4 w-4" /></button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-light bg-surface py-4 text-sm font-bold text-text-muted">
+              <Camera className="h-5 w-5" /> Upload / take photo
+              <input type="file" accept="image/*" capture="environment" onChange={pickChallan} className="hidden" />
+            </label>
+          )}
+        </div>
+      </div>
+
+      <input value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Remarks (optional)"
+        className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
+
+      <div className="sticky bottom-0 z-20 flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur">
+        <div className="pl-1">
+          <div className="text-[10px] font-bold uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'} bought</div>
+          <div className="text-xl font-black leading-none text-text-main">{amount ? rupee(amount) : '—'}</div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {onDelete && <button onClick={onDelete} title="Delete purchase" className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:border-rose-900"><Trash2 className="h-4 w-4" /></button>}
+          {onCancel && <button onClick={onCancel} className="rounded-xl border border-border-light px-3 py-2.5 text-sm font-bold text-text-muted">Cancel</button>}
+          <button onClick={save} disabled={busy} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-60">{busy ? 'Saving…' : (isEdit ? 'Save' : 'Save purchase')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PurchaseRow({ purchase, onOpen }) {
+  const summary = purchase.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
+  return (
+    <button onClick={() => onOpen(purchase)} className="flex w-full items-center gap-3 border-b border-border-light px-3 py-3 text-left last:border-0 hover:bg-bg-base">
+      {purchase.challan
+        ? <img src={purchase.challan} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+        : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-bg-base text-text-muted"><ShoppingCart className="h-5 w-5" /></span>}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-extrabold text-text-main">{purchase.supplier || '(supplier)'}</div>
+        <div className="truncate text-[11px] text-text-muted">{summary}</div>
+        <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {purchase.boxes} box{purchase.boxes === 1 ? '' : 'es'}</div>
+      </div>
+      {purchase.amount > 0 && <div className="shrink-0 text-sm font-black text-text-main">{rupee(purchase.amount)}</div>}
+    </button>
+  );
+}
+
+function PurchaseEditModal({ purchase, onClose, onSaved }) {
+  const del = purchase ? () => {
+    if (!window.confirm(`Delete this purchase from ${purchase.supplier || 'this supplier'}?`)) return;
+    ghariService.voidPurchase(purchase.id); onSaved?.();
+  } : null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
+      <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
+        <span className="text-sm font-black text-text-main">{purchase ? 'Edit purchase' : 'New purchase'}</span>
+        <span className="w-12" />
+      </div>
+      <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+        <PurchaseForm initialPurchase={purchase} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function PurchasesView({ season }) {
+  const [tick, setTick] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  useEffect(() => { const h = () => setTick(t => t + 1); window.addEventListener('ac-ghari-changed', h); window.addEventListener('ac-ghari-synced', h); return () => { window.removeEventListener('ac-ghari-changed', h); window.removeEventListener('ac-ghari-synced', h); }; }, []);
+  const list = useMemo(() => ghariService.getPurchases(season), [season, tick]);
+  const totalBoxes = list.reduce((s, p) => s + p.boxes, 0);
+  const totalCost = list.reduce((s, p) => s + Number(p.amount || 0), 0);
+  return (
+    <div>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Purchases</div><div className="text-xl font-black text-text-main">{list.length}</div></div>
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Boxes bought</div><div className="text-xl font-black text-text-main">{totalBoxes}</div></div>
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
+      </div>
+      <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>
+      {list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
+          <ShoppingCart className="mx-auto mb-2 h-10 w-10 text-text-muted" />
+          <p className="text-sm font-bold text-text-muted">No purchases recorded for {season}</p>
+          <p className="mt-1 text-[11px] text-text-muted">Record boxes you bought, the supplier, and the challan photo.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+          {list.map(p => <PurchaseRow key={p.id} purchase={p} onOpen={setEditing} />)}
+        </div>
+      )}
+      {adding && <PurchaseEditModal onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setTick(t => t + 1); }} />}
+      {editing && <PurchaseEditModal purchase={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); }} />}
+    </div>
+  );
+}
+
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
   const [tab, setTab] = useState('entry');
@@ -672,8 +909,9 @@ export default function GhariPage({ user }) {
   }
 
   const TABS = [
-    { id: 'entry', label: 'New Order', icon: Plus },
+    { id: 'entry', label: 'Sell', icon: Plus },
     { id: 'orders', label: 'Orders', icon: Package },
+    { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
@@ -737,6 +975,7 @@ export default function GhariPage({ user }) {
         </div>
       )}
 
+      {tab === 'purchases' && <PurchasesView key={tick} season={season} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
       {tab === 'settings' && <SettingsView season={season} onSeason={setSeason} />}
 

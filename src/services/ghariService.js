@@ -26,6 +26,7 @@ import { dataService, backendApi, backendOnline } from './dataService';
 // ── Storage keys ────────────────────────────────────────────────────────────
 const ORDERS_KEY   = 'ac_ghari_orders_v1';
 const PRODUCTS_KEY  = 'ac_ghari_products_v1';
+const PURCHASES_KEY = 'ac_ghari_purchases_v1';
 const OUTBOX_KEY    = 'ac_ghari_outbox_v1';
 const META_KEY      = 'ac_ghari_meta_v1';
 
@@ -65,7 +66,7 @@ function writeJSON_(key, val) {
 }
 
 // ── In-memory cache (hydrated synchronously on first use) ────────────────────
-let MEM = { orders: null, products: null, meta: null };
+let MEM = { orders: null, products: null, purchases: null, meta: null };
 let flushing = false;
 let inited = false;
 
@@ -97,6 +98,11 @@ function orders_() {
   if (!MEM.orders) MEM.orders = (readJSON_(ORDERS_KEY, []) || []).map(normalizeOrder_);
   return MEM.orders;
 }
+function purchases_() {
+  if (!MEM.purchases) MEM.purchases = (readJSON_(PURCHASES_KEY, []) || []).map(normalizePurchase_);
+  return MEM.purchases;
+}
+function savePurchasesLocal_() { writeJSON_(PURCHASES_KEY, MEM.purchases); }
 function outbox_() { return readJSON_(OUTBOX_KEY, []) || []; }
 function setOutbox_(arr) { writeJSON_(OUTBOX_KEY, arr); }
 
@@ -143,6 +149,40 @@ function normalizeOrder_(o) {
     remarks: String(o.remarks || '').trim(),
     createdBy: String(o.createdBy || ''), createdOn: String(o.createdOn || ''),
     updatedBy: String(o.updatedBy || ''), updatedOn: String(o.updatedOn || ''),
+  };
+}
+
+function normalizePurchase_(pu) {
+  let items = pu.items;
+  if (!items) { try { items = JSON.parse(pu.itemsJson || '[]'); } catch { items = []; } }
+  items = (items || []).map(it => ({
+    sku: String(it.sku || ''), name: String(it.name || ''), size: String(it.size || ''),
+    category: it.category || 'ghee', qty: num_(it.qty),
+  })).filter(it => it.qty > 0);
+  const boxes = items.reduce((s, it) => s + it.qty, 0);
+  return {
+    id: String(pu.id || ''),
+    season: String(pu.season || defaultSeason_()),
+    date: String(pu.date || ''),
+    supplier: String(pu.supplier || '').trim(),
+    items, boxes,
+    amount: pu.amount === '' || pu.amount == null ? 0 : num_(pu.amount),
+    challan: String(pu.challan || ''),
+    remarks: String(pu.remarks || '').trim(),
+    status: (String(pu.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
+    createdBy: String(pu.createdBy || ''), createdOn: String(pu.createdOn || ''),
+    updatedBy: String(pu.updatedBy || ''), updatedOn: String(pu.updatedOn || ''),
+  };
+}
+function toBackendRowPurchase_(pu) {
+  return {
+    id: pu.id, season: pu.season, date: pu.date, supplier: pu.supplier,
+    itemsJson: JSON.stringify(pu.items || []),
+    itemsSummary: (pu.items || []).map(i => `${i.qty}× ${i.name} ${i.size}`).join(', '),
+    boxes: (pu.items || []).reduce((s, i) => s + num_(i.qty), 0),
+    amount: num_(pu.amount), challan: pu.challan || '', remarks: pu.remarks || '',
+    status: pu.status || 'active',
+    createdBy: pu.createdBy, createdOn: pu.createdOn, updatedBy: pu.updatedBy, updatedOn: pu.updatedOn,
   };
 }
 
@@ -240,12 +280,14 @@ async function syncDown() {
   try { res = await backendApi('ghariBootstrap', {}); } catch (e) { return { ok: false, error: e.message }; }
   const serverProducts = (res.products || []).map(normalizeProduct_);
   const serverOrders = (res.orders || []).map(normalizeOrder_);
+  const serverPurchases = (res.purchases || []).map(normalizePurchase_);
 
   // Ids that still have pending local ops → KEEP the local copy (it's newer /
   // not yet on the server). Everything else takes the server's version.
   const box = outbox_();
   const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder' || o.action === 'ghariDeleteOrder').map(o => o.payload?.row?.id ?? o.payload?.id));
   const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct' || o.action === 'ghariDeleteProduct').map(o => o.payload?.row?.sku ?? o.payload?.sku));
+  const pendingPurchaseIds = new Set(box.filter(o => o.action === 'ghariUpsertPurchase' || o.action === 'ghariDeletePurchase').map(o => o.payload?.row?.id ?? o.payload?.id));
 
   if (serverProducts.length) {
     const localBySku = {}; products_().forEach(p => { localBySku[p.sku] = p; });
@@ -258,6 +300,11 @@ async function syncDown() {
   pendingOrderIds.forEach(id => { if (localById[id]) mergedOrders.push(localById[id]); });
   MEM.orders = mergedOrders.map(normalizeOrder_); saveOrdersLocal_();
 
+  const localPurchaseById = {}; purchases_().forEach(p => { localPurchaseById[p.id] = p; });
+  const mergedPurchases = serverPurchases.filter(p => !pendingPurchaseIds.has(p.id));
+  pendingPurchaseIds.forEach(id => { if (localPurchaseById[id]) mergedPurchases.push(localPurchaseById[id]); });
+  MEM.purchases = mergedPurchases.map(normalizePurchase_); savePurchasesLocal_();
+
   MEM.meta = { ...meta_(), lastSyncDown: nowISO_() }; saveMetaLocal_();
   emit_('ac-ghari-synced', { pending: outbox_().length, refreshed: true });
   return { ok: true };
@@ -267,7 +314,7 @@ async function syncDown() {
 function init() {
   if (inited) return;
   inited = true;
-  products_(); orders_(); meta_();            // hydrate synchronously
+  products_(); orders_(); purchases_(); meta_();   // hydrate synchronously
   try {
     window.addEventListener('online', () => { flush().then(syncDown); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
@@ -314,6 +361,7 @@ export const ghariService = {
   setSeason: (season) => { MEM.meta = { ...meta_(), season: String(season) }; saveMetaLocal_(); emit_('ac-ghari-changed'); return MEM.meta.season; },
   getSeasons: () => {
     const set = new Set(orders_().map(o => o.season).filter(Boolean));
+    purchases_().forEach(p => { if (p.season) set.add(p.season); });
     set.add(meta_().season);
     return [...set].sort((a, b) => Number(b) - Number(a));
   },
@@ -423,6 +471,55 @@ export const ghariService = {
     return ghariService.saveOrder({ ...o, paymentReceived: o.total, paymentType: paymentType || o.paymentType || 'Cash' });
   },
 
+  // ---- Purchases (procurement / the "buy" side) ----
+  getPurchases: (season, { includeVoid = false } = {}) => {
+    const s = season || meta_().season;
+    return purchases_()
+      .filter(p => p.season === s && (includeVoid || p.status !== 'void'))
+      .sort((a, b) => String(b.date || b.createdOn).localeCompare(String(a.date || a.createdOn)));
+  },
+  getPurchaseById: (id) => purchases_().find(p => p.id === id) || null,
+
+  // Create/update a purchase. Async because a freshly-picked challan photo is
+  // uploaded to Drive (so the sheet keeps a URL, not a huge base64 blob); offline
+  // it falls back to storing the data URI and still saves instantly after that.
+  savePurchase: async (input) => {
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const existingIdx = input.id ? purchases_().findIndex(p => p.id === input.id) : -1;
+    const prev = existingIdx >= 0 ? MEM.purchases[existingIdx] : null;
+    const season = input.season || meta_().season;
+    const id = input.id || `GHP-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    let challan = input.challan ?? prev?.challan ?? '';
+    if (challan && challan.indexOf('data:') === 0) {
+      try { challan = await dataService.uploadPhoto(challan, id); } catch { /* keep the data URI offline */ }
+    }
+    const items = (input.items || []).filter(i => num_(i.qty) > 0).map(i => ({ sku: i.sku, name: i.name, size: i.size, category: i.category, qty: num_(i.qty) }));
+    const purchase = normalizePurchase_({
+      ...(prev || {}), id, season,
+      date: input.date ?? prev?.date ?? now,
+      supplier: input.supplier ?? prev?.supplier ?? '',
+      items,
+      amount: input.amount ?? prev?.amount ?? 0,
+      challan,
+      remarks: input.remarks ?? prev?.remarks ?? '',
+      status: input.status ?? prev?.status ?? 'active',
+      createdBy: prev?.createdBy || actor, createdOn: prev?.createdOn || now,
+      updatedBy: actor, updatedOn: now,
+    });
+    if (existingIdx >= 0) MEM.purchases[existingIdx] = purchase; else MEM.purchases.unshift(purchase);
+    savePurchasesLocal_();
+    enqueueUpsert_('ghariUpsertPurchase', 'id', toBackendRowPurchase_(purchase));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-purchase', purchase.supplier, `${prev ? 'updated' : 'added'} purchase of ${purchase.boxes} boxes from ${purchase.supplier || 'supplier'}`); } catch { /* ignore */ }
+    return purchase;
+  },
+  voidPurchase: (id) => {
+    const p = ghariService.getPurchaseById(id); if (!p) return null;
+    return ghariService.savePurchase({ ...p, status: 'void' });
+  },
+
   // ---- Catalog (add / edit prices / hide / delete) ----
   // Create a new item (no sku) or update an existing one. A new item gets a
   // stable generated sku and is placed at the end of the list.
@@ -493,6 +590,13 @@ export const ghariService = {
       const kr = r.byKaryakarta[kk];
       kr.orders++; kr.boxes += t.boxes; kr.amount += t.total; kr.received += num_(o.paymentReceived);
       o.items.forEach(it => { kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty; });
+    });
+    // Procurement + stock reconciliation (bought vs sold, per item).
+    r.purchased = {}; r.purchasedBoxes = 0; r.purchaseCost = 0; r.purchaseCount = 0;
+    prods.forEach(p => { r.purchased[p.sku] = 0; });
+    ghariService.getPurchases(s).forEach(pu => {
+      r.purchaseCount++; r.purchaseCost += num_(pu.amount);
+      pu.items.forEach(it => { r.purchased[it.sku] = (r.purchased[it.sku] || 0) + it.qty; r.purchasedBoxes += it.qty; });
     });
     return r;
   },

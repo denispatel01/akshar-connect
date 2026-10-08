@@ -28,10 +28,14 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn']
+  GhariOrders: ['id','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
+  // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
+  // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
+  // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
+  GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-08c';
+var SCHEMA_VERSION = '2026-10-09a';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -329,7 +333,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -461,11 +465,13 @@ function handle_(p){
     // All ghari writes are IDEMPOTENT upserts keyed by id/sku, so the client's
     // durable offline outbox can safely replay an op whose ack was lost without
     // ever creating a duplicate row (critical: this module handles money).
-    if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders') });
+    if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders'), purchases: readAll_('GhariPurchases') });
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
     if(action==='ghariDeleteOrder')   return doGhariDelete_('GhariOrders', p.id, 'id');
     if(action==='ghariDeleteProduct') return doGhariDelete_('GhariProducts', p.sku, 'sku');
+    if(action==='ghariUpsertPurchase') return doGhariUpsert_('GhariPurchases', p.row || {}, 'id');
+    if(action==='ghariDeletePurchase') return doGhariDelete_('GhariPurchases', p.id, 'id');
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
