@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -99,9 +100,9 @@ function ProductCard({ product, qty, onChange }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
       style={{
-        background: active ? tint(color, 0.18) : tint(color, 0.08),
-        borderColor: active ? color : tint(color, 0.35),
-        boxShadow: active ? `0 4px 14px ${tint(color, 0.25)}` : 'none',
+        background: active ? tint(color, 0.22) : tint(color, 0.11),
+        borderColor: active ? color : tint(color, 0.5),
+        boxShadow: active ? `0 4px 14px ${tint(color, 0.3)}` : 'none',
       }}>
       <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
       <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
@@ -130,7 +131,7 @@ function ProductCard({ product, qty, onChange }) {
 }
 
 // ───────────────────────── Order form (new + edit) ──────────────────────────
-function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems }) {
+function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, onDelete }) {
   // Show active items; if the admin has (accidentally) hidden them all, fall back
   // to showing every item so entry is never blocked by an empty grid.
   const products = useMemo(() => {
@@ -274,18 +275,23 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems })
         </div>
       )}
 
-      {/* Sticky action bar */}
-      <div className={`${embedded ? 'sticky z-20 bottom-[76px] md:bottom-3' : ''} flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur`}>
+      {/* Sticky action bar — always pinned to the bottom so Save/Delete are never
+          cut off. In the entry form it floats above the app's bottom nav; inside
+          the full-screen editor (which covers the nav) it pins to bottom:0. */}
+      <div className={`sticky z-20 ${embedded ? 'bottom-[76px] md:bottom-3' : 'bottom-0'} flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur`}>
         <div className="pl-1">
           <div className="text-[10px] font-bold uppercase text-text-muted">{totals.boxes} box{totals.boxes === 1 ? '' : 'es'}</div>
           <div className="text-2xl font-black leading-none text-text-main">{rupee(totals.total)}</div>
         </div>
-        <div className="ml-auto flex gap-2">
-          {onCancel && <button onClick={onCancel} className="rounded-xl border border-border-light px-4 py-2.5 text-sm font-bold text-text-muted">Cancel</button>}
+        <div className="ml-auto flex items-center gap-2">
+          {onDelete && <button onClick={onDelete} title="Delete order" className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:border-rose-900"><Trash2 className="h-4 w-4" /></button>}
+          {onCancel && <button onClick={onCancel} className="rounded-xl border border-border-light px-3 py-2.5 text-sm font-bold text-text-muted">Cancel</button>}
           {!isEdit && <button onClick={() => save(true)} className="rounded-xl border-2 border-primary px-3 py-2.5 text-sm font-black text-primary">Save & new</button>}
           <button onClick={() => save(false)} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Save' : 'Save order'}</button>
         </div>
       </div>
+      {/* Spacer so the last content clears the sticky bar + bottom nav */}
+      {embedded && <div className="h-4" />}
     </div>
   );
 }
@@ -342,6 +348,39 @@ function StatTile({ label, value, sub, color = '#E56F18', icon: Icon }) {
     </div>
   );
 }
+// Compact, scannable karyakarta row (works even with dozens of people); tap to
+// expand the exact per-item breakdown.
+function KaryakartaCard({ name, d, bySku }) {
+  const [open, setOpen] = useState(false);
+  const due = d.amount - d.received;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border-light bg-bg-base">
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 p-2.5 text-left">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-black text-text-main">{name}</div>
+          <div className="text-[10px] font-semibold text-text-muted">{d.orders} order{d.orders === 1 ? '' : 's'}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-sm font-black text-text-main">{rupee(d.amount)}</div>
+          <div className={`text-[10px] font-bold ${due > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{due > 0 ? `${rupee(due)} due` : 'Paid ✓'}</div>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="border-t border-border-light px-2.5 py-2">
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(d.skus).map(([sku, qty]) => {
+              const m = bySku[sku]; if (!m) return null;
+              return <span key={sku} className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-text-muted">{m.name.replace('Ghari ', '').replace(/[()]/g, '')} {m.size} ×{qty}</span>;
+            })}
+          </div>
+          <div className="mt-1.5 text-[10px] font-semibold text-text-muted">Received {rupee(d.received)} of {rupee(d.amount)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
@@ -357,25 +396,31 @@ function ReportView({ season }) {
         <StatTile label="Unpaid" value={rupee(r.unpaid)} color="#E11D48" />
       </div>
 
-      {/* Boxes to prepare — the authoritative, UNAMBIGUOUS count: one line per
-          exact item (weight + type), never a lumped "box" total. */}
+      {/* Boxes to prepare — the operational packing list: which item + how many
+          boxes. No ₹ here (money lives in the tiles above). */}
       <div className="rounded-2xl border border-border-light bg-surface p-4">
-        <h3 className="mb-1 text-sm font-black text-text-main">Boxes to prepare</h3>
-        <p className="mb-3 text-[11px] text-text-muted">Exact count of each item — by weight and type.</p>
-        <div className="space-y-2">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h3 className="text-sm font-black text-text-main">Boxes to prepare</h3>
+          <span className="text-[11px] font-bold text-text-muted">{r.boxes} boxes total</span>
+        </div>
+        <div className="space-y-2.5">
           {Object.values(GHARI_CATEGORIES).map(c => {
             const items = ghariService.getProducts().filter(p => p.category === c.key).map(p => ({ p, d: r.bySku[p.sku] })).filter(x => x.d && x.d.qty > 0);
             if (!items.length) return null;
+            const catBoxes = items.reduce((s, x) => s + x.d.qty, 0);
             return (
-              <div key={c.key}>
-                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-black" style={{ color: c.color }}>
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />{c.label} · {rupee(r.byCategory[c.key])}
+              <div key={c.key} className="overflow-hidden rounded-xl border" style={{ borderColor: tint(c.color, 0.4) }}>
+                <div className="flex items-center justify-between px-3 py-1.5" style={{ background: tint(c.color, 0.12) }}>
+                  <span className="flex items-center gap-1.5 text-[11px] font-black" style={{ color: c.color }}>
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />{c.label}
+                  </span>
+                  <span className="text-[11px] font-black" style={{ color: c.color }}>{catBoxes} box{catBoxes === 1 ? '' : 'es'}</span>
                 </div>
-                <div className="space-y-1 pl-4">
+                <div className="divide-y divide-border-light">
                   {items.map(({ p, d }) => (
-                    <div key={p.sku} className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{p.size}</span></span>
-                      <span className="font-black text-text-main"><span className="text-base">{d.qty}</span> <span className="text-[10px] font-bold text-text-muted">boxes · {rupee(d.amount)}</span></span>
+                    <div key={p.sku} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{p.size}</span></span>
+                      <span className="shrink-0 font-black text-text-main"><span className="text-lg">{d.qty}</span> <span className="text-[11px] font-bold text-text-muted">box{d.qty === 1 ? '' : 'es'}</span></span>
                     </div>
                   ))}
                 </div>
@@ -388,22 +433,9 @@ function ReportView({ season }) {
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
-          <p className="mb-3 text-[11px] text-text-muted">What each karyakarta collected — with the exact items.</p>
-          <div className="space-y-2.5">
-            {kkList.map(([name, d]) => (
-              <div key={name} className="rounded-xl border border-border-light bg-bg-base p-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-xs font-black text-text-main">{name}</span>
-                  <span className="shrink-0 text-xs font-black text-text-main">{rupee(d.amount)} <span className={`text-[10px] font-bold ${d.received >= d.amount ? 'text-emerald-600' : 'text-rose-600'}`}>({rupee(d.received)} rcvd)</span></span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {Object.entries(d.skus).map(([sku, qty]) => {
-                    const meta = r.bySku[sku]; if (!meta) return null;
-                    return <span key={sku} className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-text-muted">{meta.name.replace('Ghari ', '').replace(/[()]/g, '')} {meta.size} ×{qty}</span>;
-                  })}
-                </div>
-              </div>
-            ))}
+          <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see the exact items.</p>
+          <div className="space-y-2">
+            {kkList.map(([name, d]) => <KaryakartaCard key={name} name={name} d={d} bySku={r.bySku} />)}
           </div>
         </div>
       )}
@@ -570,30 +602,30 @@ function SettingsView({ season, onSeason }) {
 // ───────────────────────── Edit modal ───────────────────────────────────────
 function EditModal({ order, onClose, onSaved }) {
   const wa = ghariService.whatsappLink(order);
-  const voidIt = () => {
-    if (!window.confirm('Void this order? It will be hidden from totals but can be restored later.')) return;
+  const del = () => {
+    if (!window.confirm(`Delete this order for ${order.customerName || 'this customer'}?\n\nIt will be removed from totals (recoverable by an admin if needed).`)) return;
     ghariService.voidOrder(order.id); onSaved?.();
   };
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-bg-base">
-      <div className="flex items-center justify-between border-b border-border-light bg-surface px-4 py-3">
+  // Rendered through a portal on document.body so it sits ABOVE the app's fixed
+  // bottom nav (which otherwise overlapped the Save/Delete bar).
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
+      <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
         <span className="text-sm font-black text-text-main">Edit order</span>
-        <div className="flex items-center gap-3">
-          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-600"><MessageCircle className="h-4 w-4" /> WhatsApp</a>}
-          <button onClick={voidIt} className="flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-4 w-4" /> Void</button>
-        </div>
+        {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-600"><MessageCircle className="h-4 w-4" /> WhatsApp</a> : <span className="w-16" />}
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
         {(order.createdBy || order.updatedBy) && (
           <div className="mb-3 rounded-xl border border-border-light bg-surface px-3 py-2 text-[11px] font-semibold text-text-muted">
             {order.createdBy && <span>Added by <b className="text-text-main">{order.createdBy}</b>{order.createdOn ? ` · ${new Date(order.createdOn).toLocaleDateString('en-IN')}` : ''}</span>}
             {order.updatedBy && order.updatedBy !== order.createdBy && <span className="block">Last edited by <b className="text-text-main">{order.updatedBy}</b></span>}
           </div>
         )}
-        <OrderForm initialOrder={order} onCancel={onClose} onSaved={() => onSaved?.()} />
+        <OrderForm initialOrder={order} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -623,7 +655,9 @@ export default function GhariPage({ user }) {
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(o => o.customerName.toLowerCase().includes(q) || o.karyakarta.toLowerCase().includes(q));
     if (filter === 'undelivered') list = list.filter(o => !o.delivered);
+    if (filter === 'delivered') list = list.filter(o => o.delivered);
     if (filter === 'unpaid') list = list.filter(o => (o.total - Number(o.paymentReceived || 0)) > 0);
+    if (filter === 'paid') list = list.filter(o => Number(o.paymentReceived || 0) > 0 && (o.total - Number(o.paymentReceived || 0)) <= 0);
     return list;
   }, [season, search, filter, tick]);
 
@@ -683,8 +717,8 @@ export default function GhariPage({ user }) {
               className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
             {search && <button onClick={() => setSearch('')}><X className="h-4 w-4 text-text-muted" /></button>}
           </div>
-          <div className="mb-3 flex gap-1.5">
-            {[['all', 'All'], ['undelivered', 'Undelivered'], ['unpaid', 'Unpaid']].map(([id, label]) => (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {[['all', 'All'], ['undelivered', 'Undelivered'], ['delivered', 'Delivered'], ['unpaid', 'Unpaid'], ['paid', 'Paid']].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${filter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
             ))}
             <span className="ml-auto self-center text-[11px] font-bold text-text-muted">{orders.length} order{orders.length === 1 ? '' : 's'}</span>

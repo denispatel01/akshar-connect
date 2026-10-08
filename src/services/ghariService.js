@@ -30,11 +30,13 @@ const OUTBOX_KEY    = 'ac_ghari_outbox_v1';
 const META_KEY      = 'ac_ghari_meta_v1';
 
 // ── Categories (revenue buckets, mirror the old spreadsheet) ─────────────────
+// Four maximally-distinct hues so the cards are impossible to confuse:
+// Ghee Wali = orange, Ghee Vagar-ni = blue, Sugar Free = green, Bhusu = purple.
 export const GHARI_CATEGORIES = {
-  ghee:   { key: 'ghee',   label: 'With Ghee',    short: 'Ghee',      amtCol: 'withGheeAmt',    color: '#E56F18' },
-  noghee: { key: 'noghee', label: 'Without Ghee', short: 'No-Ghee',   amtCol: 'withoutGheeAmt', color: '#CA8A04' },
-  sf:     { key: 'sf',     label: 'Sugar Free',   short: 'Sugar Free', amtCol: 'sugarFreeAmt',  color: '#0D9488' },
-  bhusu:  { key: 'bhusu',  label: 'Bhusu',        short: 'Bhusu',     amtCol: 'bhusuAmt',       color: '#7C3AED' },
+  ghee:   { key: 'ghee',   label: 'With Ghee',    short: 'Ghee',       amtCol: 'withGheeAmt',    color: '#EA580C' },
+  noghee: { key: 'noghee', label: 'Without Ghee', short: 'No-Ghee',    amtCol: 'withoutGheeAmt', color: '#2563EB' },
+  sf:     { key: 'sf',     label: 'Sugar Free',   short: 'Sugar Free', amtCol: 'sugarFreeAmt',   color: '#16A34A' },
+  bhusu:  { key: 'bhusu',  label: 'Bhusu',        short: 'Bhusu',      amtCol: 'bhusuAmt',       color: '#9333EA' },
 };
 
 // Default catalog — derived from the 2025 seva account sheet. 1kg = 2 × 500gm.
