@@ -626,4 +626,108 @@ export const ghariService = {
     XLSX.utils.book_append_sheet(wb, ws, `Ghari ${s}`);
     XLSX.writeFile(wb, `Ghari_Seva_${s}.xlsx`);
   },
+
+  // ---- Export the season summary / dashboard as a styled PDF ----
+  // Lazy-loads jsPDF + autotable (shared with the Reports page) so they never
+  // weigh down first load. Uses "Rs" (the ₹ glyph isn't in the PDF core font).
+  exportReportPdf: async (season) => {
+    const s = season || meta_().season;
+    const r = ghariService.buildReport(s);
+    const prods = ghariService.getProducts();
+    let jsPDF, autoTableMod;
+    try {
+      [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+    } catch (e) {
+      try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+      throw new Error('The app was updated in the background. Reloading — please tap export again.');
+    }
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    const ORANGE = [229, 111, 24], DARK = [38, 48, 59], MUTE = [120, 130, 145], STRIPE = [252, 241, 231];
+    const rs = (n) => 'Rs ' + Number(n || 0).toLocaleString('en-IN');
+    const shortName = (p) => `${p.name.replace('Ghari ', '').replace(/[()]/g, '')} ${p.size}`;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const now = new Date();
+    const when = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+    // Header band
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 92, 'F');
+    doc.setFillColor(255, 157, 82); doc.rect(0, 92, pageW, 4, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9); doc.text('AKSHAR CONNECT', 40, 32);
+    doc.setFontSize(18); doc.text('Ghari Seva Report', 40, 58);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(255, 235, 220);
+    doc.text(`Season ${s}`, 40, 78);
+    doc.setFontSize(9); doc.text(`Generated: ${when}`, pageW - 40, 32, { align: 'right' });
+
+    const footer = () => {
+      const h = doc.internal.pageSize.getHeight(), w = doc.internal.pageSize.getWidth();
+      doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+      doc.text('Adajan Satsang Mandal · Akshar Connect', 40, h - 20);
+      doc.text(`Page ${doc.internal.getNumberOfPages()}`, w - 40, h - 20, { align: 'right' });
+    };
+    const heading = (txt, y) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...DARK); doc.text(txt, 40, y); return y + 8; };
+
+    // KPI summary (two-column metric grid as a borderless table)
+    const kpis = [
+      ['Revenue', rs(r.revenue), 'Orders', String(r.orderCount)],
+      ['Received', rs(r.received), 'Outstanding', rs(r.outstanding)],
+      ['Cash', rs(r.cash), 'G-Pay', rs(r.gpay)],
+      ['Unpaid', rs(r.unpaid), 'Delivered', `${r.delivered}/${r.orderCount}`],
+    ];
+    if (r.purchasedBoxes > 0) kpis.push(['Boxes bought', String(r.purchasedBoxes), 'Purchase cost', rs(r.purchaseCost)], ['Boxes sold', String(r.boxes), 'Margin', rs(r.revenue - r.purchaseCost)]);
+    autoTable(doc, {
+      startY: 112, body: kpis, theme: 'plain',
+      styles: { font: 'helvetica', fontSize: 10, cellPadding: 5, textColor: DARK },
+      columnStyles: { 0: { textColor: MUTE, fontStyle: 'bold', cellWidth: 110 }, 1: { fontStyle: 'bold' }, 2: { textColor: MUTE, fontStyle: 'bold', cellWidth: 110 }, 3: { fontStyle: 'bold' } },
+      margin: { left: 40, right: 40 }, didDrawPage: footer,
+    });
+
+    // Boxes to prepare
+    let y = heading('Boxes to prepare', doc.lastAutoTable.finalY + 26);
+    const prepBody = [];
+    Object.values(GHARI_CATEGORIES).forEach(c => {
+      const items = prods.filter(p => p.category === c.key).map(p => ({ p, d: r.bySku[p.sku] })).filter(x => x.d && x.d.qty > 0);
+      items.forEach(({ p, d }) => prepBody.push([c.label, shortName(p), String(d.qty)]));
+    });
+    autoTable(doc, {
+      startY: y + 6, head: [['Category', 'Item', 'Boxes']], body: prepBody.length ? prepBody : [['—', 'No sales yet', '0']],
+      theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5 },
+      headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 2: { halign: 'center', cellWidth: 60, fontStyle: 'bold' } }, margin: { left: 40, right: 40, bottom: 44 }, didDrawPage: footer,
+    });
+
+    // Stock (if purchases)
+    if (r.purchasedBoxes > 0) {
+      y = heading('Stock — bought vs sold', doc.lastAutoTable.finalY + 26);
+      const stockBody = prods.map(p => {
+        const inB = r.purchased[p.sku] || 0, out = (r.bySku[p.sku]?.qty) || 0;
+        return (inB || out) ? [shortName(p), String(inB), String(out), String(inB - out)] : null;
+      }).filter(Boolean);
+      autoTable(doc, {
+        startY: y + 6, head: [['Item', 'Bought', 'Sold', 'Left']], body: stockBody,
+        theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5 },
+        headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 1: { halign: 'center', cellWidth: 60 }, 2: { halign: 'center', cellWidth: 60 }, 3: { halign: 'center', cellWidth: 60, fontStyle: 'bold' } },
+        margin: { left: 40, right: 40, bottom: 44 }, didDrawPage: footer,
+      });
+    }
+
+    // By karyakarta
+    const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
+    if (kkList.length) {
+      y = heading('By karyakarta', doc.lastAutoTable.finalY + 26);
+      const kkBody = kkList.map(([name, d]) => [name, String(d.orders), rs(d.amount), rs(d.received), rs(Math.max(0, d.amount - d.received))]);
+      autoTable(doc, {
+        startY: y + 6, head: [['Karyakarta', 'Orders', 'Amount', 'Received', 'Due']], body: kkBody,
+        theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5 },
+        headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 1: { halign: 'center', cellWidth: 50 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+        margin: { left: 40, right: 40, bottom: 44 }, didDrawPage: footer,
+      });
+    }
+
+    doc.save(`Ghari_Seva_Report_${s}.pdf`);
+  },
 };

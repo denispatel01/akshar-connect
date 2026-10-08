@@ -466,9 +466,14 @@ function ReportView({ season }) {
         </div>
       )}
 
-      <button onClick={() => ghariService.exportXlsx(season)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-primary/5 py-3 text-sm font-black text-primary">
-        <Download className="h-4 w-4" /> Export {season} ledger to Excel
-      </button>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button onClick={() => ghariService.exportReportPdf(season).catch(e => alertError('Export failed', e.message))} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md">
+          <Download className="h-4 w-4" /> Report PDF
+        </button>
+        <button onClick={() => ghariService.exportXlsx(season)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-primary/5 py-3 text-sm font-black text-primary">
+          <Download className="h-4 w-4" /> Excel ledger
+        </button>
+      </div>
     </div>
   );
 }
