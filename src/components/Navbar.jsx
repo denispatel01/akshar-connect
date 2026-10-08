@@ -18,6 +18,7 @@ import {
   X,
   ChevronRight,
   Activity,
+  Cookie,
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
@@ -52,6 +53,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           : []),
         ...(isAdmin
           ? [
+              { id: 'ghari', label: 'Ghari Seva', icon: Cookie, adminOnly: true },
               { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
               { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
             ]
@@ -80,6 +82,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
         ] : []),
         ...(isAdmin ? [
+          { id: 'ghari', label: 'Ghari Seva', icon: Cookie, adminOnly: true },
           { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
           { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
         ] : []),

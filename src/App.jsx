@@ -8,6 +8,7 @@ import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
+import GhariPage from './pages/GhariPage';
 import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
 import ComingSoonPage from './pages/ComingSoonPage';
@@ -190,6 +191,7 @@ export default function App() {
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
+        {activePage === 'ghari' && <GhariPage user={user} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={user} />}
         </ErrorBoundary>

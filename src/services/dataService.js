@@ -133,6 +133,13 @@ async function api(action, payload = {}) {
   throw lastErr || new Error('Network error');
 }
 
+// Reusable backend access for sibling services (e.g. the Ghari module), so they
+// share the SAME deployed /exec URL and the retrying `api()` without re-declaring
+// it. `backendApi` throws on failure (the caller's queue decides whether to retry);
+// `backendOnline` reports whether a live backend is configured at all.
+export function backendApi(action, payload = {}) { return api(action, payload); }
+export function backendOnline() { return hasBackend(); }
+
 // Fire-and-forget write with retry; keeps UI snappy (optimistic).
 function push(action, payload) {
   if (!hasBackend()) return;

@@ -4,6 +4,7 @@ import './index.css'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import App from './App.jsx'
 import { dataService } from './services/dataService'
+import { ghariService } from './services/ghariService'
 
 // Stale-deployment recovery: when a lazily-loaded chunk can't be fetched
 // (a newer build replaced it), reload once to pick up the fresh build.
@@ -57,6 +58,11 @@ requestAnimationFrame(() => requestAnimationFrame(hideSplash))
 dataService.bootstrap()
   .then(() => window.dispatchEvent(new Event('ac-data-refreshed')))
   .catch(() => {})
+
+// Drain any Ghari Seva orders saved offline in a previous session as soon as the
+// app loads, even before the admin opens that page — this is money, so pending
+// writes must reach the cloud at the first opportunity.
+try { ghariService.init() } catch { /* non-fatal */ }
 
 // Register the service worker for PWA / offline support, with automatic
 // update-and-reload so users always get the latest code without a manual

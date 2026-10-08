@@ -17,13 +17,22 @@ var HEADERS = {
   Thoughts:   ['id','author','thought','date'],
   Areas:      ['name','number','notes'],
   Activity:   ['ts','actor','actorMobile','action','target','detail','device'],
-  Changes:    ['ts','action','collection','summary','emailed']
+  Changes:    ['ts','action','collection','summary','emailed'],
+  // ── Ghari Seva (fundraising ledger) ──────────────────────────────────────
+  // Catalog of sellable items. `category` ∈ ghee|noghee|sf|bhusu. Prices are
+  // editable (they change year to year), so each ORDER snapshots the unit price.
+  GhariProducts: ['sku','name','size','category','unitPrice','sortOrder','active'],
+  // One row per customer order. `itemsJson` is the authoritative line-item list
+  // (each line snapshots its unit price); the flattened amount columns are a
+  // human-readable denormalization so the Sheet still reads like a ledger.
+  // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
+  GhariOrders: ['id','season','customerName','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-07b';
+var SCHEMA_VERSION = '2026-10-08a';
 
 // Columns stored/returned as booleans (coerced on read).
-var BOOL_COLS = { present:true, call:true, inPerson:true, message:true };
+var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
 
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
@@ -318,7 +327,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -446,6 +455,13 @@ function handle_(p){
       PropertiesService.getScriptProperties().setProperty('mailEnabled', (p.enabled===true||p.enabled==='true') ? 'true' : 'false');
       return json_({ ok:true, enabled: mailEnabled_() });
     }
+    // ── Ghari Seva ───────────────────────────────────────────────────────────
+    // All ghari writes are IDEMPOTENT upserts keyed by id/sku, so the client's
+    // durable offline outbox can safely replay an op whose ack was lost without
+    // ever creating a duplicate row (critical: this module handles money).
+    if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders') });
+    if(action==='ghariUpsertOrder')   return doGhariUpsert_('GhariOrders', p.row || {}, 'id');
+    if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
@@ -519,6 +535,22 @@ function doDeleteUser_(p){
   var rn=findRow_('Users','mobile',p.mobile);
   if(rn>0) tab_('Users').deleteRow(rn);
   return json_({ ok:true });
+}
+
+// Idempotent upsert for the Ghari collections: find the row by its key (id/sku)
+// and overwrite it, else append. A LockService guard serializes concurrent
+// writes so two near-simultaneous saves can't both append the same id. Because
+// the key is client-generated and stable, replaying a lost op is a no-op update
+// rather than a duplicate — no money row is ever doubled or lost.
+function doGhariUpsert_(collection, row, keyField){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(!row || !row[keyField]) return json_({ ok:false, error:'missing '+keyField });
+    var rn=findRow_(collection, keyField, row[keyField]);
+    if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
+    else appendRows_(collection,[row]);
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
 // Lightweight change log (replaces the slow per-write email). Appends one compact
