@@ -128,6 +128,7 @@ function normalizeOrder_(o) {
     id: String(o.id || ''),
     season: String(o.season || defaultSeason_()),
     customerName: String(o.customerName || '').trim(),
+    customerMobile: String(o.customerMobile || '').replace(/\D/g, ''),
     devoteeId: String(o.devoteeId || ''),
     karyakarta: String(o.karyakarta || '').trim(),
     karyakartaId: String(o.karyakartaId || ''),
@@ -164,8 +165,8 @@ function itemsSummary_(items) {
 function toBackendRow_(o) {
   const t = computeTotals(o.items);
   return {
-    id: o.id, season: o.season, customerName: o.customerName, devoteeId: o.devoteeId,
-    karyakarta: o.karyakarta, karyakartaId: o.karyakartaId,
+    id: o.id, season: o.season, customerName: o.customerName, customerMobile: o.customerMobile || '',
+    devoteeId: o.devoteeId, karyakarta: o.karyakarta, karyakartaId: o.karyakartaId,
     itemsJson: JSON.stringify(o.items || []), itemsSummary: itemsSummary_(o.items),
     total: t.total, withGheeAmt: t.byCategory.ghee, withoutGheeAmt: t.byCategory.noghee,
     sugarFreeAmt: t.byCategory.sf, bhusuAmt: t.byCategory.bhusu,
@@ -181,10 +182,16 @@ function toBackendRow_(o) {
 // server acks it; a failed flush leaves it in place to retry on the next trigger.
 // For orders/products we only ever need the LATEST state of a given id, so collapse
 // duplicate pending ops for the same key into one (saves requests, same result).
-function enqueueUpsert_(action, keyField, row) {
-  const box = outbox_().filter(op => !(op.action === action && op.payload?.row?.[keyField] === row[keyField]));
-  box.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, payload: { row }, tries: 0, queuedAt: nowISO_() });
-  setOutbox_(box);
+function enqueueUpsert_(action, keyField, row, extra = {}) {
+  const box = outbox_();
+  // If a pending op for this same row already asked to notify, keep that intent
+  // even if a pre-sync edit arrives — so a brand-new order still emails once.
+  const prior = box.find(op => op.action === action && op.payload?.row?.[keyField] === row[keyField]);
+  const notify = !!extra.notify || !!(prior && prior.payload && prior.payload.notify);
+  const next = box.filter(op => !(op.action === action && op.payload?.row?.[keyField] === row[keyField]));
+  const payload = notify ? { row, notify: true } : { row };
+  next.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, payload, tries: 0, queuedAt: nowISO_() });
+  setOutbox_(next);
 }
 // Queue a delete, first dropping any pending upsert/delete for the same key (no
 // point syncing a row we're about to remove). Payload is just the key.
@@ -328,6 +335,26 @@ export const ghariService = {
   searchDevotees,
   computeTotals,
 
+  // Build a WhatsApp "click to chat" link with a ready follow-up message (money,
+  // delivery). Returns null when there's no usable mobile. The admin reviews the
+  // pre-filled draft in WhatsApp before sending — nothing is sent automatically.
+  whatsappLink: (order) => {
+    const mob = String(order.customerMobile || '').replace(/\D/g, '');
+    if (mob.length < 10) return null;
+    const num = mob.length === 10 ? '91' + mob : mob;
+    const items = (order.items || []).map(i => `• ${i.qty} × ${i.name} ${i.size}`).join('\n');
+    const bal = (order.total || 0) - Number(order.paymentReceived || 0);
+    const msg = [
+      `Jai Swaminarayan ${order.customerName} 🙏`,
+      `🪔 Ghari Seva ${order.season}`,
+      items,
+      `Total: ₹${order.total}`,
+      bal > 0 ? `Balance due: ₹${bal}` : `Payment received ✓${order.paymentType ? ' (' + order.paymentType + ')' : ''}`,
+      order.delivered ? 'Delivered ✓' : 'Delivery pending',
+    ].filter(Boolean).join('\n');
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+  },
+
   // ---- Writes (optimistic + durable) ----
   // Create or update an order. Returns the saved order immediately; the write is
   // already safe in localStorage + the outbox before this returns.
@@ -335,6 +362,7 @@ export const ghariService = {
     const actor = dataService.currentActor();
     const now = nowISO_();
     const existingIdx = input.id ? orders_().findIndex(o => o.id === input.id) : -1;
+    const isNew = existingIdx < 0;
     const prev = existingIdx >= 0 ? MEM.orders[existingIdx] : null;
     const season = input.season || meta_().season;
     const id = input.id || `GHO-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -346,6 +374,7 @@ export const ghariService = {
       ...(prev || {}),
       id, season,
       customerName: input.customerName ?? prev?.customerName ?? '',
+      customerMobile: input.customerMobile ?? prev?.customerMobile ?? '',
       devoteeId: input.devoteeId ?? prev?.devoteeId ?? '',
       karyakarta: input.karyakarta ?? prev?.karyakarta ?? '',
       karyakartaId: input.karyakartaId ?? prev?.karyakartaId ?? '',
@@ -360,7 +389,8 @@ export const ghariService = {
     });
     if (existingIdx >= 0) MEM.orders[existingIdx] = order; else MEM.orders.unshift(order);
     saveOrdersLocal_();
-    enqueueUpsert_('ghariUpsertOrder', 'id', toBackendRow_(order));
+    // Ask the backend to email the mandal on a brand-new order (not on edits).
+    enqueueUpsert_('ghariUpsertOrder', 'id', toBackendRow_(order), { notify: isNew });
     emit_('ac-ghari-changed');
     flush();
     try { dataService.logActivity('ghari-order', order.customerName, `${prev ? 'updated' : 'added'} ghari order for ${order.customerName} (₹${order.total})`); } catch { /* ignore */ }

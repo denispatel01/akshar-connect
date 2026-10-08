@@ -28,10 +28,10 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','season','customerName','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn']
+  GhariOrders: ['id','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-08b';
+var SCHEMA_VERSION = '2026-10-08c';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -462,10 +462,11 @@ function handle_(p){
     // durable offline outbox can safely replay an op whose ack was lost without
     // ever creating a duplicate row (critical: this module handles money).
     if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders') });
-    if(action==='ghariUpsertOrder')   return doGhariUpsert_('GhariOrders', p.row || {}, 'id');
+    if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
     if(action==='ghariDeleteOrder')   return doGhariDelete_('GhariOrders', p.id, 'id');
     if(action==='ghariDeleteProduct') return doGhariDelete_('GhariProducts', p.sku, 'sku');
+    if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
@@ -556,6 +557,52 @@ function doGhariUpsert_(collection, row, keyField){
     else appendRows_(collection,[row]);
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
+// Idempotent order upsert that ALSO emails the mandal on a brand-new order (when
+// the client asks via notify:true and mail is globally on). Email fires only on
+// INSERT (rn<0), so a replayed op or a later edit never re-sends — protecting the
+// Gmail quota. The 2025 bulk import uses ghariImportOrders instead (no email).
+function doGhariUpsertOrder_(p){
+  var row = p.row || {};
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(!row.id) return json_({ ok:false, error:'missing id' });
+    var rn=findRow_('GhariOrders','id',row.id);
+    var isNew = rn<0;
+    if(rn>0) tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',row)]);
+    else appendRows_('GhariOrders',[row]);
+    if(isNew && (p.notify===true || p.notify==='true') && mailEnabled_()){
+      try{ sendGhariOrderMail_(row); }catch(e){}
+    }
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
+// Pretty HTML notification for a new Ghari order.
+function sendGhariOrderMail_(row){
+  var items=[]; try{ items=JSON.parse(row.itemsJson||'[]'); }catch(e){}
+  var itemRows = items.map(function(it){
+    return '<tr><td style="padding:6px 12px;border-bottom:1px solid #F0E6DC;font-size:13px;color:#26303B">'+(it.qty)+'× '+(it.name||'')+' '+(it.size||'')+'</td>'
+      +'<td style="padding:6px 12px;border-bottom:1px solid #F0E6DC;font-size:13px;color:#26303B;text-align:right">₹'+((it.qty||0)*(it.unitPrice||0))+'</td></tr>';
+  }).join('');
+  var bal = (Number(row.total)||0) - (Number(row.paymentReceived)||0);
+  var payLine = bal>0 ? ('Balance due ₹'+bal) : ('Paid'+(row.paymentType?(' · '+row.paymentType):''));
+  var html = ''
+    + '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FBF5EF;padding:18px;border-radius:16px">'
+    + '<div style="background:linear-gradient(135deg,#FF9D52,#E56F18);color:#fff;padding:16px 20px;border-radius:14px 14px 0 0">'
+    +   '<div style="font-size:11px;font-weight:800;letter-spacing:1px;opacity:.9">AKSHAR CONNECT · GHARI SEVA '+(row.season||'')+'</div>'
+    +   '<div style="font-size:20px;font-weight:800;margin-top:2px">🪔 '+(row.customerName||'Order')+'</div>'
+    +   '<div style="font-size:12px;opacity:.95;margin-top:2px">New order'+(row.createdBy?(' by '+row.createdBy):'')+'</div>'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;background:#fff">'+itemRows+'</table>'
+    + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 14px 14px;overflow:hidden">'
+    +   '<tr><td style="padding:8px 12px;font-size:13px;font-weight:800;color:#26303B">Total</td><td style="padding:8px 12px;font-size:15px;font-weight:900;color:#E56F18;text-align:right">₹'+(row.total||0)+'</td></tr>'
+    +   '<tr><td style="padding:4px 12px 8px;font-size:12px;color:#7A7369" colspan="2">'+payLine+' · '+(row.delivered?'Delivered':'Not delivered')+(row.karyakarta?(' · via '+row.karyakarta):'')+(row.customerMobile?(' · 📱 '+row.customerMobile):'')+(row.remarks?(' · '+row.remarks):'')+'</td></tr>'
+    + '</table>'
+    + '<div style="color:#9b9183;font-size:11px;text-align:center;margin-top:12px">Sent automatically by Akshar Connect</div>'
+    + '</div>';
+  sendMail_('Ghari Seva: '+(row.customerName||'New order')+' — ₹'+(row.total||0), 'New Ghari order: '+(row.customerName||'')+' ₹'+(row.total||0), null, html);
 }
 
 // Delete one Ghari row by key. Used for catalog items (products admin removes)

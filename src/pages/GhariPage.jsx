@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -39,7 +39,7 @@ function SyncStrip() {
 }
 
 // ───────────────────────── Devotee autocomplete picker ──────────────────────
-function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, accent = 'orange' }) {
+function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, accent = 'orange', inputRef, onCommit }) {
   const [q, setQ] = useState(value || '');
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState([]);
@@ -50,22 +50,32 @@ function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, 
     document.addEventListener('mousedown', onDoc); return () => document.removeEventListener('mousedown', onDoc);
   }, []);
   const change = (text) => { setQ(text); onText?.(text); setResults(ghariService.searchDevotees(text)); setOpen(true); };
+  const pick = (d) => { setQ(d.name); onPick?.(d); setOpen(false); onCommit?.(); };
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && results.length) { pick(results[0]); }   // take the top suggestion
+      else { setOpen(false); onCommit?.(); }                 // free text → just advance
+    } else if (e.key === 'Escape') { setOpen(false); }
+  };
   return (
     <div ref={boxRef} className="relative">
       <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5 focus-within:border-primary transition-colors">
         <Icon className="h-4 w-4 shrink-0 text-text-muted" />
         <input
-          value={q} onChange={(e) => change(e.target.value)} onFocus={() => { if (q) { setResults(ghariService.searchDevotees(q)); setOpen(true); } }}
+          ref={inputRef}
+          value={q} onChange={(e) => change(e.target.value)} onKeyDown={onKeyDown}
+          onFocus={() => { if (q) { setResults(ghariService.searchDevotees(q)); setOpen(true); } }}
           placeholder={placeholder} className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
-        {q && <button onClick={() => { change(''); onPick?.(null); }} className="text-text-muted hover:text-text-main"><X className="h-4 w-4" /></button>}
+        {q && <button type="button" onClick={() => { change(''); onPick?.(null); }} className="text-text-muted hover:text-text-main"><X className="h-4 w-4" /></button>}
       </div>
       {open && results.length > 0 && (
         <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-2xl border border-border-light bg-surface shadow-xl">
           {results.map((d) => (
-            <button key={d.id} onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { setQ(d.name); onPick?.(d); setOpen(false); }}
+            <button key={d.id} type="button" onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(d)}
               className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 hover:bg-bg-base">
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white bg-${accent}-400`} style={{ background: accent === 'orange' ? '#FF9D52' : '#0D9488' }}>{d.name?.[0] || '?'}</span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: accent === 'orange' ? '#FF9D52' : '#0D9488' }}>{d.name?.[0] || '?'}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold text-text-main">{d.name}</span>
                 <span className="block truncate text-[11px] text-text-muted">{[d.area, d.mobile].filter(Boolean).join(' · ')}</span>
@@ -134,9 +144,13 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems })
     const c = {}; (initialOrder?.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + it.qty; }); return c;
   });
   const [customerName, setCustomerName] = useState(initialOrder?.customerName || '');
+  const [customerMobile, setCustomerMobile] = useState(initialOrder?.customerMobile || '');
   const [devoteeId, setDevoteeId] = useState(initialOrder?.devoteeId || '');
   const [karyakarta, setKaryakarta] = useState(initialOrder?.karyakarta || '');
   const [karyakartaId, setKaryakartaId] = useState(initialOrder?.karyakartaId || '');
+  const customerRef = useRef(null);
+  const karyakartaRef = useRef(null);
+  const mobileRef = useRef(null);
   const [delivered, setDelivered] = useState(initialOrder?.delivered || false);
   const [paymentType, setPaymentType] = useState(initialOrder?.paymentType || '');
   const [remarks, setRemarks] = useState(initialOrder?.remarks || '');
@@ -151,21 +165,27 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems })
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
-  const reset = () => { setCart({}); setCustomerName(''); setDevoteeId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const reset = () => { setCart({}); setCustomerName(''); setCustomerMobile(''); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
   const save = (addAnother) => {
     if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return; }
     if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return; }
     const order = ghariService.saveOrder({
       id: initialOrder?.id, season: initialOrder?.season,
-      customerName: customerName.trim(), devoteeId,
+      customerName: customerName.trim(), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
       karyakarta: karyakarta.trim(), karyakartaId,
       items, delivered,
       paymentReceived: paid, paymentType: paymentType || (paid > 0 ? 'Cash' : 'Pending'),
       remarks: remarks.trim(), status: initialOrder?.status || 'active',
     });
     onSaved?.(order, addAnother);
-    if (addAnother) reset();
+    // In the entry (embedded) form, clear and jump back to the top with the
+    // customer field focused so the next order can be typed immediately.
+    if (embedded) {
+      reset();
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { window.scrollTo(0, 0); }
+      setTimeout(() => { try { customerRef.current?.focus(); } catch { /* ignore */ } }, 60);
+    }
   };
 
   return (
@@ -175,12 +195,22 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems })
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Customer</label>
           <DevoteePicker value={customerName} placeholder="Search devotee or type name"
+            inputRef={customerRef} onCommit={() => karyakartaRef.current?.focus()}
             onText={(t) => { setCustomerName(t); setDevoteeId(''); }}
-            onPick={(d) => { if (d) { setCustomerName(d.name); setDevoteeId(d.id); } else { setCustomerName(''); setDevoteeId(''); } }} />
+            onPick={(d) => { if (d) { setCustomerName(d.name); setDevoteeId(d.id); if (d.mobile) setCustomerMobile(String(d.mobile)); } else { setCustomerName(''); setDevoteeId(''); setCustomerMobile(''); } }} />
+          <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2 focus-within:border-primary">
+            <Phone className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+            <input ref={mobileRef} inputMode="numeric" value={customerMobile}
+              onChange={(e) => setCustomerMobile(e.target.value.replace(/[^\d]/g, ''))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
+              placeholder="Mobile (for WhatsApp follow-up)" maxLength={13}
+              className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+          </div>
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Karyakarta / Reference</label>
           <DevoteePicker value={karyakarta} icon={Users} accent="teal" placeholder="Who brought this order"
+            inputRef={karyakartaRef} onCommit={() => mobileRef.current?.focus()}
             onText={(t) => { setKaryakarta(t); setKaryakartaId(''); }}
             onPick={(d) => { if (d) { setKaryakarta(d.name); setKaryakartaId(d.id); } else { setKaryakarta(''); setKaryakartaId(''); } }} />
         </div>
@@ -265,19 +295,22 @@ function OrderRow({ order, onOpen }) {
   const bal = order.total - Number(order.paymentReceived || 0);
   const paidState = Number(order.paymentReceived || 0) <= 0 ? 'unpaid' : bal > 0 ? 'partial' : 'paid';
   const summary = order.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ');
+  const wa = ghariService.whatsappLink(order);
   return (
-    <button onClick={() => onOpen(order)} className="flex w-full items-center gap-3 border-b border-border-light px-3 py-3 text-left last:border-0 hover:bg-bg-base">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
-          {order.delivered && <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+    <div className="flex items-center gap-2 border-b border-border-light px-3 py-3 last:border-0 hover:bg-bg-base">
+      <button onClick={() => onOpen(order)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
+            {order.delivered && <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+          </div>
+          <div className="truncate text-[11px] text-text-muted">{summary}</div>
+          <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
+            {order.karyakarta && <span className="truncate text-teal-600">via {order.karyakarta}</span>}
+            {order.createdBy && <span className="truncate text-text-muted">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
+          </div>
         </div>
-        <div className="truncate text-[11px] text-text-muted">{summary}</div>
-        <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
-          {order.karyakarta && <span className="truncate text-teal-600">via {order.karyakarta}</span>}
-          {order.createdBy && <span className="truncate text-text-muted">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
-        </div>
-      </div>
+      </button>
       <div className="shrink-0 text-right">
         <div className="text-sm font-black text-text-main">{rupee(order.total)}</div>
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${
@@ -287,7 +320,13 @@ function OrderRow({ order, onOpen }) {
           {paidState === 'paid' ? `Paid${order.paymentType ? ' · ' + order.paymentType : ''}` : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
       </div>
-    </button>
+      {wa && (
+        <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp follow-up"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 active:scale-95">
+          <MessageCircle className="h-4 w-4" />
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -519,6 +558,7 @@ function SettingsView({ season, onSeason }) {
 
 // ───────────────────────── Edit modal ───────────────────────────────────────
 function EditModal({ order, onClose, onSaved }) {
+  const wa = ghariService.whatsappLink(order);
   const voidIt = () => {
     if (!window.confirm('Void this order? It will be hidden from totals but can be restored later.')) return;
     ghariService.voidOrder(order.id); onSaved?.();
@@ -528,7 +568,10 @@ function EditModal({ order, onClose, onSaved }) {
       <div className="flex items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
         <span className="text-sm font-black text-text-main">Edit order</span>
-        <button onClick={voidIt} className="flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-4 w-4" /> Void</button>
+        <div className="flex items-center gap-3">
+          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-600"><MessageCircle className="h-4 w-4" /> WhatsApp</a>}
+          <button onClick={voidIt} className="flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-4 w-4" /> Void</button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {(order.createdBy || order.updatedBy) && (
@@ -618,7 +661,7 @@ export default function GhariPage({ user }) {
       )}
 
       {tab === 'entry' && (
-        <OrderForm key={tick} embedded onManageItems={() => setTab('settings')} onSaved={(o, again) => flash(again ? `Saved ✓ ${o.customerName} — add next` : `Order saved ✓ ${rupee(o.total)}`)} />
+        <OrderForm embedded onManageItems={() => setTab('settings')} onSaved={(o, again) => flash(again ? `Saved ✓ ${o.customerName} — add next` : `Order saved ✓ ${rupee(o.total)}`)} />
       )}
 
       {tab === 'orders' && (
