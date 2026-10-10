@@ -12,16 +12,16 @@
 // Until these are filled, web push is simply disabled (the app still works).
 
 export const firebaseConfig = {
-  apiKey: 'REPLACE_API_KEY',
-  authDomain: 'REPLACE_PROJECT_ID.firebaseapp.com',
-  projectId: 'REPLACE_PROJECT_ID',
-  storageBucket: 'REPLACE_PROJECT_ID.appspot.com',
-  messagingSenderId: 'REPLACE_SENDER_ID',
-  appId: 'REPLACE_APP_ID',
+  apiKey: 'AIzaSyClXbb0FSSUx1oi5g34l0hZqlSwm8ZPR78',
+  authDomain: 'akshar-connect-625b6.firebaseapp.com',
+  projectId: 'akshar-connect-625b6',
+  storageBucket: 'akshar-connect-625b6.firebasestorage.app',
+  messagingSenderId: '25605823162',
+  appId: '1:25605823162:web:09f4fe30b0b8800544c083',
 };
 
 // Web Push certificate public key (VAPID) from Firebase → Cloud Messaging.
-export const VAPID_KEY = 'REPLACE_VAPID_PUBLIC_KEY';
+export const VAPID_KEY = 'BOc2FohlX4bNHHg5DlVelQUGRsODpOhV4GQctRFzrM9LJEu5wQU1C_iCd9DacrcfTPpSdQxoE7T47TMy86kPM3g';
 
 // True once the real values are in place (so we don't try to init with placeholders).
 export const firebaseConfigured =
