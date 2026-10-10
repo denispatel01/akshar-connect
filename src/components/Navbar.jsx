@@ -38,6 +38,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'devotees', label: 'My Profile', icon: User },
+        { id: 'family', label: 'Family', icon: Users },
         { id: 'activity', label: 'My Activity', icon: Activity },
       ]
     : [
@@ -68,6 +69,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'devotees', label: 'My Profile', icon: User },
+        { id: 'family', label: 'Family', icon: Users },
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },

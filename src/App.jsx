@@ -172,9 +172,11 @@ export default function App() {
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
-        {activePage === 'devotees' && (
+        {(activePage === 'devotees' || activePage === 'family') && (
           <DevoteesPage
+            key={activePage}
             user={user}
+            familyView={activePage === 'family'}
             devoteesPreset={devoteesPreset}
             filterPreset={filterPreset}
             onClearDevoteesPreset={() => setDevoteesPreset(null)}

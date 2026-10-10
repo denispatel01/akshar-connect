@@ -169,7 +169,7 @@ function AuditFooter({ d }) {
   );
 }
 
-export default function DevoteesPage({ user, devoteesPreset, filterPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing }) {
+export default function DevoteesPage({ user, devoteesPreset, filterPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing, familyView = false }) {
   const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -580,14 +580,15 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
 
-  // Auto-open own profile for Devotee login
+  // Auto-open own profile for Devotee login — but NOT in the "Family" tab, which
+  // shows the family member list so the devotee can pick whom to open.
   useEffect(() => {
-    if (isDevotee && user?.devoteeId && filteredDevotees.length > 0 && !selectedDevotee) {
+    if (!familyView && isDevotee && user?.devoteeId && filteredDevotees.length > 0 && !selectedDevotee) {
       const own = filteredDevotees.find(d => d.id === user.devoteeId) || filteredDevotees[0];
       if (own) openProfile(own);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDevotee, filteredDevotees.length]);
+  }, [isDevotee, filteredDevotees.length, familyView]);
 
   return (
     <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
