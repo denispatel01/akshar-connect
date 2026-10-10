@@ -10,6 +10,10 @@ import { alertError } from '../utils/sweetAlert';
 
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 
+// Proper (title) case — capitalizes the first letter of each word as you type,
+// so the text always reads in proper case no matter how it was entered.
+const toProperCase = (s) => String(s || '').replace(/\b\w/g, (c) => c.toUpperCase());
+
 // ───────────────────────── Sync / connectivity strip ────────────────────────
 function SyncStrip() {
   const [pending, setPending] = useState(ghariService.pendingCount());
@@ -588,7 +592,7 @@ function AddItemForm({ onAdd, onClose }) {
   };
   return (
     <div className="rounded-xl border-2 border-primary bg-primary/5 p-2.5 space-y-2">
-      <input value={name} onChange={e => setName(e.target.value)} placeholder="New item name e.g. Ghari (Ghee Wali)" autoFocus
+      <input value={name} onChange={e => setName(toProperCase(e.target.value))} placeholder="New item name e.g. Ghari (Ghee Wali)" autoFocus
         className="w-full rounded-lg border border-border-light bg-surface px-2.5 py-1.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
       <div className="flex gap-1.5">
         <input value={size} onChange={e => setSize(e.target.value)} placeholder="Size e.g. 1 kg"
