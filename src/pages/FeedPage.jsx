@@ -82,6 +82,11 @@ export default function FeedPage({ user }) {
       const r = await dataService.getFeed({ before, limit: 12, devoteeId: myId });
       setPosts((prev) => (reset ? r.posts : [...prev, ...r.posts]));
       setHasMore(r.hasMore);
+      // Mark the feed as seen up to the newest post, so the nav "new" dot clears.
+      if (reset && r.posts && r.posts[0]) {
+        try { localStorage.setItem('ac-feed-seen', String(r.posts[0].createdOn || '')); } catch (e) {}
+        try { window.dispatchEvent(new Event('ac-feed-seen')); } catch (e) {}
+      }
       if (reset) setLiked(new Set(r.liked));
       else setLiked((prev) => { const n = new Set(prev); r.liked.forEach((id) => n.add(id)); return n; });
     } catch (e) {

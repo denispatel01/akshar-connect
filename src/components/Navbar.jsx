@@ -25,6 +25,7 @@ import {
   Database,
   Quote,
 } from 'lucide-react';
+import { dataService } from '../services/dataService';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
   const isDevotee = user?.role === 'Devotee';
@@ -42,6 +43,28 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [moreOpen]);
+
+  // New-post indicator on the Feed nav: compare the newest post to what this
+  // device last saw (written by the Feed page when viewed).
+  const [hasNewFeed, setHasNewFeed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const r = await dataService.getFeed({ limit: 1 });
+        const newest = (r.posts && r.posts[0] && r.posts[0].createdOn) || '';
+        let seen = '';
+        try { seen = localStorage.getItem('ac-feed-seen') || ''; } catch (e) {}
+        if (alive) setHasNewFeed(!!newest && String(newest) > String(seen));
+      } catch (e) { /* offline — no dot */ }
+    };
+    check();
+    const onSeen = () => setHasNewFeed(false);
+    const onRefresh = () => check();
+    window.addEventListener('ac-feed-seen', onSeen);
+    window.addEventListener('ac-data-refreshed', onRefresh);
+    return () => { alive = false; window.removeEventListener('ac-feed-seen', onSeen); window.removeEventListener('ac-data-refreshed', onRefresh); };
+  }, []);
 
   const longPressTimer = useRef(null);
   const startLongPress = () => { longPressTimer.current = setTimeout(() => onHardRefresh?.(), 1500); };
@@ -108,7 +131,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   // Is the active page inside the "More" sheet?
   const moreActive = moreItems.some((i) => i.id === activePage);
 
-  const navigate = (id) => { setActivePage(id); setMoreOpen(false); };
+  const navigate = (id) => { if (id === 'feed') setHasNewFeed(false); setActivePage(id); setMoreOpen(false); };
 
   const roleColor = isAdmin ? 'text-red-500' : isSevak ? 'text-amber-600' : 'text-indigo-500';
   const roleBg   = isAdmin ? 'bg-red-50 dark:bg-red-950' : isSevak ? 'bg-amber-50 dark:bg-amber-950' : 'bg-indigo-50 dark:bg-indigo-950';
@@ -154,13 +177,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             {allNavItems.map(({ id, label, icon: Icon, adminOnly }) => {
               const active = activePage === id;
               return (
-                <button key={id} onClick={() => setActivePage(id)}
+                <button key={id} onClick={() => { if (id === 'feed') setHasNewFeed(false); setActivePage(id); }}
                   className={`group relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${active
                     ? 'bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30'
                     : 'text-text-muted hover:text-text-main hover:bg-surface'}`}>
                   <Icon className={`h-4 w-4 transition-transform duration-200 ${active ? 'text-[#FFB26B]' : 'text-text-muted group-hover:text-accent group-hover:scale-110'}`} strokeWidth={active ? 2.5 : 2} />
                   {label}
                   {adminOnly && <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ${active ? 'ring-primary' : 'ring-bg-base'}`} />}
+                  {id === 'feed' && hasNewFeed && !active && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-bg-base" />}
                 </button>
               );
             })}
@@ -228,6 +252,10 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               {!moreOpen && isAdmin && (
                 <span className="absolute top-2 right-[calc(50%-14px)] h-2 w-2 rounded-full bg-red-500 ring-1 ring-surface" />
               )}
+              {/* Green dot when there are new Feed posts (Feed lives in this menu on mobile) */}
+              {!moreOpen && hasNewFeed && (
+                <span className="absolute top-2 right-[calc(50%-2px)] h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-surface" />
+              )}
             </div>
             <span className={`text-[10px] font-semibold ${moreOpen || moreActive ? 'font-bold' : ''}`}>Menu</span>
           </button>
@@ -274,6 +302,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                       <Icon className="h-4 w-4" />
                     </div>
                     <span className={`flex-1 text-sm text-left ${active ? 'font-bold' : 'font-semibold'}`}>{label}</span>
+                    {id === 'feed' && hasNewFeed && <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">NEW</span>}
                     {adminOnly && <span className="h-2 w-2 rounded-full bg-red-500" />}
                     <ChevronRight className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-muted'}`} />
                   </button>
