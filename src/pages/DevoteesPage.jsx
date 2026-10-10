@@ -241,7 +241,25 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     return m;
   }, [devotees]);
   const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
-  const uniqueAreas = useMemo(() => [...new Set(devotees.map(d => d.area).filter(Boolean))].sort(), [devotees]);
+  // Normalize an area for de-duping: trim + collapse spaces + lowercase, so
+  // "Rama ", "rama" and "Rama" collapse to one option (different names like
+  // "Rama" vs "Rama Nakshatra" stay separate — merge those in the Area Master).
+  const normArea_ = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  // Single, mutually-exclusive bucket for the Old/Reference/New filter. The
+  // `oldNew` column is authoritative; a blank value falls back to Reference when
+  // the record has a reference, else New. No devotee is ever in two buckets.
+  const bucketOldNew_ = (d) => {
+    const s = String(d.oldNew || '').trim().toLowerCase();
+    if (s === 'old') return 'Old';
+    if (s === 'reference') return 'Reference';
+    if (s === 'new') return 'New';
+    return String(d.reference || '').trim() ? 'Reference' : 'New';
+  };
+  const uniqueAreas = useMemo(() => {
+    const seen = new Map();
+    devotees.forEach(d => { const raw = String(d.area || '').trim(); if (!raw) return; const k = normArea_(raw); if (!seen.has(k)) seen.set(k, raw); });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [devotees]);
   const uniqueReferences = useMemo(() => [...new Set(devotees.map(d => d.reference).filter(Boolean))].sort(), [devotees]);
   // Area dropdown source (#125): the Area Master sheet names first (by their assigned
   // order), then any extra areas typed on devotee records — NOT a hardcoded list.
@@ -396,18 +414,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       if (isPlainBrowse && d.type !== 'Primary') return false; // default browse: family heads only
       if (filterTypes.length && !filterTypes.includes(d.type === 'Primary' ? 'Primary' : 'Family')) return false;
       if (filterKaryakartas.length && !filterKaryakartas.includes(d.followupKaryakarta)) return false;
-      if (filterAreas.length && !filterAreas.includes(d.area)) return false;
+      if (filterAreas.length && !filterAreas.some(a => normArea_(a) === normArea_(d.area))) return false;
       if (filterReferences.length && !filterReferences.includes(d.reference)) return false;
       if (filterQualifications.length && !filterQualifications.includes(d.qualification)) return false;
       if (filterAges.length && !filterAges.some(a => AGE_BANDS[a]?.test(deriveAge(d.dob)))) return false;
       if (filterGenders.length && !filterGenders.includes(d.gender)) return false;
-      if (filterOldNews.length && !filterOldNews.some(v => {
-        const val = v.toLowerCase();
-        // "Reference" = explicitly typed Reference OR anyone introduced by a
-        // reference (non-empty reference field), so the filter isn't empty (#134).
-        if (val === 'reference') return String(d.oldNew || '').toLowerCase() === 'reference' || !!String(d.reference || '').trim();
-        return String(d.oldNew || '').toLowerCase() === val;
-      })) return false;
+      // Each devotee is in exactly ONE bucket (Old / Reference / New) so the three
+      // counts never overlap and always sum to the total.
+      if (filterOldNews.length && !filterOldNews.includes(bucketOldNew_(d))) return false;
       return hasAnyTag(d, selectedTags) && presetMatch(d);
     });
     if (query) {
@@ -794,9 +808,11 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         </div>
       </div>
       
-      {/* Filter Panel */}
+      {/* Filter Panel — relative z-30 so its open dropdowns overlay the devotee
+          grid below (the slide-up animation creates a stacking context, which
+          otherwise let the list paint over a dropdown's lower items). */}
       {showTagFilter && (
-        <div className="rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
+        <div className="relative z-30 rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
           {/* Multi-select filter dropdowns */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2">
             <MultiSelect label="All Areas" options={uniqueAreas} selected={filterAreas} onChange={setFilterAreas} />
