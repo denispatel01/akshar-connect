@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles } from 'lucide-react';
+import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
 
@@ -34,23 +34,37 @@ export default function SwadhyayPage({ user }) {
   const myName = me?.name || user?.name || '';
   const myMobile = me?.mobile || user?.mobile || '';
 
-  const date = todayISO();
+  const [date, setDate] = useState(todayISO());
   const [form, setForm] = useState({ bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Fetch the full history once.
   useEffect(() => {
     let alive = true;
-    dataService.getMySwadhyay(devoteeId).then((rows) => {
-      if (!alive) return;
-      setHistory(rows || []);
-      const today = (rows || []).find((r) => r.date === date);
-      if (today) setForm({ bhajanMin: +today.bhajanMin || 0, bhajanTime: today.bhajanTime || '', listenMin: +today.listenMin || 0, readMin: +today.readMin || 0 });
-    }).finally(() => { if (alive) setLoading(false); });
+    dataService.getMySwadhyay(devoteeId).then((rows) => { if (alive) setHistory(rows || []); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [devoteeId, date]);
+  }, [devoteeId]);
+
+  // Prefill the form from the selected day's saved entry (blank if none).
+  useEffect(() => {
+    const entry = history.find((r) => r.date === date);
+    setForm(entry
+      ? { bhajanMin: +entry.bhajanMin || 0, bhajanTime: entry.bhajanTime || '', listenMin: +entry.listenMin || 0, readMin: +entry.readMin || 0 }
+      : { bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
+    setSaved(false);
+  }, [date, history]);
+
+  const shiftDate = (delta) => {
+    const d = new Date(date + 'T00:00:00'); d.setDate(d.getDate() + delta);
+    const iso = d.toLocaleDateString('en-CA');
+    if (iso > todayISO()) return; // no future dates
+    setDate(iso);
+  };
+  const isToday = date === todayISO();
+  const dateLabel = isToday ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };
   const bump = (k, delta) => set(k, Math.max(0, (Number(form[k]) || 0) + delta));
@@ -100,12 +114,25 @@ export default function SwadhyayPage({ user }) {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#001F3D] via-[#06325c] to-[#0a4a7a] p-6 text-white shadow-lg">
         <div className="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-[#FF862A]/20 blur-2xl" />
         <div className="relative">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/70">
-            <Sparkles className="h-3.5 w-3.5 text-[#FF862A]" /> My Swadhyay · {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/70">
+              <Sparkles className="h-3.5 w-3.5 text-[#FF862A]" /> My Swadhyay
+            </div>
+            {/* Date switcher — log today or a previous day */}
+            <div className="flex items-center gap-1 rounded-full bg-white/10 p-0.5 backdrop-blur">
+              <button onClick={() => shiftDate(-1)} className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/15"><ChevronLeft className="h-4 w-4" /></button>
+              <label className="relative px-1 text-xs font-bold">
+                {dateLabel}
+                <input type="date" value={date} max={todayISO()} onChange={(e) => e.target.value && setDate(e.target.value)}
+                  className="absolute inset-0 cursor-pointer opacity-0" title="Pick a date" />
+              </label>
+              <button onClick={() => shiftDate(1)} disabled={isToday}
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/15 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+            </div>
           </div>
           <div className="mt-2 flex items-end gap-3">
             <p className="text-5xl font-black leading-none">{fmtMin(totalToday)}</p>
-            <p className="mb-1 text-sm font-semibold text-white/70">today</p>
+            <p className="mb-1 text-sm font-semibold text-white/70">{isToday ? 'today' : dateLabel}</p>
           </div>
           <div className="mt-3 flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold backdrop-blur">
@@ -144,9 +171,12 @@ export default function SwadhyayPage({ user }) {
                     <p className="text-base font-black text-text-main leading-tight">{p.label}</p>
                     <p className="text-[11px] font-semibold text-text-muted">{p.sub}</p>
                   </div>
-                  <div className={`text-right ${p.text}`}>
-                    <span className="text-2xl font-black">{val}</span>
-                    <span className="text-xs font-bold"> min</span>
+                  <div className={`flex items-baseline gap-1 ${p.text}`}>
+                    <input type="number" inputMode="numeric" min="0" value={val}
+                      onChange={(e) => set(p.key, Math.max(0, parseInt(e.target.value || '0', 10) || 0))}
+                      onFocus={(e) => e.target.select()}
+                      className="w-16 rounded-lg bg-transparent text-right text-2xl font-black outline-none focus:bg-bg-base" />
+                    <span className="text-xs font-bold">min</span>
                   </div>
                 </div>
 
@@ -190,7 +220,7 @@ export default function SwadhyayPage({ user }) {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border-light bg-surface/90 p-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="flex-1">
-            <p className="text-[11px] font-semibold text-text-muted">Today's total</p>
+            <p className="text-[11px] font-semibold text-text-muted">{isToday ? "Today's total" : dateLabel + ' total'}</p>
             <p className="text-lg font-black text-text-main leading-none">{fmtMin(totalToday)}</p>
           </div>
           <button onClick={save} disabled={saving}
