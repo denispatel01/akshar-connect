@@ -273,22 +273,24 @@ async function flush() {
     const meta = {}; // opId -> { tries, lastError }
     for (const op of box) {
       let payload = op.payload;
-      // A purchase may still carry a base64 challan (captured offline). Upload it
-      // to Drive first so the Sheet only ever stores a small URL — a huge base64
-      // blob would exceed a cell's limit and poison the whole queue.
+      // A purchase captured offline still carries its challan as a base64 photo.
+      // On sync, upload it to Drive FIRST and send only the small URL. If the
+      // upload doesn't succeed, KEEP the op and retry next time — never drop the
+      // photo and never push a huge base64 blob into a Sheet cell.
       if (op.action === 'ghariUpsertPurchase' && String(payload?.row?.challan || '').indexOf('data:') === 0) {
-        try {
-          const url = await dataService.uploadPhoto(payload.row.challan, payload.row.id);
-          if (url && url.indexOf('data:') !== 0) {
-            payload = { ...payload, row: { ...payload.row, challan: url } };
-            const idx = purchases_().findIndex(p => p.id === payload.row.id);
-            if (idx >= 0) { MEM.purchases[idx] = { ...MEM.purchases[idx], challan: url }; savePurchasesLocal_(); }
-          } else {
-            // Couldn't upload (still offline / upload off): don't push base64 to the
-            // Sheet. Store a clean row without it; the photo stays safe on-device.
-            payload = { ...payload, row: { ...payload.row, challan: '' } };
-          }
-        } catch { payload = { ...payload, row: { ...payload.row, challan: '' } }; }
+        let url = null;
+        try { url = await dataService.uploadPhoto(payload.row.challan, payload.row.id); } catch { url = null; }
+        if (url && url.indexOf('data:') !== 0) {
+          payload = { ...payload, row: { ...payload.row, challan: url } };
+          const idx = purchases_().findIndex(p => p.id === payload.row.id);
+          if (idx >= 0) { MEM.purchases[idx] = { ...MEM.purchases[idx], challan: url }; savePurchasesLocal_(); }
+        } else {
+          // Photo not uploaded yet — keep this purchase pending so it (and its
+          // challan) sync together once Drive upload works. Other ops still flush.
+          meta[op.opId] = { tries: (op.tries || 0) + 1, lastError: 'challan upload pending' };
+          emit_('ac-ghari-synced', { pending: outbox_().filter(o => !succeeded.has(o.opId)).length });
+          continue;
+        }
       }
       try {
         await backendApi(op.action, payload);
