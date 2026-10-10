@@ -186,6 +186,14 @@ function toBackendRowPurchase_(pu) {
   };
 }
 
+// Parse a product size label ("500 gm", "1 kg", "250gm") into kilograms.
+function sizeToKg_(size) {
+  const m = String(size || '').toLowerCase().match(/([\d.]+)\s*(kg|gm|g\b|gram)?/);
+  if (!m) return 0;
+  const n = parseFloat(m[1]); if (isNaN(n)) return 0;
+  return /kg/.test(m[2] || '') ? n : n / 1000; // default to grams when unit missing
+}
+
 // ── Money math (the single source of truth for every total) ──────────────────
 export function computeTotals(items) {
   const by = { ghee: 0, noghee: 0, sf: 0, bhusu: 0 };
@@ -593,6 +601,8 @@ export const ghariService = {
       boxes: 0, delivered: 0, pending: 0,
       cash: 0, gpay: 0, unpaid: 0,
       byCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
+      kgByCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
+      ghariKg: 0, bhusuKg: 0, totalKg: 0,
       bySku: {}, byKaryakarta: {},
     };
     prods.forEach(p => { r.bySku[p.sku] = { name: p.name, size: p.size, qty: 0, amount: 0 }; });
@@ -611,6 +621,11 @@ export const ghariService = {
       o.items.forEach(it => {
         if (!r.bySku[it.sku]) r.bySku[it.sku] = { name: it.name, size: it.size, qty: 0, amount: 0 };
         r.bySku[it.sku].qty += it.qty; r.bySku[it.sku].amount += it.qty * it.unitPrice;
+        const kg = it.qty * sizeToKg_(it.size);
+        if (r.kgByCategory[it.category] === undefined) r.kgByCategory[it.category] = 0;
+        r.kgByCategory[it.category] += kg;
+        r.totalKg += kg;
+        if (it.category === 'bhusu') r.bhusuKg += kg; else r.ghariKg += kg;
       });
       const kk = o.karyakarta || '—';
       if (!r.byKaryakarta[kk]) r.byKaryakarta[kk] = { orders: 0, boxes: 0, amount: 0, received: 0, skus: {} };

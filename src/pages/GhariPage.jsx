@@ -396,6 +396,32 @@ function ReportView({ season }) {
         <StatTile label="Unpaid" value={rupee(r.unpaid)} color="#E11D48" />
       </div>
 
+      {/* Weight sold — the quick answer to "how many kg of Ghari / Bhusu did we sell?" */}
+      {r.totalKg > 0 && (
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <h3 className="mb-3 text-sm font-black text-text-main">Weight sold</h3>
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="rounded-2xl p-3 text-center" style={{ background: tint('#EA580C', 0.12) }}>
+              <div className="text-2xl font-black text-text-main">{(+r.ghariKg.toFixed(1)).toLocaleString('en-IN')}<span className="text-sm font-bold text-text-muted"> kg</span></div>
+              <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#EA580C' }}>Ghari</div>
+            </div>
+            <div className="rounded-2xl p-3 text-center" style={{ background: tint('#9333EA', 0.12) }}>
+              <div className="text-2xl font-black text-text-main">{(+r.bhusuKg.toFixed(1)).toLocaleString('en-IN')}<span className="text-sm font-bold text-text-muted"> kg</span></div>
+              <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#9333EA' }}>Bhusu</div>
+            </div>
+            <div className="rounded-2xl p-3 text-center" style={{ background: tint('#0D9488', 0.12) }}>
+              <div className="text-2xl font-black text-text-main">{(+r.totalKg.toFixed(1)).toLocaleString('en-IN')}<span className="text-sm font-bold text-text-muted"> kg</span></div>
+              <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#0D9488' }}>Total</div>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {Object.values(GHARI_CATEGORIES).map(c => r.kgByCategory[c.key] > 0 && (
+              <span key={c.key} className="rounded-full px-2.5 py-1 text-[11px] font-bold text-white" style={{ background: c.color }}>{c.short}: {(+r.kgByCategory[c.key].toFixed(1)).toLocaleString('en-IN')} kg</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Boxes to prepare — the operational packing list: which item + how many
           boxes. No ₹ here (money lives in the tiles above). */}
       <div className="rounded-2xl border border-border-light bg-surface p-4">
@@ -680,6 +706,38 @@ function downscaleImage_(file, maxDim = 1400, quality = 0.72) {
     reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
+// ── Challan photo: open / download as image / download as PDF ─────────────────
+function openChallan_(src) { try { window.open(src, '_blank', 'noopener'); } catch { /* ignore */ } }
+// Convert a challan (Drive URL or data URI) to a JPEG data URL via canvas, so we
+// can save it even when it's hosted remotely (falls back to opening it).
+async function challanDataUrl_(src) {
+  if (String(src).indexOf('data:') === 0) return src;
+  return await new Promise((res, rej) => {
+    const i = new window.Image();
+    i.crossOrigin = 'anonymous';
+    i.onload = () => { try { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; c.getContext('2d').drawImage(i, 0, 0); res(c.toDataURL('image/jpeg', 0.92)); } catch (e) { rej(e); } };
+    i.onerror = rej; i.src = src;
+  });
+}
+async function downloadChallanImage_(src, name) {
+  try { const d = await challanDataUrl_(src); const a = document.createElement('a'); a.href = d; a.download = `${name || 'challan'}.jpg`; document.body.appendChild(a); a.click(); a.remove(); }
+  catch { openChallan_(src); }
+}
+async function downloadChallanPdf_(src, name) {
+  try {
+    const d = await challanDataUrl_(src);
+    const { jsPDF } = await import('jspdf');
+    const img = await new Promise((res, rej) => { const im = new window.Image(); im.onload = () => res(im); im.onerror = rej; im.src = d; });
+    const landscape = img.width >= img.height;
+    const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'pt', format: 'a4' });
+    const pw = doc.internal.pageSize.getWidth(), phh = doc.internal.pageSize.getHeight();
+    const ratio = Math.min((pw - 40) / img.width, (phh - 40) / img.height);
+    const w = img.width * ratio, h = img.height * ratio;
+    doc.addImage(d, 'JPEG', (pw - w) / 2, 20, w, h);
+    doc.save(`${name || 'challan'}.pdf`);
+  } catch { openChallan_(src); }
+}
+
 const toLocalInput_ = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d.getTime())) return ''; const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const fromLocalInput_ = (v) => { if (!v) return new Date().toISOString(); const d = new Date(v); return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString(); };
 const fmtDate_ = (iso) => { const d = new Date(iso); if (isNaN(d.getTime())) return ''; return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
@@ -770,15 +828,27 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Challan / bill photo</label>
           {challan ? (
-            <div className="relative overflow-hidden rounded-2xl border border-border-light">
-              <img src={challan} alt="challan" className="max-h-44 w-full object-contain bg-bg-base" />
-              <button onClick={() => setChallan('')} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"><X className="h-4 w-4" /></button>
+            <div className="overflow-hidden rounded-2xl border border-border-light">
+              <button type="button" onClick={() => openChallan_(challan)} className="block w-full"><img src={challan} alt="challan" className="max-h-44 w-full object-contain bg-bg-base" /></button>
+              <div className="flex flex-wrap items-center gap-1.5 border-t border-border-light p-2">
+                <button type="button" onClick={() => openChallan_(challan)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">Open</button>
+                <button type="button" onClick={() => downloadChallanImage_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ Image</button>
+                <button type="button" onClick={() => downloadChallanPdf_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ PDF</button>
+                <label className="cursor-pointer rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">Replace<input type="file" accept="image/*" onChange={pickChallan} className="hidden" /></label>
+                <button type="button" onClick={() => setChallan('')} className="ml-auto rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-rose-600">Remove</button>
+              </div>
             </div>
           ) : (
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-light bg-surface py-4 text-sm font-bold text-text-muted">
-              <Camera className="h-5 w-5" /> Upload / take photo
-              <input type="file" accept="image/*" capture="environment" onChange={pickChallan} className="hidden" />
-            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-border-light bg-surface py-3.5 text-xs font-bold text-text-muted">
+                <Camera className="h-4 w-4" /> Scan / Camera
+                <input type="file" accept="image/*" capture="environment" onChange={pickChallan} className="hidden" />
+              </label>
+              <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-border-light bg-surface py-3.5 text-xs font-bold text-text-muted">
+                <Download className="h-4 w-4 rotate-180" /> Upload file
+                <input type="file" accept="image/*" onChange={pickChallan} className="hidden" />
+              </label>
+            </div>
           )}
         </div>
       </div>
