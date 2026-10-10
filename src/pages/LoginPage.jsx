@@ -1,35 +1,15 @@
 import React, { useState } from 'react';
-import { MessageCircle, Phone, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { Phone, Sparkles, AlertCircle, HelpCircle } from 'lucide-react';
 import PinDigitInput from '../components/PinDigitInput';
 import { dataService } from '../services/dataService';
 
-const MODE = {
-  MAIN: 'main',
-  OTP: 'otp',
-  SETUP: 'setup'
-};
-
 export default function LoginPage({ onLoginSuccess }) {
-  const [mode, setMode] = useState(MODE.MAIN);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
-  // Form states
   const [mobile, setMobile] = useState('');
   const [pin, setPin] = useState('');
-
-  // OTP state
-  const [otp, setOtp] = useState('');
-
-  // Setup state
-  const [setupData, setSetupData] = useState({
-    password: '',
-    confirmPassword: '',
-    pin: '',
-    confirmPin: ''
-  });
-  const [showSetupSecret, setShowSetupSecret] = useState(false);
 
   const isMobileValid = mobile.length === 10;
   const isPinValid = pin.length === 6;
@@ -41,7 +21,6 @@ export default function LoginPage({ onLoginSuccess }) {
     if (digits.length > 10) digits = digits.slice(-10);
     setMobile(digits);
     setErrorMessage('');
-    setInfoMessage('');
   };
 
   // One login for everyone: Mobile + 6-digit PIN. Staff use their set PIN;
@@ -53,8 +32,6 @@ export default function LoginPage({ onLoginSuccess }) {
     if (loading) return;
     setLoading(true);
     try {
-      // Unified login: cache-first staff-PIN or devotee DOB-PIN, single network
-      // fallback for newly added / stale-cache accounts.
       const res = await dataService.login(mobile, pinValue);
       onLoginSuccess(res.user);
     } catch (err) {
@@ -64,55 +41,6 @@ export default function LoginPage({ onLoginSuccess }) {
     }
   };
   const handleLoginSubmit = (e) => { e.preventDefault(); submitLogin(); };
-
-  const handleForgotOrSetup = async () => {
-    if (!isMobileValid) return setErrorMessage('Enter your mobile number first');
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      const res = await dataService.requestOtp(mobile);
-      setInfoMessage(res.message);
-      setMode(MODE.OTP);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e?.preventDefault();
-    if (otp.length !== 6) return setErrorMessage('Enter all 6 OTP digits');
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      await dataService.verifyOtp(mobile, otp);
-      setMode(MODE.SETUP);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCompleteSetup = async (e) => {
-    e.preventDefault();
-    if (setupData.password.length < 6) return setErrorMessage('Password must be at least 6 characters');
-    if (setupData.password !== setupData.confirmPassword) return setErrorMessage('Passwords do not match');
-    if (setupData.pin.length !== 6) return setErrorMessage('PIN must be exactly 6 digits');
-    if (setupData.pin !== setupData.confirmPin) return setErrorMessage('PINs do not match');
-
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      const res = await dataService.completeSetup(mobile, setupData.password, setupData.pin);
-      onLoginSuccess(res.user);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-y-auto bg-bg-base">
@@ -175,173 +103,58 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
 
           <div className="relative mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-6 py-6 sm:px-10">
-            {/* MAIN LOGIN MODE */}
-            {mode === MODE.MAIN && (
-              <>
-                <div className="mb-5 text-center">
-                  <h2 className="text-2xl font-bold text-text-main">Welcome Back</h2>
-                  <p className="text-sm font-medium text-text-muted mt-1">Jai Swaminarayan 🙏</p>
+            <div className="mb-5 text-center">
+              <h2 className="text-2xl font-bold text-text-main">Welcome Back</h2>
+              <p className="text-sm font-medium text-text-muted mt-1">Jai Swaminarayan 🙏</p>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* Mobile */}
+              <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
+                <div className="flex items-center gap-3">
+                  <Phone className="h-5 w-5 text-text-muted" />
+                  <span className="text-sm font-bold text-text-main">+91</span>
+                  <input type="text" inputMode="numeric" value={mobile} onChange={handleMobileChange}
+                    placeholder="10-digit mobile number"
+                    className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
                 </div>
-
-                <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  {/* Mobile */}
-                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-[#003158]/10 transition-all">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Mobile Number</label>
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-5 w-5 text-text-muted" />
-                      <span className="text-sm font-bold text-text-main">+91</span>
-                      <input type="text" inputMode="numeric" value={mobile} onChange={handleMobileChange}
-                        placeholder="10-digit mobile number"
-                        className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:text-slate-300" />
-                    </div>
-                  </div>
-
-                  {/* PIN */}
-                  <div>
-                    <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
-                    <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={(val) => submitLogin(val)} masked={true} />
-                    <p className="mt-2 px-1 text-[11px] text-text-muted">Devotees: your PIN is your date of birth as <span className="font-bold">DDMMYY</span> — e.g. 01-12-95 → <span className="font-bold">011295</span>.</p>
-                  </div>
-
-                  {errorMessage && (
-                    <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
-                    </div>
-                  )}
-                  {infoMessage && (
-                    <div className="flex items-center gap-2.5 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-600">
-                      <CheckCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{infoMessage}</p>
-                    </div>
-                  )}
-
-                  <button type="submit" disabled={loading || !isPinValid}
-                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
-                    {loading ? 'Authenticating...' : 'Sign In →'}
-                  </button>
-                  <button type="button" onClick={handleForgotOrSetup}
-                    className="w-full text-center text-xs font-bold text-[#FF862A] hover:underline pt-1">
-                    Forgot Password / First Time Setup
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* OTP VERIFICATION MODE */}
-            {mode === MODE.OTP && (
-              <div>
-                <div className="mb-6 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF862A]/10 text-[#FF862A]">
-                    <MessageCircle className="h-6 w-6" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-text-main">Check WhatsApp</h2>
-                  <p className="text-sm font-medium text-text-muted mt-1">
-                    OTP sent to <span className="font-bold text-[#FF862A]">+91 {mobile}</span>
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5">(Demo OTP: 123456)</p>
-                </div>
-
-                <form onSubmit={handleVerifyOtp} className="space-y-4">
-                  <PinDigitInput
-                    length={6}
-                    value={otp}
-                    onChange={(val) => { setOtp(val); setErrorMessage(''); }}
-                    onComplete={() => handleVerifyOtp()}
-                  />
-
-                  {errorMessage && (
-                    <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      <p className="text-xs font-semibold">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading || otp.length !== 6}
-                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
-                  >
-                    {loading ? 'Verifying...' : 'Verify OTP'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setMode(MODE.MAIN)}
-                    className="w-full text-center text-xs font-bold text-text-muted hover:text-text-main"
-                  >
-                    ← Back to Sign In
-                  </button>
-                </form>
               </div>
-            )}
 
-            {/* SETUP MODE */}
-            {mode === MODE.SETUP && (
+              {/* PIN */}
               <div>
-                <div className="mb-6 text-center">
-                  <h2 className="text-2xl font-bold text-text-main">Account Setup</h2>
-                  <p className="text-sm font-medium text-text-muted mt-1">Set a password and your 6-digit PIN</p>
-                </div>
-
-                <form onSubmit={handleCompleteSetup} className="space-y-4">
-                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">New Password</label>
-                    <input
-                      type={showSetupSecret ? 'text' : 'password'}
-                      value={setupData.password}
-                      onChange={(e) => setSetupData({ ...setupData, password: e.target.value })}
-                      placeholder="At least 6 characters"
-                      className="w-full text-sm font-semibold text-text-main outline-none"
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-border-light bg-surface px-4 py-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1">Confirm Password</label>
-                    <input
-                      type={showSetupSecret ? 'text' : 'password'}
-                      value={setupData.confirmPassword}
-                      onChange={(e) => setSetupData({ ...setupData, confirmPassword: e.target.value })}
-                      placeholder="Re-enter password"
-                      className="w-full text-sm font-semibold text-text-main outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <span className="text-xs font-bold text-text-muted mb-1 block">New 6-Digit PIN</span>
-                    <PinDigitInput
-                      length={6}
-                      value={setupData.pin}
-                      onChange={(val) => setSetupData({ ...setupData, pin: val })}
-                      masked={!showSetupSecret}
-                    />
-                  </div>
-
-                  <div>
-                    <span className="text-xs font-bold text-text-muted mb-1 block">Confirm 6-Digit PIN</span>
-                    <PinDigitInput
-                      length={6}
-                      value={setupData.confirmPin}
-                      onChange={(val) => setSetupData({ ...setupData, confirmPin: val })}
-                      masked={!showSetupSecret}
-                    />
-                  </div>
-
-                  {errorMessage && (
-                    <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      <p className="text-xs font-semibold">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] disabled:opacity-50"
-                  >
-                    Complete Setup & Sign In
-                  </button>
-                </form>
+                <span className="text-xs font-bold text-text-muted mb-2 block px-1">6-Digit PIN</span>
+                <PinDigitInput length={6} value={pin} onChange={(val) => { setPin(val); setErrorMessage(''); }} onComplete={(val) => submitLogin(val)} masked={true} />
+                <p className="mt-2 px-1 text-[11px] text-text-muted">Devotees: your PIN is your date of birth as <span className="font-bold">DDMMYY</span> — e.g. 01-12-95 → <span className="font-bold">011295</span>.</p>
               </div>
-            )}
+
+              {errorMessage && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 text-red-600">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" /><p className="text-xs font-semibold">{errorMessage}</p>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading || !isPinValid}
+                className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#00223f] active:scale-[0.99] disabled:opacity-50">
+                {loading ? 'Authenticating...' : 'Sign In →'}
+              </button>
+
+              {/* Help: forgot PIN / first time — the Mandal admin manages accounts,
+                  so there is no self-service reset (no demo OTP). */}
+              <button type="button" onClick={() => setShowHelp((v) => !v)}
+                className="w-full flex items-center justify-center gap-1.5 text-center text-xs font-bold text-[#FF862A] hover:underline pt-1">
+                <HelpCircle className="h-3.5 w-3.5" /> Forgot PIN / Trouble signing in?
+              </button>
+              {showHelp && (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3.5 text-[12px] leading-relaxed text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <p className="font-bold mb-1">How to sign in</p>
+                  <ul className="list-disc space-y-1 pl-4">
+                    <li><b>Devotees:</b> PIN is your <b>date of birth</b> as DDMMYY (e.g. 01-12-95 → <b>011295</b>). If it doesn't work, ask your Mandal admin to check the date of birth on your record.</li>
+                    <li><b>Karyakarta / staff:</b> your mobile &amp; PIN are set by the Mandal admin. For a forgotten or new PIN, please contact the admin — they can view or reset it from <b>Admin → User Management</b>.</li>
+                  </ul>
+                </div>
+              )}
+            </form>
           </div>
         </div>
       </div>
