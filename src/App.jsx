@@ -16,6 +16,7 @@ import CalendarPage from './pages/CalendarPage';
 import DataQualityPage from './pages/DataQualityPage';
 import FeedPage from './pages/FeedPage';
 import EmailPage from './pages/EmailPage';
+import VatoPage from './pages/VatoPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -208,6 +209,7 @@ export default function App() {
             existing links/bookmarks so nothing breaks. */}
         {(activePage === 'calendar' || activePage === 'seva') && <CalendarPage user={user} />}
         {activePage === 'feed' && <FeedPage user={user} />}
+        {activePage === 'vato' && <VatoPage user={user} />}
         {activePage === 'data' && <DataQualityPage user={user} setActivePage={navigate} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={user} />}

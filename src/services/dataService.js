@@ -564,6 +564,17 @@ export const dataService = {
     try { const r = await api('getPushStatus', {}); return (r && r.status) || []; } catch { return []; }
   },
 
+  // ---- Vato (daily Gujarati/English teachings) ----
+  getCachedVato: () => { try { return JSON.parse(localStorage.getItem('ac-vato') || '[]'); } catch { return []; } },
+  getVato: async () => {
+    if (!hasBackend()) return dataService.getCachedVato();
+    try {
+      const r = await api('getVato', {});
+      if (r && Array.isArray(r.vato)) { try { localStorage.setItem('ac-vato', JSON.stringify(r.vato)); } catch (e) {} return r.vato; }
+    } catch { /* offline */ }
+    return dataService.getCachedVato();
+  },
+
   // ---- Feed (community photo/video posts) ----
   // Upload one media item (image or short video data URI) to Drive and get a
   // stable URL. Falls back to the data URI if there's no backend / upload fails.

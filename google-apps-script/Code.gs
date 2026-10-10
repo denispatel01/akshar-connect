@@ -69,10 +69,12 @@ var HEADERS = {
   // entity ∈ order|purchase|product. action ∈ create|update|void|delete|revert.
   // changesJson = [{field,before,after}]; beforeJson/afterJson = full row snapshots
   // (beforeJson lets an admin revert to the prior state).
-  GhariLog: ['id','ts','entity','entityId','action','actor','changesJson','beforeJson','afterJson']
+  GhariLog: ['id','ts','entity','entityId','action','actor','changesJson','beforeJson','afterJson'],
+  // ── Vato (daily Gujarati/English teachings, maintained by hand in the sheet) ─
+  Vato: ['SN','Gujarati','English']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-12-ghari-audit';
+var SCHEMA_VERSION = '2026-10-12-vato';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -657,6 +659,58 @@ function installSwadhyayReminder(){
   Logger.log('Swadhyay daily reminder installed at ' + h + ':00 (Asia/Kolkata).');
 }
 
+// ── Vato (daily teachings) ────────────────────────────────────────────────────
+function doGetVato_(){
+  var list = readAll_('Vato').filter(function(r){ return String(r.Gujarati||'').trim() || String(r.English||'').trim(); });
+  return json_({ ok:true, vato: list });
+}
+function dayOfYear_(){ var n=new Date(); var s=new Date(n.getFullYear(),0,0); return Math.floor((n-s)/86400000); }
+// Daily 6 AM push of the "Vato of the day" (rotates through the sheet by day).
+function vatoReminder_(){
+  try{
+    var list = readAll_('Vato').filter(function(r){ return String(r.Gujarati||'').trim() || String(r.English||'').trim(); });
+    if(!list.length) return;
+    var v = list[dayOfYear_() % list.length];
+    var guj = String(v.Gujarati||'').split('\n')[0].trim().slice(0,110);
+    var eng = String(v.English||'').split('\n')[0].trim().slice(0,150);
+    var body = [guj, eng].filter(Boolean).join('\n').slice(0,240);
+    sendPush_('🌸 આજની વાત · Today’s Vato', body || 'Open to read today’s teaching 🙏', 'all', { type:'vato' });
+  }catch(e){ Logger.log('vato reminder failed: '+e); }
+}
+function installVatoReminder(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='vatoReminder_') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('vatoReminder_').timeBased().atHour(6).everyDays(1).create();
+  Logger.log('Vato daily reminder installed at 06:00 (Asia/Kolkata).');
+}
+// Parse a dob into {mm,dd} handling ISO (yyyy-mm-dd) and dd-mm-yyyy.
+function birthdayMD_(s){
+  s=String(s||'').trim(); if(!s) return null;
+  var m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s); if(m) return { mm:+m[2], dd:+m[3] };
+  m=/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/.exec(s); if(m) return { dd:+m[1], mm:+m[2] };
+  var dt=new Date(s); if(!isNaN(dt.getTime())) return { mm:dt.getMonth()+1, dd:dt.getDate() };
+  return null;
+}
+// Daily 8 AM push naming everyone whose birthday is today (skips if none).
+function birthdayReminder_(){
+  try{
+    var today=new Date(); var mm=today.getMonth()+1, dd=today.getDate();
+    var names=[];
+    readAll_('Devotees').forEach(function(d){
+      var md=birthdayMD_(d.dob); if(md && md.mm===mm && md.dd===dd){ var nm=String(d.name||'').trim(); if(nm) names.push(nm); }
+    });
+    if(!names.length) return;
+    var body = names.length===1
+      ? ('Wish ' + names[0] + ' a very happy birthday today! 🎉🙏')
+      : ('Birthdays today: ' + names.slice(0,8).join(', ') + (names.length>8 ? (' +' + (names.length-8) + ' more') : '') + ' 🎉');
+    sendPush_('🎂 Happy Birthday!', body.slice(0,240), 'all', { type:'birthday' });
+  }catch(e){ Logger.log('birthday reminder failed: '+e); }
+}
+function installBirthdayReminder(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='birthdayReminder_') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('birthdayReminder_').timeBased().atHour(8).everyDays(1).create();
+  Logger.log('Birthday daily reminder installed at 08:00 (Asia/Kolkata).');
+}
+
 function doGetAnnouncements_(){
   var list = readAll_('Announcements');
   list.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
@@ -1008,7 +1062,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','Vato'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1035,6 +1089,19 @@ function readAll_(name){
   return out;
 }
 
+// Read only the LAST n data rows of a tab as objects (fast for big log tabs —
+// avoids pulling the whole sheet into memory just to show recent entries).
+function readTail_(name, n){
+  var sh=tab_(name); var last=sh.getLastRow(); if(last<2) return [];
+  var head=HEADERS[name]; var count=Math.min(n, last-1); var start=last-count+1;
+  var v=sh.getRange(start,1,count,head.length).getValues(); var out=[];
+  for(var i=0;i<v.length;i++){
+    var o={}; var blank=true;
+    for(var c=0;c<head.length;c++){ var val=v[i][c]; if(val!==''&&val!==null) blank=false; o[head[c]]=(val===null?'':val); }
+    if(!blank){ for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } } out.push(o); }
+  }
+  return out;
+}
 function rowFromObj_(name, obj){ return HEADERS[name].map(function(h){ var x=obj[h]; return (x===undefined||x===null)?'':x; }); }
 function appendRows_(name, arr){
   if(!arr || !arr.length) return;
@@ -1122,6 +1189,10 @@ function handle_(p){
           ts: a.ts || new Date().toISOString(), actor: a.actor||'', actorMobile: a.actorMobile||'',
           action: a.action||'', target: a.target||'', detail: a.detail||'', device: a.device||''
         }]);
+        // Keep the Activity tab bounded so the sheet never gets slow. When it grows
+        // past ~12000 rows, drop the oldest down to ~8000 (recent history is kept).
+        // Money/Ghari logs are intentionally NEVER trimmed.
+        try { var _ash=tab_('Activity'); var _lr=_ash.getLastRow(); if(_lr > 12000){ _ash.deleteRows(2, _lr - 8000); } } catch(e){}
         // Activity watch: push every logged action to the watcher's device(s),
         // except the watcher's own actions. Toggle via setActivityWatch.
         try {
@@ -1150,10 +1221,12 @@ function handle_(p){
       return json_({ ok:true, on: _g.getProperty('activityWatchOn') === 'true', mobile: _g.getProperty('activityWatchMobile') || '' });
     }
     if(action==='activity'){
-      var all = readAll_('Activity');
-      if(p.actor) all = all.filter(function(r){ return String(r.actor)===String(p.actor); });
       var lim = Math.min(parseInt(p.limit,10)||300, 1000);
-      var out = all.slice(Math.max(0, all.length-lim)).reverse(); // newest first
+      // Read only the recent tail instead of the whole (potentially huge) tab.
+      var windowN = p.actor ? 5000 : lim;
+      var tail = readTail_('Activity', windowN);
+      if(p.actor) tail = tail.filter(function(r){ return String(r.actor)===String(p.actor); });
+      var out = tail.slice(Math.max(0, tail.length-lim)).reverse(); // newest first
       return json_({ ok:true, activity: out });
     }
     if(action==='getUsers') return json_({ ok:true, users: readAll_('Users') });
@@ -1212,6 +1285,7 @@ function handle_(p){
       return json_({ ok:true, logs: gl.slice(0, Number(p.limit)||300) });
     }
     if(action==='ghariRevert') return doGhariRevert_(p);
+    if(action==='getVato') return doGetVato_();
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

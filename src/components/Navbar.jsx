@@ -24,6 +24,7 @@ import {
   Cookie,
   Sparkles,
   Database,
+  Quote,
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
@@ -51,6 +52,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const allNavItems = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'vato', label: 'Vato', icon: Quote },
         { id: 'feed', label: 'Feed', icon: Sparkles },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'calendar', label: 'Calendar', icon: CalendarDays },
@@ -60,6 +62,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'vato', label: 'Vato', icon: Quote },
         { id: 'feed', label: 'Feed', icon: Sparkles },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'calendar', label: 'Calendar', icon: CalendarDays },
