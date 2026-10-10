@@ -51,10 +51,10 @@ function DevoteePicker({ value, name, onPick }) {
         placeholder="Search devotee by name or mobile"
         className="w-full rounded-2xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
       {open && results.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-border-light bg-surface shadow-xl">
+        <div className="mt-1 w-full max-h-56 overflow-y-auto rounded-2xl border border-border-light bg-surface shadow-lg">
           {results.map((d) => (
             <button key={d.id} onClick={() => { onPick(d); setQ(''); setOpen(false); }}
-              className="block w-full px-3.5 py-2.5 text-left text-sm hover:bg-bg-base">
+              className="block w-full border-b border-border-light/60 px-3.5 py-2.5 text-left text-sm last:border-0 hover:bg-bg-base">
               <span className="font-bold text-text-main">{d.name}</span>
               {d.mobile ? <span className="text-xs text-text-muted"> · {d.mobile}</span> : null}
               {d.area ? <span className="text-xs text-text-muted"> · {d.area}</span> : null}
@@ -97,10 +97,10 @@ function CompanionPicker({ companions, excludeIds, onAdd, onRemove }) {
           placeholder="Add devotees who came along"
           className="w-full rounded-2xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
         {open && results.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-border-light bg-surface shadow-xl">
+          <div className="mt-1 w-full max-h-56 overflow-y-auto rounded-2xl border border-border-light bg-surface shadow-lg">
             {results.map((d) => (
               <button key={d.id} onClick={() => { onAdd(d); setQ(''); }}
-                className="block w-full px-3.5 py-2.5 text-left text-sm hover:bg-bg-base">
+                className="block w-full border-b border-border-light/60 px-3.5 py-2.5 text-left text-sm last:border-0 hover:bg-bg-base">
                 <span className="font-bold text-text-main">{d.name}</span>
                 {d.area ? <span className="text-xs text-text-muted"> · {d.area}</span> : null}
               </button>
