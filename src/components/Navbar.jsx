@@ -4,6 +4,7 @@ import {
   Users,
   PhoneCall,
   FileSpreadsheet,
+  BookOpen,
   Mail,
   Settings,
   LogOut,
@@ -37,12 +38,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const allNavItems = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'devotees', label: 'My Profile', icon: User },
         { id: 'family', label: 'Family', icon: Users },
         { id: 'activity', label: 'My Activity', icon: Activity },
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak
           ? [
@@ -68,11 +71,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const primaryMobile = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'devotees', label: 'My Profile', icon: User },
         { id: 'family', label: 'Family', icon: Users },
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak ? [{ id: 'followups', label: 'Follow-up', icon: PhoneCall }] : []),
       ];

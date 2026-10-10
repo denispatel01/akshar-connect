@@ -41,10 +41,13 @@ var HEADERS = {
   Announcements: ['id','title','body','audience','createdBy','createdOn','sentCount'],
   // Each person's notification-permission response (so admins can see who allowed /
   // rejected). Keyed by devoteeId (or mobile). status ∈ granted|denied|default|unsupported.
-  PushStatus: ['key','devoteeId','mobile','name','status','platform','updatedOn']
+  PushStatus: ['key','devoteeId','mobile','name','status','platform','updatedOn'],
+  // Daily Swadhyay log — one row per devotee per day. Minutes of Bhajan (with the
+  // time of day), Shravan (listening to discourses) and Vachan (reading).
+  Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-pushstatus';
+var SCHEMA_VERSION = '2026-10-11-swadhyay';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -263,6 +266,54 @@ function doLogPushStatus_(p){
   return json_({ ok:true });
 }
 function doGetPushStatus_(){ return json_({ ok:true, status: readAll_('PushStatus') }); }
+
+// ── Swadhyay daily log ───────────────────────────────────────────────────────
+function doSaveSwadhyay_(p){
+  var devoteeId = String(p.devoteeId || '').trim();
+  var date = String(p.date || '').trim();
+  if(!devoteeId || !date) return json_({ ok:false, error:'devoteeId and date required' });
+  var key = devoteeId + '|' + date;
+  var now = new Date().toISOString();
+  var existing = findRow_('Swadhyay', 'key', key);
+  var row = {
+    key: key, devoteeId: devoteeId, mobile: String(p.mobile||''), name: String(p.name||''), date: date,
+    bhajanMin: Number(p.bhajanMin)||0, bhajanTime: String(p.bhajanTime||''),
+    listenMin: Number(p.listenMin)||0, readMin: Number(p.readMin)||0,
+    createdOn: now, updatedOn: now
+  };
+  if(existing > 0){
+    // keep original createdOn
+    var curCreated = tab_('Swadhyay').getRange(existing, HEADERS.Swadhyay.indexOf('createdOn')+1).getValue();
+    row.createdOn = curCreated || now;
+    tab_('Swadhyay').getRange(existing,1,1,HEADERS.Swadhyay.length).setValues([rowFromObj_('Swadhyay', row)]);
+  } else {
+    appendRows_('Swadhyay', [row]);
+  }
+  return json_({ ok:true, row: row });
+}
+// Return a devotee's own entries (most recent first). With all=1 (admin), returns everyone's.
+function doGetSwadhyay_(p){
+  var all = readAll_('Swadhyay');
+  if(String(p.all||'') !== '1'){
+    var id = String(p.devoteeId||'');
+    all = all.filter(function(r){ return String(r.devoteeId) === id; });
+  }
+  all.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
+  return json_({ ok:true, entries: all.slice(0, Number(p.limit)||120) });
+}
+
+// Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
+// editor to schedule it; it pushes to every device that enabled notifications.
+function swadhyayReminder_(){
+  try { sendPush_('🙏 Swadhyay time', 'How much Bhajan, Shravan & Vachan did you do today? Tap to add — it takes 10 seconds.', 'all', { type:'swadhyay' }); }
+  catch(e){ Logger.log('swadhyay reminder failed: ' + e); }
+}
+function installSwadhyayReminder(){
+  // Remove any existing copy first so re-running doesn't stack duplicates.
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction() === 'swadhyayReminder_') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('swadhyayReminder_').timeBased().atHour(20).everyDays(1).create();
+  Logger.log('Swadhyay 8 PM daily reminder installed.');
+}
 
 function doGetAnnouncements_(){
   var list = readAll_('Announcements');
@@ -580,7 +631,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -729,6 +780,8 @@ function handle_(p){
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
     if(action==='logPushStatus') return doLogPushStatus_(p);
     if(action==='getPushStatus') return doGetPushStatus_();
+    if(action==='saveSwadhyay') return doSaveSwadhyay_(p);
+    if(action==='getSwadhyay') return doGetSwadhyay_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

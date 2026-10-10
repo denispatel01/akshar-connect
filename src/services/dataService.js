@@ -552,6 +552,20 @@ export const dataService = {
     try { const r = await api('getPushStatus', {}); return (r && r.status) || []; } catch { return []; }
   },
 
+  // ---- Swadhyay (daily spiritual-practice log) ----
+  // Save today's (or any day's) Swadhyay for the current user. Upserts by day.
+  saveSwadhyay: async ({ devoteeId, mobile = '', name = '', date, bhajanMin = 0, bhajanTime = '', listenMin = 0, readMin = 0 }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('saveSwadhyay', { devoteeId, mobile, name, date, bhajanMin, bhajanTime, listenMin, readMin });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
+    return r.row;
+  },
+  // My recent Swadhyay entries (most recent first).
+  getMySwadhyay: async (devoteeId, limit = 120) => {
+    if (!hasBackend() || !devoteeId) return [];
+    try { const r = await api('getSwadhyay', { devoteeId, limit }); return (r && r.entries) || []; } catch { return []; }
+  },
+
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
     try {

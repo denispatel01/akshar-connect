@@ -11,6 +11,7 @@ import FamilyTagPage from './pages/FamilyTagPage';
 import GhariPage from './pages/GhariPage';
 import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
+import SwadhyayPage from './pages/SwadhyayPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -198,6 +199,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
         {activePage === 'ghari' && <GhariPage user={user} />}
+        {activePage === 'swadhyay' && <SwadhyayPage user={user} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={user} />}
         </ErrorBoundary>
