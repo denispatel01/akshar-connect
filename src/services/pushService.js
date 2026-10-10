@@ -53,7 +53,10 @@ async function registerWebPush(user) {
   const { getMessaging, getToken, onMessage } = await import('firebase/messaging');
   const { initializeApp, getApps } = await import('firebase/app');
   const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  const swReg = await navigator.serviceWorker.register((import.meta.env.BASE_URL || '/') + 'firebase-messaging-sw.js');
+  // Register on a DEDICATED scope so it never collides with the app's main sw.js
+  // (two SWs on the same scope evict each other → controllerchange → reload loop).
+  const base = import.meta.env.BASE_URL || '/';
+  const swReg = await navigator.serviceWorker.register(base + 'firebase-messaging-sw.js', { scope: base + 'firebase-cloud-messaging-push-scope' });
   const messaging = getMessaging(app);
   const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
   if (!token) return false;

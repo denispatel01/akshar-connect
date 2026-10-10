@@ -91,10 +91,11 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       .catch(() => {})
 
     // The new worker took control → reload once to swap in the new code.
-    let reloaded = false
+    // Guard with sessionStorage (survives the reload) so a misbehaving SW can
+    // never put the tab into an infinite refresh loop — at most one reload per tab.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloaded) return
-      reloaded = true
+      try { if (sessionStorage.getItem('ac-sw-reloaded') === '1') return } catch (e) {}
+      try { sessionStorage.setItem('ac-sw-reloaded', '1') } catch (e) {}
       window.location.reload()
     })
   })
