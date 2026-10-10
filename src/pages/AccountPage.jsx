@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Phone, ShieldCheck, Lock, KeyRound, Check, AlertCircle, UserCircle, Pencil } from 'lucide-react';
+import { Phone, ShieldCheck, Lock, KeyRound, Check, AlertCircle, UserCircle, Pencil, Bell } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import PinDigitInput from '../components/PinDigitInput';
+import { enablePush, pushPermission } from '../services/pushService';
 
 export default function AccountPage({ user, setActivePage }) {
   // The devotee record that belongs to this account (matched by devoteeId, else mobile).
@@ -73,6 +74,9 @@ export default function AccountPage({ user, setActivePage }) {
         </div>
       </div>
 
+      {/* Notifications */}
+      <NotificationCard user={user} />
+
       {/* My devotee profile */}
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
         <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><UserCircle className="h-4 w-4 text-primary" /> My Profile</h2>
@@ -131,6 +135,51 @@ export default function AccountPage({ user, setActivePage }) {
           {busy ? 'Saving…' : 'Update PIN'}
         </button>
       </form>
+    </div>
+  );
+}
+
+// Enable / status card for push notifications. The "Enable" button is what makes
+// iOS show the permission prompt (it requires a user gesture), and it registers
+// the device token for push.
+function NotificationCard({ user }) {
+  const [perm, setPerm] = React.useState(() => pushPermission());
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+
+  const enable = async () => {
+    setBusy(true); setMsg('');
+    const res = await enablePush(user);
+    setPerm(pushPermission());
+    const map = {
+      granted: '✅ Notifications are on for this device.',
+      denied: '🔕 Blocked. Enable notifications for this app in your browser/phone settings, then try again.',
+      dismissed: 'You dismissed the prompt. Tap Enable to try again.',
+      unsupported: 'This device/browser can’t receive push here. On iPhone, open the app from your Home Screen icon (Add to Home Screen first).',
+      unconfigured: 'Push isn’t configured yet.',
+      error: 'Something went wrong. Please try again.',
+    };
+    setMsg(map[res] || '');
+    setBusy(false);
+  };
+
+  const on = perm === 'granted';
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+      <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><Bell className="h-4 w-4 text-primary" /> Notifications</h2>
+      <p className="text-sm text-text-muted">Get announcements from the Mandal as notifications on this device.</p>
+      {on ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+          <Check className="h-4 w-4" /> Notifications are enabled on this device.
+        </div>
+      ) : (
+        <button onClick={enable} disabled={busy}
+          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-60">
+          <Bell className="h-4 w-4" /> {busy ? 'Enabling…' : 'Enable Notifications'}
+        </button>
+      )}
+      {msg && <p className="text-xs font-semibold text-text-muted">{msg}</p>}
+      <p className="text-[11px] text-text-muted">iPhone: open the app from your Home Screen icon for notifications to work.</p>
     </div>
   );
 }

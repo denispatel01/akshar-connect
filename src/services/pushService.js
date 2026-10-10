@@ -7,76 +7,75 @@ import { Capacitor } from '@capacitor/core';
 import { dataService } from './dataService';
 import { firebaseConfig, VAPID_KEY, firebaseConfigured } from './firebaseConfig';
 
-let started = false;
+let autoStarted = false;
 
+// Auto-attempt on login/launch. On Android/desktop this silently registers if
+// permission is already granted. On iOS the OS ignores a non-gesture permission
+// request, so iPhone users enable via the button (enablePush) instead.
 export async function initPush(user) {
-  if (started) return;
-  started = true;
+  if (autoStarted) return;
+  autoStarted = true;
   try {
-    if (Capacitor?.isNativePlatform?.()) await initNativePush(user);
-    else await initWebPush(user);
-  } catch (e) {
-    console.warn('initPush failed', e);
-    started = false; // allow a retry on the next login
-  }
+    if (Capacitor?.isNativePlatform?.()) { await initNativePush(user); return; }
+    // Web: only auto-register if the user already granted permission before (no prompt).
+    if (firebaseConfigured && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      await registerWebPush(user);
+    }
+  } catch (e) { console.warn('initPush failed', e); }
+}
+
+// Tap-triggered enable — call this from a BUTTON click (required by iOS to show
+// the permission prompt). Returns a status string for UI feedback.
+export async function enablePush(user) {
+  try {
+    if (Capacitor?.isNativePlatform?.()) { await initNativePush(user); return 'granted'; }
+    if (!firebaseConfigured) return 'unconfigured';
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return 'unsupported';
+    const { isSupported } = await import('firebase/messaging');
+    if (!(await isSupported())) return 'unsupported'; // e.g. iOS Safari tab not installed as PWA
+    let perm = Notification.permission;
+    if (perm !== 'granted') perm = await Notification.requestPermission();
+    if (perm !== 'granted') return perm === 'denied' ? 'denied' : 'dismissed';
+    const ok = await registerWebPush(user);
+    return ok ? 'granted' : 'error';
+  } catch (e) { console.warn('enablePush failed', e); return 'error'; }
+}
+
+// Current permission state for UI ('granted' | 'denied' | 'default' | 'unsupported').
+export function pushPermission() {
+  try { return ('Notification' in window) ? Notification.permission : 'unsupported'; }
+  catch { return 'unsupported'; }
 }
 
 // ── Web / PWA push via Firebase Cloud Messaging ──────────────────────────────
-async function initWebPush(user) {
-  if (!firebaseConfigured) return;                 // not set up yet — stay silent
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
-
-  const { isSupported, getMessaging, getToken, onMessage } = await import('firebase/messaging');
-  if (!(await isSupported())) return;              // e.g. iOS Safari not installed as PWA
-
-  // Ask permission (must be triggered by the app after login).
-  let perm = Notification.permission;
-  if (perm === 'default') perm = await Notification.requestPermission();
-  if (perm !== 'granted') return;
-
+async function registerWebPush(user) {
+  if (!firebaseConfigured) return false;
+  const { getMessaging, getToken, onMessage } = await import('firebase/messaging');
   const { initializeApp, getApps } = await import('firebase/app');
   const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-
-  // Dedicated SW for background messages (separate from the PWA cache SW).
-  const swReg = await navigator.serviceWorker.register(
-    (import.meta.env.BASE_URL || '/') + 'firebase-messaging-sw.js'
-  );
-
+  const swReg = await navigator.serviceWorker.register((import.meta.env.BASE_URL || '/') + 'firebase-messaging-sw.js');
   const messaging = getMessaging(app);
   const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
-  if (token) {
-    await dataService.registerPushToken({
-      token,
-      devoteeId: user?.devoteeId || '',
-      mobile: user?.mobile || '',
-      name: user?.name || '',
-      platform: 'web',
-    });
-  }
-
-  // Foreground message (app open): refresh the bell and let the UI react.
+  if (!token) return false;
+  await dataService.registerPushToken({
+    token, devoteeId: user?.devoteeId || '', mobile: user?.mobile || '', name: user?.name || '', platform: 'web',
+  });
   onMessage(messaging, (payload) => {
     try { dataService.getAnnouncements(); } catch (e) {}
     try { window.dispatchEvent(new CustomEvent('ac-push-received', { detail: payload })); } catch (e) {}
   });
+  return true;
 }
 
 // ── Native app push via Capacitor ────────────────────────────────────────────
 async function initNativePush(user) {
   const { PushNotifications } = await import('@capacitor/push-notifications');
   let perm = await PushNotifications.checkPermissions();
-  if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
-    perm = await PushNotifications.requestPermissions();
-  }
+  if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
   if (perm.receive !== 'granted') return;
-
   PushNotifications.addListener('registration', (tok) => {
     dataService.registerPushToken({
-      token: tok.value,
-      devoteeId: user?.devoteeId || '',
-      mobile: user?.mobile || '',
-      name: user?.name || '',
-      platform: Capacitor.getPlatform(),
+      token: tok.value, devoteeId: user?.devoteeId || '', mobile: user?.mobile || '', name: user?.name || '', platform: Capacitor.getPlatform(),
     });
   });
   PushNotifications.addListener('registrationError', (err) => console.warn('push registration error', err));
