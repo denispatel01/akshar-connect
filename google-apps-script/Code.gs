@@ -158,8 +158,9 @@ function clearBase64Photos(){ Logger.log(doClearBase64Photos_().getContent()); }
 
 /** RUN ONCE from the editor to grant the Drive permission (like testMail). */
 function authorizeDrive(){
-  var f = photoFolder_();
-  Logger.log('Drive OK — folder "' + PHOTO_FOLDER_NAME + '" id: ' + f.getId());
+  var pf = photoFolder_();
+  var cf = challanFolder_();
+  Logger.log('Drive OK — profile-photo id: ' + pf.getId() + ' | ghari-challan id: ' + cf.getId());
 }
 
 // Pretty, profile-style HTML email for a devotee add/edit (#93).
