@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft, ChevronRight, X, Plus, Check, Trash2, Music, Headphones,
-  HeartHandshake, CalendarDays, Search, User, Users, Clock, MapPin,
+  HeartHandshake, CalendarDays, Search, User, Users, Clock, MapPin, Pencil,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
@@ -292,7 +292,7 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
   const sevaList = (data?.sevaList || []);
 
   // ── Full Seva logging (merged from the Seva module) ──────────────────────────
-  const emptySeva = { fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '', companions: [] };
+  const emptySeva = { id: '', fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '', companions: [] };
   const [sevaForm, setSevaForm] = useState(emptySeva);
   const [sevaOpen, setSevaOpen] = useState(false);
   const [sevaSaving, setSevaSaving] = useState(false);
@@ -328,6 +328,18 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
       setTimeout(() => { setSevaSaved(false); setSevaOpen(false); }, 1600);
     } catch (e) { alertError('Could not save', e.message || 'Try again.'); }
     finally { setSevaSaving(false); }
+  };
+
+  const editSeva = (s) => {
+    let comps = [];
+    try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) { comps = []; }
+    setSevaForm({
+      id: s.id, fromTime: s.fromTime || '', toTime: s.toTime || '',
+      category: s.category || '', work: s.work || '',
+      visitedId: s.visitedId || '', visitedName: s.visitedName || '',
+      companions: Array.isArray(comps) ? comps : [],
+    });
+    setSevaOpen(true);
   };
 
   const delSeva = async (s) => {
@@ -375,7 +387,10 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
                       <p className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{s.visitedName || s.category || 'Seva'}</p>
                       {s.category && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">{s.category}</span>}
                       {(isStaff || String(s.karyakartaId) === String(devoteeId)) && (
-                        <button onClick={() => delSeva(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                        <>
+                          <button onClick={() => editSeva(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-primary" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => delSeva(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-red-500" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </>
                       )}
                     </div>
                     {time && <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-text-muted"><Clock className="h-3 w-3" /> {time}</p>}
@@ -419,14 +434,14 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
           {isStaff && (
             <div className="mb-3">
               {!sevaOpen ? (
-                <button onClick={() => setSevaOpen(true)}
+                <button onClick={() => { setSevaForm(emptySeva); setSevaOpen(true); }}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] py-3 text-sm font-black text-white shadow-md transition-transform active:scale-[0.99]">
                   <HeartHandshake className="h-4 w-4" /> Log a Seva visit
                 </button>
               ) : (
                 <div className="space-y-3 rounded-2xl border border-purple-200 bg-purple-50/60 p-3 dark:border-purple-900 dark:bg-purple-950/20">
                   <div className="flex items-center justify-between">
-                    <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-main"><HeartHandshake className="h-4 w-4 text-[#7c3aed]" /> Log Seva</p>
+                    <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-main"><HeartHandshake className="h-4 w-4 text-[#7c3aed]" /> {sevaForm.id ? 'Edit Seva' : 'Log Seva'}</p>
                     <button onClick={() => { setSevaOpen(false); setSevaForm(emptySeva); }} className="rounded-lg p-1 text-text-muted hover:text-red-500"><X className="h-4 w-4" /></button>
                   </div>
 
@@ -478,7 +493,7 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
 
                   <button onClick={saveSeva} disabled={sevaSaving}
                     className={`flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black text-white shadow-md transition-all active:scale-[0.99] disabled:opacity-60 ${sevaSaved ? 'bg-emerald-500' : 'bg-gradient-to-r from-[#7c3aed] to-[#9333ea]'}`}>
-                    {sevaSaved ? <><Check className="h-5 w-5" /> Seva saved!</> : sevaSaving ? 'Saving…' : <><Check className="h-4 w-4" /> Save Seva</>}
+                    {sevaSaved ? <><Check className="h-5 w-5" /> Seva saved!</> : sevaSaving ? 'Saving…' : <><Check className="h-4 w-4" /> {sevaForm.id ? 'Update Seva' : 'Save Seva'}</>}
                   </button>
                 </div>
               )}
