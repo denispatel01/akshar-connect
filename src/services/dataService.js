@@ -41,6 +41,18 @@ function actorName_() {
   try { return (JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.name || 'Someone'); }
   catch { return 'Someone'; }
 }
+// Next sequential family id: "FAM" + (highest existing FAM number + 1), zero-padded
+// to 3 digits (FAM001, …, FAM201, FAM202). Scans only FAM-style ids so legacy /
+// non-FAM values never affect the counter.
+function nextFamilyId_() {
+  const max = (DB.devotees || []).reduce((m, d) => {
+    const mt = /^FAM(\d+)$/i.exec(String(d.familyId || '').trim());
+    if (!mt) return m;
+    const n = parseInt(mt[1], 10);
+    return (!isNaN(n) && n > m) ? n : m;
+  }, 0);
+  return 'FAM' + String(max + 1).padStart(3, '0');
+}
 // Short device label from the user agent, e.g. "Android · Chrome" / "Windows · Chrome".
 function deviceLabel_() {
   try {
@@ -698,10 +710,10 @@ export const dataService = {
     const nextNum = DB.devotees.reduce((m, d) => { const n = parseInt(String(d.id || '').replace(/\D/g, ''), 10); return (!isNaN(n) && n > m) ? n : m; }, 0) + 1; // max existing id + 1 — collision-proof (#145)
     const now = new Date().toISOString();
     const id = `HPP-${nextNum}`;
-    // A primary member (family head) is their own family — auto-generate the
-    // Family ID from their own record ID so it's populated immediately.
+    // A primary member (family head) starts a new family — assign the next
+    // sequential Family ID (FAM + max existing FAM number + 1), e.g. FAM202.
     const isPrimary = devotee.type === 'Primary' || !devotee.type;
-    const familyId = devotee.familyId || (isPrimary ? id : '');
+    const familyId = devotee.familyId || (isPrimary ? nextFamilyId_() : '');
     const newDevotee = normalizeDevotee({
       ...devotee,
       id,

@@ -194,6 +194,30 @@ function doMigrateBase64Photos_(){
 }
 function migrateBase64Photos(){ Logger.log(doMigrateBase64Photos_().getContent()); }
 
+// Remap family ids in bulk (e.g. to close gaps) WITHOUT splitting families: every
+// row whose familyId matches a `from` is set to the matching `to`. A timestamped
+// backup of the Devotees tab is saved first, so it is fully reversible.
+// p.map = [{ from:'FAM202', to:'FAM024' }, ...]
+function doRemapFamilyIds_(p){
+  var map = p.map || [];
+  if(!map.length) return json_({ ok:false, error:'empty map' });
+  var lookup = {}; map.forEach(function(m){ if(m && m.from && m.to) lookup[String(m.from)] = String(m.to); });
+  var sh = tab_('Devotees');
+  var last = sh.getLastRow(); if(last < 2) return json_({ ok:true, changed:0 });
+  var fIdx = HEADERS.Devotees.indexOf('familyId');
+  if(fIdx < 0) return json_({ ok:false, error:'no familyId column' });
+  // Backup first (reversible).
+  try { sh.copyTo(ss_()).setName('Devotees_bak_fam_' + Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); } catch(e){}
+  var rng = sh.getRange(2, fIdx+1, last-1, 1);
+  var vals = rng.getValues(), changed = 0;
+  for(var i=0;i<vals.length;i++){
+    var cur = String(vals[i][0]||'');
+    if(lookup.hasOwnProperty(cur)){ vals[i][0] = lookup[cur]; changed++; }
+  }
+  if(changed) rng.setValues(vals);
+  return json_({ ok:true, changed:changed });
+}
+
 // ── Push notifications via Firebase Cloud Messaging (HTTP v1) ─────────────────
 // Setup (one time, by the project owner):
 //   1. Firebase console → create project → add Android app id in.aksharmandal.aksharconnect.
@@ -671,6 +695,7 @@ function handle_(p){
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
+    if(action==='remapFamilyIds') return doRemapFamilyIds_(p);
     if(action==='registerPushToken') return doRegisterPushToken_(p);
     if(action==='getAnnouncements') return doGetAnnouncements_();
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
