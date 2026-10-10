@@ -105,6 +105,29 @@ function photoIdFromUrl_(u){
        || /\/d\/([A-Za-z0-9_-]+)/.exec(s);
   return m ? m[1] : '';
 }
+// Ghari challans live under akshar-connect/ghari-challan and keep their real file
+// type (image or PDF), unlike profile photos which are always re-saved as JPEG.
+function challanFolder_(){
+  var root = subFolder_(DriveApp.getRootFolder(), 'akshar-connect');
+  return subFolder_(root, 'ghari-challan');
+}
+function doUploadChallan_(p){
+  try{
+    var dataUri = String(p.dataUri || '');
+    var m = /^data:([^;,]+)?/.exec(dataUri);
+    var ct = (m && m[1]) ? m[1] : 'image/jpeg';
+    var isPdf = ct.toLowerCase().indexOf('pdf') >= 0;
+    var ext = isPdf ? 'pdf' : (ct.toLowerCase().indexOf('png') >= 0 ? 'png' : 'jpg');
+    var blob = dataUriToBlob_(dataUri, (p.id || 'challan') + '_' + Date.now() + '.' + ext);
+    if(!blob) return json_({ ok:false, error:'bad file data' });
+    var file = challanFolder_().createFile(blob);
+    try{ file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }catch(e){}
+    var id = file.getId();
+    // Images render inline via lh3; PDFs open in the Drive viewer.
+    var url = isPdf ? ('https://drive.google.com/file/d/' + id + '/view') : photoUrl_(id);
+    return json_({ ok:true, id:id, url:url, type:ct });
+  }catch(e){ return json_({ ok:false, error:String(e) }); }
+}
 function doUploadPhoto_(p){
   try{
     var blob = dataUriToBlob_(p.dataUri, (p.id || 'photo') + '_' + Date.now() + '.jpg');
@@ -474,6 +497,7 @@ function handle_(p){
     if(action==='ghariDeletePurchase') return doGhariDelete_('GhariPurchases', p.id, 'id');
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
+    if(action==='uploadChallan') return doUploadChallan_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });

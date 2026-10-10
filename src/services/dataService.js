@@ -440,6 +440,18 @@ export const dataService = {
     } catch { return dataUri; }
   },
 
+  // Upload a Ghari challan (image OR PDF data URI) to Google Drive and return a
+  // stable URL. Unlike uploadPhoto it preserves the file type (so a PDF stays a
+  // PDF) and files it under akshar-connect/ghari-challan. Falls back to the data
+  // URI if there's no backend or the upload fails, so nothing is ever lost.
+  uploadChallan: async (dataUri, id = '') => {
+    if (!hasBackend() || !dataUri || dataUri.indexOf('data:') !== 0) return dataUri;
+    try {
+      const r = await api('uploadChallan', { dataUri, id });
+      return (r && r.url) ? r.url : dataUri;
+    } catch { return dataUri; }
+  },
+
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
     try {

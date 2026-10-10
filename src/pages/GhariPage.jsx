@@ -720,6 +720,20 @@ function downscaleImage_(file, maxDim = 1400, quality = 0.72) {
     reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
+// Read any file (e.g. a PDF challan) as a data URL, untouched.
+function fileToDataUrl_(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+// Is this challan value a PDF (either a freshly-picked data URI or a stored URL)?
+const isPdfChallan_ = (s) => {
+  const v = String(s || '');
+  return v.indexOf('data:application/pdf') === 0 || /\.pdf($|[?#])/i.test(v);
+};
 // ── Challan photo: open / download as image / download as PDF ─────────────────
 function openChallan_(src) { try { window.open(src, '_blank', 'noopener'); } catch { /* ignore */ } }
 // Convert a challan (Drive URL or data URI) to a JPEG data URL via canvas, so we
@@ -808,7 +822,11 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
 
   const pickChallan = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
-    try { setChallan(await downscaleImage_(f)); } catch { alertError('Image error', 'Could not read that image. Try another.'); }
+    try {
+      // PDFs are stored as-is; images are downscaled to keep them light.
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) setChallan(await fileToDataUrl_(f));
+      else setChallan(await downscaleImage_(f));
+    } catch { alertError('File error', 'Could not read that file. Try another one.'); }
     e.target.value = '';
   };
 
@@ -863,15 +881,19 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Challan / bill photo</label>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Challan / bill (photo or PDF)</label>
           {challan ? (
             <div className="overflow-hidden rounded-2xl border border-border-light">
-              <button type="button" onClick={() => openChallan_(challan)} className="block w-full"><img src={challan} alt="challan" className="max-h-44 w-full object-contain bg-bg-base" /></button>
+              {isPdfChallan_(challan)
+                ? <button type="button" onClick={() => openChallan_(challan)} className="flex w-full items-center justify-center gap-2 bg-bg-base py-8 text-sm font-bold text-text-main"><Package className="h-6 w-6 text-primary" /> PDF challan — tap to open</button>
+                : <button type="button" onClick={() => openChallan_(challan)} className="block w-full"><img src={challan} alt="challan" className="max-h-44 w-full object-contain bg-bg-base" /></button>}
               <div className="flex flex-wrap items-center gap-1.5 border-t border-border-light p-2">
                 <button type="button" onClick={() => openChallan_(challan)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">Open</button>
-                <button type="button" onClick={() => downloadChallanImage_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ Image</button>
-                <button type="button" onClick={() => downloadChallanPdf_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ PDF</button>
-                <label className="cursor-pointer rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">Replace<input type="file" accept="image/*" onChange={pickChallan} className="hidden" /></label>
+                {!isPdfChallan_(challan) && <>
+                  <button type="button" onClick={() => downloadChallanImage_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ Image</button>
+                  <button type="button" onClick={() => downloadChallanPdf_(challan, `Challan_${supplier || 'bill'}`)} className="rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">⬇ PDF</button>
+                </>}
+                <label className="cursor-pointer rounded-lg bg-bg-base px-2.5 py-1.5 text-[11px] font-bold text-text-main">Replace<input type="file" accept="image/*,application/pdf" onChange={pickChallan} className="hidden" /></label>
                 <button type="button" onClick={() => setChallan('')} className="ml-auto rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-rose-600">Remove</button>
               </div>
             </div>
@@ -882,8 +904,8 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
                 <input type="file" accept="image/*" capture="environment" onChange={pickChallan} className="hidden" />
               </label>
               <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-border-light bg-surface py-3.5 text-xs font-bold text-text-muted">
-                <Download className="h-4 w-4 rotate-180" /> Upload file
-                <input type="file" accept="image/*" onChange={pickChallan} className="hidden" />
+                <Download className="h-4 w-4 rotate-180" /> Photo or PDF
+                <input type="file" accept="image/*,application/pdf" onChange={pickChallan} className="hidden" />
               </label>
             </div>
           )}
@@ -915,7 +937,9 @@ function PurchaseRow({ purchase, onOpen }) {
     <button onClick={() => onOpen(purchase)} className="flex w-full items-center gap-3 border-b border-border-light px-3 py-3 text-left last:border-0 hover:bg-bg-base">
       <div className="relative shrink-0">
         {purchase.challan
-          ? <img src={purchase.challan} alt="" className="h-12 w-12 rounded-lg object-cover" />
+          ? (isPdfChallan_(purchase.challan)
+              ? <span className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-bg-base text-[8px] font-black text-primary"><Package className="h-5 w-5" />PDF</span>
+              : <img src={purchase.challan} alt="" className="h-12 w-12 rounded-lg object-cover" />)
           : <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-base text-text-muted"><ShoppingCart className="h-5 w-5" /></span>}
         {photoPending && <span className="absolute -right-1 -top-1 rounded-full bg-amber-500 px-1 text-[8px] font-black text-white" title="Challan not uploaded to Drive yet">⏳</span>}
       </div>

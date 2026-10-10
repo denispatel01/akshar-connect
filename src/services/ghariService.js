@@ -279,7 +279,7 @@ async function flush() {
       // photo and never push a huge base64 blob into a Sheet cell.
       if (op.action === 'ghariUpsertPurchase' && String(payload?.row?.challan || '').indexOf('data:') === 0) {
         let url = null;
-        try { url = await dataService.uploadPhoto(payload.row.challan, payload.row.id); } catch { url = null; }
+        try { url = await dataService.uploadChallan(payload.row.challan, payload.row.id); } catch { url = null; }
         if (url && url.indexOf('data:') !== 0) {
           payload = { ...payload, row: { ...payload.row, challan: url } };
           const idx = purchases_().findIndex(p => p.id === payload.row.id);
