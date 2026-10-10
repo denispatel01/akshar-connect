@@ -15,6 +15,7 @@ import SwadhyayPage from './pages/SwadhyayPage';
 import CalendarPage from './pages/CalendarPage';
 import DataQualityPage from './pages/DataQualityPage';
 import FeedPage from './pages/FeedPage';
+import EmailPage from './pages/EmailPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -194,7 +195,7 @@ export default function App() {
           />
         )}
         {activePage === 'followups' && <FollowupsPage user={user} refreshing={refreshing} />}
-        {activePage === 'email' && <ComingSoonPage title="Email & Messaging" />}
+        {activePage === 'email' && <EmailPage user={user} />}
         {activePage === 'admin' && <AdminPage user={user} />}
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}

@@ -608,6 +608,26 @@ export const dataService = {
     return true;
   },
 
+  // ---- Email (staff → devotees) ----
+  // Send a personalized email to a list of recipients ({ email, name }). The
+  // backend sends each individually (so {name}/{firstName} personalize per person)
+  // and records the campaign for history. Returns { sent, failed, skipped, quotaLeft }.
+  sendEmail: async ({ subject, body, recipients, audience = '', createdBy = '' }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('sendEmail', { subject, body, recipients: JSON.stringify(recipients || []), audience, createdBy });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to send.');
+    try { logActivity_('email', '', `sent email "${subject}" to ${r.sent} recipient${r.sent === 1 ? '' : 's'}`); } catch (e) {}
+    return r;
+  },
+  getEmailQuota: async () => {
+    if (!hasBackend()) return 0;
+    try { const r = await api('getEmailQuota', {}); return (r && r.quotaLeft) || 0; } catch { return 0; }
+  },
+  getEmailCampaigns: async () => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getEmailCampaigns', {}); return (r && r.campaigns) || []; } catch { return []; }
+  },
+
   // ---- Swadhyay (daily spiritual-practice log) ----
   // Save today's (or any day's) Swadhyay for the current user. Upserts by day.
   saveSwadhyay: async ({ devoteeId, mobile = '', name = '', date, bhajanMin = 0, bhajanTime = '', listenMin = 0, readMin = 0 }) => {

@@ -264,7 +264,7 @@ export default function DashboardPage({ setActivePage, user }) {
                         <Cake className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-text-main truncate">{devotee.name}</p>
+                        <p className="text-sm font-bold text-text-main leading-snug break-words">{devotee.name}</p>
                         <p className="text-[11px] text-text-muted">{birthdayDate(info)}{info.turning ? ` · turning ${info.turning}` : ''}</p>
                       </div>
                     </div>

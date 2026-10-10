@@ -59,10 +59,13 @@ var HEADERS = {
   // One row per like. id = postId + '|' + devoteeId (idempotent — one like per person).
   FeedLikes: ['id','postId','devoteeId','name','createdOn'],
   // One row per comment. status ∈ active|removed (soft delete).
-  FeedComments: ['id','postId','authorId','authorName','text','createdOn','status']
+  FeedComments: ['id','postId','authorId','authorName','text','createdOn','status'],
+  // ── Email (staff → devotees) ───────────────────────────────────────────────
+  // One row per sent email campaign (for the history view).
+  EmailCampaigns: ['id','subject','body','audience','recipientCount','sentCount','failedCount','createdBy','createdOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-feed-module';
+var SCHEMA_VERSION = '2026-10-11-email-module';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -520,6 +523,71 @@ function doDeleteComment_(p){
   return json_({ ok:true });
 }
 
+// ── Email campaigns (staff → devotees) ───────────────────────────────────────
+function personalizeEmail_(s, name, first){
+  return String(s == null ? '' : s)
+    .replace(/\{\s*name\s*\}/gi, name || '')
+    .replace(/\{\s*firstName\s*\}/gi, first || name || '');
+}
+function emailHtmlBody_(text){
+  var safe = String(text == null ? '' : text)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#fff">'
+    + '<div style="background:linear-gradient(135deg,#E56F18,#FF862A);padding:22px 24px;border-radius:16px 16px 0 0">'
+    + '<h1 style="margin:0;color:#fff;font-size:20px;font-weight:800">🙏 Akshar Connect</h1>'
+    + '<p style="margin:4px 0 0;color:#ffe8d4;font-size:12px">Swaminarayan Mandal · Adajan, Surat</p></div>'
+    + '<div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 16px 16px;color:#222;font-size:15px;line-height:1.65">'
+    + safe
+    + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
+    + '<p style="color:#999;font-size:12px;margin:0">Sent with love from Akshar Connect. If this reached you by mistake, please ignore it.</p>'
+    + '</div></div>';
+}
+function doSendEmail_(p){
+  var recipients = [];
+  try { recipients = JSON.parse(p.recipients || '[]'); } catch(e){ recipients = []; }
+  var subject = String(p.subject || '').slice(0, 200).trim();
+  var body = String(p.body || '').trim();
+  if(!subject || !body) return json_({ ok:false, error:'Subject and message are required.' });
+  if(!recipients.length) return json_({ ok:false, error:'No recipients selected.' });
+
+  var quota = 0;
+  try { quota = MailApp.getRemainingDailyQuota(); } catch(e){ quota = 0; }
+  if(quota <= 0) return json_({ ok:false, error:'Daily email limit reached. Try again tomorrow.' });
+
+  var seen = {}, sent = 0, failed = 0, skipped = 0;
+  for(var i=0;i<recipients.length;i++){
+    var r = recipients[i] || {};
+    var email = String(r.email || '').trim();
+    if(!email || email.indexOf('@') < 1 || seen[email.toLowerCase()]){ skipped++; continue; }
+    seen[email.toLowerCase()] = true;
+    if(sent >= quota){ skipped++; continue; }
+    var name = String(r.name || '');
+    var first = (name.split(/\s+/)[0] || name);
+    var subj = personalizeEmail_(subject, name, first);
+    var text = personalizeEmail_(body, name, first);
+    try { sendMail_(subj, text, email, emailHtmlBody_(text)); sent++; }
+    catch(e){ failed++; }
+  }
+  var rec = {
+    id: 'EML-' + Date.now().toString(36),
+    subject: subject, body: body.slice(0, 4000), audience: String(p.audience || ''),
+    recipientCount: recipients.length, sentCount: sent, failedCount: failed,
+    createdBy: String(p.createdBy || ''), createdOn: new Date().toISOString()
+  };
+  appendRows_('EmailCampaigns', [rec]);
+  var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch(e){}
+  return json_({ ok:true, sent: sent, failed: failed, skipped: skipped, quotaLeft: left, id: rec.id });
+}
+function doGetEmailQuota_(){
+  var q = 0; try { q = MailApp.getRemainingDailyQuota(); } catch(e){ q = 0; }
+  return json_({ ok:true, quotaLeft: q });
+}
+function doGetEmailCampaigns_(){
+  var list = readAll_('EmailCampaigns');
+  list.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
+  return json_({ ok:true, campaigns: list.slice(0, 50) });
+}
+
 // Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
 // editor to schedule it; it pushes to every device that enabled notifications.
 function swadhyayReminder_(){
@@ -857,7 +925,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1022,6 +1090,9 @@ function handle_(p){
     if(action==='getComments') return doGetComments_(p);
     if(action==='addComment') return doAddComment_(p);
     if(action==='deleteComment') return doDeleteComment_(p);
+    if(action==='sendEmail') return doSendEmail_(p);
+    if(action==='getEmailQuota') return doGetEmailQuota_();
+    if(action==='getEmailCampaigns') return doGetEmailCampaigns_();
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
