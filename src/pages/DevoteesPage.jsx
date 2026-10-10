@@ -1207,10 +1207,16 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             {/* Header: cover banner, overlapping avatar, headline, quick actions */}
             <div className="relative border-b border-border-light">
 
-              {/* Cover — full "Akshardham" image (tagline kept visible) */}
-              <div className="bg-[#2a2550]">
-                <img src={`${import.meta.env.BASE_URL}images/profile-cover.jpg`} alt="Binsharti Jivan etle Akshardham"
-                  className="block w-full h-auto" loading="lazy" />
+              {/* Cover — "Temple Dusk": indigo night sky fading to a saffron glow,
+                  with the sutra across the top (kept clear of the overlapping avatar). */}
+              <div className="relative h-44 sm:h-52 overflow-hidden"
+                style={{ background: "radial-gradient(1.5px 1.5px at 18% 30%, #fff, transparent 100%), radial-gradient(1.5px 1.5px at 40% 22%, rgba(255,255,255,.85), transparent 100%), radial-gradient(1.5px 1.5px at 62% 34%, rgba(255,255,255,.7), transparent 100%), radial-gradient(2px 2px at 30% 16%, rgba(255,255,255,.6), transparent 100%), radial-gradient(1.5px 1.5px at 82% 24%, #fff, transparent 100%), radial-gradient(circle at 50% 140%, rgba(255,157,82,.8), transparent 55%), linear-gradient(165deg,#15103a 0%,#3a2168 60%,#5b2f7e 100%)" }}>
+                <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-6 sm:pt-8">
+                  <span className="text-center font-extrabold leading-tight text-[22px] sm:text-[30px]"
+                    style={{ color: '#FFE4B5', fontFamily: "'Noto Sans Gujarati','Gujarati Sangam MN','Shruti','Nirmala UI',sans-serif", textShadow: '0 2px 12px rgba(0,0,0,.5)' }}>
+                    બસ ! એક, તું રાજી થા
+                  </span>
+                </div>
               </div>
 
               <div className="px-5 sm:px-7 pb-4 flex flex-col items-center text-center">
