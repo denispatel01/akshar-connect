@@ -430,10 +430,28 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   // karyakarta / reference / address (see devoteeSearchText).
   const searchText = (d) => devoteeSearchText(d);
 
+  // The logged-in user's own gender → used as the DEFAULT gender filter so a male
+  // user browses male devotees and a female user browses female devotees. Derived
+  // from their own devotee record (by id, else mobile). Unknown for staff with no
+  // devotee record → no default (shows everyone).
+  const userGender = useMemo(() => {
+    if (user?.gender === 'Male' || user?.gender === 'Female') return user.gender;
+    const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
+    let me = user?.devoteeId ? devotees.find(d => d.id === user.devoteeId) : null;
+    if (!me && user?.mobile) me = devotees.find(d => last10(d.mobile) === last10(user.mobile));
+    const g = String(me?.gender || '').trim();
+    return (g === 'Male' || g === 'Female') ? g : '';
+  }, [user, devotees]);
+
   const query = searchQuery.trim();
   const filteredDevotees = useMemo(() => {
     // Devotees only see their own family — no search/filter applies
     if (isDevotee) return devoteeFamily || [];
+
+    // Gender rule: an explicit gender chip wins; otherwise a search shows everyone
+    // (so you can look up anyone by name), and plain browsing defaults to the
+    // logged-in user's own gender.
+    const effGenders = filterGenders.length ? filterGenders : (query ? [] : (userGender ? [userGender] : []));
 
     let base = devotees.filter((d) => {
       if (familyFilter) return d.familyId === familyFilter; // family view: every member
@@ -444,7 +462,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       if (filterReferences.length && !filterReferences.includes(d.reference)) return false;
       if (filterQualifications.length && !filterQualifications.includes(d.qualification)) return false;
       if (filterAges.length && !filterAges.some(a => AGE_BANDS[a]?.test(deriveAge(d.dob)))) return false;
-      if (filterGenders.length && !filterGenders.includes(d.gender)) return false;
+      if (effGenders.length && !effGenders.includes(d.gender)) return false;
       // Each devotee is in exactly ONE bucket (Old / Reference / New) so the three
       // counts never overlap and always sum to the total.
       if (filterOldNews.length && !filterOldNews.includes(bucketOldNew_(d))) return false;
@@ -476,7 +494,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotees, query, sortBy, areaNumMap, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse]);
+  }, [devotees, query, sortBy, areaNumMap, selectedTags, filterKaryakartas, filterAreas, filterReferences, filterQualifications, filterAges, filterGenders, filterTypes, filterOldNews, familyFilter, devoteesPreset, isPlainBrowse, userGender]);
 
   const familyName = familyFilter
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
@@ -665,6 +683,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       )}
 
       {!isDevotee && (<>
+      {userGender && !filterGenders.length && !query && !familyFilter && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border-light bg-bg-base px-4 py-2.5">
+          <p className="text-xs font-semibold text-text-muted">Showing <span className="font-bold text-text-main">{userGender}</span> devotees by default. Search by name or pick a gender to see others.</p>
+          <button type="button" onClick={() => setFilterGenders(['Male', 'Female'])}
+            className="shrink-0 text-xs font-bold text-[#FF862A] hover:underline">Show all</button>
+        </div>
+      )}
       {presetMeta && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
           <p className="text-xs font-bold text-text-main">{presetMeta.banner}</p>
