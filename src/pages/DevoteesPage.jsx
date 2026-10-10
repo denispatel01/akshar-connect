@@ -84,6 +84,29 @@ function MultiSelect({ label, options, selected, onChange }) {
   );
 }
 
+// Quick-select chips for small fixed option sets (gender, age, members, old/ref/new)
+// — faster to tap than a dropdown. Multi-select: tapping toggles each value.
+function ChipGroup({ label, options, selected, onChange }) {
+  const opts = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+  const toggle = (v) => onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+  return (
+    <div>
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {opts.map((o) => {
+          const on = selected.includes(o.value);
+          return (
+            <button key={o.value} type="button" onClick={() => toggle(o.value)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${on ? 'border-primary bg-primary text-white shadow-sm' : 'border-border-light bg-bg-base text-text-muted hover:text-text-main'}`}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const FULL_WIDTH_FIELDS = new Set(['address', 'notes']);
 
 const WINGS = ['Yuva Wing', 'Kishore Wing', 'Bal Wing', 'Seniors Wing'];
@@ -815,16 +838,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           otherwise let the list paint over a dropdown's lower items). */}
       {showTagFilter && (
         <div className="relative z-30 rounded-2xl border border-border-light bg-surface shadow-sm p-4 space-y-4 animate-slide-up">
-          {/* Multi-select filter dropdowns */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2">
+          {/* Many-option filters stay as searchable dropdowns */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <MultiSelect label="All Areas" options={uniqueAreas} selected={filterAreas} onChange={setFilterAreas} />
             <MultiSelect label="All Karyakartas" options={uniqueKaryakartas.map(k => ({ value: k, label: firstLastName(k) }))} selected={filterKaryakartas} onChange={setFilterKaryakartas} />
             <MultiSelect label="All References" options={uniqueReferences} selected={filterReferences} onChange={setFilterReferences} />
             <MultiSelect label="All Qualifications" options={QUALIFICATIONS} selected={filterQualifications} onChange={setFilterQualifications} />
-            <MultiSelect label="All Ages" options={Object.entries(AGE_BANDS).map(([key, b]) => ({ value: key, label: b.label }))} selected={filterAges} onChange={setFilterAges} />
-            <MultiSelect label="All Genders" options={['Male', 'Female']} selected={filterGenders} onChange={setFilterGenders} />
-            <MultiSelect label="All Members" options={[{ value: 'Primary', label: 'Family Heads (Self)' }, { value: 'Family', label: 'Family Members' }]} selected={filterTypes} onChange={setFilterTypes} />
-            <MultiSelect label="All (Old/Ref/New)" options={['Old', 'Reference', 'New']} selected={filterOldNews} onChange={setFilterOldNews} />
+          </div>
+
+          {/* Small fixed sets → quick-tap chips */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <ChipGroup label="Gender" options={['Male', 'Female']} selected={filterGenders} onChange={setFilterGenders} />
+            <ChipGroup label="Members" options={[{ value: 'Primary', label: 'Family Heads' }, { value: 'Family', label: 'Family Members' }]} selected={filterTypes} onChange={setFilterTypes} />
+            <ChipGroup label="Old / Reference / New" options={['Old', 'Reference', 'New']} selected={filterOldNews} onChange={setFilterOldNews} />
+            <ChipGroup label="Age" options={Object.entries(AGE_BANDS).map(([key, b]) => ({ value: key, label: b.label }))} selected={filterAges} onChange={setFilterAges} />
           </div>
 
           {/* Clear all */}
