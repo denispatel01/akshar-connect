@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -670,8 +670,105 @@ function SettingsView({ season, onSeason }) {
   );
 }
 
+// ───────────────────────── Audit history + revert ───────────────────────────
+const GHARI_FIELD_LABELS = {
+  customerName: 'Customer', customerMobile: 'Mobile', karyakarta: 'Karyakarta',
+  itemsSummary: 'Items', total: 'Total ₹', withGheeAmt: 'With-ghee ₹', withoutGheeAmt: 'No-ghee ₹',
+  sugarFreeAmt: 'Sugar-free ₹', bhusuAmt: 'Bhusu ₹', delivered: 'Delivered', paymentReceived: 'Paid ₹',
+  balance: 'Balance ₹', paymentType: 'Payment type', status: 'Status', remarks: 'Remarks',
+  season: 'Season', boxes: 'Boxes', amount: 'Amount ₹', supplier: 'Supplier', date: 'Date', name: 'Name',
+  size: 'Size', unitPrice: 'Unit price ₹', active: 'Active', sortOrder: 'Order', category: 'Category',
+};
+const ghariFieldLabel = (f) => GHARI_FIELD_LABELS[f] || f;
+const ghariVal = (v) => {
+  if (v === true || v === 'true') return 'Yes';
+  if (v === false || v === 'false') return 'No';
+  const s = String(v == null ? '' : v);
+  return s === '' ? '—' : (s.length > 60 ? s.slice(0, 60) + '…' : s);
+};
+const ACTION_STYLE = {
+  create: { label: 'Created', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
+  update: { label: 'Edited', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+  void: { label: 'Deleted (void)', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' },
+  delete: { label: 'Removed', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' },
+  revert: { label: 'Reverted', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
+};
+
+function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReverted }) {
+  const [logs, setLogs] = useState(null);
+  const [busy, setBusy] = useState('');
+  const actor = (dataService.getCurrentSession() || {}).name || '';
+
+  const load = () => ghariService.getLog({ entityId }).then((l) => setLogs(l || []));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [entityId]);
+
+  const revert = async (log) => {
+    if (!window.confirm('Revert to the values BEFORE this change? The current values will be replaced (and this revert is itself logged).')) return;
+    setBusy(log.id);
+    try {
+      await ghariService.revert(log.id, actor);
+      await load();
+      onReverted?.();
+    } catch (e) { alertError('Could not revert', e.message); }
+    finally { setBusy(''); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex shrink-0 items-center justify-between border-b border-border-light px-5 py-4">
+          <span className="flex items-center gap-2 text-base font-black text-text-main"><History className="h-5 w-5 text-[#E56F18]" /> {title}</span>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="overflow-y-auto px-4 py-3">
+          {logs === null && <p className="py-8 text-center text-sm text-text-muted">Loading history…</p>}
+          {logs && logs.length === 0 && <p className="py-8 text-center text-sm text-text-muted">No changes recorded yet.</p>}
+          <div className="space-y-2">
+            {(logs || []).map((log) => {
+              let changes = []; try { changes = JSON.parse(log.changesJson || '[]'); } catch (e) {}
+              changes = changes.filter((c) => c.field !== 'itemsJson');
+              const st = ACTION_STYLE[log.action] || { label: log.action, cls: 'bg-slate-100 text-slate-700' };
+              const canRevert = log.action !== 'create' && !!log.beforeJson;
+              return (
+                <div key={log.id} className="rounded-2xl border border-border-light bg-bg-base p-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${st.cls}`}>{st.label}</span>
+                    <span className="text-[11px] font-semibold text-text-muted">{new Date(log.ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>
+                    {log.actor && <span className="truncate text-[11px] text-text-muted">· {log.actor}</span>}
+                  </div>
+                  {changes.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {changes.map((c, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[12px]">
+                          <span className="shrink-0 font-bold text-text-main">{ghariFieldLabel(c.field)}:</span>
+                          <span className="text-rose-500 line-through">{ghariVal(c.before)}</span>
+                          <span className="text-text-muted">→</span>
+                          <span className="font-semibold text-emerald-600">{ghariVal(c.after)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {log.action === 'create' && <p className="mt-1 text-[11px] text-text-muted">Order first created.</p>}
+                  {canRevert && (
+                    <button onClick={() => revert(log)} disabled={busy === log.id}
+                      className="mt-2 flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-700 disabled:opacity-50 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
+                      <RotateCcw className="h-3.5 w-3.5" /> {busy === log.id ? 'Reverting…' : 'Revert to before this change'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ───────────────────────── Edit modal ───────────────────────────────────────
 function EditModal({ order, onClose, onSaved }) {
+  const [showHistory, setShowHistory] = useState(false);
   const wa = ghariService.whatsappLink(order);
   const del = () => {
     if (!window.confirm(`Delete this order for ${order.customerName || 'this customer'}?\n\nIt will be removed from totals (recoverable by an admin if needed).`)) return;
@@ -684,8 +781,17 @@ function EditModal({ order, onClose, onSaved }) {
       <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
         <span className="text-sm font-black text-text-main">Edit order</span>
-        {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-600"><MessageCircle className="h-4 w-4" /> WhatsApp</a> : <span className="w-16" />}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 text-xs font-bold text-text-muted hover:text-primary" title="Change history">
+            <History className="h-4 w-4" /> History
+          </button>
+          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-600"><MessageCircle className="h-4 w-4" /> WA</a>}
+        </div>
       </div>
+      {showHistory && (
+        <GhariHistoryModal entityId={order.id} title={`History · ${order.customerName || 'order'}`}
+          onClose={() => setShowHistory(false)} onReverted={() => onSaved?.()} />
+      )}
       <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
         {(order.createdBy || order.updatedBy) && (
           <div className="mb-3 rounded-xl border border-border-light bg-surface px-3 py-2 text-[11px] font-semibold text-text-muted">

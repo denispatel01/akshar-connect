@@ -414,6 +414,23 @@ export const ghariService = {
   },
   getOrderById: (id) => orders_().find(o => o.id === id) || null,
 
+  // ---- Audit log (money — full change history + revert) ----
+  // Fetch change history for one entity (order/purchase) or all. Backend-only.
+  getLog: async ({ entityId = '', entity = '', limit = 300 } = {}) => {
+    if (!backendOnline()) return [];
+    try { const r = await backendApi('getGhariLog', { entityId, entity, limit }); return (r && r.logs) || []; }
+    catch { return []; }
+  },
+  // Revert an order/purchase/product to the "before" snapshot of a log entry.
+  revert: async (logId, actor = '') => {
+    if (!backendOnline()) throw new Error('You must be online to revert a change.');
+    const r = await backendApi('ghariRevert', { logId, actor });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Could not revert.');
+    await syncDown(); // pull the restored row back into the app
+    emit_('ac-ghari-changed');
+    return r.restored;
+  },
+
   pendingCount: () => outbox_().length,
   isOnline: () => backendOnline() && (typeof navigator === 'undefined' || navigator.onLine !== false),
   hasBackend: () => backendOnline(),

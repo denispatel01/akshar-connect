@@ -64,10 +64,15 @@ var HEADERS = {
   // One row per sent email campaign (for the history view).
   EmailCampaigns: ['id','subject','body','audience','recipientCount','sentCount','failedCount','createdBy','createdOn'],
   // Reusable, staff-editable email templates.
-  EmailTemplates: ['id','name','subject','body','createdBy','createdOn','updatedBy','updatedOn']
+  EmailTemplates: ['id','name','subject','body','createdBy','createdOn','updatedBy','updatedOn'],
+  // ── Ghari audit log (money — every change is recorded, never silently lost) ──
+  // entity ∈ order|purchase|product. action ∈ create|update|void|delete|revert.
+  // changesJson = [{field,before,after}]; beforeJson/afterJson = full row snapshots
+  // (beforeJson lets an admin revert to the prior state).
+  GhariLog: ['id','ts','entity','entityId','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-12-email-templates';
+var SCHEMA_VERSION = '2026-10-12-ghari-audit';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1003,7 +1008,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1199,6 +1204,14 @@ function handle_(p){
     if(action==='getEmailTemplates') return doGetEmailTemplates_();
     if(action==='saveEmailTemplate') return doSaveEmailTemplate_(p);
     if(action==='deleteEmailTemplate') return doDeleteEmailTemplate_(p);
+    if(action==='getGhariLog'){
+      var gl = readAll_('GhariLog');
+      if(p.entityId) gl = gl.filter(function(r){ return String(r.entityId) === String(p.entityId); });
+      if(p.entity) gl = gl.filter(function(r){ return String(r.entity) === String(p.entity); });
+      gl.sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
+      return json_({ ok:true, logs: gl.slice(0, Number(p.limit)||300) });
+    }
+    if(action==='ghariRevert') return doGhariRevert_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
@@ -1280,13 +1293,50 @@ function doDeleteUser_(p){
 // writes so two near-simultaneous saves can't both append the same id. Because
 // the key is client-generated and stable, replaying a lost op is a no-op update
 // rather than a duplicate — no money row is ever doubled or lost.
+// Read one row (1-based sheet row number) as an object keyed by HEADERS.
+function readRowObj_(collection, rn){
+  var H=HEADERS[collection]; var v=tab_(collection).getRange(rn,1,1,H.length).getValues()[0];
+  var o={}; H.forEach(function(h,i){ o[h]=(v[i]===null?'':v[i]); }); return o;
+}
+// Append one Ghari audit entry. Diffs before→after (ignoring timestamp/author cols)
+// and keeps full snapshots so the change is both human-readable and revertible.
+function ghariLog_(entity, action, actor, beforeRow, afterRow){
+  try{
+    var coll = entity==='order' ? 'GhariOrders' : (entity==='purchase' ? 'GhariPurchases' : 'GhariProducts');
+    var H = HEADERS[coll];
+    var skip = { updatedOn:1, createdOn:1, updatedBy:1, createdBy:1 };
+    var changes = [];
+    if(beforeRow && afterRow){
+      H.forEach(function(f){
+        if(skip[f]) return;
+        var b = beforeRow[f], a = afterRow[f];
+        if(String(b==null?'':b) !== String(a==null?'':a)) changes.push({ field:f, before:(b==null?'':b), after:(a==null?'':a) });
+      });
+    }
+    var rec = {
+      id: 'GLOG-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      ts: new Date().toISOString(), entity: entity,
+      entityId: String((afterRow&&afterRow.id)||(beforeRow&&beforeRow.id)||(afterRow&&afterRow.sku)||(beforeRow&&beforeRow.sku)||''),
+      action: action, actor: String(actor||''),
+      changesJson: JSON.stringify(changes),
+      beforeJson: beforeRow ? JSON.stringify(beforeRow) : '',
+      afterJson: afterRow ? JSON.stringify(afterRow) : ''
+    };
+    appendRows_('GhariLog', [rec]);
+  }catch(e){}
+}
+
 function doGhariUpsert_(collection, row, keyField){
   var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
   try{
     if(!row || !row[keyField]) return json_({ ok:false, error:'missing '+keyField });
     var rn=findRow_(collection, keyField, row[keyField]);
+    var before = rn>0 ? readRowObj_(collection, rn) : null;
     if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
     else appendRows_(collection,[row]);
+    var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : 'order');
+    var act = !before ? 'create' : (String(row.status||'').toLowerCase()==='void' ? 'void' : 'update');
+    ghariLog_(entity, act, row.updatedBy || row.createdBy || '', before, row);
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
@@ -1302,8 +1352,11 @@ function doGhariUpsertOrder_(p){
     if(!row.id) return json_({ ok:false, error:'missing id' });
     var rn=findRow_('GhariOrders','id',row.id);
     var isNew = rn<0;
+    var beforeOrder = rn>0 ? readRowObj_('GhariOrders', rn) : null;
     if(rn>0) tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',row)]);
     else appendRows_('GhariOrders',[row]);
+    // Audit every order change (money) with a revertible before/after snapshot.
+    ghariLog_('order', (isNew ? 'create' : (String(row.status||'').toLowerCase()==='void' ? 'void' : 'update')), row.updatedBy || row.createdBy || '', beforeOrder, row);
     // Email the mandal on add / edit / delete (delete = soft-void). The client
     // asks via notify:true and passes the intended act; a replay of the same op
     // is de-duped by a per-(id, updatedOn, act) key so a retry never re-sends.
@@ -1359,6 +1412,27 @@ function sendGhariOrderMail_(row, act){
   sendMail_('Ghari Seva: '+label+' — '+(row.customerName||'')+' — ₹'+(row.total||0), label+': '+(row.customerName||'')+' ₹'+(row.total||0), null, html);
 }
 
+// Revert a Ghari order/purchase/product to the "before" snapshot stored in a log
+// entry. Restores the prior values and records the revert itself as a log entry.
+function doGhariRevert_(p){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    var logs = readAll_('GhariLog'); var entry = null;
+    for(var i=0;i<logs.length;i++){ if(String(logs[i].id) === String(p.logId)){ entry = logs[i]; break; } }
+    if(!entry) return json_({ ok:false, error:'log entry not found' });
+    var before; try{ before = JSON.parse(entry.beforeJson || 'null'); }catch(e){ before = null; }
+    if(!before) return json_({ ok:false, error:'no previous state to revert to (this was a create)' });
+    var coll = entry.entity==='purchase' ? 'GhariPurchases' : (entry.entity==='product' ? 'GhariProducts' : 'GhariOrders');
+    var keyField = coll==='GhariProducts' ? 'sku' : 'id';
+    var rn = findRow_(coll, keyField, before[keyField]);
+    var cur = rn>0 ? readRowObj_(coll, rn) : null;
+    if(rn>0) tab_(coll).getRange(rn,1,1,HEADERS[coll].length).setValues([rowFromObj_(coll, before)]);
+    else appendRows_(coll, [before]);
+    ghariLog_(entry.entity, 'revert', String(p.actor||''), cur, before);
+    return json_({ ok:true, restored: before });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
 // Delete one Ghari row by key. Used for catalog items (products admin removes)
 // and for cleanup. Orders in the app are soft-voided, not deleted, so this is
 // not reachable from normal order flow. Missing key is a safe no-op.
@@ -1367,7 +1441,12 @@ function doGhariDelete_(collection, keyVal, keyField){
   try{
     if(keyVal===undefined || keyVal===null || keyVal==='') return json_({ ok:false, error:'missing '+keyField });
     var rn=findRow_(collection, keyField, keyVal);
-    if(rn>0) tab_(collection).deleteRow(rn);
+    if(rn>0){
+      var before = readRowObj_(collection, rn);
+      tab_(collection).deleteRow(rn);
+      var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : 'order');
+      ghariLog_(entity, 'delete', '', before, null);
+    }
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
