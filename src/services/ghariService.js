@@ -35,7 +35,8 @@ const META_KEY      = 'ac_ghari_meta_v1';
 // Ghee Wali = orange, Ghee Vagar-ni = blue, Sugar Free = green, Bhusu = purple.
 export const GHARI_CATEGORIES = {
   ghee:   { key: 'ghee',   label: 'With Ghee',    short: 'Ghee',       amtCol: 'withGheeAmt',    color: '#EA580C' },
-  noghee: { key: 'noghee', label: 'Without Ghee', short: 'No-Ghee',    amtCol: 'withoutGheeAmt', color: '#2563EB' },
+  // Ghee Vagar-ni: light-cyan card (#E0F7FA) with a deep-cyan accent/text for contrast.
+  noghee: { key: 'noghee', label: 'Without Ghee', short: 'No-Ghee',    amtCol: 'withoutGheeAmt', color: '#0E7490', bg: '#E0F7FA', bgActive: '#B2EBF2' },
   sf:     { key: 'sf',     label: 'Sugar Free',   short: 'Sugar Free', amtCol: 'sugarFreeAmt',   color: '#16A34A' },
   bhusu:  { key: 'bhusu',  label: 'Bhusu',        short: 'Bhusu',      amtCol: 'bhusuAmt',       color: '#9333EA' },
 };

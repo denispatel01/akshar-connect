@@ -100,7 +100,7 @@ function ProductCard({ product, qty, onChange }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
       style={{
-        background: active ? tint(color, 0.22) : tint(color, 0.11),
+        background: active ? (cat?.bgActive || tint(color, 0.22)) : (cat?.bg || tint(color, 0.11)),
         borderColor: active ? color : tint(color, 0.5),
         boxShadow: active ? `0 4px 14px ${tint(color, 0.3)}` : 'none',
       }}>
@@ -747,7 +747,7 @@ function BuyCard({ product, qty, onChange }) {
   const cat = GHARI_CATEGORIES[product.category]; const color = cat?.color || '#EA580C'; const active = qty > 0;
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
-      style={{ background: active ? tint(color, 0.22) : tint(color, 0.11), borderColor: active ? color : tint(color, 0.5) }}>
+      style={{ background: active ? (cat?.bgActive || tint(color, 0.22)) : (cat?.bg || tint(color, 0.11)), borderColor: active ? color : tint(color, 0.5) }}>
       <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
       <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
         <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name.replace('Ghari ', '').replace(/[()]/g, '')}</span>
