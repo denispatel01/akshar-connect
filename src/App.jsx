@@ -33,20 +33,19 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
-  // Auto-update: when a new service worker is ready, activate it immediately and
-  // let main.jsx reload the page — no "Update now" prompt. (A PWA should update
-  // itself.) We still flag updateAvailable briefly for a subtle spinner state.
+  // Passive flag only — the service worker auto-updates and reloads itself from
+  // main.jsx (loop-guarded there). We do NOT trigger skip-waiting/reloads here, to
+  // avoid compounding into a refresh loop.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    const apply = (reg) => { try { reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {} setUpdateAvailable(true); };
     navigator.serviceWorker.getRegistration().then((reg) => {
       if (!reg) return;
-      if (reg.waiting) { apply(reg); return; }
+      if (reg.waiting) { setUpdateAvailable(true); return; }
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) apply(reg);
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) setUpdateAvailable(true);
         });
       });
     });
