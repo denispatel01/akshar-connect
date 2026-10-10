@@ -461,6 +461,18 @@ export const dataService = {
   },
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
+  // Admin "watch all activity": push every logged action to the watcher's device(s).
+  getActivityWatch: async () => {
+    if (!hasBackend()) return { on: false, mobile: '' };
+    try { const r = await api('getActivityWatch', {}); return { on: !!(r && r.on), mobile: (r && r.mobile) || '' }; } catch { return { on: false, mobile: '' }; }
+  },
+  setActivityWatch: async ({ on, mobile = '' }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('setActivityWatch', { on: !!on, mobile });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to update.');
+    return { on: !!r.on, mobile: r.mobile || '' };
+  },
+
   // Admin: turn notification email on/off (server-side flag).
   // Synchronous cached value — lets the UI show the toggle instantly instead of a
   // "Loading…" state while the (sometimes slow) server call is in flight.

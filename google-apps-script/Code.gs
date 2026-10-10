@@ -755,6 +755,41 @@ function sendPush_(title, body, audience, data){
 }
 function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
 
+// Cached FCM access token (valid ~1h) so frequent pushes (e.g. activity watch)
+// don't mint a fresh JWT every time.
+function fcmAccessTokenCached_(sa){
+  try {
+    var cache = CacheService.getScriptCache();
+    var t = cache.get('fcmToken');
+    if(t) return t;
+    var tok = fcmAccessToken_(sa);
+    cache.put('fcmToken', tok, 3000);
+    return tok;
+  } catch(e) { return fcmAccessToken_(sa); }
+}
+// Push to all devices registered to ONE mobile number. Returns how many sent.
+function pushToMobile_(title, body, mobile, data){
+  try {
+    var saRaw = PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT');
+    if(!saRaw) return 0;
+    var sa = JSON.parse(saRaw);
+    var nm = normMob_(mobile);
+    if(!nm) return 0;
+    var targets = readAll_('PushTokens').filter(function(r){ return normMob_(r.mobile) === nm; });
+    if(!targets.length) return 0;
+    var token = fcmAccessTokenCached_(sa);
+    var url = 'https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send';
+    var msgData = { type:'activity' }; if(data) for(var k in data) msgData[k] = String(data[k]);
+    var reqs = targets.map(function(r){
+      return { url:url, method:'post', contentType:'application/json', headers:{ Authorization:'Bearer '+token }, muteHttpExceptions:true,
+        payload: JSON.stringify({ message:{ token:r.token, notification:{ title:title, body:body }, data:msgData, android:{ priority:'high' } }}) };
+    });
+    var resps = UrlFetchApp.fetchAll(reqs); var sent = 0;
+    for(var i=0;i<resps.length;i++){ if(resps[i].getResponseCode() === 200) sent++; }
+    return sent;
+  } catch(e){ return 0; }
+}
+
 // Editor helper: send yourself a test push to confirm the FCM setup works.
 function testPush(){ Logger.log('sent to ' + sendPush_('Test push', 'If you see this, FCM works 🎉', 'all', {})); }
 
@@ -1082,8 +1117,32 @@ function handle_(p){
           ts: a.ts || new Date().toISOString(), actor: a.actor||'', actorMobile: a.actorMobile||'',
           action: a.action||'', target: a.target||'', detail: a.detail||'', device: a.device||''
         }]);
+        // Activity watch: push every logged action to the watcher's device(s),
+        // except the watcher's own actions. Toggle via setActivityWatch.
+        try {
+          var _pr = PropertiesService.getScriptProperties();
+          if(_pr.getProperty('activityWatchOn') === 'true'){
+            var _wm = _pr.getProperty('activityWatchMobile') || '';
+            if(_wm && normMob_(_wm) !== normMob_(a.actorMobile||'')){
+              var _who = a.actor || 'Someone';
+              var _title = '👁️ ' + _who;
+              var _body = (a.detail || a.action || 'did something') + (a.device ? ' · ' + a.device : '');
+              pushToMobile_(_title, _body, _wm, { type:'activity', action: a.action||'' });
+            }
+          }
+        } catch(e){}
       }catch(e){}
       return json_({ ok:true });
+    }
+    if(action==='setActivityWatch'){
+      var _p = PropertiesService.getScriptProperties();
+      _p.setProperty('activityWatchOn', p.on ? 'true' : 'false');
+      if(p.mobile) _p.setProperty('activityWatchMobile', String(p.mobile));
+      return json_({ ok:true, on: p.on ? true : false, mobile: _p.getProperty('activityWatchMobile') || '' });
+    }
+    if(action==='getActivityWatch'){
+      var _g = PropertiesService.getScriptProperties();
+      return json_({ ok:true, on: _g.getProperty('activityWatchOn') === 'true', mobile: _g.getProperty('activityWatchMobile') || '' });
     }
     if(action==='activity'){
       var all = readAll_('Activity');

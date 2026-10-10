@@ -16,7 +16,19 @@ export default function AdminPage({ user }) {
 
   useEffect(() => {
     setUsers([...dataService.getUsers()]);
+    dataService.getActivityWatch().then(setWatch);
   }, []);
+
+  // Activity watch — push every user action to this admin's device.
+  const [watch, setWatch] = useState({ on: false, mobile: '' });
+  const [watchBusy, setWatchBusy] = useState(false);
+  const toggleWatch = async () => {
+    setWatchBusy(true);
+    try { const r = await dataService.setActivityWatch({ on: !watch.on, mobile: user?.mobile || '' }); setWatch(r); }
+    catch (e) { /* ignore */ }
+    finally { setWatchBusy(false); }
+  };
+  const watchIsMine = String(watch.mobile || '').replace(/\D/g, '').slice(-10) === String(user?.mobile || '').replace(/\D/g, '').slice(-10);
 
   const [editingMobile, setEditingMobile] = useState(null); // null = adding new
 
@@ -179,6 +191,33 @@ export default function AdminPage({ user }) {
 
       {/* SYSTEM TAB — email toggle */}
       {isAdmin && tab === 'system' && <MailToggle />}
+
+      {/* SYSTEM TAB — activity push watch */}
+      {isAdmin && tab === 'system' && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+            <Bell className="h-4 w-4 text-[#FF862A]" /> 🔔 Activity Alerts
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-text-main">Push every action to my phone</p>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Get a notification whenever any user opens the app or adds/edits/deletes anything. Your own actions don't notify you.
+                {watch.on && !watchIsMine && <span className="block text-amber-600 font-semibold mt-1">Currently sending to another admin's number ({watch.mobile}). Turn on here to send to you instead.</span>}
+              </p>
+            </div>
+            <button onClick={toggleWatch} disabled={watchBusy}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${watch.on && watchIsMine ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'} disabled:opacity-50`}
+              title="Toggle activity alerts">
+              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${watch.on && watchIsMine ? 'left-[22px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] text-slate-500 flex items-start gap-1">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            Make sure notifications are enabled for your account (My Account → Enable Notifications). Only one admin number receives these at a time.
+          </p>
+        </div>
+      )}
 
       {/* SYSTEM TAB — activity log */}
       {isAdmin && tab === 'system' && (
