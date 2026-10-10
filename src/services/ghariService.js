@@ -253,24 +253,45 @@ function enqueueDelete_(action, upsertAction, keyField, keyVal) {
 async function flush() {
   if (flushing) return;
   if (!backendOnline() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
-  let box = outbox_();
+  const box = outbox_();
   if (!box.length) return;
   flushing = true;
   try {
-    // Process FIFO; stop at the first failure so order is preserved and we don't
-    // hammer a struggling backend. Remaining ops retry on the next trigger.
-    while (box.length) {
-      const op = box[0];
-      try {
-        await backendApi(op.action, op.payload);
-        box = outbox_(); box.shift(); setOutbox_(box);       // re-read (page may have queued more)
-        emit_('ac-ghari-synced', { pending: box.length });
-      } catch (e) {
-        op.tries = (op.tries || 0) + 1;
-        box = outbox_(); if (box[0]) { box[0].tries = op.tries; setOutbox_(box); }
-        break; // keep the op; try again later
+    // Attempt EVERY op independently — one bad op must never block the rest of the
+    // queue (that's why "to sync" used to never clear). Succeeded ops are removed;
+    // failed ops are kept (with the error) to retry on the next trigger.
+    const succeeded = new Set();
+    const meta = {}; // opId -> { tries, lastError }
+    for (const op of box) {
+      let payload = op.payload;
+      // A purchase may still carry a base64 challan (captured offline). Upload it
+      // to Drive first so the Sheet only ever stores a small URL — a huge base64
+      // blob would exceed a cell's limit and poison the whole queue.
+      if (op.action === 'ghariUpsertPurchase' && String(payload?.row?.challan || '').indexOf('data:') === 0) {
+        try {
+          const url = await dataService.uploadPhoto(payload.row.challan, payload.row.id);
+          if (url && url.indexOf('data:') !== 0) {
+            payload = { ...payload, row: { ...payload.row, challan: url } };
+            const idx = purchases_().findIndex(p => p.id === payload.row.id);
+            if (idx >= 0) { MEM.purchases[idx] = { ...MEM.purchases[idx], challan: url }; savePurchasesLocal_(); }
+          } else {
+            // Couldn't upload (still offline / upload off): don't push base64 to the
+            // Sheet. Store a clean row without it; the photo stays safe on-device.
+            payload = { ...payload, row: { ...payload.row, challan: '' } };
+          }
+        } catch { payload = { ...payload, row: { ...payload.row, challan: '' } }; }
       }
+      try {
+        await backendApi(op.action, payload);
+        succeeded.add(op.opId);
+      } catch (e) {
+        meta[op.opId] = { tries: (op.tries || 0) + 1, lastError: String((e && e.message) || e) };
+      }
+      emit_('ac-ghari-synced', { pending: outbox_().filter(o => !succeeded.has(o.opId)).length });
     }
+    // Keep failures + anything queued during the flush; drop only what succeeded.
+    const now = outbox_().filter(o => !succeeded.has(o.opId)).map(o => meta[o.opId] ? { ...o, ...meta[o.opId] } : o);
+    setOutbox_(now);
   } finally {
     flushing = false;
     emit_('ac-ghari-synced', { pending: outbox_().length });
