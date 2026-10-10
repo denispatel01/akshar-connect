@@ -195,9 +195,22 @@ function AuditFooter({ d }) {
   );
 }
 
+// Collapsible card used for each profile section so a long profile stays tidy.
+function Collapsible({ title, open, onToggle, children }) {
+  return (
+    <div className="rounded-2xl border border-border-light bg-surface shadow-xs overflow-hidden">
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-2 px-4 py-3.5 text-left sm:px-5">
+        <span className="text-sm font-black text-text-main">{title}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-4 pb-4 sm:px-5">{children}</div>}
+    </div>
+  );
+}
+
 // Seva section in a devotee's profile: seva they DID (as karyakarta) and seva
 // RECEIVED (visits to their home). Read-only — logged from the Seva module.
-function SevaSection({ devotee }) {
+function SevaSection({ devotee, open, onToggle }) {
   const [done, setDone] = React.useState([]);
   const [received, setReceived] = React.useState([]);
   const [loaded, setLoaded] = React.useState(false);
@@ -213,6 +226,7 @@ function SevaSection({ devotee }) {
   }, [devotee?.id]);
 
   if (!loaded || (done.length === 0 && received.length === 0)) return null;
+  const total = done.length + received.length;
   const fmtDate = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return d; } };
   const fmtTime = (t) => {
     const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || '';
@@ -235,8 +249,7 @@ function SevaSection({ devotee }) {
     );
   };
   return (
-    <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-      <h3 className="mb-3 text-sm font-black text-text-main">🤝 Seva</h3>
+    <Collapsible title={<span className="flex items-center gap-2">🤝 Seva <span className="font-bold text-text-muted">· {total}</span></span>} open={open} onToggle={onToggle}>
       {received.length > 0 && (
         <div className="mb-3">
           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva received at home · {received.length}</p>
@@ -249,7 +262,7 @@ function SevaSection({ devotee }) {
           <div className="space-y-1.5">{done.map((s) => <Row key={s.id} s={s} who="At" whoName={s.visitedName} />)}</div>
         </div>
       )}
-    </div>
+    </Collapsible>
   );
 }
 
@@ -259,6 +272,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [showAddModal, setShowAddModal] = useState(false);
   const [editWizard, setEditWizard] = useState(null); // devotee being edited in the gradient wizard
   const [selectedDevotee, setSelectedDevotee] = useState(null);
+  // Which profile sections are expanded. Defaults to the most useful ones open;
+  // resets each time a different profile is opened.
+  const DEFAULT_OPEN_SECS = { Personal: true, Contact: true, Seva: true };
+  const [openSec, setOpenSec] = useState(DEFAULT_OPEN_SECS);
+  const toggleSec = (k) => setOpenSec((s) => ({ ...s, [k]: !s[k] }));
+  useEffect(() => { setOpenSec(DEFAULT_OPEN_SECS); /* eslint-disable-next-line */ }, [selectedDevotee?.id]);
   const [qrModalDevotee, setQrModalDevotee] = useState(null);
   const [activeTab, setActiveTab] = useState('Personal');
   const [selectedTags, setSelectedTags] = useState([]);
@@ -1420,11 +1439,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   // ── Family members card ──
                   if (sec === 'Family') {
                     return (
-                      <div key="Family" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-sm font-black text-text-main">👨‍👩‍👧 Family <span className="text-text-muted font-bold">· {familyMembers.length}</span></h3>
-                          <span className="font-mono text-[10px] font-bold text-text-muted bg-bg-base border border-border-light rounded-lg px-2 py-0.5">ID: {selectedDevotee.familyId || '—'}</span>
-                        </div>
+                      <Collapsible key="Family" open={!!openSec.Family} onToggle={() => toggleSec('Family')}
+                        title={<span className="flex items-center gap-2">👨‍👩‍👧 Family <span className="text-text-muted font-bold">· {familyMembers.length}</span><span className="font-mono text-[10px] font-bold text-text-muted bg-bg-base border border-border-light rounded-lg px-2 py-0.5">ID: {selectedDevotee.familyId || '—'}</span></span>}>
                         <div className="space-y-2">
                           {familyMembers.map((m) => {
                             const mAge = deriveAge(m.dob);
@@ -1456,7 +1472,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                             <p className="text-center text-xs font-semibold text-text-muted py-6">No other family members linked yet. Link members by setting this person as their Family Head.</p>
                           )}
                         </div>
-                      </div>
+                      </Collapsible>
                     );
                   }
 
@@ -1464,8 +1480,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   if (sec === 'Tags') {
                     const activeTags = selectedDevotee.tags || [];
                     return (
-                      <div key="Tags" className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                        <h3 className="text-sm font-black text-text-main mb-3">🏷️ Tags</h3>
+                      <Collapsible key="Tags" open={!!openSec.Tags} onToggle={() => toggleSec('Tags')} title={<span>🏷️ Tags</span>}>
                         <div className="mb-1">
                           <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2">Active Tags</div>
                           {activeTags.length > 0 ? (
@@ -1479,7 +1494,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                           )}
                         </div>
                         {canEdit && <p className="mt-3 text-[11px] font-semibold text-text-muted">Edit tags from <strong>Edit Profile</strong>.</p>}
-                      </div>
+                      </Collapsible>
                     );
                   }
 
@@ -1506,8 +1521,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   const showFamily = sec === 'Satsang';
                   if (!filled.length && !showFamily && sec !== 'System') return null;
                   return (
-                    <div key={sec} className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
-                      <h3 className="text-sm font-black text-text-main mb-3">{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</h3>
+                    <Collapsible key={sec} open={!!openSec[sec]} onToggle={() => toggleSec(sec)}
+                      title={<span>{SECTION_EMOJI[sec] ? `${SECTION_EMOJI[sec]} ` : ''}{sec}</span>}>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {filled.map(([f, label]) => (
                           <div key={f} className={`flex items-center gap-3 rounded-2xl border border-border-light bg-bg-base/60 px-3 py-2.5 ${FULL_WIDTH_FIELDS.has(f) ? 'sm:col-span-2' : ''}`}>
@@ -1521,10 +1536,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                         {showFamily && renderFamilyRoleView()}
                       </div>
                       {sec === 'System' && <AuditFooter d={selectedDevotee} />}
-                    </div>
+                    </Collapsible>
                   );
                 })}
-                <SevaSection devotee={selectedDevotee} />
+                <SevaSection devotee={selectedDevotee} open={!!openSec.Seva} onToggle={() => toggleSec('Seva')} />
               </div>
             </div>
 

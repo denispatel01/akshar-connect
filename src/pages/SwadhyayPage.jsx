@@ -8,9 +8,9 @@ const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
 
 // The three practices — each with its own colour, icon and Gujarati subtitle.
 const PRACTICES = [
-  { key: 'bhajanMin', label: 'Bhajan', sub: 'ભજન', icon: Music, from: 'from-rose-500', to: 'to-orange-500', ring: 'ring-rose-200', text: 'text-rose-600', soft: 'bg-rose-50 dark:bg-rose-950/40' },
+  { key: 'bhajanMin', label: 'Bhajan', sub: 'ભજન · chanting', icon: Music, from: 'from-rose-500', to: 'to-orange-500', ring: 'ring-rose-200', text: 'text-rose-600', soft: 'bg-rose-50 dark:bg-rose-950/40' },
   { key: 'listenMin', label: 'Shravan', sub: 'શ્રવણ · listening', icon: Headphones, from: 'from-violet-500', to: 'to-fuchsia-500', ring: 'ring-violet-200', text: 'text-violet-600', soft: 'bg-violet-50 dark:bg-violet-950/40' },
-  { key: 'readMin', label: 'Vachan', sub: 'વાંચન · reading', icon: BookOpen, from: 'from-emerald-500', to: 'to-teal-500', ring: 'ring-emerald-200', text: 'text-emerald-600', soft: 'bg-emerald-50 dark:bg-emerald-950/40' },
+  { key: 'readMin', label: 'Vanchan', sub: 'વાંચન · reading', icon: BookOpen, from: 'from-emerald-500', to: 'to-teal-500', ring: 'ring-emerald-200', text: 'text-emerald-600', soft: 'bg-emerald-50 dark:bg-emerald-950/40' },
 ];
 
 const QUICK = [10, 15, 20, 30, 45, 60];
@@ -37,14 +37,14 @@ export default function SwadhyayPage({ user }) {
   const [date, setDate] = useState(todayISO());
   const [form, setForm] = useState({ bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Fetch the full history once.
+  // Fetch the full history in the BACKGROUND — the page renders instantly and the
+  // numbers fill in when the data arrives (no blocking "Loading…" screen).
   useEffect(() => {
     let alive = true;
-    dataService.getMySwadhyay(devoteeId).then((rows) => { if (alive) setHistory(rows || []); }).finally(() => { if (alive) setLoading(false); });
+    dataService.getMySwadhyay(devoteeId).then((rows) => { if (alive) setHistory(rows || []); });
     return () => { alive = false; };
   }, [devoteeId]);
 
@@ -154,9 +154,7 @@ export default function SwadhyayPage({ user }) {
         </div>
       </div>
 
-      {loading ? (
-        <p className="mt-6 text-center text-sm text-text-muted">Loading…</p>
-      ) : (
+      {(
         <div className="mt-5 space-y-4">
           {PRACTICES.map((p) => {
             const Icon = p.icon;
