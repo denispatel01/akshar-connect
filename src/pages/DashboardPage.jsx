@@ -259,7 +259,7 @@ export default function DashboardPage({ setActivePage, user }) {
               Jai Swaminarayan, {user?.name || 'Devotee'}!
             </h1>
             <p className="mt-1 text-sm text-white/80 max-w-xl">
-              Welcome to Akshar Connect dashboard. Manage devotees, run follow-up drives, and keep the satsang community connected.
+              Everything for our Mandal in one place — daily Vato & darshan, the community Feed, your Swadhyay, Calendar & Seva, devotees, events, announcements and more. 🙏
             </p>
           </div>
 
@@ -270,6 +270,53 @@ export default function DashboardPage({ setActivePage, user }) {
             <Users className="h-5 w-5" /> View Devotees
           </button>
         </div>
+      </div>
+
+      {/* Today's Inspiration — moved up, right below the welcome banner */}
+      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col">
+        <div className="w-full p-6 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
+              <Sparkles className="h-4 w-4" /> Today's Inspiration
+            </span>
+            {thoughtSlides.length > 1 && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => slideThought(-1)} aria-label="Previous thought"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button onClick={() => slideThought(1)} aria-label="Next thought"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div ref={thoughtScrollRef}
+            className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {thoughtSlides.map((t, i) => (
+              <div key={i} className="snap-center shrink-0 w-full pr-1">
+                <p className="text-lg font-semibold text-text-main italic leading-relaxed">
+                  "{t.thought}"
+                </p>
+                <p className="mt-3 text-xs font-semibold text-text-muted">
+                  <span className="text-text-main/70">{t.author}</span>
+                  {t.date ? <span> · {displayThoughtDate(t.date)}</span> : null}
+                </p>
+              </div>
+            ))}
+          </div>
+          {thoughtSlides.length > 1 && (
+            <p className="mt-3 text-[11px] font-semibold text-[#B7C4D2]">Swipe or use the arrows to read more thoughts →</p>
+          )}
+        </div>
+        <img
+          src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}
+          alt="Kariye aej kaam jema Taro Rajipo"
+          className="w-full object-contain bg-[#001a33]"
+          loading="lazy"
+        />
       </div>
 
       {/* Stats Summary Cards */}
@@ -569,53 +616,6 @@ export default function DashboardPage({ setActivePage, user }) {
             })}
           </div>
         )}
-      </div>
-
-      {/* Today's Inspiration — full-width text with the wallpaper below it */}
-      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col">
-        <div className="w-full p-6 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
-              <Sparkles className="h-4 w-4" /> Today's Inspiration
-            </span>
-            {thoughtSlides.length > 1 && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => slideThought(-1)} aria-label="Previous thought"
-                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button onClick={() => slideThought(1)} aria-label="Next thought"
-                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light text-text-main hover:bg-bg-base">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div ref={thoughtScrollRef}
-            className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {thoughtSlides.map((t, i) => (
-              <div key={i} className="snap-center shrink-0 w-full pr-1">
-                <p className="text-lg font-semibold text-text-main italic leading-relaxed">
-                  "{t.thought}"
-                </p>
-                <p className="mt-3 text-xs font-semibold text-text-muted">
-                  <span className="text-text-main/70">{t.author}</span>
-                  {t.date ? <span> · {displayThoughtDate(t.date)}</span> : null}
-                </p>
-              </div>
-            ))}
-          </div>
-          {thoughtSlides.length > 1 && (
-            <p className="mt-3 text-[11px] font-semibold text-[#B7C4D2]">Swipe or use the arrows to read more thoughts →</p>
-          )}
-        </div>
-        <img
-          src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}
-          alt="Kariye aej kaam jema Taro Rajipo"
-          className="w-full object-contain bg-[#001a33]"
-          loading="lazy"
-        />
       </div>
 
       {/* Quick Actions */}
