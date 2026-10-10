@@ -351,6 +351,15 @@ function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
 // Editor helper: send yourself a test push to confirm the FCM setup works.
 function testPush(){ Logger.log('sent to ' + sendPush_('Test push', 'If you see this, FCM works 🎉', 'all', {})); }
 
+// RUN ONCE from the editor to grant the "connect to an external service" permission
+// (needed to call FCM). Approve the prompt; afterwards push works from the web app.
+function authorizeFcm(){
+  var sa = JSON.parse(PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT'));
+  var tok = fcmAccessToken_(sa);
+  Logger.log('FCM OK — minted access token: ' + String(tok).slice(0,16) + '…');
+}
+
+
 /** RUN ONCE from the editor to grant the Drive permission (like testMail). */
 function authorizeDrive(){
   var pf = photoFolder_();
