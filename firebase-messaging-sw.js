@@ -7,12 +7,12 @@ importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'REPLACE_API_KEY',
-  authDomain: 'REPLACE_PROJECT_ID.firebaseapp.com',
-  projectId: 'REPLACE_PROJECT_ID',
-  storageBucket: 'REPLACE_PROJECT_ID.appspot.com',
-  messagingSenderId: 'REPLACE_SENDER_ID',
-  appId: 'REPLACE_APP_ID',
+  apiKey: 'AIzaSyClXbb0FSSUx1oi5g34l0hZqlSwm8ZPR78',
+  authDomain: 'akshar-connect-625b6.firebaseapp.com',
+  projectId: 'akshar-connect-625b6',
+  storageBucket: 'akshar-connect-625b6.firebasestorage.app',
+  messagingSenderId: '25605823162',
+  appId: '1:25605823162:web:09f4fe30b0b8800544c083',
 });
 
 const messaging = firebase.messaging();
