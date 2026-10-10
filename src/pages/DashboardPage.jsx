@@ -177,15 +177,29 @@ export default function DashboardPage({ setActivePage, user }) {
     const norm = (s) => String(s || '').toLowerCase().replace(/\(.*?\)/g, ' ')
       .split(/\s+/).map((t) => t.replace(/(bhai|ben|kumar)$/i, '')).join(' ')
       .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
+    // Gender lookup from the Devotees themselves — by mobile (reliable) and by name.
+    const genderByMobile = new Map();
     const genderByName = new Map();
-    devotees.forEach((d) => { const k = norm(d.name); if (k && !genderByName.has(k)) genderByName.set(k, d.gender); });
-    const counts = new Map();
-    devotees.forEach((d) => { const k = String(d.followupKaryakarta || '').trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+    devotees.forEach((d) => {
+      const mob = last10(d.mobile); if (mob && d.gender && !genderByMobile.has(mob)) genderByMobile.set(mob, d.gender);
+      const k = norm(d.name); if (k && d.gender && !genderByName.has(k)) genderByName.set(k, d.gender);
+    });
+    // One group per follow-up karyakarta, remembering a representative mobile so we
+    // can resolve the karyakarta's gender from their own record.
+    const groups = new Map(); // name -> { count, mobile }
+    devotees.forEach((d) => {
+      const k = String(d.followupKaryakarta || '').trim(); if (!k) return;
+      const g = groups.get(k) || { count: 0, mobile: '' };
+      g.count++;
+      if (!g.mobile && d.followupKaryakartaMobile) g.mobile = last10(d.followupKaryakartaMobile);
+      groups.set(k, g);
+    });
     const male = [], female = [], other = [];
-    [...counts.entries()].forEach(([name, count]) => {
-      const g = genderByName.get(norm(name));
-      const row = { name, count };
-      if (g === 'Female') female.push(row); else if (g === 'Male') male.push(row); else other.push(row);
+    [...groups.entries()].forEach(([name, info]) => {
+      const gender = (info.mobile && genderByMobile.get(info.mobile)) || genderByName.get(norm(name)) || '';
+      const row = { name, count: info.count };
+      if (gender === 'Female') female.push(row); else if (gender === 'Male') male.push(row); else other.push(row);
     });
     const srt = (arr) => arr.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     return { male: srt(male), female: srt(female), other: srt(other) };
