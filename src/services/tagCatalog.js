@@ -76,6 +76,7 @@ export const TAGS = [
 
   // ── Satsang Role & Classification ────────────────────────────────────────
   { key: 'ambrish',     label: 'Ambrish',          category: 'classification', desc: 'Satsang Diksha initiated devotee.' },
+  { key: 'sahradyi',    label: 'Sahradyi',         category: 'classification', desc: 'Sahradyi devotee.' },
   { key: 'karyakarta',  label: 'Karyakarta',        category: 'classification', desc: 'Active volunteer / worker.' },
   { key: 'yuvak',       label: 'Yuvak',             category: 'classification', desc: 'Youth (Yuva Wing) member.' },
   { key: 'vadil',       label: 'Vadil',             category: 'classification', desc: 'Senior / elder devotee.' },

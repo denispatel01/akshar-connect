@@ -58,7 +58,10 @@ export default function DashboardPage({ setActivePage, user }) {
   }, []);
 
   const totalDevotees = devotees.length;
-  const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish')).length;
+  // Ambrish & Sahradyi are shown as mutually exclusive groups (a devotee tagged
+  // both is counted in neither, matching the directory's Ambrish/Sahradyi views).
+  const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish') && !d.tags?.includes('sahradyi')).length;
+  const sahradyiCount = devotees.filter(d => d.tags?.includes('sahradyi') && !d.tags?.includes('ambrish')).length;
   const karyakartaCount = devotees.filter(d => d.tags?.includes('karyakarta')).length;
   const oldCount = devotees.filter(d => String(d.oldNew || '').trim().toLowerCase() === 'old').length;
   // One family per head (Primary member) — same definition the directory uses,
@@ -157,6 +160,17 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
           <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('sahradyi')} className={statCardCls} title="View Sahradyi devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Sahradyi</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
+              <Award className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{sahradyiCount}</p>
+          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Sahradyi</p>
         </button>
 
         <button type="button" onClick={() => openDevotees('families')} className={statCardCls} title="View family heads">

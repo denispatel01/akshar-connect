@@ -119,7 +119,8 @@ const firstLastName = (full) => {
 
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
-  ambrish: { tags: ['ambrish'], match: () => true, banner: 'Showing devotees tagged Ambrish' },
+  ambrish: { tags: ['ambrish'], match: (d) => !(d.tags || []).includes('sahradyi'), banner: 'Showing devotees tagged Ambrish' },
+  sahradyi: { tags: ['sahradyi'], match: (d) => !(d.tags || []).includes('ambrish'), banner: 'Showing devotees tagged Sahradyi' },
   karyakarta: { tags: ['karyakarta'], match: () => true, banner: 'Showing Karyakartas' },
   old: { tags: [], match: (d) => String(d.oldNew || '').trim().toLowerCase() === 'old', banner: 'Showing Old devotees' },
   families: {
