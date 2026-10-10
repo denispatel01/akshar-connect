@@ -332,6 +332,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const isOwnProfile = isDevotee && !!selectedDevotee && String(selectedDevotee.id) === String(user?.devoteeId);
   const canEditProfile = canEdit || isOwnProfile;
 
+  // Privacy: a Devotee-role viewer must NOT see a FEMALE devotee's phone number
+  // in any way, UNLESS she belongs to the viewer's OWN family. Admin/Sevak see
+  // everything; male/other numbers are always shown. Applied at every render +
+  // export point so a hidden number never even reaches the DOM.
+  const myFamilyId = String(user?.familyId || user?.devoteeId || '');
+  const canSeeMobileOf = (d) => {
+    if (!isDevotee) return true;
+    if (String(d?.gender || '') !== 'Female') return true;
+    const fid = String(d?.familyId || d?.id || '');
+    return !!myFamilyId && fid === myFamilyId;
+  };
+  const mobileOf = (d) => (canSeeMobileOf(d) ? (d?.mobile || '') : '');
+  const whatsappOf = (d) => (canSeeMobileOf(d) ? (d?.whatsapp || '') : '');
+
   // Devotee: restrict visible records to their own family only
   const devoteeFamily = useMemo(() => {
     if (!isDevotee) return null;
@@ -534,10 +548,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const fieldDisplay = (d, f) => {
     if (f === 'name') return d.name || [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ');
     if (f === 'mobileWhatsapp') {
-      const m = String(d.mobile || '').trim(), w = String(d.whatsapp || '').trim();
+      const m = String(mobileOf(d) || '').trim(), w = String(whatsappOf(d) || '').trim();
       if (m && w && w === m) return `${m}  ·  WhatsApp same`;
       return [m && `📱 ${m}`, w && `💬 ${w}`].filter(Boolean).join('  ·  ');
     }
+    if (f === 'mobile') return mobileOf(d);
+    if (f === 'whatsapp') return whatsappOf(d);
     if (f === 'grade') return gradeDisplay(d.grade, d.gradeAsOf); // current grade + as-on date (#138/#139)
     return d[f];
   };
@@ -669,7 +685,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                      <td>${i + 1}</td>
                      <td>${d.id || ''}</td>
                      <td class="name">${d.name || ''}</td>
-                     <td>${d.mobile || ''}</td>
+                     <td>${mobileOf(d) || ''}</td>
                      <td>${d.area || ''}</td>
                      <td>${d.gender || ''}</td>
                      <td>${d.dob ? d.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : ''}</td>
@@ -732,7 +748,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       'SN': i + 1,
                       'Full Name': d.name || '',
                       'Address': d.address || '',
-                      'Mobile No': d.mobile || '',
+                      'Mobile No': mobileOf(d) || '',
                       'DOB': ddmmyyyy(d.dob),
                       'Follow-up Karyakarta': d.followupKaryakarta || '',
                       'Reference': d.reference || '',
@@ -741,7 +757,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       'ID': d.id || '',
                       'Age': age === '' ? '' : age,
                       'Gender': d.gender || '',
-                      'WhatsApp': d.whatsapp || '',
+                      'WhatsApp': whatsappOf(d) || '',
                       'Email': d.email || '',
                       'Area': d.area || '',
                       'Blood Group': d.bloodGroup || '',
@@ -939,7 +955,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                           </div>
                         </td>
                         <td className="px-3 py-2.5 font-mono text-[11px] font-bold text-text-muted whitespace-nowrap">{devotee.id}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-text-main">{val(devotee.mobile)}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-text-main">{val(mobileOf(devotee))}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{devotee.dob ? dobShort(devotee.dob) : '—'}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-text-muted">{devotee.area || '—'}</td>
                         <td className="px-3 py-2.5 text-text-muted"><span className="block truncate max-w-[160px]">{devotee.followupKaryakarta || '—'}</span></td>
@@ -1007,7 +1023,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
                   {/* First-glance priority: contact, full address, DOB, karyakarta */}
                   <div className="mt-2 space-y-1.5">
-                    <Row icon={Phone} color="bg-sky-50 text-sky-600" text={val(devotee.mobile)} />
+                    <Row icon={Phone} color="bg-sky-50 text-sky-600" text={val(mobileOf(devotee))} />
                     {devotee.address && <Row icon={Home} color="bg-slate-100 text-slate-500" text={devotee.address} clamp />}
                     {devotee.dob && <Row icon={Calendar} color="bg-purple-50 text-purple-600" text={dobShort(devotee.dob)} title={`DOB: ${dobShort(devotee.dob)}`} />}
                     {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={devotee.followupKaryakarta} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
@@ -1128,10 +1144,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           main's animation stacking context; iOS safe areas respected. */}
       {selectedDevotee && createPortal(
         <div
-          className="fixed inset-0 z-[60] bg-bg-base animate-[acFade_.18s_ease-out] flex flex-col"
+          /* Full-screen, but on mobile it stops above the app's bottom nav so the
+             nav stays visible/tappable across the whole app (the nav is ~56px +
+             safe-area; on md+ there is no bottom nav, so it fills the screen). */
+          className="fixed top-0 left-0 right-0 bottom-[calc(56px_+_env(safe-area-inset-bottom))] md:bottom-0 z-[60] bg-bg-base animate-[acFade_.18s_ease-out] flex flex-col"
           style={{
             paddingTop: 'env(safe-area-inset-top)',
-            paddingBottom: 'env(safe-area-inset-bottom)',
             paddingLeft: 'env(safe-area-inset-left)',
             paddingRight: 'env(safe-area-inset-right)',
           }}
@@ -1205,7 +1223,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                 </div>
 
                 {/* Quick actions */}
-                {val(selectedDevotee.mobile) !== '—' && (
+                {canSeeMobileOf(selectedDevotee) && val(selectedDevotee.mobile) !== '—' && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <a href={`tel:${selectedDevotee.mobile}`}
                       className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#00223f] transition-colors">
@@ -1221,7 +1239,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
                 {/* Key satsang-contact info — left-aligned (#115) */}
                 <div className="mt-3 space-y-1.5 self-stretch text-left">
-                  {selectedDevotee.mobile && (
+                  {canSeeMobileOf(selectedDevotee) && selectedDevotee.mobile && (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-text-muted">
                       <Phone className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words">{selectedDevotee.mobile}</span>
                     </div>
@@ -1287,9 +1305,9 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                                     {m.type === 'Primary' ? '★ Head of family' : (m.relation || 'Member')}{mAge !== '' ? ` · ${mAge} yrs` : ''}
                                   </p>
                                 </div>
-                                {m.mobile && (
-                                  <a href={`tel:${m.mobile}`} onClick={(e) => e.stopPropagation()}
-                                    className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-bg-base text-primary hover:bg-primary hover:text-white transition-colors" title={m.mobile}>
+                                {mobileOf(m) && (
+                                  <a href={`tel:${mobileOf(m)}`} onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-bg-base text-primary hover:bg-primary hover:text-white transition-colors" title={mobileOf(m)}>
                                     <Phone className="h-4 w-4" />
                                   </a>
                                 )}

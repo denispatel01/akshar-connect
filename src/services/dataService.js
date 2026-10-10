@@ -308,12 +308,17 @@ function parseDobParts_(dob) {
 }
 function matchDevoteeDob_(mobile, pin) {
   const nm = normMobile_(mobile);
-  const dev = DB.devotees.find(d => normMobile_(d.mobile) === nm);
-  if (!dev || !dev.dob) return null;
-  const p = parseDobParts_(dev.dob);
-  if (!p) return null;
   const entered = String(pin).replace(/\D/g, '');
-  if (entered === `${p.d}${p.mo}${p.y}` || entered === `${p.d}${p.mo}${p.y.slice(2)}`) return dev;
+  // A mobile can be SHARED by several devotees (e.g. a son's record carries his
+  // father's number because he has no phone of his own). Check EVERY record on
+  // that number and log in whoever's DOB matches — so father and son each sign
+  // in with their own DOB on the same mobile.
+  const candidates = DB.devotees.filter(d => normMobile_(d.mobile) === nm && d.dob);
+  for (const dev of candidates) {
+    const p = parseDobParts_(dev.dob);
+    if (!p) continue;
+    if (entered === `${p.d}${p.mo}${p.y}` || entered === `${p.d}${p.mo}${p.y.slice(2)}`) return dev;
+  }
   return null;
 }
 // Is this mobile already present in the cached data (as a staff user or a
@@ -381,10 +386,15 @@ export const dataService = {
       devotee = DB.devotees.find(d => normMobile_(d.mobile) === normMobile_(mobile));
     }
     if (!devotee) throw new Error('No devotee found with this mobile number.');
-    if (!devotee.dob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
-    if (!matchDevoteeDob_(mobile, dob))
+    // Match ANY record on this mobile whose DOB matches (handles a shared number),
+    // and sign in as THAT person — not just the first record found.
+    const matched = matchDevoteeDob_(mobile, dob);
+    if (!matched) {
+      const anyDob = DB.devotees.some(d => normMobile_(d.mobile) === normMobile_(mobile) && d.dob);
+      if (!anyDob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
       throw new Error('Incorrect date of birth. Use format DD-MM-YYYY (e.g. 01-12-1995).');
-    const sessionUser = devSession_(devotee);
+    }
+    const sessionUser = devSession_(matched);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
     logActivity_('login', '', `logged in (${deviceLabel_()})`);
     return { success: true, user: sessionUser };
