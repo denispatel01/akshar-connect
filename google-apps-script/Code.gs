@@ -32,10 +32,16 @@ var HEADERS = {
   // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
-  GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn']
+  GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // One row per device registered for push. Keyed by the FCM token. A devotee /
+  // staff member can have several devices (several rows).
+  PushTokens: ['token','devoteeId','mobile','name','platform','updatedOn'],
+  // Admin-posted announcements, shown in-app and sent as a push notification.
+  // audience ∈ all | staff | devotees (who it targets).
+  Announcements: ['id','title','body','audience','createdBy','createdOn','sentCount']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-09a';
+var SCHEMA_VERSION = '2026-10-10-push';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -187,6 +193,139 @@ function doMigrateBase64Photos_(){
   return json_({ ok:true, migrated:migrated, failed:failed });
 }
 function migrateBase64Photos(){ Logger.log(doMigrateBase64Photos_().getContent()); }
+
+// ── Push notifications via Firebase Cloud Messaging (HTTP v1) ─────────────────
+// Setup (one time, by the project owner):
+//   1. Firebase console → create project → add Android app id in.aksharmandal.aksharconnect.
+//   2. Project settings → Service accounts → Generate new private key (JSON).
+//   3. Here: Project Settings (gear) → Script properties, add:
+//        FCM_SERVICE_ACCOUNT = <paste the WHOLE service-account JSON>
+//      (project_id, client_email and private_key are read from it.)
+// Nothing secret ever lives in this file or in git.
+
+// Register / refresh a device's FCM token (one row per device, keyed by token).
+function doRegisterPushToken_(p){
+  var token = String(p.token || '').trim();
+  if(!token) return json_({ ok:false, error:'no token' });
+  var row = {
+    token: token,
+    devoteeId: String(p.devoteeId || ''),
+    mobile: String(p.mobile || ''),
+    name: String(p.name || ''),
+    platform: String(p.platform || ''),
+    updatedOn: new Date().toISOString()
+  };
+  var rn = findRow_('PushTokens', 'token', token);
+  if(rn > 0) tab_('PushTokens').getRange(rn,1,1,HEADERS.PushTokens.length).setValues([rowFromObj_('PushTokens', row)]);
+  else appendRows_('PushTokens', [row]);
+  return json_({ ok:true });
+}
+
+function doGetAnnouncements_(){
+  var list = readAll_('Announcements');
+  list.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
+  return json_({ ok:true, announcements: list.slice(0, 50) });
+}
+
+// Create an announcement: save it, then push it to every matching device.
+function doCreateAnnouncement_(p){
+  var id = 'ANN-' + Date.now().toString(36);
+  var rec = {
+    id: id,
+    title: String(p.title || '').slice(0, 120),
+    body: String(p.body || '').slice(0, 2000),
+    audience: (['all','staff','devotees'].indexOf(p.audience) >= 0 ? p.audience : 'all'),
+    createdBy: String(p.createdBy || ''),
+    createdOn: new Date().toISOString(),
+    sentCount: 0
+  };
+  var sent = 0;
+  try { sent = sendPush_(rec.title, rec.body, rec.audience, { announcementId: id }); } catch(e) { /* save even if push fails */ }
+  rec.sentCount = sent;
+  appendRows_('Announcements', [rec]);
+  return json_({ ok:true, id:id, sent:sent });
+}
+
+// Mint a short-lived OAuth access token for the FCM HTTP v1 API from the stored
+// service-account key (signed JWT → Google token endpoint).
+function fcmAccessToken_(sa){
+  var now = Math.floor(Date.now()/1000);
+  var header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg:'RS256', typ:'JWT' }));
+  var claim = Utilities.base64EncodeWebSafe(JSON.stringify({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now, exp: now + 3600
+  }));
+  var toSign = header + '.' + claim;
+  var sig = Utilities.computeRsaSha256Signature(toSign, sa.private_key);
+  var jwt = toSign + '.' + Utilities.base64EncodeWebSafe(sig);
+  var res = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt },
+    muteHttpExceptions: true
+  });
+  var data = JSON.parse(res.getContentText());
+  if(!data.access_token) throw new Error('FCM auth failed: ' + res.getContentText());
+  return data.access_token;
+}
+
+// Send a push to every device whose audience matches. Returns how many were sent.
+// Prunes tokens FCM reports as permanently invalid (UNREGISTERED / NOT_FOUND).
+function sendPush_(title, body, audience, data){
+  var saRaw = PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT');
+  if(!saRaw) throw new Error('FCM_SERVICE_ACCOUNT not set');
+  var sa = JSON.parse(saRaw);
+  var token = fcmAccessToken_(sa);
+  var url = 'https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send';
+
+  var staffMobiles = {}; readAll_('Users').forEach(function(u){ staffMobiles[normMob_(u.mobile)] = true; });
+  var rows = readAll_('PushTokens');
+  var targets = rows.filter(function(r){
+    if(audience === 'all') return true;
+    var isStaff = !!staffMobiles[normMob_(r.mobile)];
+    return audience === 'staff' ? isStaff : !isStaff;
+  });
+  if(!targets.length) return 0;
+
+  var msgData = { type: 'announcement' };
+  if(data) for(var k in data) msgData[k] = String(data[k]);
+
+  var sent = 0, toDelete = [];
+  // UrlFetchApp.fetchAll batches the HTTP calls so hundreds of devices stay fast.
+  for(var i=0;i<targets.length;i+=100){
+    var chunk = targets.slice(i, i+100);
+    var reqs = chunk.map(function(r){
+      return {
+        url: url, method: 'post', contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true,
+        payload: JSON.stringify({ message: {
+          token: r.token,
+          notification: { title: title, body: body },
+          data: msgData,
+          android: { priority: 'high' }
+        }})
+      };
+    });
+    var resps = UrlFetchApp.fetchAll(reqs);
+    for(var j=0;j<resps.length;j++){
+      var code = resps[j].getResponseCode();
+      if(code === 200) sent++;
+      else if(code === 404 || code === 400){
+        var txt = resps[j].getContentText();
+        if(/UNREGISTERED|NOT_FOUND|INVALID_ARGUMENT/.test(txt)) toDelete.push(chunk[j].token);
+      }
+    }
+  }
+  // Remove dead tokens so the list stays clean.
+  toDelete.forEach(function(tok){ var rn = findRow_('PushTokens','token',tok); if(rn>0) try{ tab_('PushTokens').deleteRow(rn); }catch(e){} });
+  return sent;
+}
+function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
+
+// Editor helper: send yourself a test push to confirm the FCM setup works.
+function testPush(){ Logger.log('sent to ' + sendPush_('Test push', 'If you see this, FCM works 🎉', 'all', {})); }
 
 /** RUN ONCE from the editor to grant the Drive permission (like testMail). */
 function authorizeDrive(){
@@ -389,7 +528,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -459,7 +598,8 @@ function handle_(p){
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
-      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups'), areas:readAll_('Areas') });
+      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups'), areas:readAll_('Areas'),
+      announcements:(function(){ try{ var l=readAll_('Announcements'); l.sort(function(a,b){return String(b.createdOn).localeCompare(String(a.createdOn));}); return l.slice(0,50);}catch(e){return [];} })() });
     if(action==='seedDevotees'){
       if(readAll_('Devotees').length===0) appendRows_('Devotees', p.rows||[]);
       return json_({ ok:true, count:readAll_('Devotees').length });
@@ -531,6 +671,9 @@ function handle_(p){
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
+    if(action==='registerPushToken') return doRegisterPushToken_(p);
+    if(action==='getAnnouncements') return doGetAnnouncements_();
+    if(action==='createAnnouncement') return doCreateAnnouncement_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
