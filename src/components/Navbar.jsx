@@ -5,6 +5,7 @@ import {
   PhoneCall,
   FileSpreadsheet,
   BookOpen,
+  HeartHandshake,
   Mail,
   Settings,
   LogOut,
@@ -49,6 +50,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak
           ? [
+              { id: 'seva', label: 'Seva', icon: HeartHandshake },
               { id: 'followups', label: 'Follow-up', icon: PhoneCall },
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
@@ -86,6 +88,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ? [{ id: 'activity', label: 'My Activity', icon: Activity }]
     : [
         ...(isAdmin || isSevak ? [
+          { id: 'seva', label: 'Seva', icon: HeartHandshake },
           { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
           { id: 'email', label: 'Email', icon: Mail },
           { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },

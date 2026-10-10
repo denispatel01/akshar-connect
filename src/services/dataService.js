@@ -566,6 +566,24 @@ export const dataService = {
     try { const r = await api('getSwadhyay', { devoteeId, limit }); return (r && r.entries) || []; } catch { return []; }
   },
 
+  // ---- Seva (karyakarta visit log) ----
+  saveSeva: async (seva) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('saveSeva', { ...seva, createdBy: actorLabel() });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
+    try { logActivity_('seva', seva.visitedName || '', `logged seva${seva.visitedName ? ' at ' + seva.visitedName + "'s home" : ''}`); } catch (e) {}
+    return r.row;
+  },
+  deleteSeva: async (id) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    return api('deleteSeva', { id });
+  },
+  // Seva done BY a karyakarta, or RECEIVED by a visited devotee (pass one id).
+  getSeva: async ({ karyakartaId = '', visitedId = '', limit = 300 } = {}) => {
+    if (!hasBackend() || (!karyakartaId && !visitedId)) return [];
+    try { const r = await api('getSeva', { karyakartaId, visitedId, limit }); return (r && r.entries) || []; } catch { return []; }
+  },
+
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
     try {

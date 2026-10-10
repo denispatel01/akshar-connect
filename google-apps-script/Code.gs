@@ -44,10 +44,13 @@ var HEADERS = {
   PushStatus: ['key','devoteeId','mobile','name','status','platform','updatedOn'],
   // Daily Swadhyay log — one row per devotee per day. Minutes of Bhajan (with the
   // time of day), Shravan (listening to discourses) and Vachan (reading).
-  Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn']
+  Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn'],
+  // Seva log by karyakartas (Sevak/Admin). Each visit: date, from/to time, what was
+  // done, and the devotee whose home was visited — shown on both profiles.
+  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-swadhyay';
+var SCHEMA_VERSION = '2026-10-11-seva';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -300,6 +303,46 @@ function doGetSwadhyay_(p){
   }
   all.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
   return json_({ ok:true, entries: all.slice(0, Number(p.limit)||120) });
+}
+
+// ── Seva log ─────────────────────────────────────────────────────────────────
+function doSaveSeva_(p){
+  var now = new Date().toISOString();
+  var id = String(p.id || '') || ('SEVA-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  var row = {
+    id: id,
+    karyakartaId: String(p.karyakartaId||''), karyakartaName: String(p.karyakartaName||''), karyakartaMobile: String(p.karyakartaMobile||''),
+    date: String(p.date||''), fromTime: String(p.fromTime||''), toTime: String(p.toTime||''),
+    category: String(p.category||''), work: String(p.work||''),
+    visitedId: String(p.visitedId||''), visitedName: String(p.visitedName||''),
+    createdBy: String(p.createdBy||''), createdOn: now, updatedBy: String(p.createdBy||''), updatedOn: now
+  };
+  var existing = findRow_('Seva', 'id', id);
+  if(existing > 0){
+    var cIdx = HEADERS.Seva.indexOf('createdOn')+1, bIdx = HEADERS.Seva.indexOf('createdBy')+1;
+    row.createdOn = tab_('Seva').getRange(existing, cIdx).getValue() || now;
+    row.createdBy = tab_('Seva').getRange(existing, bIdx).getValue() || row.createdBy;
+    tab_('Seva').getRange(existing,1,1,HEADERS.Seva.length).setValues([rowFromObj_('Seva', row)]);
+  } else {
+    appendRows_('Seva', [row]);
+  }
+  return json_({ ok:true, row: row });
+}
+function doGetSeva_(p){
+  var all = readAll_('Seva');
+  var kid = String(p.karyakartaId||''), vid = String(p.visitedId||'');
+  if(String(p.all||'') !== '1'){
+    all = all.filter(function(r){
+      return (kid && String(r.karyakartaId) === kid) || (vid && String(r.visitedId) === vid);
+    });
+  }
+  all.sort(function(a,b){ return String(b.date+ (b.fromTime||'')).localeCompare(String(a.date+(a.fromTime||''))); });
+  return json_({ ok:true, entries: all.slice(0, Number(p.limit)||300) });
+}
+function doDeleteSeva_(p){
+  var r = findRow_('Seva','id',String(p.id||''));
+  if(r > 0) tab_('Seva').deleteRow(r);
+  return json_({ ok:true });
 }
 
 // Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
@@ -631,7 +674,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -782,6 +825,9 @@ function handle_(p){
     if(action==='getPushStatus') return doGetPushStatus_();
     if(action==='saveSwadhyay') return doSaveSwadhyay_(p);
     if(action==='getSwadhyay') return doGetSwadhyay_(p);
+    if(action==='saveSeva') return doSaveSeva_(p);
+    if(action==='getSeva') return doGetSeva_(p);
+    if(action==='deleteSeva') return doDeleteSeva_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

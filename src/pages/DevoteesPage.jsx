@@ -195,6 +195,53 @@ function AuditFooter({ d }) {
   );
 }
 
+// Seva section in a devotee's profile: seva they DID (as karyakarta) and seva
+// RECEIVED (visits to their home). Read-only — logged from the Seva module.
+function SevaSection({ devotee }) {
+  const [done, setDone] = React.useState([]);
+  const [received, setReceived] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    if (!devotee?.id) return;
+    setLoaded(false);
+    Promise.all([
+      dataService.getSeva({ karyakartaId: devotee.id }),
+      dataService.getSeva({ visitedId: devotee.id }),
+    ]).then(([d, r]) => { if (alive) { setDone(d || []); setReceived(r || []); setLoaded(true); } });
+    return () => { alive = false; };
+  }, [devotee?.id]);
+
+  if (!loaded || (done.length === 0 && received.length === 0)) return null;
+  const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return d; } };
+  const Row = ({ s, who, whoName }) => (
+    <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-text-main">{who}: {whoName || '—'}</span>
+        <span className="text-[10px] font-semibold text-text-muted">{fmtDate(s.date)}{s.fromTime ? ` · ${s.fromTime}${s.toTime ? '–' + s.toTime : ''}` : ''}</span>
+      </div>
+      {(s.category || s.work) && <p className="mt-0.5 text-[11px] text-text-muted">{s.category ? `[${s.category}] ` : ''}{s.work}</p>}
+    </div>
+  );
+  return (
+    <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
+      <h3 className="mb-3 text-sm font-black text-text-main">🤝 Seva</h3>
+      {received.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva received at home · {received.length}</p>
+          <div className="space-y-1.5">{received.map((s) => <Row key={s.id} s={s} who="By" whoName={s.karyakartaName} />)}</div>
+        </div>
+      )}
+      {done.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva done by this karyakarta · {done.length}</p>
+          <div className="space-y-1.5">{done.map((s) => <Row key={s.id} s={s} who="At" whoName={s.visitedName} />)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DevoteesPage({ user, devoteesPreset, filterPreset, onClearDevoteesPreset, openDevoteeId, onClearOpenDevotee, refreshing, familyView = false }) {
   const [devotees, setDevotees] = useState(() => dataService.getDevotees());
   const [searchQuery, setSearchQuery] = useState('');
@@ -1465,6 +1512,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     </div>
                   );
                 })}
+                <SevaSection devotee={selectedDevotee} />
               </div>
             </div>
 
