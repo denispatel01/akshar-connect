@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { HeartHandshake, Clock, MapPin, User, Trash2, Check, Search, X, Plus } from 'lucide-react';
+import { HeartHandshake, Clock, MapPin, User, Trash2, Check, Search, X, Plus, Users } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
 
@@ -51,6 +51,52 @@ function DevoteePicker({ value, name, onPick }) {
   );
 }
 
+// Add several co-sevaks who went along. Shows chips + a search to add more.
+function CompanionPicker({ companions, excludeIds, onAdd, onRemove }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const devotees = useMemo(() => dataService.getDevotees(), []);
+  const taken = new Set([...(excludeIds || []).filter(Boolean), ...companions.map((c) => c.id)]);
+  const results = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return [];
+    return devotees.filter((d) => !taken.has(d.id) && (String(d.name || '').toLowerCase().includes(s) || last10(d.mobile).includes(s))).slice(0, 8);
+    // eslint-disable-next-line
+  }, [q, devotees, companions]);
+
+  return (
+    <div>
+      {companions.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {companions.map((c) => (
+            <span key={c.id} className="flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700 dark:bg-purple-950/50">
+              {c.name}
+              <button onClick={() => onRemove(c.id)} className="text-purple-500 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <Search className="absolute left-3 top-3 h-4 w-4 text-text-muted" />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+          placeholder="Add devotees who came along"
+          className="w-full rounded-2xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        {open && results.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-border-light bg-surface shadow-xl">
+            {results.map((d) => (
+              <button key={d.id} onClick={() => { onAdd(d); setQ(''); }}
+                className="block w-full px-3.5 py-2.5 text-left text-sm hover:bg-bg-base">
+                <span className="font-bold text-text-main">{d.name}</span>
+                {d.area ? <span className="text-xs text-text-muted"> · {d.area}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SevaPage({ user }) {
   const me = useMemo(() => {
     const list = dataService.getDevotees();
@@ -62,7 +108,7 @@ export default function SevaPage({ user }) {
   const karyakartaName = me?.name || user?.name || '';
   const karyakartaMobile = me?.mobile || user?.mobile || '';
 
-  const empty = { date: todayISO(), fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '' };
+  const empty = { date: todayISO(), fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '', companions: [] };
   const [form, setForm] = useState(empty);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +124,7 @@ export default function SevaPage({ user }) {
     if (!form.work.trim()) { alertError('What did you do?', 'Describe the seva you did.'); return; }
     setSaving(true);
     try {
-      await dataService.saveSeva({ ...form, karyakartaId, karyakartaName, karyakartaMobile });
+      await dataService.saveSeva({ ...form, companionsJson: JSON.stringify(form.companions || []), karyakartaId, karyakartaName, karyakartaMobile });
       setSaved(true); setForm(empty); load();
       setTimeout(() => setSaved(false), 2500);
     } catch (e) { alertError('Could not save', e.message || 'Try again.'); }
@@ -116,6 +162,16 @@ export default function SevaPage({ user }) {
         <div>
           <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-text-muted">Whose home did you visit?</label>
           <DevoteePicker value={form.visitedId} name={form.visitedName} onPick={(d) => { set('visitedId', d?.id || ''); set('visitedName', d?.name || ''); }} />
+        </div>
+
+        <div>
+          <label className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted"><Users className="h-3.5 w-3.5" /> Who went with you? (optional)</label>
+          <CompanionPicker
+            companions={form.companions}
+            excludeIds={[karyakartaId, form.visitedId]}
+            onAdd={(d) => { if (!form.companions.some((c) => c.id === d.id)) set('companions', [...form.companions, { id: d.id, name: d.name }]); }}
+            onRemove={(id) => set('companions', form.companions.filter((c) => c.id !== id))}
+          />
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -180,6 +236,9 @@ export default function SevaPage({ user }) {
                     </div>
                   </div>
                   {s.work && <p className="mt-2 whitespace-pre-wrap text-[13px] text-text-main/90">{s.work}</p>}
+                  {(() => { let c = []; try { c = JSON.parse(s.companionsJson || '[]'); } catch (e) {} return c.length ? (
+                    <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-purple-600"><Users className="h-3 w-3" /> with {c.map((x) => x.name).join(', ')}</p>
+                  ) : null; })()}
                 </div>
               ))}
             </div>

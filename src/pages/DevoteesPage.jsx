@@ -213,16 +213,27 @@ function SevaSection({ devotee }) {
   }, [devotee?.id]);
 
   if (!loaded || (done.length === 0 && received.length === 0)) return null;
-  const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return d; } };
-  const Row = ({ s, who, whoName }) => (
-    <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold text-text-main">{who}: {whoName || '—'}</span>
-        <span className="text-[10px] font-semibold text-text-muted">{fmtDate(s.date)}{s.fromTime ? ` · ${s.fromTime}${s.toTime ? '–' + s.toTime : ''}` : ''}</span>
+  const fmtDate = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return d; } };
+  const fmtTime = (t) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || '';
+    let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${h}:${m[2]} ${ap}`;
+  };
+  const timeRange = (s) => [fmtTime(s.fromTime), fmtTime(s.toTime)].filter(Boolean).join(' – ');
+  const Row = ({ s, who, whoName }) => {
+    let comps = []; try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) {}
+    return (
+      <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-xs font-bold text-text-main">{who}: {whoName || '—'}</span>
+          {s.category && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">{s.category}</span>}
+        </div>
+        <p className="mt-0.5 text-[11px] font-semibold text-text-muted">{fmtDate(s.date)}{timeRange(s) ? ` · ${timeRange(s)}` : ''}</p>
+        {s.work && <p className="mt-0.5 text-[11px] text-text-main/90">{s.work}</p>}
+        {comps.length > 0 && <p className="mt-0.5 text-[11px] font-semibold text-purple-600">with {comps.map((x) => x.name).join(', ')}</p>}
       </div>
-      {(s.category || s.work) && <p className="mt-0.5 text-[11px] text-text-muted">{s.category ? `[${s.category}] ` : ''}{s.work}</p>}
-    </div>
-  );
+    );
+  };
   return (
     <div className="rounded-2xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
       <h3 className="mb-3 text-sm font-black text-text-main">🤝 Seva</h3>

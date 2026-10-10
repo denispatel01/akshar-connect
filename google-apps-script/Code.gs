@@ -47,13 +47,13 @@ var HEADERS = {
   Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn'],
   // Seva log by karyakartas (Sevak/Admin). Each visit: date, from/to time, what was
   // done, and the devotee whose home was visited — shown on both profiles.
-  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','createdBy','createdOn','updatedBy','updatedOn'],
+  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','companionsJson','createdBy','createdOn','updatedBy','updatedOn'],
   // Calendar plans — a devotee's planned/done activity on a day. type ∈ seva|bhajan|
   // katha; status ∈ planned|done. "Done" markers also come from Swadhyay & Seva.
   CalPlan: ['id','devoteeId','date','type','note','status','createdOn','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-calplan';
+var SCHEMA_VERSION = '2026-10-11-seva-companions';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -318,6 +318,7 @@ function doSaveSeva_(p){
     date: String(p.date||''), fromTime: String(p.fromTime||''), toTime: String(p.toTime||''),
     category: String(p.category||''), work: String(p.work||''),
     visitedId: String(p.visitedId||''), visitedName: String(p.visitedName||''),
+    companionsJson: String(p.companionsJson||'[]'),
     createdBy: String(p.createdBy||''), createdOn: now, updatedBy: String(p.createdBy||''), updatedOn: now
   };
   var existing = findRow_('Seva', 'id', id);
@@ -336,7 +337,8 @@ function doGetSeva_(p){
   var kid = String(p.karyakartaId||''), vid = String(p.visitedId||'');
   if(String(p.all||'') !== '1'){
     all = all.filter(function(r){
-      return (kid && String(r.karyakartaId) === kid) || (vid && String(r.visitedId) === vid);
+      var inComp = kid && String(r.companionsJson||'').indexOf('"'+kid+'"') >= 0;
+      return (kid && String(r.karyakartaId) === kid) || inComp || (vid && String(r.visitedId) === vid);
     });
   }
   all.sort(function(a,b){ return String(b.date+ (b.fromTime||'')).localeCompare(String(a.date+(a.fromTime||''))); });
