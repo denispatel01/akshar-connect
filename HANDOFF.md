@@ -129,9 +129,9 @@ Swadhyay, Seva, CalPlan`.
 
 ---
 
-## 4. PENDING — manual step the OWNER must do
+## 4. ~~PENDING~~ manual steps the OWNER must do
 
-1. **Schedule the Swadhyay reminder at 10 PM.** In the Apps Script editor
+1. ✅ **DONE (2026-10-11) — Schedule the Swadhyay reminder at 10 PM.** In the Apps Script editor
    (`script.google.com/d/1GLXaTVufgSoOtPn-n6FULEDrmV53Z3epPWTMkzVZzWwkj1OL5UKkJ3y6/edit`):
    function dropdown → **`installSwadhyayReminder`** → Run → approve the time-trigger permission.
    (It reads Script property `swadhyayHour`, default 22. To change the hour: set that property and
