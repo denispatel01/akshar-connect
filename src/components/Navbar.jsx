@@ -22,6 +22,8 @@ import {
   ChevronRight,
   Activity,
   Cookie,
+  Sparkles,
+  Database,
 } from 'lucide-react';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
@@ -40,6 +42,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const allNavItems = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'feed', label: 'Feed', icon: Sparkles },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         { id: 'devotees', label: 'My Profile', icon: User },
@@ -48,6 +51,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'feed', label: 'Feed', icon: Sparkles },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
@@ -66,6 +70,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           ? [
               { id: 'ghari', label: 'Ghari Seva', icon: Cookie, adminOnly: true },
               { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
+              { id: 'data', label: 'Data Quality', icon: Database, adminOnly: true },
               { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
             ]
           : []),

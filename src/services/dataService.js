@@ -552,6 +552,62 @@ export const dataService = {
     try { const r = await api('getPushStatus', {}); return (r && r.status) || []; } catch { return []; }
   },
 
+  // ---- Feed (community photo/video posts) ----
+  // Upload one media item (image or short video data URI) to Drive and get a
+  // stable URL. Falls back to the data URI if there's no backend / upload fails.
+  uploadFeedMedia: async (dataUri, id = '') => {
+    if (!hasBackend() || !dataUri || dataUri.indexOf('data:') !== 0) return { url: dataUri, mediaType: dataUri.indexOf('data:video') === 0 ? 'video' : 'image' };
+    try {
+      const r = await api('uploadFeedMedia', { dataUri, id });
+      if (r && r.url) return { url: r.url, mediaType: r.mediaType || 'image' };
+    } catch { /* fall through */ }
+    return { url: dataUri, mediaType: dataUri.indexOf('data:video') === 0 ? 'video' : 'image' };
+  },
+  // Create a post. `media` = array of { type, url }.
+  createPost: async ({ authorId, authorName = '', authorMobile = '', caption = '', description = '', media = [] }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('createPost', { authorId, authorName, authorMobile, caption, description, mediaJson: JSON.stringify(media || []) });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to post.');
+    try { logActivity_('feed', '', `posted to the feed`); } catch (e) {}
+    return r.post;
+  },
+  // Paginated feed (newest first). `before` = a createdOn cursor for "load more".
+  getFeed: async ({ before = '', limit = 15, devoteeId = '' } = {}) => {
+    if (!hasBackend()) return { posts: [], hasMore: false, liked: [] };
+    try {
+      const r = await api('getFeed', { before, limit, devoteeId });
+      return { posts: (r && r.posts) || [], hasMore: !!(r && r.hasMore), liked: (r && r.liked) || [] };
+    } catch { return { posts: [], hasMore: false, liked: [] }; }
+  },
+  deletePost: async (id, { requesterId = '', isAdmin = false } = {}) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('deletePost', { id, requesterId, isAdmin: isAdmin ? '1' : '' });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to delete.');
+    return true;
+  },
+  toggleFeedLike: async ({ postId, devoteeId, name = '', on }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('toggleLike', { postId, devoteeId, name, on: on ? '1' : '' });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed.');
+    return { liked: r.liked, likeCount: r.likeCount };
+  },
+  getFeedComments: async (postId) => {
+    if (!hasBackend() || !postId) return [];
+    try { const r = await api('getComments', { postId }); return (r && r.comments) || []; } catch { return []; }
+  },
+  addFeedComment: async ({ postId, authorId, authorName = '', text }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('addComment', { postId, authorId, authorName, text });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to comment.');
+    return { comment: r.comment, commentCount: r.commentCount };
+  },
+  deleteFeedComment: async (id, { requesterId = '', isAdmin = false } = {}) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('deleteComment', { id, requesterId, isAdmin: isAdmin ? '1' : '' });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to delete.');
+    return true;
+  },
+
   // ---- Swadhyay (daily spiritual-practice log) ----
   // Save today's (or any day's) Swadhyay for the current user. Upserts by day.
   saveSwadhyay: async ({ devoteeId, mobile = '', name = '', date, bhajanMin = 0, bhajanTime = '', listenMin = 0, readMin = 0 }) => {

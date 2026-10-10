@@ -14,6 +14,8 @@ import ActivityPage from './pages/ActivityPage';
 import SwadhyayPage from './pages/SwadhyayPage';
 import SevaPage from './pages/SevaPage';
 import CalendarPage from './pages/CalendarPage';
+import DataQualityPage from './pages/DataQualityPage';
+import FeedPage from './pages/FeedPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -204,6 +206,8 @@ export default function App() {
         {activePage === 'swadhyay' && <SwadhyayPage user={user} />}
         {activePage === 'seva' && <SevaPage user={user} />}
         {activePage === 'calendar' && <CalendarPage user={user} />}
+        {activePage === 'feed' && <FeedPage user={user} />}
+        {activePage === 'data' && <DataQualityPage user={user} setActivePage={navigate} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={user} />}
         </ErrorBoundary>

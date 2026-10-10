@@ -50,10 +50,19 @@ var HEADERS = {
   Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','companionsJson','createdBy','createdOn','updatedBy','updatedOn'],
   // Calendar plans — a devotee's planned/done activity on a day. type ∈ seva|bhajan|
   // katha; status ∈ planned|done. "Done" markers also come from Swadhyay & Seva.
-  CalPlan: ['id','devoteeId','date','type','note','status','createdOn','updatedOn']
+  CalPlan: ['id','devoteeId','date','type','note','status','createdOn','updatedOn'],
+  // ── Feed (community photo/video posts) ─────────────────────────────────────
+  // One row per post. `mediaJson` = JSON array of { type:'image'|'video', url }.
+  // Media lives in Drive (akshar-connect/feed-media) — only the URL is stored.
+  // `status` ∈ active|removed (soft delete — posts are never hard-deleted).
+  FeedPosts: ['id','authorId','authorName','authorMobile','caption','description','mediaJson','likeCount','commentCount','createdOn','status'],
+  // One row per like. id = postId + '|' + devoteeId (idempotent — one like per person).
+  FeedLikes: ['id','postId','devoteeId','name','createdOn'],
+  // One row per comment. status ∈ active|removed (soft delete).
+  FeedComments: ['id','postId','authorId','authorName','text','createdOn','status']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-seva-companions';
+var SCHEMA_VERSION = '2026-10-11-feed-module';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -377,6 +386,137 @@ function doGetPlans_(p){
 function doDeletePlan_(p){
   var r = findRow_('CalPlan','id',String(p.id||''));
   if(r > 0) tab_('CalPlan').deleteRow(r);
+  return json_({ ok:true });
+}
+
+// ── Feed module ────────────────────────────────────────────────────────────────
+// Media (image/video) is uploaded to Drive under akshar-connect/feed-media and
+// keeps its real file type, like a Ghari challan. Only the URL is stored on the post.
+function feedFolder_(){
+  var root = subFolder_(DriveApp.getRootFolder(), 'akshar-connect');
+  return subFolder_(root, 'feed-media');
+}
+function doUploadFeedMedia_(p){
+  try{
+    var dataUri = String(p.dataUri || '');
+    var m = /^data:([^;,]+)?/.exec(dataUri);
+    var ct = (m && m[1]) ? m[1] : 'image/jpeg';
+    var lc = ct.toLowerCase();
+    var isVideo = lc.indexOf('video') >= 0;
+    var ext = isVideo ? (lc.indexOf('webm') >= 0 ? 'webm' : (lc.indexOf('quicktime') >= 0 ? 'mov' : 'mp4'))
+                      : (lc.indexOf('png') >= 0 ? 'png' : (lc.indexOf('webp') >= 0 ? 'webp' : 'jpg'));
+    var blob = dataUriToBlob_(dataUri, (p.id || 'feed') + '_' + Date.now() + '.' + ext);
+    if(!blob) return json_({ ok:false, error:'bad file data' });
+    var file = feedFolder_().createFile(blob);
+    try{ file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }catch(e){}
+    var id = file.getId();
+    // Images render inline via lh3; videos stream from the Drive direct-download URL.
+    var url = isVideo ? ('https://drive.google.com/uc?export=download&id=' + id) : photoUrl_(id);
+    return json_({ ok:true, id:id, url:url, type:ct, mediaType:(isVideo?'video':'image') });
+  }catch(e){ return json_({ ok:false, error:String(e) }); }
+}
+
+function doCreatePost_(p){
+  var now = new Date().toISOString();
+  var id = String(p.id || '') || ('POST-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  var media = '[]';
+  try{ media = JSON.stringify(JSON.parse(String(p.mediaJson||'[]')).slice(0,10)); }catch(e){ media = '[]'; }
+  var row = {
+    id: id,
+    authorId: String(p.authorId||''), authorName: String(p.authorName||'').slice(0,120), authorMobile: String(p.authorMobile||''),
+    caption: String(p.caption||'').slice(0,200), description: String(p.description||'').slice(0,4000),
+    mediaJson: media, likeCount: 0, commentCount: 0,
+    createdOn: now, status: 'active'
+  };
+  appendRows_('FeedPosts', [row]);
+  return json_({ ok:true, post: row });
+}
+// Paginated feed, newest first. `before` = createdOn cursor (exclusive). Returns
+// active posts and, for the given devoteeId, which of them this person has liked.
+function doGetFeed_(p){
+  var all = readAll_('FeedPosts').filter(function(r){ return String(r.status||'active') !== 'removed'; });
+  all.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
+  var before = String(p.before||'');
+  if(before) all = all.filter(function(r){ return String(r.createdOn) < before; });
+  var limit = Number(p.limit) || 15;
+  var page = all.slice(0, limit);
+  var hasMore = all.length > limit;
+  var liked = [];
+  var did = String(p.devoteeId||'');
+  if(did && page.length){
+    var ids = {}; page.forEach(function(r){ ids[r.id] = true; });
+    readAll_('FeedLikes').forEach(function(l){ if(String(l.devoteeId) === did && ids[l.postId]) liked.push(l.postId); });
+  }
+  return json_({ ok:true, posts: page, hasMore: hasMore, liked: liked });
+}
+// Soft-delete a post (author or admin — enforced on the client; we double-check the
+// authorId when `isAdmin` isn't set so a tampered call can't delete others' posts).
+function doDeletePost_(p){
+  var rn = findRow_('FeedPosts','id',String(p.id||''));
+  if(rn < 1) return json_({ ok:false, error:'not found' });
+  var sh = tab_('FeedPosts'); var H = HEADERS.FeedPosts;
+  var authorIdCol = H.indexOf('authorId')+1;
+  var curAuthor = String(sh.getRange(rn, authorIdCol).getValue()||'');
+  if(String(p.isAdmin||'') !== '1' && curAuthor && String(p.requesterId||'') !== curAuthor)
+    return json_({ ok:false, error:'not allowed' });
+  sh.getRange(rn, H.indexOf('status')+1).setValue('removed');
+  return json_({ ok:true });
+}
+// Toggle a like. Idempotent via id = postId|devoteeId. Returns the new liked state
+// and the post's refreshed like count.
+function doToggleLike_(p){
+  var postId = String(p.postId||''), did = String(p.devoteeId||'');
+  if(!postId || !did) return json_({ ok:false, error:'postId and devoteeId required' });
+  var likeId = postId + '|' + did;
+  var lrn = findRow_('FeedLikes','id',likeId);
+  var want = String(p.on||'') === '1';
+  if(want && lrn < 1){
+    appendRows_('FeedLikes', [{ id: likeId, postId: postId, devoteeId: did, name: String(p.name||''), createdOn: new Date().toISOString() }]);
+  } else if(!want && lrn > 0){
+    tab_('FeedLikes').deleteRow(lrn);
+  }
+  // Recompute the count from the source of truth so it can never drift.
+  var count = readAll_('FeedLikes').filter(function(l){ return String(l.postId) === postId; }).length;
+  var prn = findRow_('FeedPosts','id',postId);
+  if(prn > 0) tab_('FeedPosts').getRange(prn, HEADERS.FeedPosts.indexOf('likeCount')+1).setValue(count);
+  return json_({ ok:true, liked: want, likeCount: count });
+}
+function doGetComments_(p){
+  var postId = String(p.postId||'');
+  var all = readAll_('FeedComments').filter(function(r){ return String(r.postId) === postId && String(r.status||'active') !== 'removed'; });
+  all.sort(function(a,b){ return String(a.createdOn).localeCompare(String(b.createdOn)); });
+  return json_({ ok:true, comments: all });
+}
+function doAddComment_(p){
+  var postId = String(p.postId||'');
+  var text = String(p.text||'').slice(0,1000).trim();
+  if(!postId || !text) return json_({ ok:false, error:'postId and text required' });
+  var row = {
+    id: 'CMT-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+    postId: postId, authorId: String(p.authorId||''), authorName: String(p.authorName||'').slice(0,120),
+    text: text, createdOn: new Date().toISOString(), status: 'active'
+  };
+  appendRows_('FeedComments', [row]);
+  var count = readAll_('FeedComments').filter(function(c){ return String(c.postId) === postId && String(c.status||'active') !== 'removed'; }).length;
+  var prn = findRow_('FeedPosts','id',postId);
+  if(prn > 0) tab_('FeedPosts').getRange(prn, HEADERS.FeedPosts.indexOf('commentCount')+1).setValue(count);
+  return json_({ ok:true, comment: row, commentCount: count });
+}
+function doDeleteComment_(p){
+  var rn = findRow_('FeedComments','id',String(p.id||''));
+  if(rn < 1) return json_({ ok:false, error:'not found' });
+  var sh = tab_('FeedComments'); var H = HEADERS.FeedComments;
+  var authorIdCol = H.indexOf('authorId')+1;
+  var curAuthor = String(sh.getRange(rn, authorIdCol).getValue()||'');
+  if(String(p.isAdmin||'') !== '1' && curAuthor && String(p.requesterId||'') !== curAuthor)
+    return json_({ ok:false, error:'not allowed' });
+  var postId = String(sh.getRange(rn, H.indexOf('postId')+1).getValue()||'');
+  sh.getRange(rn, H.indexOf('status')+1).setValue('removed');
+  if(postId){
+    var count = readAll_('FeedComments').filter(function(c){ return String(c.postId) === postId && String(c.status||'active') !== 'removed'; }).length;
+    var prn = findRow_('FeedPosts','id',postId);
+    if(prn > 0) tab_('FeedPosts').getRange(prn, HEADERS.FeedPosts.indexOf('commentCount')+1).setValue(count);
+  }
   return json_({ ok:true });
 }
 
@@ -717,7 +857,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -874,6 +1014,14 @@ function handle_(p){
     if(action==='savePlan') return doSavePlan_(p);
     if(action==='getPlans') return doGetPlans_(p);
     if(action==='deletePlan') return doDeletePlan_(p);
+    if(action==='uploadFeedMedia') return doUploadFeedMedia_(p);
+    if(action==='createPost') return doCreatePost_(p);
+    if(action==='getFeed') return doGetFeed_(p);
+    if(action==='deletePost') return doDeletePost_(p);
+    if(action==='toggleLike') return doToggleLike_(p);
+    if(action==='getComments') return doGetComments_(p);
+    if(action==='addComment') return doAddComment_(p);
+    if(action==='deleteComment') return doDeleteComment_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
