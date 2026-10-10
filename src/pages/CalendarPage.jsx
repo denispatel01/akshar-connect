@@ -132,11 +132,28 @@ export default function CalendarPage({ user }) {
 
   const reloadPlans = () => dataService.getPlans(devoteeId).then((p) => setPlans(p || []));
   const reloadSeva = () => dataService.getSeva({ karyakartaId: devoteeId }).then((r) => setSeva(r || []));
+  const reloadSwadhyay = () => dataService.getMySwadhyay(devoteeId).then((r) => setSwadhyay(r || []));
   useEffect(() => {
     if (!devoteeId) return;
-    dataService.getMySwadhyay(devoteeId).then((r) => setSwadhyay(r || []));
+    reloadSwadhyay();
     reloadSeva();
     reloadPlans();
+    // eslint-disable-next-line
+  }, [devoteeId]);
+
+  // Live-sync: when a Swadhyay entry is saved (in the Swadhyay module or anywhere)
+  // or the app does a background refresh, re-read so the Calendar reflects it
+  // without needing to reopen the page.
+  useEffect(() => {
+    if (!devoteeId) return;
+    const onSwadhyay = () => reloadSwadhyay();
+    const onRefresh = () => { reloadSwadhyay(); reloadSeva(); reloadPlans(); };
+    window.addEventListener('ac-swadhyay-saved', onSwadhyay);
+    window.addEventListener('ac-data-refreshed', onRefresh);
+    return () => {
+      window.removeEventListener('ac-swadhyay-saved', onSwadhyay);
+      window.removeEventListener('ac-data-refreshed', onRefresh);
+    };
     // eslint-disable-next-line
   }, [devoteeId]);
 

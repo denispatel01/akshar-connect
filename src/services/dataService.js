@@ -634,6 +634,8 @@ export const dataService = {
     if (!hasBackend()) throw new Error('No backend configured.');
     const r = await api('saveSwadhyay', { devoteeId, mobile, name, date, bhajanMin, bhajanTime, listenMin, readMin });
     if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
+    // Let other open modules (e.g. the Calendar) live-sync this change.
+    try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ac-swadhyay-saved', { detail: r.row })); } catch (e) {}
     return r.row;
   },
   // My recent Swadhyay entries (most recent first).
