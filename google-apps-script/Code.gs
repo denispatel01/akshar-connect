@@ -578,15 +578,37 @@ function doGhariUpsertOrder_(p){
     var isNew = rn<0;
     if(rn>0) tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',row)]);
     else appendRows_('GhariOrders',[row]);
-    if(isNew && (p.notify===true || p.notify==='true') && mailEnabled_()){
-      try{ sendGhariOrderMail_(row); }catch(e){}
+    // Email the mandal on add / edit / delete (delete = soft-void). The client
+    // asks via notify:true and passes the intended act; a replay of the same op
+    // is de-duped by a per-(id, updatedOn, act) key so a retry never re-sends.
+    if((p.notify===true || p.notify==='true') && mailEnabled_()){
+      var act = p.act || (isNew ? 'INSERT' : (String(row.status).toLowerCase()==='void' ? 'DELETE' : 'UPDATE'));
+      var key = 'O:'+row.id+':'+(row.updatedOn||'')+':'+act;
+      if(emailOnce_(key)){ try{ sendGhariOrderMail_(row, act); }catch(e){} }
     }
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
+// Returns true the first time a given email key is seen, false on repeats — so a
+// replayed/offline-retried write never emails twice. Keeps the last ~200 keys.
+function emailOnce_(key){
+  try{
+    var props=PropertiesService.getScriptProperties();
+    var arr; try{ arr=JSON.parse(props.getProperty('ghariMailKeys')||'[]'); }catch(e){ arr=[]; }
+    if(arr.indexOf(key)>=0) return false;
+    arr.push(key); if(arr.length>200) arr=arr.slice(arr.length-200);
+    props.setProperty('ghariMailKeys', JSON.stringify(arr));
+    return true;
+  }catch(e){ return true; } // never let the de-dup store block a notification
+}
+
 // Pretty HTML notification for a new Ghari order.
-function sendGhariOrderMail_(row){
+function sendGhariOrderMail_(row, act){
+  act = String(act||'INSERT').toUpperCase();
+  var label = act==='DELETE' ? 'Order deleted' : (act==='UPDATE' ? 'Order updated' : 'New order');
+  var band  = act==='DELETE' ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : (act==='UPDATE' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#FF9D52,#E56F18)');
+  var who   = (act==='DELETE' ? (row.updatedBy||row.createdBy) : (act==='UPDATE' ? row.updatedBy : row.createdBy)) || '';
   var items=[]; try{ items=JSON.parse(row.itemsJson||'[]'); }catch(e){}
   var itemRows = items.map(function(it){
     return '<tr><td style="padding:6px 12px;border-bottom:1px solid #F0E6DC;font-size:13px;color:#26303B">'+(it.qty)+'× '+(it.name||'')+' '+(it.size||'')+'</td>'
@@ -596,10 +618,10 @@ function sendGhariOrderMail_(row){
   var payLine = bal>0 ? ('Balance due ₹'+bal) : ('Paid'+(row.paymentType?(' · '+row.paymentType):''));
   var html = ''
     + '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FBF5EF;padding:18px;border-radius:16px">'
-    + '<div style="background:linear-gradient(135deg,#FF9D52,#E56F18);color:#fff;padding:16px 20px;border-radius:14px 14px 0 0">'
+    + '<div style="background:'+band+';color:#fff;padding:16px 20px;border-radius:14px 14px 0 0">'
     +   '<div style="font-size:11px;font-weight:800;letter-spacing:1px;opacity:.9">AKSHAR CONNECT · GHARI SEVA '+(row.season||'')+'</div>'
     +   '<div style="font-size:20px;font-weight:800;margin-top:2px">🪔 '+(row.customerName||'Order')+'</div>'
-    +   '<div style="font-size:12px;opacity:.95;margin-top:2px">New order'+(row.createdBy?(' by '+row.createdBy):'')+'</div>'
+    +   '<div style="font-size:12px;opacity:.95;margin-top:2px">'+label+(who?(' by '+who):'')+'</div>'
     + '</div>'
     + '<table style="width:100%;border-collapse:collapse;background:#fff">'+itemRows+'</table>'
     + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 14px 14px;overflow:hidden">'
@@ -608,7 +630,7 @@ function sendGhariOrderMail_(row){
     + '</table>'
     + '<div style="color:#9b9183;font-size:11px;text-align:center;margin-top:12px">Sent automatically by Akshar Connect</div>'
     + '</div>';
-  sendMail_('Ghari Seva: '+(row.customerName||'New order')+' — ₹'+(row.total||0), 'New Ghari order: '+(row.customerName||'')+' ₹'+(row.total||0), null, html);
+  sendMail_('Ghari Seva: '+label+' — '+(row.customerName||'')+' — ₹'+(row.total||0), label+': '+(row.customerName||'')+' ₹'+(row.total||0), null, html);
 }
 
 // Delete one Ghari row by key. Used for catalog items (products admin removes)

@@ -227,11 +227,15 @@ function toBackendRow_(o) {
 function enqueueUpsert_(action, keyField, row, extra = {}) {
   const box = outbox_();
   // If a pending op for this same row already asked to notify, keep that intent
-  // even if a pre-sync edit arrives — so a brand-new order still emails once.
+  // even if a pre-sync edit arrives — so the order still emails once.
   const prior = box.find(op => op.action === action && op.payload?.row?.[keyField] === row[keyField]);
   const notify = !!extra.notify || !!(prior && prior.payload && prior.payload.notify);
+  // An unsynced new order stays an INSERT even if edited/voided before it syncs
+  // (the server will see its first write as an insert).
+  const act = (prior && prior.payload && prior.payload.act === 'INSERT') ? 'INSERT' : (extra.act || (prior && prior.payload && prior.payload.act));
   const next = box.filter(op => !(op.action === action && op.payload?.row?.[keyField] === row[keyField]));
-  const payload = notify ? { row, notify: true } : { row };
+  const payload = { row };
+  if (notify) { payload.notify = true; if (act) payload.act = act; }
   next.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, payload, tries: 0, queuedAt: nowISO_() });
   setOutbox_(next);
 }
@@ -439,8 +443,10 @@ export const ghariService = {
     });
     if (existingIdx >= 0) MEM.orders[existingIdx] = order; else MEM.orders.unshift(order);
     saveOrdersLocal_();
-    // Ask the backend to email the mandal on a brand-new order (not on edits).
-    enqueueUpsert_('ghariUpsertOrder', 'id', toBackendRow_(order), { notify: isNew });
+    // Email the mandal on add / edit / delete. The server de-dups replays by
+    // (id, updatedOn, act), so an offline retry never sends a duplicate.
+    const act = isNew ? 'INSERT' : (order.status === 'void' ? 'DELETE' : 'UPDATE');
+    enqueueUpsert_('ghariUpsertOrder', 'id', toBackendRow_(order), { notify: true, act });
     emit_('ac-ghari-changed');
     flush();
     try { dataService.logActivity('ghari-order', order.customerName, `${prev ? 'updated' : 'added'} ghari order for ${order.customerName} (₹${order.total})`); } catch { /* ignore */ }
