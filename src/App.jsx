@@ -12,7 +12,6 @@ import GhariPage from './pages/GhariPage';
 import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
 import SwadhyayPage from './pages/SwadhyayPage';
-import SevaPage from './pages/SevaPage';
 import CalendarPage from './pages/CalendarPage';
 import DataQualityPage from './pages/DataQualityPage';
 import FeedPage from './pages/FeedPage';
@@ -204,8 +203,9 @@ export default function App() {
         {activePage === 'family-tags' && <FamilyTagPage user={user} />}
         {activePage === 'ghari' && <GhariPage user={user} />}
         {activePage === 'swadhyay' && <SwadhyayPage user={user} />}
-        {activePage === 'seva' && <SevaPage user={user} />}
-        {activePage === 'calendar' && <CalendarPage user={user} />}
+        {/* Seva is merged into the Calendar — keep the route as a redirect for any
+            existing links/bookmarks so nothing breaks. */}
+        {(activePage === 'calendar' || activePage === 'seva') && <CalendarPage user={user} />}
         {activePage === 'feed' && <FeedPage user={user} />}
         {activePage === 'data' && <DataQualityPage user={user} setActivePage={navigate} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}

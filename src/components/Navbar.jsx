@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -34,6 +34,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const canGhari = isAdmin || String(user?.modules || '').split(/[,|]/).map((s) => s.trim().toLowerCase()).includes('ghari');
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // Lock the page behind the Menu sheet so dragging inside the sheet scrolls the
+  // sheet — not the background screen.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [moreOpen]);
+
   const longPressTimer = useRef(null);
   const startLongPress = () => { longPressTimer.current = setTimeout(() => onHardRefresh?.(), 1500); };
   const cancelLongPress = () => { clearTimeout(longPressTimer.current); };
@@ -57,7 +66,6 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak
           ? [
-              { id: 'seva', label: 'Seva', icon: HeartHandshake },
               { id: 'followups', label: 'Follow-up', icon: PhoneCall },
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
@@ -236,7 +244,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           clears the tab bar height including the safe-area inset. */}
       <div className={`md:hidden fixed left-0 right-0 z-40 transition-all duration-300 ease-out ${moreOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
         style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
-        <div className="mx-3 mb-3 rounded-3xl bg-surface border border-border-light shadow-2xl overflow-hidden">
+        <div className="mx-3 mb-3 max-h-[75vh] overflow-y-auto overscroll-contain rounded-3xl bg-surface border border-border-light shadow-2xl"
+          style={{ WebkitOverflowScrolling: 'touch' }}>
 
           {/* User card → My Account */}
           <button onClick={() => { setMoreOpen(false); navigate('account'); }}
@@ -246,14 +255,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-white leading-tight truncate">{user?.name || 'User'}</p>
-              <span className={`text-[11px] font-bold ${isAdmin ? 'text-red-300' : isSevak ? 'text-amber-300' : 'text-indigo-200'}`}>{user?.role || 'Devotee'}</span>
+              <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white ${isAdmin ? 'bg-red-500' : isSevak ? 'bg-amber-500' : 'bg-white/25'}`}>{user?.role || 'Devotee'}</span>
             </div>
             <span className="text-[11px] font-bold text-white/70">My Account ›</span>
           </button>
 
           {/* Nav items in More — scrollable so a long list never gets cut off */}
           {moreItems.length > 0 && (
-            <div className="py-2 max-h-[45vh] overflow-y-auto">
+            <div className="py-2">
               {moreItems.map(({ id, label, icon: Icon, adminOnly }) => {
                 const active = activePage === id;
                 return (
