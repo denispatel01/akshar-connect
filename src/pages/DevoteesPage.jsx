@@ -482,6 +482,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   // from their own devotee record (by id, else mobile). Unknown for staff with no
   // devotee record → no default (shows everyone).
   const userGender = useMemo(() => {
+    if (user?.role === 'Admin') return ''; // Admins see everything — no gender default
     if (user?.gender === 'Male' || user?.gender === 'Female') return user.gender;
     const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
     let me = user?.devoteeId ? devotees.find(d => d.id === user.devoteeId) : null;

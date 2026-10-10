@@ -13,6 +13,7 @@ import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
 import SwadhyayPage from './pages/SwadhyayPage';
 import SevaPage from './pages/SevaPage';
+import CalendarPage from './pages/CalendarPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -32,19 +33,20 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
-  // Detect when a new service worker is waiting (new deploy is ready)
+  // Auto-update: when a new service worker is ready, activate it immediately and
+  // let main.jsx reload the page — no "Update now" prompt. (A PWA should update
+  // itself.) We still flag updateAvailable briefly for a subtle spinner state.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
+    const apply = (reg) => { try { reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {} setUpdateAvailable(true); };
     navigator.serviceWorker.getRegistration().then((reg) => {
       if (!reg) return;
-      if (reg.waiting) { setUpdateAvailable(true); return; }
+      if (reg.waiting) { apply(reg); return; }
       reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            setUpdateAvailable(true);
-          }
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) apply(reg);
         });
       });
     });
@@ -202,6 +204,7 @@ export default function App() {
         {activePage === 'ghari' && <GhariPage user={user} />}
         {activePage === 'swadhyay' && <SwadhyayPage user={user} />}
         {activePage === 'seva' && <SevaPage user={user} />}
+        {activePage === 'calendar' && <CalendarPage user={user} />}
         {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={user} />}
         </ErrorBoundary>

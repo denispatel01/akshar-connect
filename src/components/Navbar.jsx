@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   BookOpen,
   HeartHandshake,
+  CalendarDays,
   Mail,
   Settings,
   LogOut,
@@ -40,6 +41,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
+        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         { id: 'devotees', label: 'My Profile', icon: User },
         { id: 'family', label: 'Family', icon: Users },
         { id: 'activity', label: 'My Activity', icon: Activity },
@@ -47,6 +49,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
+        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         { id: 'devotees', label: 'Divine Devotees', icon: Users },
         ...(isAdmin || isSevak
           ? [
@@ -85,8 +88,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       ];
 
   const moreItems = isDevotee
-    ? [{ id: 'activity', label: 'My Activity', icon: Activity }]
+    ? [{ id: 'calendar', label: 'Calendar', icon: CalendarDays }, { id: 'activity', label: 'My Activity', icon: Activity }]
     : [
+        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         ...(isAdmin || isSevak ? [
           { id: 'seva', label: 'Seva', icon: HeartHandshake },
           { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
@@ -188,13 +192,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         </div>
       </header>
 
-      {/* Update banner */}
+      {/* Updates apply automatically (the app reloads itself) — a thin bar just
+          reassures the user while the new version swaps in; no action needed. */}
       {updateAvailable && (
-        <div className="w-full bg-amber-500 text-white text-xs font-bold flex items-center justify-between px-4 py-2 z-40">
-          <span>New update available</span>
-          <button onClick={onHardRefresh} className="ml-4 rounded-lg bg-white/20 px-3 py-1 font-bold hover:bg-white/30 shrink-0">
-            Update Now
-          </button>
+        <div className="w-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-2 px-4 py-1.5 z-40">
+          <RefreshCw className="h-3 w-3 animate-spin" /> Updating to the latest version…
         </div>
       )}
 
@@ -259,9 +261,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             <span className="text-[11px] font-bold text-white/70">My Account ›</span>
           </button>
 
-          {/* Nav items in More */}
+          {/* Nav items in More — scrollable so a long list never gets cut off */}
           {moreItems.length > 0 && (
-            <div className="py-2">
+            <div className="py-2 max-h-[45vh] overflow-y-auto">
               {moreItems.map(({ id, label, icon: Icon, adminOnly }) => {
                 const active = activePage === id;
                 return (

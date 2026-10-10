@@ -90,12 +90,16 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       })
       .catch(() => {})
 
-    // The new worker took control → reload once to swap in the new code.
-    // Guard with sessionStorage (survives the reload) so a misbehaving SW can
-    // never put the tab into an infinite refresh loop — at most one reload per tab.
+    // The new worker took control → reload to swap in the new code automatically.
+    // Debounced: ignore a controllerchange that fires within 30s of the last reload,
+    // so a misbehaving SW can't cause an infinite refresh loop, while a genuine new
+    // deploy later in the session still auto-reloads.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      try { if (sessionStorage.getItem('ac-sw-reloaded') === '1') return } catch (e) {}
-      try { sessionStorage.setItem('ac-sw-reloaded', '1') } catch (e) {}
+      try {
+        const last = +(sessionStorage.getItem('ac-sw-reloaded-at') || 0)
+        if (Date.now() - last < 30000) return
+        sessionStorage.setItem('ac-sw-reloaded-at', String(Date.now()))
+      } catch (e) {}
       window.location.reload()
     })
   })

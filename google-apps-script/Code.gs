@@ -47,10 +47,13 @@ var HEADERS = {
   Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn'],
   // Seva log by karyakartas (Sevak/Admin). Each visit: date, from/to time, what was
   // done, and the devotee whose home was visited — shown on both profiles.
-  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','createdBy','createdOn','updatedBy','updatedOn']
+  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','createdBy','createdOn','updatedBy','updatedOn'],
+  // Calendar plans — a devotee's planned/done activity on a day. type ∈ seva|bhajan|
+  // katha; status ∈ planned|done. "Done" markers also come from Swadhyay & Seva.
+  CalPlan: ['id','devoteeId','date','type','note','status','createdOn','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-seva';
+var SCHEMA_VERSION = '2026-10-11-calplan';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -345,17 +348,55 @@ function doDeleteSeva_(p){
   return json_({ ok:true });
 }
 
+// ── Calendar plans ───────────────────────────────────────────────────────────
+function doSavePlan_(p){
+  var now = new Date().toISOString();
+  var id = String(p.id||'') || ('PLAN-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5));
+  var row = {
+    id: id, devoteeId: String(p.devoteeId||''), date: String(p.date||''),
+    type: String(p.type||''), note: String(p.note||''),
+    status: (String(p.status||'planned') === 'done' ? 'done' : 'planned'),
+    createdOn: now, updatedOn: now
+  };
+  var existing = findRow_('CalPlan','id',id);
+  if(existing > 0){
+    var cIdx = HEADERS.CalPlan.indexOf('createdOn')+1;
+    row.createdOn = tab_('CalPlan').getRange(existing, cIdx).getValue() || now;
+    tab_('CalPlan').getRange(existing,1,1,HEADERS.CalPlan.length).setValues([rowFromObj_('CalPlan', row)]);
+  } else { appendRows_('CalPlan', [row]); }
+  return json_({ ok:true, row: row });
+}
+function doGetPlans_(p){
+  var id = String(p.devoteeId||'');
+  var all = readAll_('CalPlan').filter(function(r){ return String(r.devoteeId) === id; });
+  all.sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+  return json_({ ok:true, plans: all });
+}
+function doDeletePlan_(p){
+  var r = findRow_('CalPlan','id',String(p.id||''));
+  if(r > 0) tab_('CalPlan').deleteRow(r);
+  return json_({ ok:true });
+}
+
 // Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
 // editor to schedule it; it pushes to every device that enabled notifications.
 function swadhyayReminder_(){
   try { sendPush_('🙏 Swadhyay time', 'How much Bhajan, Shravan & Vachan did you do today? Tap to add — it takes 10 seconds.', 'all', { type:'swadhyay' }); }
   catch(e){ Logger.log('swadhyay reminder failed: ' + e); }
 }
+// The hour (0–23, Asia/Kolkata) the daily reminder fires. Stored in Script
+// Properties so you can change it without editing code — set 'swadhyayHour' to any
+// hour and re-run installSwadhyayReminder(). Defaults to 22 (10 PM).
+function swadhyayHour_(){
+  var h = parseInt(PropertiesService.getScriptProperties().getProperty('swadhyayHour'), 10);
+  return (isNaN(h) || h < 0 || h > 23) ? 22 : h;
+}
 function installSwadhyayReminder(){
   // Remove any existing copy first so re-running doesn't stack duplicates.
   ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction() === 'swadhyayReminder_') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('swadhyayReminder_').timeBased().atHour(20).everyDays(1).create();
-  Logger.log('Swadhyay 8 PM daily reminder installed.');
+  var h = swadhyayHour_();
+  ScriptApp.newTrigger('swadhyayReminder_').timeBased().atHour(h).everyDays(1).create();
+  Logger.log('Swadhyay daily reminder installed at ' + h + ':00 (Asia/Kolkata).');
 }
 
 function doGetAnnouncements_(){
@@ -674,7 +715,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -828,6 +869,9 @@ function handle_(p){
     if(action==='saveSeva') return doSaveSeva_(p);
     if(action==='getSeva') return doGetSeva_(p);
     if(action==='deleteSeva') return doDeleteSeva_(p);
+    if(action==='savePlan') return doSavePlan_(p);
+    if(action==='getPlans') return doGetPlans_(p);
+    if(action==='deletePlan') return doDeletePlan_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

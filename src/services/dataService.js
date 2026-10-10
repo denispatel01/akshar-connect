@@ -584,6 +584,22 @@ export const dataService = {
     try { const r = await api('getSeva', { karyakartaId, visitedId, limit }); return (r && r.entries) || []; } catch { return []; }
   },
 
+  // ---- Calendar plans (planned/done activities) ----
+  savePlan: async (plan) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('savePlan', plan);
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
+    return r.row;
+  },
+  getPlans: async (devoteeId) => {
+    if (!hasBackend() || !devoteeId) return [];
+    try { const r = await api('getPlans', { devoteeId }); return (r && r.plans) || []; } catch { return []; }
+  },
+  deletePlan: async (id) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    return api('deletePlan', { id });
+  },
+
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {
     try {
