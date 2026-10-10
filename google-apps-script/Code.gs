@@ -156,6 +156,38 @@ function doClearBase64Photos_(){
 }
 function clearBase64Photos(){ Logger.log(doClearBase64Photos_().getContent()); }
 
+// One-time migration (#107): upload every devotee photo still stored as base64 to
+// Drive and replace the cell with the Drive URL. Safe to run repeatedly — it only
+// touches cells that still start with "data:". Hit `?action=migrateBase64Photos`
+// or run migrateBase64Photos() in the editor.
+function doMigrateBase64Photos_(){
+  var sh = tab_('Devotees');
+  var last = sh.getLastRow(); if(last < 2) return json_({ ok:true, migrated:0 });
+  var pIdx = HEADERS.Devotees.indexOf('photo');
+  var iIdx = HEADERS.Devotees.indexOf('id');
+  if(pIdx < 0) return json_({ ok:false, error:'no photo column' });
+  var rng = sh.getRange(2, pIdx+1, last-1, 1);
+  var vals = rng.getValues();
+  var ids = iIdx >= 0 ? sh.getRange(2, iIdx+1, last-1, 1).getValues() : null;
+  var migrated = 0, failed = 0;
+  for(var i=0;i<vals.length;i++){
+    var v = String(vals[i][0]||'');
+    if(v.indexOf('data:') !== 0) continue;
+    try{
+      var id = ids ? String(ids[i][0]||('row'+(i+2))) : ('row'+(i+2));
+      var blob = dataUriToBlob_(v, id + '_' + Date.now() + '.jpg');
+      if(!blob){ failed++; continue; }
+      var file = photoFolder_().createFile(blob);
+      try{ file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }catch(e){}
+      vals[i][0] = photoUrl_(file.getId());
+      migrated++;
+    }catch(e){ failed++; }
+  }
+  if(migrated) rng.setValues(vals);
+  return json_({ ok:true, migrated:migrated, failed:failed });
+}
+function migrateBase64Photos(){ Logger.log(doMigrateBase64Photos_().getContent()); }
+
 /** RUN ONCE from the editor to grant the Drive permission (like testMail). */
 function authorizeDrive(){
   var pf = photoFolder_();
@@ -500,6 +532,7 @@ function handle_(p){
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
+    if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
