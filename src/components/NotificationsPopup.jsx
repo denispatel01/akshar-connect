@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus } from 'lucide-react';
+import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus, Megaphone } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { isBirthdayToday, upcomingBirthdays, birthdayDate } from '../utils/birthdays';
+
+const fmtWhen = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } };
 
 const dayKey = () => 'ac-notif-' + new Date().toISOString().slice(0, 10);
 const contactedF = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
@@ -18,6 +20,16 @@ function waWish(d) {
 // Shown once per day on app open when there is something worth surfacing.
 export default function NotificationsPopup({ user }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
+  const [announcements, setAnnouncements] = useState(() => (dataService.getCachedAnnouncements() || []).slice(0, 5));
+  // Refresh announcements in the background (and when a push arrives while open).
+  useEffect(() => {
+    let alive = true;
+    const load = () => dataService.getAnnouncements().then(list => { if (alive) setAnnouncements((list || []).slice(0, 5)); }).catch(() => {});
+    load();
+    const onPush = () => load();
+    window.addEventListener('ac-push-received', onPush);
+    return () => { alive = false; window.removeEventListener('ac-push-received', onPush); };
+  }, []);
   const devotees = useMemo(() => dataService.getDevotees(), []);
   const today = useMemo(() => devotees.filter(d => isBirthdayToday(d.dob)), [devotees]);
   const soon = useMemo(
@@ -50,7 +62,7 @@ export default function NotificationsPopup({ user }) {
       .sort((a, b) => Date.parse(b.createdOn) - Date.parse(a.createdOn));
   }, [devotees, canManage]);
 
-  const hasItems = today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
+  const hasItems = announcements.length > 0 || today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
   const [open, setOpen] = useState(() => {
     if (!hasItems) return false;
     try { return localStorage.getItem(dayKey()) !== '1'; } catch (e) { return true; }
@@ -79,6 +91,25 @@ export default function NotificationsPopup({ user }) {
         </div>
 
         <div className="overflow-y-auto p-4 space-y-4">
+          {announcements.length > 0 && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#FF862A]">
+                <Megaphone className="h-3.5 w-3.5" /> Announcements
+              </p>
+              <div className="space-y-2">
+                {announcements.map(a => (
+                  <div key={a.id} className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-bold text-text-main">{a.title}</p>
+                      <span className="shrink-0 text-[10px] font-bold text-text-muted">{fmtWhen(a.createdOn)}</span>
+                    </div>
+                    {a.body && <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-text-main/90">{a.body}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {today.length > 0 && (
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-500">

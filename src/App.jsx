@@ -16,12 +16,15 @@ import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
+import { initPush } from './services/pushService';
 
 export default function App() {
   // Restore the saved session synchronously so a returning user goes straight
   // to the app — no re-login, no flash of the sign-in screen.
   const [user, setUser] = useState(() => dataService.getCurrentSession());
   const [activePage, setActivePage] = useState('dashboard');
+  // Register for push on launch when a session is already restored.
+  useEffect(() => { if (user) { try { initPush(user); } catch (e) {} } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -123,6 +126,7 @@ export default function App() {
     setUser(userObj);
     setActivePage('dashboard');
     setHistory([]);
+    try { initPush(userObj); } catch (e) { /* non-native / no plugin */ }
   };
 
   const handleLogout = () => {

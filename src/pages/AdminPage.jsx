@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import ActivityFeed from '../components/ActivityFeed';
 
@@ -106,6 +106,9 @@ export default function AdminPage({ user }) {
           Access codes, user management, and system database settings.
         </p>
       </div>
+
+      {/* Send Announcement (Admin only) */}
+      {isAdmin && <AnnouncementSender />}
 
       {/* User Management Card (Admin only) */}
       {isAdmin && (
@@ -358,6 +361,66 @@ export default function AdminPage({ user }) {
 }
 
 // ── Email notifications on/off (#100) ───────────────────────────────────────
+function AnnouncementSender() {
+  const [title, setTitle] = React.useState('');
+  const [body, setBody] = React.useState('');
+  const [audience, setAudience] = React.useState('all');
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+
+  const send = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setBusy(true); setResult(null);
+    try {
+      const r = await dataService.createAnnouncement({ title: title.trim(), body: body.trim(), audience });
+      setResult({ ok: true, sent: r.sent });
+      setTitle(''); setBody('');
+    } catch (err) {
+      setResult({ ok: false, error: String(err.message || err) });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+      <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+        <Megaphone className="h-4 w-4 text-[#FF862A]" /> 📣 Send Announcement
+      </div>
+      <p className="text-xs text-text-muted -mt-2">Shows in everyone's 🔔 and pushes a notification to their phone.</p>
+      <form onSubmit={send} className="grid grid-cols-1 gap-4">
+        <div>
+          <label className="text-xs font-bold text-slate-500 block mb-1">Title</label>
+          <input type="text" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Sabha this Sunday 6 PM" required
+            className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-slate-500 block mb-1">Message</label>
+          <textarea value={body} maxLength={2000} rows={3} onChange={(e) => setBody(e.target.value)}
+            placeholder="Write the announcement…"
+            className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-slate-500 block mb-1">Send to</label>
+          <select value={audience} onChange={(e) => setAudience(e.target.value)}
+            className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]">
+            <option value="all">Everyone</option>
+            <option value="staff">Karyakartas / staff only</option>
+            <option value="devotees">Devotees only</option>
+          </select>
+        </div>
+        <button type="submit" disabled={busy || !title.trim()}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-60">
+          {busy ? 'Sending…' : <>Send announcement</>}
+        </button>
+        {result && (result.ok
+          ? <p className="text-xs font-bold text-emerald-600">✅ Posted — pushed to {result.sent} device{result.sent === 1 ? '' : 's'}.</p>
+          : <p className="text-xs font-bold text-rose-600">⚠️ {result.error}</p>)}
+      </form>
+    </div>
+  );
+}
+
 function MailToggle() {
   // Start from the cached value so the toggle is usable immediately (no stuck
   // "Loading…"); refine from the server once it responds.

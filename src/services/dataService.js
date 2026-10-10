@@ -111,7 +111,7 @@ function humanList_(arr) {
 }
 
 // In-memory database (populated by bootstrap before the app renders).
-let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [], areas: [] };
+let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], followups: [], areas: [], announcements: [] };
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -207,7 +207,7 @@ function hydrateSync() {
         users: parsed.users || [], devotees: (parsed.devotees || []).map(normalizeDevotee),
         sabhas: parsed.sabhas || [], thoughts: parsed.thoughts || [],
         attendance: parsed.attendance || [], followups: parsed.followups || [],
-        areas: parsed.areas || [],
+        areas: parsed.areas || [], announcements: parsed.announcements || [],
       };
       ensureSeedAdminPin_();
       return 'cache';
@@ -280,7 +280,7 @@ async function bootstrap() {
     DB.users = d.users || []; DB.devotees = (d.devotees || []).map(normalizeDevotee);
     DB.sabhas = d.sabhas || []; DB.thoughts = d.thoughts || [];
     DB.attendance = d.attendance || []; DB.followups = d.followups || [];
-    DB.areas = d.areas || [];
+    DB.areas = d.areas || []; DB.announcements = d.announcements || [];
     // Self-healing: if any stored devotee still carries a tag that is no longer
     // in the catalog (e.g. a removed tag) or a duplicate, rewrite the cleaned
     // rows once. normalizeDevotee already stripped them in-memory, so this just
@@ -492,6 +492,27 @@ export const dataService = {
       const r = await api('uploadChallan', { dataUri, id });
       return (r && r.url) ? r.url : dataUri;
     } catch { return dataUri; }
+  },
+
+  // ---- Push notifications & announcements ----
+  // Register this device's FCM token so the backend can push to it.
+  registerPushToken: async ({ token, devoteeId = '', mobile = '', name = '', platform = '' }) => {
+    if (!hasBackend() || !token) return false;
+    try { const r = await api('registerPushToken', { token, devoteeId, mobile, name, platform }); return !!(r && r.ok); } catch { return false; }
+  },
+  // Latest announcements (admin posts). Cached from bootstrap for instant render.
+  getAnnouncements: async () => {
+    if (!hasBackend()) return DB.announcements || [];
+    try { const r = await api('getAnnouncements', {}); if (r && r.announcements) { DB.announcements = r.announcements; saveCache(); } return DB.announcements || []; } catch { return DB.announcements || []; }
+  },
+  getCachedAnnouncements: () => DB.announcements || [],
+  // Admin: post an announcement (saved + pushed to matching devices).
+  createAnnouncement: async ({ title, body, audience = 'all' }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('createAnnouncement', { title, body, audience, createdBy: actorLabel() });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to send.');
+    logActivity_('announcement', '', `posted announcement "${title}" (sent to ${r.sent} device${r.sent === 1 ? '' : 's'})`);
+    return r;
   },
 
   // Fire-and-forget: email the admin when a user hits a runtime error.
