@@ -119,10 +119,10 @@ const firstLastName = (full) => {
 
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
-  ambrish: { tags: ['ambrish'], match: (d) => !(d.tags || []).includes('sahradyi'), banner: 'Showing devotees tagged Ambrish' },
-  sahradyi: { tags: ['sahradyi'], match: (d) => !(d.tags || []).includes('ambrish'), banner: 'Showing devotees tagged Sahradyi' },
-  karyakarta: { tags: ['karyakarta'], match: (d) => d.gender !== 'Female', banner: 'Showing Karyakartas (male)' },
-  'karyakarta-female': { tags: ['karyakarta'], match: (d) => d.gender === 'Female', banner: 'Showing Female Karyakartas' },
+  ambrish: { tags: ['ambrish'], match: (d) => (d.tags || []).includes('ambrish') && !(d.tags || []).includes('sahradyi'), banner: 'Showing devotees tagged Ambrish' },
+  sahradyi: { tags: ['sahradyi'], match: (d) => (d.tags || []).includes('sahradyi') && !(d.tags || []).includes('ambrish'), banner: 'Showing devotees tagged Sahradyi' },
+  karyakarta: { tags: ['karyakarta'], match: (d) => (d.tags || []).includes('karyakarta') && d.gender !== 'Female', banner: 'Showing Karyakartas (male)' },
+  'karyakarta-female': { tags: ['karyakarta'], match: (d) => (d.tags || []).includes('karyakarta') && d.gender === 'Female', banner: 'Showing Female Karyakartas' },
   old: { tags: [], match: (d) => String(d.oldNew || '').trim().toLowerCase() === 'old', banner: 'Showing Old devotees' },
   families: {
     tags: [],
