@@ -15,6 +15,8 @@ import {
   Phone,
   MapPin,
   User,
+  UserCheck,
+  Star,
   MessageSquare,
   X
 } from 'lucide-react';
@@ -57,6 +59,8 @@ export default function DashboardPage({ setActivePage, user }) {
 
   const totalDevotees = devotees.length;
   const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish')).length;
+  const karyakartaCount = devotees.filter(d => d.tags?.includes('karyakarta')).length;
+  const oldCount = devotees.filter(d => String(d.oldNew || '').trim().toLowerCase() === 'old').length;
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
   const familiesCount = devotees.filter(d => d.type === 'Primary').length;
@@ -129,7 +133,7 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {!isDevotee && (<>
         <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
@@ -164,6 +168,28 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-text-main">{familiesCount}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('karyakarta')} className={statCardCls} title="View Karyakartas">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakarta</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{karyakartaCount}</p>
+          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view karyakartas</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('old')} className={statCardCls} title="View Old devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Old Devotees</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950">
+              <Star className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{oldCount}</p>
+          <p className="text-[11px] font-semibold text-indigo-600 mt-1">Tap to view old devotees</p>
         </button>
         </>)}
 

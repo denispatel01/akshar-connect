@@ -97,6 +97,8 @@ const firstLastName = (full) => {
 const PRESET_META = {
   total: { tags: [], match: () => true, banner: 'Showing all devotees' },
   ambrish: { tags: ['ambrish'], match: () => true, banner: 'Showing devotees tagged Ambrish' },
+  karyakarta: { tags: ['karyakarta'], match: () => true, banner: 'Showing Karyakartas' },
+  old: { tags: [], match: (d) => String(d.oldNew || '').trim().toLowerCase() === 'old', banner: 'Showing Old devotees' },
   families: {
     tags: [],
     match: (d) => d.type === 'Primary',
@@ -316,7 +318,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       setFilterQualifications([]); setFilterAges([]); setFilterGenders([]);
       setFilterTypes([]); setFilterOldNews([]);
       setSearchQuery('');
-      setShowTagFilter(devoteesPreset === 'ambrish');
+      setShowTagFilter((PRESET_META[devoteesPreset].tags || []).length > 0);
     }
   }, [devoteesPreset]);
 
