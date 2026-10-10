@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
@@ -48,12 +48,18 @@ export default function SwadhyayPage({ user }) {
     return () => { alive = false; };
   }, [devoteeId]);
 
+  // Tracks whether the current form has user edits not yet persisted. Prefills
+  // clear it; user edits set it; the auto-save uses it to avoid saving on load.
+  const dirtyRef = useRef(false);
+  const saveTimer = useRef(null);
+
   // Prefill the form from the selected day's saved entry (blank if none).
   useEffect(() => {
     const entry = history.find((r) => r.date === date);
     setForm(entry
       ? { bhajanMin: +entry.bhajanMin || 0, bhajanTime: entry.bhajanTime || '', listenMin: +entry.listenMin || 0, readMin: +entry.readMin || 0 }
       : { bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
+    dirtyRef.current = false; // this is a load, not a user edit
     setSaved(false);
   }, [date, history]);
 
@@ -61,12 +67,14 @@ export default function SwadhyayPage({ user }) {
     const d = new Date(date + 'T00:00:00'); d.setDate(d.getDate() + delta);
     const iso = d.toLocaleDateString('en-CA');
     if (iso > todayISO()) return; // no future dates
+    // Flush any pending edits for the current date before switching, so nothing is lost.
+    if (dirtyRef.current && devoteeId) { if (saveTimer.current) clearTimeout(saveTimer.current); save(); }
     setDate(iso);
   };
   const isToday = date === todayISO();
   const dateLabel = isToday ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
-  const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };
+  const set = (k, v) => { dirtyRef.current = true; setForm((f) => ({ ...f, [k]: v })); setSaved(false); };
   const bump = (k, delta) => set(k, Math.max(0, (Number(form[k]) || 0) + delta));
 
   const totalToday = (Number(form.bhajanMin) || 0) + (Number(form.listenMin) || 0) + (Number(form.readMin) || 0);
@@ -97,16 +105,33 @@ export default function SwadhyayPage({ user }) {
 
   const save = async () => {
     if (!devoteeId) { alertError('Not linked', 'Your account is not linked to a devotee record yet.'); return; }
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    const snapshot = { ...form }, savedDate = date;
+    dirtyRef.current = false; // these edits are being persisted now
     setSaving(true);
     try {
-      await dataService.saveSwadhyay({ devoteeId, mobile: myMobile, name: myName, date, ...form });
+      await dataService.saveSwadhyay({ devoteeId, mobile: myMobile, name: myName, date: savedDate, ...snapshot });
       setSaved(true);
-      // refresh history so streak/week reflect the save
-      dataService.getMySwadhyay(devoteeId).then((rows) => setHistory(rows || []));
+      // Merge the saved row into local history so switching dates keeps showing it,
+      // then refresh from the backend so streak/week reflect the save.
+      setHistory((prev) => {
+        const others = (prev || []).filter((r) => r.date !== savedDate);
+        return [...others, { devoteeId, mobile: myMobile, name: myName, date: savedDate, ...snapshot }];
+      });
+      dataService.getMySwadhyay(devoteeId).then((rows) => { if (rows && rows.length) setHistory(rows); });
       setTimeout(() => setSaved(false), 2500);
     } catch (e) { alertError('Could not save', e.message || 'Try again.'); }
     finally { setSaving(false); }
   };
+
+  // Auto-save edits (debounced) so a tapped value is never lost by navigating away.
+  useEffect(() => {
+    if (!dirtyRef.current || !devoteeId) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { if (dirtyRef.current) save(); }, 900);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.bhajanMin, form.bhajanTime, form.listenMin, form.readMin]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 pb-28">
