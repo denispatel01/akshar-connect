@@ -528,10 +528,10 @@ export const ghariService = {
     const prev = existingIdx >= 0 ? MEM.purchases[existingIdx] : null;
     const season = input.season || meta_().season;
     const id = input.id || `GHP-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    let challan = input.challan ?? prev?.challan ?? '';
-    if (challan && challan.indexOf('data:') === 0) {
-      try { challan = await dataService.uploadPhoto(challan, id); } catch { /* keep the data URI offline */ }
-    }
+    // Keep the challan as-is (base64 or URL) and save INSTANTLY — the Drive upload
+    // happens in the background during sync (flush), so saving a purchase with a
+    // photo no longer waits on the upload.
+    const challan = input.challan ?? prev?.challan ?? '';
     const items = (input.items || []).filter(i => num_(i.qty) > 0).map(i => ({ sku: i.sku, name: i.name, size: i.size, category: i.category, qty: num_(i.qty) }));
     const purchase = normalizePurchase_({
       ...(prev || {}), id, season,

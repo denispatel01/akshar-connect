@@ -132,6 +132,9 @@ function ProductCard({ product, qty, onChange }) {
           <Plus className="h-4 w-4" />
         </button>
       </div>
+      <div className="mt-1.5 flex gap-1">
+        {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-lg bg-white/50 py-1 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
+      </div>
     </div>
   );
 }
@@ -474,11 +477,12 @@ function ReportView({ season }) {
               const bought = r.purchased[p.sku] || 0; const sold = (r.bySku[p.sku]?.qty) || 0;
               if (!bought && !sold) return null;
               const left = bought - sold;
+              const low = left <= 0; // sold everything bought (or oversold) → restock
               return (
                 <div key={p.sku} className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="text-text-muted">{p.size}</span></span>
+                  <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="text-text-muted">{p.size}</span>{low && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-black text-red-700 dark:bg-red-950 dark:text-red-300">RESTOCK</span>}</span>
                   <span className="shrink-0 font-black text-text-muted">
-                    <span className="text-emerald-600">{bought} in</span> · <span className="text-rose-600">{sold} out</span> · <span className={left < 0 ? 'text-red-600' : 'text-text-main'}>{left} left</span>
+                    <span className="text-emerald-600">{bought} in</span> · <span className="text-rose-600">{sold} out</span> · <span className={left < 0 ? 'text-red-600' : left === 0 ? 'text-amber-600' : 'text-text-main'}>{left} left</span>
                   </span>
                 </div>
               );
@@ -769,6 +773,9 @@ function BuyCard({ product, qty, onChange }) {
           className="min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black text-text-main outline-none" />
         <button onClick={pick} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
       </div>
+      <div className="mt-1.5 flex gap-1">
+        {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-lg bg-white/50 py-1 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
+      </div>
     </div>
   );
 }
@@ -776,6 +783,13 @@ function BuyCard({ product, qty, onChange }) {
 function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
   const products = useMemo(() => { const a = ghariService.getActiveProducts(); return a.length ? a : ghariService.getProducts(); }, []);
   const bySku = useMemo(() => Object.fromEntries(products.map(p => [p.sku, p])), [products]);
+  // Quick-pick chips of suppliers used before (most recent first, deduped).
+  const recentSuppliers = useMemo(() => {
+    const seen = []; const out = [];
+    [...ghariService.getPurchases(ghariService.getSeason()), ...ghariService.getPurchases(String(Number(ghariService.getSeason()) - 1))]
+      .forEach(p => { const s = (p.supplier || '').trim(); const k = s.toLowerCase(); if (s && !seen.includes(k)) { seen.push(k); out.push(s); } });
+    return out.slice(0, 6);
+  }, []);
   const isEdit = !!initialPurchase;
   const [cart, setCart] = useState(() => { const c = {}; (initialPurchase?.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + it.qty; }); return c; });
   const [supplier, setSupplier] = useState(initialPurchase?.supplier || '');
@@ -800,6 +814,7 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
     setBusy(true);
     try {
       const pu = await ghariService.savePurchase({ id: initialPurchase?.id, season: initialPurchase?.season, date: fromLocalInput_(date), supplier: supplier.trim(), items, amount: Number(String(amount).replace(/[^\d]/g, '')) || 0, challan, remarks: remarks.trim(), status: initialPurchase?.status || 'active' });
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
       onSaved?.(pu);
     } finally { setBusy(false); }
   };
@@ -811,6 +826,13 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Bought from (supplier)</label>
           <DevoteePicker value={supplier} icon={User} placeholder="Person / shop name"
             onText={(t) => setSupplier(t)} onPick={(d) => setSupplier(d ? d.name : '')} />
+          {recentSuppliers.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {recentSuppliers.map(s => (
+                <button key={s} type="button" onClick={() => setSupplier(s)} className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${supplier === s ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{s}</button>
+              ))}
+            </div>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Date &amp; time</label>
@@ -884,15 +906,19 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
 
 function PurchaseRow({ purchase, onOpen }) {
   const summary = purchase.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
+  const photoPending = String(purchase.challan || '').indexOf('data:') === 0; // not yet on Drive
   return (
     <button onClick={() => onOpen(purchase)} className="flex w-full items-center gap-3 border-b border-border-light px-3 py-3 text-left last:border-0 hover:bg-bg-base">
-      {purchase.challan
-        ? <img src={purchase.challan} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-        : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-bg-base text-text-muted"><ShoppingCart className="h-5 w-5" /></span>}
+      <div className="relative shrink-0">
+        {purchase.challan
+          ? <img src={purchase.challan} alt="" className="h-12 w-12 rounded-lg object-cover" />
+          : <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-base text-text-muted"><ShoppingCart className="h-5 w-5" /></span>}
+        {photoPending && <span className="absolute -right-1 -top-1 rounded-full bg-amber-500 px-1 text-[8px] font-black text-white" title="Challan not uploaded to Drive yet">⏳</span>}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-extrabold text-text-main">{purchase.supplier || '(supplier)'}</div>
         <div className="truncate text-[11px] text-text-muted">{summary}</div>
-        <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {purchase.boxes} box{purchase.boxes === 1 ? '' : 'es'}</div>
+        <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {purchase.boxes} box{purchase.boxes === 1 ? '' : 'es'}{photoPending ? ' · photo not synced' : ''}</div>
       </div>
       {purchase.amount > 0 && <div className="shrink-0 text-sm font-black text-text-main">{rupee(purchase.amount)}</div>}
     </button>
