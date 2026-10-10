@@ -5,7 +5,6 @@ import {
   PhoneCall,
   FileSpreadsheet,
   BookOpen,
-  HeartHandshake,
   CalendarDays,
   Mail,
   Settings,
