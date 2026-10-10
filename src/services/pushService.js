@@ -56,7 +56,19 @@ async function registerWebPush(user) {
   // Register on a DEDICATED scope so it never collides with the app's main sw.js
   // (two SWs on the same scope evict each other → controllerchange → reload loop).
   const base = import.meta.env.BASE_URL || '/';
-  const swReg = await navigator.serviceWorker.register(base + 'firebase-messaging-sw.js', { scope: base + 'firebase-cloud-messaging-push-scope' });
+  const pushScope = base + 'firebase-cloud-messaging-push-scope';
+  // Clean up any earlier Firebase SW registered at the WRONG (main) scope, which is
+  // what caused the reload loop before this fix.
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      const url = (r.active || r.waiting || r.installing || {}).scriptURL || '';
+      if (url.includes('firebase-messaging-sw') && r.scope.indexOf(pushScope) === -1) {
+        await r.unregister();
+      }
+    }
+  } catch (e) {}
+  const swReg = await navigator.serviceWorker.register(base + 'firebase-messaging-sw.js', { scope: pushScope });
   const messaging = getMessaging(app);
   const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
   if (!token) return false;
