@@ -117,12 +117,15 @@ function ProductCard({ product, qty, onChange }) {
       </button>
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
           <Minus className="h-4 w-4" />
         </button>
-        <span className={`min-w-8 text-center text-lg font-black ${active ? 'text-primary' : 'text-text-muted'}`}>{qty}</span>
+        <input inputMode="numeric" value={qty || 0}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
+          className={`min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black outline-none ${active ? 'text-primary' : 'text-text-main'}`} />
         <button onClick={() => onChange(qty + 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
           <Plus className="h-4 w-4" />
         </button>
       </div>
@@ -754,9 +757,12 @@ function BuyCard({ product, qty, onChange }) {
         <span className="mt-0.5 block"><span className="rounded-md bg-bg-base px-1.5 py-0.5 text-[10px] font-bold text-text-muted">{product.size}</span></span>
       </button>
       <div className="mt-2.5 flex items-center justify-between gap-2">
-        <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty} className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95"><Minus className="h-4 w-4" /></button>
-        <span className={`min-w-8 text-center text-lg font-black ${active ? 'text-text-main' : 'text-text-muted'}`}>{qty}</span>
-        <button onClick={() => onChange(qty + 1)} className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
+        <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95"><Minus className="h-4 w-4" /></button>
+        <input inputMode="numeric" value={qty || 0}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
+          className="min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black text-text-main outline-none" />
+        <button onClick={() => onChange(qty + 1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
       </div>
     </div>
   );
