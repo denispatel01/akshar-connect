@@ -97,6 +97,9 @@ function ProductCard({ product, qty, onChange }) {
   const cat = GHARI_CATEGORIES[product.category];
   const color = cat?.color || '#E56F18';
   const active = qty > 0;
+  const qtyRef = useRef(null);
+  // Picking a product adds one and focuses the quantity so you can type the count.
+  const pick = () => { onChange(qty + 1); setTimeout(() => { try { qtyRef.current?.focus(); qtyRef.current?.select(); } catch { /* ignore */ } }, 0); };
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
       style={{
@@ -105,7 +108,7 @@ function ProductCard({ product, qty, onChange }) {
         boxShadow: active ? `0 4px 14px ${tint(color, 0.3)}` : 'none',
       }}>
       <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
-      <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
+      <button onClick={pick} className="block w-full text-left">
         <div className="flex items-start justify-between gap-1">
           <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name}</span>
           {active && <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-black text-white">{qty}</span>}
@@ -120,11 +123,11 @@ function ProductCard({ product, qty, onChange }) {
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
           <Minus className="h-4 w-4" />
         </button>
-        <input inputMode="numeric" value={qty || 0}
+        <input ref={qtyRef} inputMode="numeric" value={qty || 0}
           onFocus={(e) => e.target.select()}
           onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
           className={`min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black outline-none ${active ? 'text-primary' : 'text-text-main'}`} />
-        <button onClick={() => onChange(qty + 1)}
+        <button onClick={pick}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
           <Plus className="h-4 w-4" />
         </button>
@@ -748,21 +751,23 @@ const fmtDate_ = (iso) => { const d = new Date(iso); if (isNaN(d.getTime())) ret
 // Simple colored quantity card for buying (no selling price shown).
 function BuyCard({ product, qty, onChange }) {
   const cat = GHARI_CATEGORIES[product.category]; const color = cat?.color || '#EA580C'; const active = qty > 0;
+  const qtyRef = useRef(null);
+  const pick = () => { onChange(qty + 1); setTimeout(() => { try { qtyRef.current?.focus(); qtyRef.current?.select(); } catch { /* ignore */ } }, 0); };
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
       style={{ background: active ? (cat?.bgActive || tint(color, 0.22)) : (cat?.bg || tint(color, 0.11)), borderColor: active ? color : tint(color, 0.5) }}>
       <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
-      <button onClick={() => onChange(qty + 1)} className="block w-full text-left">
+      <button onClick={pick} className="block w-full text-left">
         <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name.replace('Ghari ', '').replace(/[()]/g, '')}</span>
         <span className="mt-0.5 block"><span className="rounded-md bg-bg-base px-1.5 py-0.5 text-[10px] font-bold text-text-muted">{product.size}</span></span>
       </button>
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95"><Minus className="h-4 w-4" /></button>
-        <input inputMode="numeric" value={qty || 0}
+        <input ref={qtyRef} inputMode="numeric" value={qty || 0}
           onFocus={(e) => e.target.select()}
           onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
           className="min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black text-text-main outline-none" />
-        <button onClick={() => onChange(qty + 1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
+        <button onClick={pick} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow active:scale-95" style={{ background: color }}><Plus className="h-4 w-4" /></button>
       </div>
     </div>
   );
