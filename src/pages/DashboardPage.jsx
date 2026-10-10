@@ -62,7 +62,8 @@ export default function DashboardPage({ setActivePage, user }) {
   // both is counted in neither, matching the directory's Ambrish/Sahradyi views).
   const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish') && !d.tags?.includes('sahradyi')).length;
   const sahradyiCount = devotees.filter(d => d.tags?.includes('sahradyi') && !d.tags?.includes('ambrish')).length;
-  const karyakartaCount = devotees.filter(d => d.tags?.includes('karyakarta')).length;
+  const karyakartaCount = devotees.filter(d => d.tags?.includes('karyakarta') && d.gender !== 'Female').length;
+  const femaleKaryakartaCount = devotees.filter(d => d.tags?.includes('karyakarta') && d.gender === 'Female').length;
   const oldCount = devotees.filter(d => String(d.oldNew || '').trim().toLowerCase() === 'old').length;
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
@@ -193,6 +194,17 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-text-main">{karyakartaCount}</p>
           <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view karyakartas</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('karyakarta-female')} className={statCardCls} title="View Female Karyakartas">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Karyakarta</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{femaleKaryakartaCount}</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view female karyakartas</p>
         </button>
 
         <button type="button" onClick={() => openDevotees('old')} className={statCardCls} title="View Old devotees">
