@@ -9,6 +9,7 @@ const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') 
 const SESSION_KEY = 'ac_session_v1';
 const CACHE_KEY = 'ac_cache_v1';
 const MAIL_KEY = 'ac_mail_v1';
+const PENDING_PHOTO_KEY = 'ac_pending_photos_v1';
 
 // The admin's email-notification preference, cached locally so every write can be
 // stamped with the state that was true AT THE MOMENT of the change (#104). Default
@@ -155,6 +156,46 @@ function push(action, payload) {
 
 function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB)); } catch (e) {} }
 
+// ── Background profile-photo upload (#107 optimistic) ─────────────────────────
+// A devotee is saved INSTANTLY with the photo held locally as a data URI (so the
+// UI feels snappy and the base64 never bloats the sheet). The heavy Drive upload
+// runs here in the background; once it succeeds we write ONLY the Drive URL to the
+// record and the sheet. Pending uploads are queued in localStorage so a failed /
+// offline upload is retried on the next flush (bootstrap + when back online).
+function pendingPhotos_() { try { return JSON.parse(localStorage.getItem(PENDING_PHOTO_KEY) || '[]'); } catch { return []; } }
+function savePendingPhotos_(list) { try { localStorage.setItem(PENDING_PHOTO_KEY, JSON.stringify(list)); } catch (e) {} }
+function queuePhotoUpload_(id, dataUri, mobile) {
+  if (!id || String(dataUri || '').indexOf('data:') !== 0) return;
+  const list = pendingPhotos_().filter(p => p.id !== id); // one pending photo per devotee (latest wins)
+  list.push({ id, dataUri, mobile: mobile || '' });
+  savePendingPhotos_(list);
+  flushPhotoUploads_();
+}
+let flushingPhotos = false;
+async function flushPhotoUploads_() {
+  if (flushingPhotos || !hasBackend()) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const list = pendingPhotos_();
+  if (!list.length) return;
+  flushingPhotos = true;
+  try {
+    for (const item of list) {
+      let url = null;
+      try { const r = await api('uploadPhoto', { dataUri: item.dataUri, id: item.mobile || item.id }); url = (r && r.url) ? r.url : null; } catch { url = null; }
+      if (!url || url.indexOf('data:') === 0) continue; // upload failed — keep it queued for the next flush
+      const idx = DB.devotees.findIndex(d => d.id === item.id);
+      if (idx !== -1) {
+        DB.devotees[idx] = normalizeDevotee({ ...DB.devotees[idx], photo: url });
+        saveCache();
+        push('update', { collection: 'Devotees', keyField: 'id', key: item.id, row: toBackendRow(DB.devotees[idx]), changed: ['photo'] });
+        try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ac-devotee-photo-synced', { detail: { id: item.id, url } })); } catch (e) {}
+      }
+      savePendingPhotos_(pendingPhotos_().filter(p => p.id !== item.id)); // done — drop it
+    }
+  } finally { flushingPhotos = false; }
+}
+if (typeof window !== 'undefined') window.addEventListener('online', () => { try { flushPhotoUploads_(); } catch (e) {} });
+
 // Synchronously populate DB from the local cache (or the bundled dataset) so the
 // app can render INSTANTLY without waiting for the network. Returns the source.
 function hydrateSync() {
@@ -278,6 +319,7 @@ async function bootstrap() {
     }
     ensureSeedAdminPin_();
     saveCache();
+    try { flushPhotoUploads_(); } catch (e) { /* non-fatal */ }
     return { mode: 'live' };
   } catch (e) {
     // Offline: use last cached data, else demo seed.
@@ -617,7 +659,15 @@ export const dataService = {
     DB.devotees[idx] = merged;
     saveCache();
     // Optimistic: return immediately; the write syncs in the background (with retry).
-    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: toBackendRow(merged), changed: changedFieldKeys_(prev, merged) });
+    // A freshly-picked photo is still a base64 data URI — never push that to the
+    // sheet. Send the row with the photo blanked, then upload it to Drive in the
+    // background and persist ONLY the resulting Drive URL.
+    const photoData = String(merged.photo || '');
+    const pushRow = toBackendRow(merged);
+    const changedKeys = changedFieldKeys_(prev, merged);
+    if (photoData.indexOf('data:') === 0) { pushRow.photo = String(prev.photo || '').indexOf('data:') === 0 ? '' : (prev.photo || ''); }
+    push('update', { collection: 'Devotees', keyField: 'id', key: id, row: pushRow, changed: changedKeys });
+    if (photoData.indexOf('data:') === 0) queuePhotoUpload_(id, photoData, merged.mobile);
     const changed = humanList_(changedFieldLabels_(prev, merged));
     if (changed) logActivity_('update-devotee', merged.name, `updated ${changed} of ${merged.name}`);
     return merged;
@@ -647,7 +697,13 @@ export const dataService = {
     DB.devotees.unshift(newDevotee);
     saveCache();
     // Optimistic: return immediately; the insert syncs in the background (with retry).
-    push('insert', { collection: 'Devotees', row: toBackendRow(newDevotee) });
+    // Never push a base64 photo to the sheet — insert with the photo blank, then
+    // upload to Drive in the background and fill in ONLY the Drive URL.
+    const photoData = String(newDevotee.photo || '');
+    const pushRow = toBackendRow(newDevotee);
+    if (photoData.indexOf('data:') === 0) pushRow.photo = '';
+    push('insert', { collection: 'Devotees', row: pushRow });
+    if (photoData.indexOf('data:') === 0) queuePhotoUpload_(newDevotee.id, photoData, newDevotee.mobile);
     const kind = newDevotee.yuvakType ? newDevotee.yuvakType.toLowerCase() : 'devotee';
     logActivity_('add-devotee', newDevotee.name, `added new ${kind} namely ${newDevotee.name}`);
     return newDevotee;

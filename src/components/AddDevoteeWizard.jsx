@@ -246,7 +246,6 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     });
   };
 
-  const [photoUploading, setPhotoUploading] = useState(false);
   const onPhotoFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -258,13 +257,10 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
         const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
         ctx.drawImage(img, sx, sy, m, m, 0, 0, S, S);
         const dataUri = c.toDataURL('image/jpeg', 0.72);
-        set({ photo: dataUri });            // instant local preview
-        setPhotoUploading(true);
-        // Store the photo on Drive and keep only its URL (#107). Falls back to the
-        // data URI if the upload fails, so the photo is never lost.
-        const url = await dataService.uploadPhoto(dataUri, form.mobile || '');
-        set({ photo: url });
-        setPhotoUploading(false);
+        // Instant: keep the photo locally and let Save return immediately. The
+        // heavy Drive upload happens in the background after save, and only the
+        // Drive URL is written to the sheet (never the base64). (#107)
+        set({ photo: dataUri });
       };
       img.src = reader.result;
     };
@@ -412,7 +408,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                     <Camera className="h-4 w-4" /> {form.photo ? '📷 Change photo' : '📷 Upload photo'}
                   </button>
                   {form.photo && <button type="button" onClick={() => set({ photo: '' })} className="ml-2 text-xs font-bold text-red-500">Remove</button>}
-                  <p className="mt-1 text-[10px] text-text-muted">{photoUploading ? '⏳ Uploading photo…' : 'Auto-cropped to a square.'}</p>
+                  <p className="mt-1 text-[10px] text-text-muted">Auto-cropped to a square. Uploads to Drive in the background.</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
