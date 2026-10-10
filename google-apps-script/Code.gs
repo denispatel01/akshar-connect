@@ -62,10 +62,21 @@ var HEADERS = {
   FeedComments: ['id','postId','authorId','authorName','text','createdOn','status'],
   // ── Email (staff → devotees) ───────────────────────────────────────────────
   // One row per sent email campaign (for the history view).
-  EmailCampaigns: ['id','subject','body','audience','recipientCount','sentCount','failedCount','createdBy','createdOn']
+  EmailCampaigns: ['id','subject','body','audience','recipientCount','sentCount','failedCount','createdBy','createdOn'],
+  // Reusable, staff-editable email templates.
+  EmailTemplates: ['id','name','subject','body','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-11-email-module';
+var SCHEMA_VERSION = '2026-10-12-email-templates';
+
+// Default email templates — seeded once when the EmailTemplates tab is empty.
+var SEED_EMAIL_TEMPLATES = [
+  { id:'TPL-sabha', name:'Sabha Invitation', subject:'You are invited to this week\'s Sabha 🙏', body:'Jai Swaminarayan {firstName},\n\nWe warmly invite you to our weekly Sabha this Sunday at the Mandal. Your presence adds to the divine atmosphere.\n\n🕉️ Day: Sunday\n🕒 Time: 5:00 PM\n📍 Venue: Swaminarayan Mandal, Adajan\n\nPlease do join us with your family.\n\nJai Swaminarayan 🙏', createdOn:new Date().toISOString() },
+  { id:'TPL-festival', name:'Festival Greeting', subject:'Festival greetings from Akshar Connect ✨', body:'Jai Swaminarayan {firstName},\n\nMay this festival fill your home with Maharaj and Swami\'s blessings, happiness and good health.\n\nWarm wishes to you and your family. 🪔\n\nJai Swaminarayan 🙏', createdOn:new Date().toISOString() },
+  { id:'TPL-seva', name:'Seva Reminder', subject:'A gentle reminder for upcoming Seva', body:'Jai Swaminarayan {firstName},\n\nThis is a gentle reminder about the upcoming seva. Your support means a lot to the Mandal parivar.\n\nPlease reach out if you can help.\n\nJai Swaminarayan 🙏', createdOn:new Date().toISOString() },
+  { id:'TPL-thanks', name:'Thank You', subject:'Thank you for your seva 🙏', body:'Jai Swaminarayan {firstName},\n\nThank you for your wonderful seva and dedication. Maharaj and Swami are surely pleased with your efforts.\n\nWith gratitude,\nAkshar Connect', createdOn:new Date().toISOString() },
+  { id:'TPL-notice', name:'General Notice', subject:'An update from the Mandal', body:'Jai Swaminarayan {firstName},\n\n[Write your update here.]\n\nJai Swaminarayan 🙏', createdOn:new Date().toISOString() }
+];
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -587,6 +598,38 @@ function doGetEmailCampaigns_(){
   list.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
   return json_({ ok:true, campaigns: list.slice(0, 50) });
 }
+function doGetEmailTemplates_(){
+  if(readAll_('EmailTemplates').length === 0) appendRows_('EmailTemplates', SEED_EMAIL_TEMPLATES);
+  var list = readAll_('EmailTemplates');
+  list.sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); });
+  return json_({ ok:true, templates: list });
+}
+function doSaveEmailTemplate_(p){
+  var now = new Date().toISOString();
+  var id = String(p.id || '') || ('TPL-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5));
+  var name = String(p.name || '').slice(0, 80).trim();
+  if(!name) return json_({ ok:false, error:'Template name is required.' });
+  var row = {
+    id: id, name: name, subject: String(p.subject || '').slice(0, 200),
+    body: String(p.body || '').slice(0, 4000), createdBy: String(p.actor || ''),
+    createdOn: now, updatedBy: String(p.actor || ''), updatedOn: now
+  };
+  var existing = findRow_('EmailTemplates', 'id', id);
+  if(existing > 0){
+    var cIdx = HEADERS.EmailTemplates.indexOf('createdOn')+1, bIdx = HEADERS.EmailTemplates.indexOf('createdBy')+1;
+    row.createdOn = tab_('EmailTemplates').getRange(existing, cIdx).getValue() || now;
+    row.createdBy = tab_('EmailTemplates').getRange(existing, bIdx).getValue() || row.createdBy;
+    tab_('EmailTemplates').getRange(existing,1,1,HEADERS.EmailTemplates.length).setValues([rowFromObj_('EmailTemplates', row)]);
+  } else {
+    appendRows_('EmailTemplates', [row]);
+  }
+  return json_({ ok:true, template: row });
+}
+function doDeleteEmailTemplate_(p){
+  var r = findRow_('EmailTemplates', 'id', String(p.id||''));
+  if(r > 0) tab_('EmailTemplates').deleteRow(r);
+  return json_({ ok:true });
+}
 
 // Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
 // editor to schedule it; it pushes to every device that enabled notifications.
@@ -925,7 +968,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -933,6 +976,7 @@ function ensureSheets_(){
   if(readAll_('Users').length===0)    appendRows_('Users', SEED_USERS);
   if(readAll_('Sabhas').length===0)   appendRows_('Sabhas', SEED_SABHAS);
   if(readAll_('Thoughts').length===0) appendRows_('Thoughts', SEED_THOUGHTS);
+  if(readAll_('EmailTemplates').length===0) appendRows_('EmailTemplates', SEED_EMAIL_TEMPLATES);
   props.setProperty('ensuredSchema', SCHEMA_VERSION);
 }
 
@@ -1093,6 +1137,9 @@ function handle_(p){
     if(action==='sendEmail') return doSendEmail_(p);
     if(action==='getEmailQuota') return doGetEmailQuota_();
     if(action==='getEmailCampaigns') return doGetEmailCampaigns_();
+    if(action==='getEmailTemplates') return doGetEmailTemplates_();
+    if(action==='saveEmailTemplate') return doSaveEmailTemplate_(p);
+    if(action==='deleteEmailTemplate') return doDeleteEmailTemplate_(p);
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

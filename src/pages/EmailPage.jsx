@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Mail, Send, Search, X, Users, Filter, History, Check, ShieldAlert,
-  Sparkles, Eye, EyeOff, Loader2, AlertTriangle, UserPlus,
+  Sparkles, Eye, EyeOff, Loader2, AlertTriangle, UserPlus, FileText, Pencil, Trash2, Plus,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { AREAS, YUVAK_TYPES, GENDERS } from '../services/devoteeSchema';
@@ -12,8 +12,9 @@ const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
 const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
 const fmtDateTime = (s) => { try { return new Date(s).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return s; } };
 
-// Pre-drafted templates. {firstName} / {name} personalize per recipient.
-const TEMPLATES = [
+// Built-in fallback templates (used offline / before the backend responds).
+// Editable copies live in the backend and are managed in the Templates tab.
+const DEFAULT_TEMPLATES = [
   {
     name: 'Sabha Invitation',
     subject: 'You are invited to this week\'s Sabha 🙏',
@@ -43,7 +44,9 @@ const TEMPLATES = [
 
 export default function EmailPage({ user }) {
   const isStaff = user?.role === 'Admin' || user?.role === 'Sevak';
+  const isAdmin = user?.role === 'Admin';
   const [tab, setTab] = useState('compose');
+  const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
 
   const devotees = useMemo(() => dataService.getDevotees() || [], []);
   const withEmail = useMemo(() => devotees.filter((d) => validEmail(d.email)), [devotees]);
@@ -67,7 +70,33 @@ export default function EmailPage({ user }) {
   const [campaigns, setCampaigns] = useState([]);
   const [loadingHist, setLoadingHist] = useState(false);
 
-  useEffect(() => { dataService.getEmailQuota().then(setQuota); }, []);
+  // Template editing
+  const [editing, setEditing] = useState(null); // { id, name, subject, body } | null
+  const [tplSaving, setTplSaving] = useState(false);
+
+  const saveTpl = async () => {
+    if (!editing?.name?.trim()) { alertError('Name needed', 'Give the template a name.'); return; }
+    setTplSaving(true);
+    try {
+      await dataService.saveEmailTemplate({ id: editing.id || '', name: editing.name.trim(), subject: editing.subject || '', body: editing.body || '' });
+      await loadTemplates();
+      setEditing(null);
+    } catch (e) { alertError('Could not save', e.message); }
+    finally { setTplSaving(false); }
+  };
+  const deleteTpl = async (t) => {
+    const res = await Swal.fire({
+      icon: 'warning', title: 'Delete this template?', text: t.name,
+      showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#dc2626', cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl font-sans', confirmButton: 'rounded-2xl px-6 py-2.5 font-bold', cancelButton: 'rounded-2xl px-6 py-2.5 font-bold' },
+    });
+    if (!res.isConfirmed) return;
+    try { await dataService.deleteEmailTemplate(t.id); await loadTemplates(); }
+    catch (e) { alertError('Could not delete', e.message); }
+  };
+
+  const loadTemplates = () => dataService.getEmailTemplates().then((t) => { if (t && t.length) setTemplates(t); });
+  useEffect(() => { dataService.getEmailQuota().then(setQuota); loadTemplates(); }, []);
   useEffect(() => {
     if (tab !== 'history') return;
     setLoadingHist(true);
@@ -177,7 +206,7 @@ export default function EmailPage({ user }) {
 
       {/* Tabs */}
       <div className="mt-4 flex gap-1 rounded-2xl border border-border-light bg-bg-base p-1">
-        {[{ id: 'compose', label: 'Compose', icon: Send }, { id: 'history', label: 'History', icon: History }].map(({ id, label, icon: Icon }) => (
+        {[{ id: 'compose', label: 'Compose', icon: Send }, { id: 'history', label: 'History', icon: History }, ...(isAdmin ? [{ id: 'templates', label: 'Templates', icon: FileText }] : [])].map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition-colors ${tab === id ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
             <Icon className="h-4 w-4" /> {label}
@@ -255,12 +284,18 @@ export default function EmailPage({ user }) {
           <div className="rounded-3xl border border-border-light bg-surface p-4">
             <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-text-main"><Sparkles className="h-4 w-4 text-accent" /> Start from a template</p>
             <div className="flex flex-wrap gap-1.5">
-              {TEMPLATES.map((t) => (
-                <button key={t.name} onClick={() => applyTemplate(t)}
+              {templates.map((t) => (
+                <button key={t.id || t.name} onClick={() => applyTemplate(t)}
                   className="rounded-full border border-border-light bg-bg-base px-3 py-1.5 text-xs font-bold text-text-muted transition-colors hover:border-primary hover:text-primary">
                   {t.name}
                 </button>
               ))}
+              {isAdmin && (
+                <button onClick={() => setTab('templates')}
+                  className="rounded-full border border-dashed border-border-light bg-bg-base px-3 py-1.5 text-xs font-bold text-text-muted transition-colors hover:border-primary hover:text-primary">
+                  <Pencil className="mr-1 inline h-3 w-3" />Edit templates
+                </button>
+              )}
             </div>
           </div>
 
@@ -326,6 +361,64 @@ export default function EmailPage({ user }) {
               </p>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'templates' && isAdmin && (
+        <div className="mt-4 space-y-3">
+          {!editing && (
+            <button onClick={() => setEditing({ id: '', name: '', subject: '', body: '' })}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-primary bg-primary/5 py-2.5 text-sm font-bold text-primary">
+              <Plus className="h-4 w-4" /> New template
+            </button>
+          )}
+
+          {editing && (
+            <div className="space-y-3 rounded-3xl border border-primary/30 bg-surface p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-text-main">{editing.id ? 'Edit template' : 'New template'}</p>
+                <button onClick={() => setEditing(null)} className="rounded-lg p-1 text-text-muted hover:text-red-500"><X className="h-4 w-4" /></button>
+              </div>
+              <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} maxLength={80}
+                placeholder="Template name (e.g. Diwali greeting)"
+                className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:ring-2 focus:ring-[#FF862A]" />
+              <input value={editing.subject} onChange={(e) => setEditing({ ...editing, subject: e.target.value })} maxLength={200}
+                placeholder="Subject"
+                className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2.5 text-sm text-text-main outline-none focus:ring-2 focus:ring-[#FF862A]" />
+              <textarea value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} rows={8}
+                placeholder="Message… use {firstName} to personalize."
+                className="w-full resize-y rounded-xl border border-border-light bg-bg-base px-3 py-2.5 text-sm text-text-main outline-none focus:ring-2 focus:ring-[#FF862A]" />
+              <p className="text-[11px] text-text-muted">Tip: <code className="rounded bg-bg-base px-1">{'{firstName}'}</code> is replaced with each recipient's name.</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setEditing(null)} className="rounded-xl border border-border-light bg-surface px-4 py-2 text-sm font-bold text-text-muted">Cancel</button>
+                <button onClick={saveTpl} disabled={tplSaving}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2 text-sm font-bold text-white disabled:opacity-50">
+                  {tplSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {templates.map((t) => (
+              <div key={t.id || t.name} className="rounded-2xl border border-border-light bg-surface p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-text-main">{t.name}</p>
+                    <p className="truncate text-[12px] text-text-muted">{t.subject}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button onClick={() => setEditing({ id: t.id || '', name: t.name || '', subject: t.subject || '', body: t.body || '' })}
+                      className="rounded-lg p-1.5 text-text-muted hover:text-primary" title="Edit"><Pencil className="h-4 w-4" /></button>
+                    {t.id && (
+                      <button onClick={() => deleteTpl(t)} className="rounded-lg p-1.5 text-text-muted hover:text-red-500" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] text-text-muted">{t.body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

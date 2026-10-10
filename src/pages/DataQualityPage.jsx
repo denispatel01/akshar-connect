@@ -8,27 +8,30 @@ import { alertError, alertSuccess } from '../utils/sweetAlert';
 import Swal from 'sweetalert2';
 
 // ── Completeness model ─────────────────────────────────────────────────────────
-// The fields that make a profile "usable" for the Mandal. Mobile + DOB are called
-// out separately because together they are what lets a devotee self-login.
-const CORE_FIELDS = [
-  { key: 'firstName', label: 'First name' },
-  { key: 'lastName', label: 'Last name' },
-  { key: 'gender', label: 'Gender' },
-  { key: 'dob', label: 'Date of birth' },
-  { key: 'mobile', label: 'Mobile' },
-  { key: 'area', label: 'Area' },
-  { key: 'address', label: 'Address' },
-  { key: 'familyId', label: 'Family ID' },
-  { key: 'relation', label: 'Relation' },
-  { key: 'type', label: 'Family membership' },
-  { key: 'yuvakType', label: 'Yuvak type' },
-];
-
+// IMPORTANT: this MUST match the profile wizard's completion % (AddDevoteeWizard
+// `completionPct`) so "100%" means the same thing here and on the edit screen.
 const filled = (d, key) => {
   const v = d[key];
   if (Array.isArray(v)) return v.length > 0;
   return String(v == null ? '' : v).trim() !== '';
 };
+const str_ = (v) => String(v == null ? '' : v).trim() !== '';
+
+// Same 12 checks the wizard uses for its overall completion bar.
+const COMPLETENESS_CHECKS = [
+  { key: 'firstName', label: 'First name', ok: (d) => str_(d.firstName) },
+  { key: 'lastName', label: 'Last name', ok: (d) => str_(d.lastName) },
+  { key: 'mobile', label: 'Mobile', ok: (d) => str_(d.mobile) },
+  { key: 'dob', label: 'Date of birth', ok: (d) => str_(d.dob) },
+  { key: 'gender', label: 'Gender', ok: (d) => str_(d.gender) },
+  { key: 'area', label: 'Area', ok: (d) => str_(d.area) },
+  { key: 'address', label: 'Address', ok: (d) => str_(d.address) },
+  { key: 'yuvakType', label: 'Yuvak type', ok: (d) => str_(d.yuvakType) },
+  { key: 'eduWork', label: 'Education / Profession', ok: (d) => str_(d.school) || str_(d.profession) || str_(d.qualification) },
+  { key: 'karyaRef', label: 'Karyakarta / Reference', ok: (d) => str_(d.followupKaryakarta) || str_(d.reference) },
+  { key: 'photo', label: 'Photo', ok: (d) => str_(d.photo) },
+  { key: 'tags', label: 'Tags', ok: (d) => Array.isArray(d.tags) && d.tags.length > 0 },
+];
 
 const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
 // Normalise a name for duplicate matching: lowercase, drop honorific suffixes,
@@ -88,8 +91,8 @@ export default function DataQualityPage({ user, setActivePage }) {
   // Completeness scored per devotee.
   const scored = useMemo(() => {
     return devotees.map((d) => {
-      const missing = CORE_FIELDS.filter((f) => !filled(d, f.key));
-      const pct = Math.round(((CORE_FIELDS.length - missing.length) / CORE_FIELDS.length) * 100);
+      const missing = COMPLETENESS_CHECKS.filter((c) => !c.ok(d));
+      const pct = Math.round(((COMPLETENESS_CHECKS.length - missing.length) / COMPLETENESS_CHECKS.length) * 100);
       return { d, pct, missing };
     });
   }, [devotees]);

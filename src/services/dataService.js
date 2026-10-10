@@ -627,6 +627,23 @@ export const dataService = {
     if (!hasBackend()) return [];
     try { const r = await api('getEmailCampaigns', {}); return (r && r.campaigns) || []; } catch { return []; }
   },
+  // Reusable, staff-editable email templates.
+  getEmailTemplates: async () => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getEmailTemplates', {}); return (r && r.templates) || []; } catch { return []; }
+  },
+  saveEmailTemplate: async ({ id = '', name, subject = '', body = '' }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('saveEmailTemplate', { id, name, subject, body, actor: actorLabel() });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save template.');
+    return r.template;
+  },
+  deleteEmailTemplate: async (id) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('deleteEmailTemplate', { id });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to delete template.');
+    return true;
+  },
 
   // ---- Swadhyay (daily spiritual-practice log) ----
   // Save today's (or any day's) Swadhyay for the current user. Upserts by day.
