@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Tags,
   Tag,
-  MoreHorizontal,
+  Menu,
   X,
   ChevronRight,
   Activity,
@@ -72,38 +72,23 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         { id: 'activity', label: 'My Activity', icon: Activity },
       ];
 
-  // ── Mobile: primary tabs (max 4) + overflow into More sheet ────────────────
+  // ── Mobile: 3 core tabs + a Menu (hamburger). Everything else goes in the Menu,
+  // so adding modules never makes the bar taller/crowded. ──────────────────────
   const primaryMobile = isDevotee
     ? [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
         { id: 'devotees', label: 'My Profile', icon: User },
-        { id: 'family', label: 'Family', icon: Users },
       ]
     : [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+        { id: 'devotees', label: 'Devotees', icon: Users },
         { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-        { id: 'devotees', label: 'Divine Devotees', icon: Users },
-        ...(isAdmin || isSevak ? [{ id: 'followups', label: 'Follow-up', icon: PhoneCall }] : []),
       ];
 
-  const moreItems = isDevotee
-    ? [{ id: 'calendar', label: 'Calendar', icon: CalendarDays }, { id: 'activity', label: 'My Activity', icon: Activity }]
-    : [
-        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
-        ...(isAdmin || isSevak ? [
-          { id: 'seva', label: 'Seva', icon: HeartHandshake },
-          { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-          { id: 'email', label: 'Email', icon: Mail },
-          { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
-        ] : []),
-        ...(isAdmin ? [
-          { id: 'ghari', label: 'Ghari Seva', icon: Cookie, adminOnly: true },
-          { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
-          { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
-        ] : []),
-        { id: 'activity', label: 'My Activity', icon: Activity },
-      ];
+  // The Menu holds every nav item that isn't a primary tab — nothing is lost.
+  const primaryIds = new Set(primaryMobile.map((i) => i.id));
+  const moreItems = allNavItems.filter((i) => !primaryIds.has(i.id));
 
   // Is the active page inside the "More" sheet?
   const moreActive = moreItems.some((i) => i.id === activePage);
@@ -223,13 +208,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <button onClick={() => setMoreOpen((o) => !o)}
             className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 transition-colors relative ${moreOpen || moreActive ? 'text-primary' : 'text-text-muted'}`}>
             <div className={`flex items-center justify-center h-7 w-12 rounded-2xl transition-all duration-200 ${moreOpen || moreActive ? 'bg-primary/10' : ''}`}>
-              {moreOpen ? <X className="h-5 w-5" strokeWidth={2.5} /> : <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />}
+              {moreOpen ? <X className="h-5 w-5" strokeWidth={2.5} /> : <Menu className="h-5 w-5" strokeWidth={1.8} />}
               {/* Red dot if admin-only items are in overflow */}
               {!moreOpen && isAdmin && (
                 <span className="absolute top-2 right-[calc(50%-14px)] h-2 w-2 rounded-full bg-red-500 ring-1 ring-surface" />
               )}
             </div>
-            <span className={`text-[10px] font-semibold ${moreOpen || moreActive ? 'font-bold' : ''}`}>More</span>
+            <span className={`text-[10px] font-semibold ${moreOpen || moreActive ? 'font-bold' : ''}`}>Menu</span>
           </button>
         </div>
       </div>
