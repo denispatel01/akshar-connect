@@ -111,6 +111,16 @@ const devoteeId = me?.id || user?.devoteeId || user?.mobile || '';
   (combines Swadhyay + Seva + a `CalPlan` store), day sheet to plan/mark-done, month summary.
 - **PWA auto-update** — silent, loop-guarded (reload at most once per session).
 - **Nav** — mobile bottom bar = 3 tabs + hamburger Menu (scrollable).
+- **Data Quality** module (Admin) — profile-completeness scoring + buckets, list
+  sorted 100%→low with missing-field chips (tap → profile), search + quick filters
+  (incomplete / missing mobile / missing DOB), duplicate detection (shared mobile,
+  name+DOB, name+family) with opt-in per-record delete + confirm, and insights
+  (health score, gender split, per-area coverage). Client-side; delete via `remove`.
+- **Feed** module (everyone) — Instagram-style posts: photos (downscaled) + camera +
+  short video, caption + description, multi-media (≤6), likes, comments, author/admin
+  delete, "load more". Media on Drive (`feed-media`); only URLs in the sheet.
+  **Video note:** shipped via Drive upload capped at 25 MB (short clips). Firebase
+  Storage for longer video is deferred — add later if the owner enables Storage.
 
 ### Backend sheet tabs that exist
 `Users, Devotees, Sabhas, Attendance, Followups, Thoughts, Areas, Activity, Changes,
@@ -129,7 +139,10 @@ Swadhyay, Seva, CalPlan`.
 
 ---
 
-## 5. PENDING MODULE A — Data Quality / Review module (admin)
+## 5. ~~PENDING~~ ✅ DONE MODULE A — Data Quality / Review module (admin)
+
+> Built & deployed (src/pages/DataQualityPage.jsx, admin-only, in the hamburger Menu).
+> Spec below kept for reference.
 
 **Goal:** help the admin complete every devotee profile. A data-oriented, fully-functional,
 bug-free module to review profile completeness and clean duplicates. **Admin-only.**
@@ -181,7 +194,11 @@ bug-free module to review profile completeness and clean duplicates. **Admin-onl
 
 ---
 
-## 6. PENDING MODULE B — Feed module (Instagram-style)
+## 6. ~~PENDING~~ ✅ DONE MODULE B — Feed module (Instagram-style)
+
+> Built & deployed (src/pages/FeedPage.jsx, everyone, in the hamburger Menu). Media
+> on Drive (`feed-media`); backend tabs FeedPosts/FeedLikes/FeedComments + actions.
+> Video shipped via Drive (≤25 MB); Firebase Storage deferred. Spec below for reference.
 
 **Goal:** a social Feed where devotees post **photos / short videos** with a **caption +
 description**, visible to everyone. Modern, quick to post.

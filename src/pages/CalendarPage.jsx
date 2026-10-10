@@ -44,15 +44,16 @@ export default function CalendarPage({ user }) {
   // date -> { done:Set, planned:Set, bhajanMin, kathaMin, sevaCount, plans:[] }
   const byDate = useMemo(() => {
     const m = {};
-    const get = (d) => (m[d] || (m[d] = { done: new Set(), planned: new Set(), bhajanMin: 0, kathaMin: 0, sevaCount: 0, plans: [] }));
+    const get = (d) => (m[d] || (m[d] = { done: new Set(), planned: new Set(), bhajanMin: 0, kathaMin: 0, sevaCount: 0, plans: [], sevaList: [], swadhyayList: [] }));
     swadhyay.forEach((s) => {
       const e = get(s.date);
       e.bhajanMin += +s.bhajanMin || 0;
       e.kathaMin += (+s.listenMin || 0) + (+s.readMin || 0);
       if ((+s.bhajanMin || 0) > 0) e.done.add('bhajan');
       if (((+s.listenMin || 0) + (+s.readMin || 0)) > 0) e.done.add('katha');
+      e.swadhyayList.push(s);
     });
-    seva.forEach((s) => { const e = get(s.date); e.sevaCount++; e.done.add('seva'); });
+    seva.forEach((s) => { const e = get(s.date); e.sevaCount++; e.done.add('seva'); e.sevaList.push(s); });
     plans.forEach((p) => { const e = get(p.date); e.plans.push(p); if (p.status === 'done') e.done.add(p.type); else e.planned.add(p.type); });
     return m;
   }, [swadhyay, seva, plans]);
@@ -170,17 +171,23 @@ function DaySheet({ date, data, devoteeId, onClose, onChanged }) {
   const [type, setType] = useState('seva');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(''); // which add button is in flight: 'planned' | 'done'
+  const [justSaved, setJustSaved] = useState(''); // 'planned' | 'done' — transient confirmation
   const isPast = date < todayISO();
   const dLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const plans = (data?.plans || []);
+  const sevaList = (data?.sevaList || []);
+
+  const flashSaved = (what) => { setJustSaved(what); setTimeout(() => setJustSaved(''), 2200); };
 
   const add = async (status) => {
-    setBusy(true);
+    setBusy(true); setPending(status);
     try {
       await dataService.savePlan({ devoteeId, date, type, note: note.trim(), status });
       setNote(''); await onChanged();
+      flashSaved(status);
     } catch (e) { alertError('Could not save', e.message || 'Try again.'); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setPending(''); }
   };
   const toggleDone = async (p) => { setBusy(true); try { await dataService.savePlan({ ...p, status: p.status === 'done' ? 'planned' : 'done' }); await onChanged(); } finally { setBusy(false); } };
   const del = async (p) => { setBusy(true); try { await dataService.deletePlan(p.id); await onChanged(); } finally { setBusy(false); } };
@@ -193,12 +200,40 @@ function DaySheet({ date, data, devoteeId, onClose, onChanged }) {
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
         </div>
 
-        {/* Done summary */}
+        {/* Done summary chips */}
         {data && (data.done.size > 0) && (
           <div className="mb-3 flex flex-wrap gap-1.5">
             {data.bhajanMin > 0 && <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 dark:bg-rose-950/40">🎵 Bhajan {data.bhajanMin}m</span>}
             {data.kathaMin > 0 && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-600 dark:bg-violet-950/40">🎧 Katha {data.kathaMin}m</span>}
             {data.sevaCount > 0 && <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-600 dark:bg-purple-950/40">🤝 {data.sevaCount} seva</span>}
+          </div>
+        )}
+
+        {/* Seva done this day — with the visited devotee, karyakarta and companions */}
+        {sevaList.length > 0 && (
+          <div className="mb-3 space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva done this day</p>
+            {sevaList.map((s) => {
+              let comps = [];
+              try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) { /* ignore */ }
+              const time = [s.fromTime, s.toTime].filter(Boolean).join('–');
+              return (
+                <div key={s.id} className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 dark:border-purple-900 dark:bg-purple-950/30">
+                  <div className="flex items-center gap-1.5">
+                    <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-purple-600" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{s.visitedName || s.category || 'Seva'}</p>
+                    {time && <span className="shrink-0 text-[10px] font-semibold text-text-muted">{time}</span>}
+                  </div>
+                  {s.work && <p className="mt-0.5 text-[11px] text-text-muted">{s.work}</p>}
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {s.karyakartaName && <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900/60 dark:text-purple-200">👤 {s.karyakartaName}</span>}
+                    {comps.map((c) => (
+                      <span key={c.id || c.name} className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900/60 dark:text-purple-200">🤝 {c.name}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -214,7 +249,7 @@ function DaySheet({ date, data, devoteeId, onClose, onChanged }) {
                     <Check className="h-3.5 w-3.5" />
                   </button>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-bold ${p.status === 'done' ? 'text-text-muted line-through' : 'text-text-main'}`}>{T.label || p.type}</p>
+                    <p className={`text-sm font-bold ${p.status === 'done' ? 'text-emerald-600' : 'text-text-main'}`}>{T.label || p.type}</p>
                     {p.note && <p className="truncate text-[11px] text-text-muted">{p.note}</p>}
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${p.status === 'done' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{p.status === 'done' ? 'DONE' : 'PLANNED'}</span>
@@ -240,16 +275,25 @@ function DaySheet({ date, data, devoteeId, onClose, onChanged }) {
             className="mb-2 w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
           <div className="flex gap-2">
             <button onClick={() => add('planned')} disabled={busy}
-              className="flex-1 rounded-xl border border-primary bg-surface py-2.5 text-sm font-bold text-primary disabled:opacity-60">
-              <Plus className="mr-1 inline h-4 w-4" />Plan it
+              className="flex-1 rounded-xl border border-primary bg-surface py-2.5 text-sm font-bold text-primary transition-colors disabled:opacity-60">
+              {pending === 'planned' ? <><span className="mr-1 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent align-[-2px]" />Saving…</>
+                : justSaved === 'planned' ? <><Check className="mr-1 inline h-4 w-4" />Planned!</>
+                : <><Plus className="mr-1 inline h-4 w-4" />Plan it</>}
             </button>
             {isPast || date === todayISO() ? (
               <button onClick={() => add('done')} disabled={busy}
-                className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white disabled:opacity-60">
-                <Check className="mr-1 inline h-4 w-4" />Mark done
+                className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-60">
+                {pending === 'done' ? <><span className="mr-1 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent align-[-2px]" />Saving…</>
+                  : justSaved === 'done' ? <><Check className="mr-1 inline h-4 w-4" />Marked done!</>
+                  : <><Check className="mr-1 inline h-4 w-4" />Mark done</>}
               </button>
             ) : null}
           </div>
+          {justSaved && (
+            <div className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Check className="h-3.5 w-3.5" /> Saved to {dLabel.split(',')[0]} — it's in your list above.
+            </div>
+          )}
         </div>
       </div>
     </div>,
