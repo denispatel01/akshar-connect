@@ -274,12 +274,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           clears the tab bar height including the safe-area inset. */}
       <div className={`md:hidden fixed left-0 right-0 z-40 transition-all duration-300 ease-out ${moreOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
         style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
-        <div className="mx-3 mb-3 max-h-[75vh] overflow-y-auto overscroll-contain rounded-3xl bg-surface border border-border-light shadow-2xl"
-          style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="mx-3 mb-3 flex max-h-[75vh] flex-col overflow-hidden rounded-3xl bg-surface border border-border-light shadow-2xl">
 
-          {/* User card → My Account */}
+          {/* User card → My Account (pinned header) */}
           <button onClick={() => { setMoreOpen(false); navigate('account'); }}
-            className="w-full text-left flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
+            className="w-full shrink-0 text-left flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">
               {user?.name?.[0] || 'U'}
             </div>
@@ -289,6 +288,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </div>
             <span className="text-[11px] font-bold text-white/70">My Account ›</span>
           </button>
+
+          {/* Scroll region — everything below the header scrolls INSIDE the box */}
+          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
 
           {/* Nav items in More — scrollable so a long list never gets cut off */}
           {moreItems.length > 0 && (
@@ -336,6 +338,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               Sign Out
             </button>
           </div>
+          </div>{/* /scroll region */}
         </div>
       </div>
     </>
