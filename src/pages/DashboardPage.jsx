@@ -18,7 +18,12 @@ import {
   UserCheck,
   Star,
   MessageSquare,
-  X
+  X,
+  Heart,
+  MessageCircle,
+  Film,
+  Plus,
+  ArrowRight,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import DarshanSlider from '../components/DarshanSlider';
@@ -41,6 +46,98 @@ function birthdayWaLink(d) {
   const first = d.firstName || (d.name || '').split(' ')[0] || '';
   const msg = encodeURIComponent(`Jai Swaminarayan ${first}! 🎂🎉 Aapne Janmadin ni khoob khoob shubhkaamnao. Prabhu Shreeji Maharaj ane Guruhari aapne sada sukhi ane satsangmay rakhe. 🙏`);
   return `https://wa.me/${to}?text=${msg}`;
+}
+
+// Relative "time ago" for feed cards.
+function feedTimeAgo(iso) {
+  const d = new Date(iso); if (isNaN(d.getTime())) return '';
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (s < 60) return 'now';
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h`;
+  const dd = Math.floor(h / 24); return `${dd}d`;
+}
+
+// Compact Feed preview shown on the Home page so posts are seen without navigating.
+function FeedPreview({ setActivePage }) {
+  const [posts, setPosts] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    let alive = true;
+    dataService.getFeed({ limit: 8 }).then((r) => { if (alive) { setPosts(r.posts || []); setLoading(false); } });
+    return () => { alive = false; };
+  }, []);
+  const firstMedia = (p) => { try { const m = JSON.parse(p.mediaJson || '[]'); return m[0] || null; } catch { return null; } };
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-5 shadow-xs sm:p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-base font-bold text-text-main">
+          <Sparkles className="h-5 w-5 text-[#FF862A]" /> Feed
+        </h2>
+        <button onClick={() => setActivePage('feed')} className="flex items-center gap-1 text-xs font-bold text-[#FF862A] hover:underline">
+          Open Feed <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Share prompt */}
+      <button onClick={() => setActivePage('feed')}
+        className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-dashed border-border-light bg-bg-base px-4 py-3 text-left transition-colors hover:border-primary/40">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white"><Plus className="h-4 w-4" /></span>
+        <span className="text-sm font-semibold text-text-muted">Share a photo or moment with the Mandal…</span>
+      </button>
+
+      {loading && (
+        <div className="flex gap-3 overflow-hidden">
+          {[0, 1, 2].map((i) => <div key={i} className="h-44 w-36 shrink-0 animate-pulse rounded-2xl bg-bg-base" />)}
+        </div>
+      )}
+
+      {!loading && posts.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-border-light bg-bg-base px-4 py-6 text-center text-xs font-semibold text-text-muted">
+          No posts yet — be the first to share 🙏
+        </p>
+      )}
+
+      {!loading && posts.length > 0 && (
+        <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
+          {posts.map((p) => {
+            const media = firstMedia(p);
+            return (
+              <button key={p.id} onClick={() => setActivePage('feed')}
+                className="w-40 shrink-0 snap-start overflow-hidden rounded-2xl border border-border-light bg-bg-base text-left transition-transform active:scale-[0.98]">
+                <div className="relative h-36 w-full bg-gradient-to-br from-bg-base to-border-light">
+                  {media && media.type === 'image' && <img src={media.url} alt="" loading="lazy" className="h-full w-full object-cover" />}
+                  {media && media.type === 'video' && (
+                    <div className="flex h-full w-full items-center justify-center bg-black/80"><Film className="h-7 w-7 text-white/90" /></div>
+                  )}
+                  {!media && (
+                    <div className="flex h-full w-full items-center justify-center p-3">
+                      <p className="line-clamp-4 text-[12px] font-semibold text-text-main">{p.caption || p.description || '🙏'}</p>
+                    </div>
+                  )}
+                  <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-bold text-white">{feedTimeAgo(p.createdOn)}</span>
+                </div>
+                <div className="p-2.5">
+                  <p className="truncate text-[11px] font-bold text-text-main">{p.authorName || 'Member'}</p>
+                  {p.caption && <p className="mt-0.5 line-clamp-2 text-[11px] text-text-muted">{p.caption}</p>}
+                  <div className="mt-1.5 flex items-center gap-3 text-[10px] font-bold text-text-muted">
+                    <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {p.likeCount || 0}</span>
+                    <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {p.commentCount || 0}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          <button onClick={() => setActivePage('feed')}
+            className="flex w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border-light bg-bg-base text-text-muted transition-colors hover:border-primary/40 hover:text-primary">
+            <ArrowRight className="h-5 w-5" />
+            <span className="text-[11px] font-bold">View all</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DashboardPage({ setActivePage, user }) {
@@ -373,6 +470,9 @@ export default function DashboardPage({ setActivePage, user }) {
           )}
         </div>
       )}
+
+      {/* Feed preview — surfaced on Home so posts get seen */}
+      <FeedPreview setActivePage={setActivePage} />
 
       {/* Darshan & Vichar slider */}
       <DarshanSlider />
