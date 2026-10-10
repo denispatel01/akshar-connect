@@ -73,15 +73,25 @@ export default function DashboardPage({ setActivePage, user }) {
   const femaleCount = devotees.filter(d => d.gender === 'Female').length;
   const maleHeadCount = devotees.filter(d => d.type === 'Primary' && d.gender === 'Male').length;
   const femaleHeadCount = devotees.filter(d => d.type === 'Primary' && d.gender === 'Female').length;
-  // Karyakartas (by the follow-up karyakarta each devotee is assigned to), with how
-  // many devotees fall under each — click a name to open that person's list.
-  const karyakartaGroups = React.useMemo(() => {
-    const m = new Map();
-    devotees.forEach((d) => {
-      const k = String(d.followupKaryakarta || '').trim();
-      if (k) m.set(k, (m.get(k) || 0) + 1);
+  // Karyakartas (by the follow-up karyakarta each devotee is assigned to), split by
+  // the karyakarta's own gender (resolved by matching the name to a devotee record).
+  // Click a name to open the devotees under that karyakarta.
+  const karyakartaPanes = React.useMemo(() => {
+    const norm = (s) => String(s || '').toLowerCase().replace(/\(.*?\)/g, ' ')
+      .split(/\s+/).map((t) => t.replace(/(bhai|ben|kumar)$/i, '')).join(' ')
+      .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const genderByName = new Map();
+    devotees.forEach((d) => { const k = norm(d.name); if (k && !genderByName.has(k)) genderByName.set(k, d.gender); });
+    const counts = new Map();
+    devotees.forEach((d) => { const k = String(d.followupKaryakarta || '').trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+    const male = [], female = [], other = [];
+    [...counts.entries()].forEach(([name, count]) => {
+      const g = genderByName.get(norm(name));
+      const row = { name, count };
+      if (g === 'Female') female.push(row); else if (g === 'Male') male.push(row); else other.push(row);
     });
-    return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    const srt = (arr) => arr.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { male: srt(male), female: srt(female), other: srt(other) };
   }, [devotees]);
   const picked = pickRotatingThought(thoughts);
   const todaysThought = picked.thought || {
@@ -290,37 +300,77 @@ export default function DashboardPage({ setActivePage, user }) {
         </button>
       </div>
 
-      {/* Karyakartas — tap a name to open the devotees under that karyakarta */}
-      {!isDevotee && karyakartaGroups.length > 0 && (
-        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4 gap-3">
-            <h2 className="text-base font-bold text-text-main flex items-center gap-2">
-              <UserCheck className="h-5 w-5 text-teal-600" /> Karyakartas
-            </h2>
-            <span className="text-xs font-bold text-text-muted shrink-0">{karyakartaGroups.length} people</span>
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {karyakartaGroups.map(({ name, count }) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setActivePage('devotees', { filterPreset: { karyakarta: name } })}
-                title={`View ${count} devotee${count === 1 ? '' : 's'} under ${name}`}
-                className="group flex items-center justify-between gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-left transition-all hover:border-primary/40 hover:shadow-sm"
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600 text-sm font-bold dark:bg-teal-950">
-                    {name.trim()[0]?.toUpperCase() || '?'}
-                  </span>
-                  <span className="truncate text-sm font-bold text-text-main">{name}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{count}</span>
-                  <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-primary" />
-                </span>
-              </button>
-            ))}
-          </div>
+      {/* Karyakartas — split into Male & Female panes. Tap a name to open the
+          devotees under that karyakarta. */}
+      {!isDevotee && (karyakartaPanes.male.length > 0 || karyakartaPanes.female.length > 0 || karyakartaPanes.other.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {[
+            { key: 'male', title: 'Male Karyakartas', rows: karyakartaPanes.male, tone: 'text-blue-600', chip: 'bg-blue-50 text-blue-600 dark:bg-blue-950' },
+            { key: 'female', title: 'Female Karyakartas', rows: karyakartaPanes.female, tone: 'text-pink-600', chip: 'bg-pink-50 text-pink-600 dark:bg-pink-950' },
+          ].map((pane) => (
+            <div key={pane.key} className="rounded-3xl border border-border-light bg-surface p-5 shadow-xs">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className={`flex items-center gap-2 text-base font-bold text-text-main`}>
+                  <UserCheck className={`h-5 w-5 ${pane.tone}`} /> {pane.title}
+                </h2>
+                <span className="shrink-0 text-xs font-bold text-text-muted">{pane.rows.length} people</span>
+              </div>
+              {pane.rows.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-border-light bg-bg-base px-4 py-6 text-center text-xs font-semibold text-text-muted">None yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {pane.rows.map(({ name, count }) => (
+                    <button key={name} type="button"
+                      onClick={() => setActivePage('devotees', { filterPreset: { karyakarta: name } })}
+                      title={`View ${count} devotee${count === 1 ? '' : 's'} under ${name}`}
+                      className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-left transition-all hover:border-primary/40 hover:shadow-sm">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${pane.chip}`}>
+                          {name.trim()[0]?.toUpperCase() || '?'}
+                        </span>
+                        <span className="truncate text-sm font-bold text-text-main">{name}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{count}</span>
+                        <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-primary" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Karyakartas whose gender couldn't be matched to a devotee record. */}
+          {karyakartaPanes.other.length > 0 && (
+            <div className="rounded-3xl border border-border-light bg-surface p-5 shadow-xs lg:col-span-2">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-base font-bold text-text-main">
+                  <UserCheck className="h-5 w-5 text-text-muted" /> Other Karyakartas
+                </h2>
+                <span className="shrink-0 text-xs font-bold text-text-muted">{karyakartaPanes.other.length} people · gender not matched</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {karyakartaPanes.other.map(({ name, count }) => (
+                  <button key={name} type="button"
+                    onClick={() => setActivePage('devotees', { filterPreset: { karyakarta: name } })}
+                    title={`View ${count} devotee${count === 1 ? '' : 's'} under ${name}`}
+                    className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-left transition-all hover:border-primary/40 hover:shadow-sm">
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-500 dark:bg-slate-800">
+                        {name.trim()[0]?.toUpperCase() || '?'}
+                      </span>
+                      <span className="truncate text-sm font-bold text-text-main">{name}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{count}</span>
+                      <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-primary" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
