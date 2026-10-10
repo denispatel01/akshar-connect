@@ -124,6 +124,10 @@ const PRESET_META = {
   karyakarta: { tags: ['karyakarta'], match: (d) => (d.tags || []).includes('karyakarta') && d.gender !== 'Female', banner: 'Showing Karyakartas (male)' },
   'karyakarta-female': { tags: ['karyakarta'], match: (d) => (d.tags || []).includes('karyakarta') && d.gender === 'Female', banner: 'Showing Female Karyakartas' },
   old: { tags: [], match: (d) => String(d.oldNew || '').trim().toLowerCase() === 'old', banner: 'Showing Old devotees' },
+  female: { tags: [], match: (d) => d.gender === 'Female', banner: 'Showing female devotees' },
+  male: { tags: [], match: (d) => d.gender === 'Male', banner: 'Showing male devotees' },
+  'male-head': { tags: [], match: (d) => d.type === 'Primary' && d.gender === 'Male', banner: 'Showing male family heads (primary members)' },
+  'female-head': { tags: [], match: (d) => d.type === 'Primary' && d.gender === 'Female', banner: 'Showing female family heads (primary members)' },
   families: {
     tags: [],
     match: (d) => d.type === 'Primary',

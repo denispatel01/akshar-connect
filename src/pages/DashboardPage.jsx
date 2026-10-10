@@ -68,6 +68,21 @@ export default function DashboardPage({ setActivePage, user }) {
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
   const familiesCount = devotees.filter(d => d.type === 'Primary').length;
+  // Gender splits + family-head splits.
+  const maleCount = devotees.filter(d => d.gender === 'Male').length;
+  const femaleCount = devotees.filter(d => d.gender === 'Female').length;
+  const maleHeadCount = devotees.filter(d => d.type === 'Primary' && d.gender === 'Male').length;
+  const femaleHeadCount = devotees.filter(d => d.type === 'Primary' && d.gender === 'Female').length;
+  // Karyakartas (by the follow-up karyakarta each devotee is assigned to), with how
+  // many devotees fall under each — click a name to open that person's list.
+  const karyakartaGroups = React.useMemo(() => {
+    const m = new Map();
+    devotees.forEach((d) => {
+      const k = String(d.followupKaryakarta || '').trim();
+      if (k) m.set(k, (m.get(k) || 0) + 1);
+    });
+    return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [devotees]);
   const picked = pickRotatingThought(thoughts);
   const todaysThought = picked.thought || {
     author: 'Mahant Swami Maharaj',
@@ -217,6 +232,50 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-2xl font-extrabold text-text-main">{oldCount}</p>
           <p className="text-[11px] font-semibold text-indigo-600 mt-1">Tap to view old devotees</p>
         </button>
+
+        <button type="button" onClick={() => openDevotees('male')} className={statCardCls} title="View male devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Devotees</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
+              <User className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{maleCount}</p>
+          <p className="text-[11px] font-semibold text-blue-600 mt-1">Tap to view male devotees</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('female')} className={statCardCls} title="View female devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Devotees</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
+              <User className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{femaleCount}</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view female devotees</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('male-head')} className={statCardCls} title="View male family heads">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Heads</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
+              <Home className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{maleHeadCount}</p>
+          <p className="text-[11px] font-semibold text-blue-600 mt-1">Primary members · male</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('female-head')} className={statCardCls} title="View female family heads">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Heads</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
+              <Home className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{femaleHeadCount}</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Primary members · female</p>
+        </button>
         </>)}
 
         <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
@@ -230,6 +289,40 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-purple-600 mt-1">Tap to view celebrating today</p>
         </button>
       </div>
+
+      {/* Karyakartas — tap a name to open the devotees under that karyakarta */}
+      {!isDevotee && karyakartaGroups.length > 0 && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h2 className="text-base font-bold text-text-main flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-teal-600" /> Karyakartas
+            </h2>
+            <span className="text-xs font-bold text-text-muted shrink-0">{karyakartaGroups.length} people</span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {karyakartaGroups.map(({ name, count }) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setActivePage('devotees', { filterPreset: { karyakarta: name } })}
+                title={`View ${count} devotee${count === 1 ? '' : 's'} under ${name}`}
+                className="group flex items-center justify-between gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-left transition-all hover:border-primary/40 hover:shadow-sm"
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600 text-sm font-bold dark:bg-teal-950">
+                    {name.trim()[0]?.toUpperCase() || '?'}
+                  </span>
+                  <span className="truncate text-sm font-bold text-text-main">{name}</span>
+                </span>
+                <span className="flex items-center gap-1 shrink-0">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{count}</span>
+                  <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-primary" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Darshan & Vichar slider */}
       <DarshanSlider />
