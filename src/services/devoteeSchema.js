@@ -50,17 +50,17 @@ export function currentGrade(grade, gradeAsOf) {
   if (idx < 0) return grade; // unknown value — leave as-is
   return GRADES[Math.min(GRADES.length - 1, idx + adv)];
 }
-// Display string: "Grade 11 (was Grade 10 · as on 05-Oct-2025)" when it advanced,
-// otherwise just "Grade 10 (as on 05-Oct-2025)". Falls back to the raw grade.
+// Display string: the RECORDED grade with the date it was recorded, e.g.
+// "Grade 10 (as on 05-10-2025)". We deliberately show the recorded grade (not an
+// auto-advanced one) — the "as on" date tells the reader it may since have moved
+// up (academic year runs 1 June – 31 March, so Grade 10 on 05-10-2025 is Grade 11
+// from 1 June 2026). Date is dd-mm-yyyy. Falls back to the raw grade.
 export function gradeDisplay(grade, gradeAsOf) {
   if (!grade) return '';
   const asOf = gradeAsOf ? (() => {
     const d = new Date(gradeAsOf); if (isNaN(d.getTime())) return '';
-    const MM = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${String(d.getDate()).padStart(2, '0')}-${MM[d.getMonth()]}-${d.getFullYear()}`;
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   })() : '';
-  const cur = currentGrade(grade, gradeAsOf);
-  if (cur !== grade) return `${cur} (was ${grade}${asOf ? ` · as on ${asOf}` : ''})`;
   return asOf ? `${grade} (as on ${asOf})` : grade;
 }
 /** Primary = head of family; Family = other member linked to that family ID. */
