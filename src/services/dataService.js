@@ -526,6 +526,31 @@ export const dataService = {
     logActivity_('announcement', '', `posted announcement "${title}" (sent to ${r.sent} device${r.sent === 1 ? '' : 's'})`);
     return r;
   },
+  // Admin: edit an announcement's text (does not re-push).
+  updateAnnouncement: async (row) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('update', { collection: 'Announcements', keyField: 'id', key: row.id, row });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
+    return r;
+  },
+  // Admin: delete an announcement.
+  deleteAnnouncement: async (id) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    return api('remove', { collection: 'Announcements', keyField: 'id', key: id });
+  },
+
+  // Record this device/user's notification-permission response (for the admin report).
+  logPushStatus: async ({ devoteeId = '', mobile = '', name = '', status = '', platform = '' }) => {
+    if (!hasBackend() || !status) return false;
+    const key = devoteeId || mobile;
+    if (!key) return false;
+    try { const r = await api('logPushStatus', { key, devoteeId, mobile, name, status, platform }); return !!(r && r.ok); } catch { return false; }
+  },
+  // Admin: everyone's notification-permission status.
+  getPushStatus: async () => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getPushStatus', {}); return (r && r.status) || []; } catch { return []; }
+  },
 
   // Fire-and-forget: email the admin when a user hits a runtime error.
   reportError: (info) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, ArrowRight, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import ActivityFeed from '../components/ActivityFeed';
 
@@ -10,6 +10,7 @@ export default function AdminPage({ user }) {
   const [liveCount, setLiveCount] = useState(dataService.getDevotees().length);
   const bundledCount = dataService.bundledDevoteeCount();
   const isAdmin = user?.role === 'Admin';
+  const [tab, setTab] = useState('announcements');
 
   const emptyForm = { mobile: '', name: '', pin: '', password: '', role: 'Devotee', ghari: false };
   const [form, setForm] = useState(emptyForm);
@@ -99,19 +100,34 @@ export default function AdminPage({ user }) {
   };
 
   return (
-    <div className="w-full max-w-none px-4 py-6 sm:px-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3 grid-flow-dense items-start">
-      <div className="col-span-full">
-        <h1 className="text-2xl font-bold text-text-main">⚙️ Admin Settings & Control</h1>
-        <p className="text-sm font-medium text-text-muted">
-          Access codes, user management, and system database settings.
-        </p>
+    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-text-main">⚙️ Admin</h1>
+        <p className="text-sm font-medium text-text-muted">Manage announcements, users, areas, notifications and system settings.</p>
       </div>
 
-      {/* Send Announcement (Admin only) */}
-      {isAdmin && <AnnouncementSender />}
-
-      {/* User Management Card (Admin only) */}
+      {/* Admin-only tab navigation */}
       {isAdmin && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {[['announcements', '📣 Announcements'], ['users', '👥 Users'], ['areas', '🗺️ Areas'], ['notifications', '🔔 Notifications'], ['system', '🗄️ System']].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-bold transition-colors ${tab === k ? 'bg-primary text-white shadow-md' : 'border border-border-light bg-surface text-text-muted hover:text-text-main'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ANNOUNCEMENTS TAB */}
+      {isAdmin && tab === 'announcements' && (
+        <div className="grid gap-6 md:grid-cols-2 items-start">
+          <AnnouncementSender />
+          <AnnouncementManager />
+        </div>
+      )}
+
+      {/* USERS TAB */}
+      {isAdmin && tab === 'users' && (
         <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
             <UserPlus className="h-4 w-4 text-[#FF862A]" /> 👥 User Management
@@ -199,15 +215,18 @@ export default function AdminPage({ user }) {
         </div>
       )}
 
-      {/* Area Master Card (Admin only) */}
-      {isAdmin && <div className="md:col-span-2 xl:col-span-2"><AreaMaster /></div>}
+      {/* AREAS TAB */}
+      {isAdmin && tab === 'areas' && <AreaMaster />}
 
-      {/* Email notifications on/off (Admin only) (#100) */}
-      {isAdmin && <MailToggle />}
+      {/* NOTIFICATIONS TAB */}
+      {isAdmin && tab === 'notifications' && <NotificationsReport />}
 
-      {/* Activity Log (Admin only) — everything everyone does in the app */}
-      {isAdmin && (
-        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs md:col-span-2 xl:col-span-3">
+      {/* SYSTEM TAB — email toggle */}
+      {isAdmin && tab === 'system' && <MailToggle />}
+
+      {/* SYSTEM TAB — activity log */}
+      {isAdmin && tab === 'system' && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
           <div className="mb-4 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
             <Activity className="h-4 w-4 text-[#FF862A]" /> 📜 Activity Log
           </div>
@@ -217,7 +236,8 @@ export default function AdminPage({ user }) {
         </div>
       )}
 
-      {/* Devotee Database Card */}
+      {/* SYSTEM TAB — Devotee Database */}
+      {isAdmin && tab === 'system' && (
       <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
           <Database className="h-4 w-4 text-[#FF862A]" /> 🗄️ Devotee Database
@@ -255,9 +275,10 @@ export default function AdminPage({ user }) {
           <p className="text-[11px] text-slate-500">Only an Admin can replace the devotee database.</p>
         )}
       </div>
+      )}
 
-      {/* Reconcile Follow-up Karyakarta Names (Admin only) */}
-      {isAdmin && (
+      {/* USERS TAB — Reconcile Follow-up Karyakarta Names */}
+      {isAdmin && tab === 'users' && (
         <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
             <Users className="h-4 w-4 text-[#FF862A]" /> Reconcile Karyakarta Names
@@ -309,8 +330,9 @@ export default function AdminPage({ user }) {
         </div>
       )}
 
-      {/* Registered System Users */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs md:col-span-2 xl:col-span-2">
+      {/* USERS TAB — Registered System Users */}
+      {isAdmin && tab === 'users' && (
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-text-main">👥 System User Accounts</h2>
           {isAdmin && (
@@ -356,6 +378,16 @@ export default function AdminPage({ user }) {
           ))}
         </div>
       </div>
+      )}
+
+      {/* Non-admin (e.g. Sevak) — the admin hub is Admin-only */}
+      {!isAdmin && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs text-center">
+          <Shield className="mx-auto h-8 w-8 text-text-muted" />
+          <p className="mt-2 text-sm font-bold text-text-main">Admin access required</p>
+          <p className="text-xs text-text-muted">These settings are available to administrators only.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -376,6 +408,7 @@ function AnnouncementSender() {
       const r = await dataService.createAnnouncement({ title: title.trim(), body: body.trim(), audience });
       setResult({ ok: true, sent: r.sent });
       setTitle(''); setBody('');
+      try { window.dispatchEvent(new CustomEvent('ac-announcements-changed')); } catch (e) {}
     } catch (err) {
       setResult({ ok: false, error: String(err.message || err) });
     } finally { setBusy(false); }
@@ -417,6 +450,138 @@ function AnnouncementSender() {
           ? <p className="text-xs font-bold text-emerald-600">✅ Posted — pushed to {result.sent} device{result.sent === 1 ? '' : 's'}.</p>
           : <p className="text-xs font-bold text-rose-600">⚠️ {result.error}</p>)}
       </form>
+    </div>
+  );
+}
+
+// Manage posted announcements — list, edit text, delete.
+function AnnouncementManager() {
+  const [list, setList] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [editId, setEditId] = React.useState(null);
+  const [draft, setDraft] = React.useState({ title: '', body: '' });
+  const [busy, setBusy] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    dataService.getAnnouncements().then(l => setList(l || [])).finally(() => setLoading(false));
+  }, []);
+  React.useEffect(() => {
+    load();
+    const onChange = () => load();
+    window.addEventListener('ac-announcements-changed', onChange);
+    return () => window.removeEventListener('ac-announcements-changed', onChange);
+  }, [load]);
+
+  const startEdit = (a) => { setEditId(a.id); setDraft({ title: a.title || '', body: a.body || '' }); };
+  const cancel = () => { setEditId(null); setDraft({ title: '', body: '' }); };
+  const save = async (a) => {
+    if (!draft.title.trim()) return;
+    setBusy(true);
+    try { await dataService.updateAnnouncement({ ...a, title: draft.title.trim(), body: draft.body.trim() }); cancel(); load(); }
+    finally { setBusy(false); }
+  };
+  const del = async (a) => {
+    if (!window.confirm(`Delete announcement "${a.title}"? This removes it from everyone's notifications list.`)) return;
+    setBusy(true);
+    try { await dataService.deleteAnnouncement(a.id); load(); } finally { setBusy(false); }
+  };
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+          <Megaphone className="h-4 w-4 text-[#FF862A]" /> Posted announcements
+        </div>
+        <button onClick={load} className="rounded-lg border border-border-light bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted hover:text-text-main"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      {loading ? <p className="text-xs text-text-muted">Loading…</p>
+        : list.length === 0 ? <p className="text-xs text-text-muted">No announcements yet. Send one from the left.</p>
+        : (
+          <div className="space-y-2">
+            {list.map(a => (
+              <div key={a.id} className="rounded-2xl border border-border-light bg-bg-base p-3">
+                {editId === a.id ? (
+                  <div className="space-y-2">
+                    <input value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                      className="w-full rounded-xl border border-border-light bg-surface px-3 py-2 text-sm font-bold text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+                    <textarea value={draft.body} onChange={e => setDraft(d => ({ ...d, body: e.target.value }))} rows={2}
+                      className="w-full rounded-xl border border-border-light bg-surface px-3 py-2 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+                    <div className="flex gap-2">
+                      <button disabled={busy} onClick={() => save(a)} className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"><Save className="h-3.5 w-3.5" /> Save</button>
+                      <button onClick={cancel} className="rounded-lg border border-border-light px-3 py-1.5 text-xs font-bold text-text-muted">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-text-main">{a.title}</p>
+                      {a.body && <p className="text-[13px] text-text-muted whitespace-pre-wrap">{a.body}</p>}
+                      <p className="mt-1 text-[10px] text-slate-400">{fmt(a.createdOn)} · {a.audience || 'all'} · sent to {a.sentCount || 0}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button onClick={() => startEdit(a)} className="rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => del(a)} className="rounded-lg p-1.5 text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
+// Report: who allowed / rejected notifications.
+function NotificationsReport() {
+  const [rows, setRows] = React.useState(null);
+  const load = React.useCallback(() => { dataService.getPushStatus().then(r => setRows(r || [])); }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const stats = React.useMemo(() => {
+    const s = { granted: 0, denied: 0, default: 0, other: 0 };
+    (rows || []).forEach(r => { const k = String(r.status || '').toLowerCase(); if (k in s) s[k]++; else s.other++; });
+    return s;
+  }, [rows]);
+  const fmt = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } };
+  const badge = (st) => {
+    const k = String(st || '').toLowerCase();
+    if (k === 'granted') return 'bg-emerald-100 text-emerald-700';
+    if (k === 'denied') return 'bg-red-100 text-red-700';
+    return 'bg-slate-200 text-slate-600';
+  };
+  const label = (st) => ({ granted: 'Allowed', denied: 'Rejected', default: 'Not decided' }[String(st || '').toLowerCase()] || st || '—');
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+          <Bell className="h-4 w-4 text-[#FF862A]" /> Notification permissions
+        </div>
+        <button onClick={load} className="rounded-lg border border-border-light bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted hover:text-text-main"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-center"><p className="text-2xl font-extrabold text-emerald-700">{stats.granted}</p><p className="text-[11px] font-bold text-emerald-700">Allowed</p></div>
+        <div className="rounded-2xl border border-red-100 bg-red-50/60 p-3 text-center"><p className="text-2xl font-extrabold text-red-600">{stats.denied}</p><p className="text-[11px] font-bold text-red-600">Rejected</p></div>
+        <div className="rounded-2xl border border-border-light bg-bg-base p-3 text-center"><p className="text-2xl font-extrabold text-text-muted">{stats.default + stats.other}</p><p className="text-[11px] font-bold text-text-muted">Not decided</p></div>
+      </div>
+      {rows === null ? <p className="text-xs text-text-muted">Loading…</p>
+        : rows.length === 0 ? <p className="text-xs text-text-muted">No responses logged yet. They appear here as devotees open the app.</p>
+        : (
+          <div className="max-h-[28rem] space-y-1.5 overflow-y-auto pr-1">
+            {rows.slice().sort((a, b) => String(b.updatedOn).localeCompare(String(a.updatedOn))).map((r, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-text-main">{r.name || r.mobile || r.devoteeId || '—'}</p>
+                  <p className="text-[10px] text-slate-400">{r.mobile ? '+91 ' + r.mobile : ''} · {r.platform || ''} · {fmt(r.updatedOn)}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge(r.status)}`}>{label(r.status)}</span>
+              </div>
+            ))}
+          </div>
+        )}
     </div>
   );
 }
@@ -503,6 +668,7 @@ function AreaMaster() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [areas, devotees, tick]);
 
+  const [q, setQ] = useState('');
   const numFor = (r) => (edits[r.name.toLowerCase()] ?? r.number);
 
   const save = async (r) => {
@@ -544,65 +710,88 @@ function AreaMaster() {
     refresh(); flash('✅ Reordered');
   };
 
+  const assignedCount = rows.filter(r => r.inMaster).length;
+  const ql = q.trim().toLowerCase();
+  const shown = ql ? rows.filter(r => r.name.toLowerCase().includes(ql)) : rows;
+  const searching = ql.length > 0;
+
   return (
     <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
-      <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-        <MapPin className="h-4 w-4 text-[#FF862A]" /> 🗺️ Area Master
-        <span className="ml-auto normal-case font-semibold text-text-muted">{rows.length} areas</span>
-      </div>
-      <p className="text-xs font-medium text-text-muted">
-        All areas devotees belong to. Drag ⠿ to reorder (numbers auto-adjust), or type a number directly.
-      </p>
-
-      {/* Add new area */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="➕ New area name"
-          className="flex-1 rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-        <input value={newNumber} onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="No."
-          className="w-full sm:w-24 rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-        <button onClick={add} className="flex items-center justify-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#e5741f]">
-          <Plus className="h-4 w-4" /> Add
-        </button>
+      {/* Header + summary chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 text-sm font-black text-text-main">
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#FF862A]/10 text-[#FF862A]"><MapPin className="h-4 w-4" /></span>
+          Area Master
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="rounded-full bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted">{rows.length} areas</span>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40">{assignedCount} numbered</span>
+        </div>
       </div>
 
-      {msg && <p className="text-xs font-bold text-emerald-600">{msg}</p>}
+      {/* Add new area — highlighted */}
+      <div className="rounded-2xl border border-dashed border-[#FF862A]/40 bg-[#FF862A]/[0.04] p-3">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New area name" onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+            className="flex-1 rounded-xl border border-border-light bg-surface px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+          <input value={newNumber} onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="No." onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+            className="w-full sm:w-20 rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm text-center text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+          <button onClick={add} className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#e5741f]">
+            <Plus className="h-4 w-4" /> Add
+          </button>
+        </div>
+      </div>
 
-      {/* Area list — the full area name gets its own line (never clipped); the
-          number input, devotee count and compact Save/Delete sit on a second row. */}
-      <div className="divide-y divide-border-light rounded-2xl border border-border-light overflow-hidden">
-        {rows.map((r, i) => (
-          <div key={r.name.toLowerCase()}
-            draggable
-            onDragStart={() => setDragIdx(i)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => { reorder(dragIdx, i); setDragIdx(null); }}
-            onDragEnd={() => setDragIdx(null)}
-            className={`px-4 py-2.5 transition-colors ${dragIdx === i ? 'opacity-50 bg-primary/5' : ''}`}>
-            {/* Full area name — wraps, never truncated */}
-            <div className="flex items-start gap-1.5">
-              <span className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-text-muted" title="Drag to reorder"><GripVertical className="h-4 w-4" /></span>
-              <p className="flex-1 break-words text-sm font-bold text-text-main leading-snug">{r.name}</p>
-              {!r.inMaster && <span className="shrink-0 mt-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950">unassigned</span>}
-            </div>
-            {/* Compact controls row */}
-            <div className="mt-1.5 flex items-center gap-2">
-              <label className="flex items-center gap-1 text-[10px] font-bold text-text-muted">
-                <span>🔢</span>
-                <input value={numFor(r)} onChange={(e) => setEdits({ ...edits, [r.name.toLowerCase()]: e.target.value.replace(/\D/g, '') })}
-                  inputMode="numeric" placeholder="—"
-                  className="w-12 rounded-md border border-border-light bg-bg-base px-1.5 py-1 text-sm text-text-main text-center focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-              </label>
-              <span className="text-[11px] font-bold text-text-muted">👥 {r.count}</span>
-              <div className="ml-auto flex items-center gap-1.5">
-                <button onClick={() => save(r)} title="Save number" className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary-hover"><Save className="h-3.5 w-3.5" /></button>
+      {/* Quick search */}
+      <div className="relative">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search areas…"
+          className="w-full rounded-2xl border border-border-light bg-bg-base pl-4 pr-9 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+        {q && <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-lg text-text-muted hover:bg-surface"><X className="h-4 w-4" /></button>}
+      </div>
+
+      {msg && <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40">{msg}</p>}
+      {!searching && <p className="text-[11px] text-text-muted">Drag the handle to reorder (numbers auto-adjust), or edit a number and tap save.</p>}
+
+      {/* Area list */}
+      <div className="space-y-1.5">
+        {shown.map((r, i) => {
+          const idx = rows.indexOf(r);
+          const dirty = (edits[r.name.toLowerCase()] ?? null) !== null && String(edits[r.name.toLowerCase()]) !== String(r.number);
+          return (
+            <div key={r.name.toLowerCase()}
+              draggable={!searching}
+              onDragStart={() => setDragIdx(idx)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { reorder(dragIdx, idx); setDragIdx(null); }}
+              onDragEnd={() => setDragIdx(null)}
+              className={`flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors ${dragIdx === idx ? 'opacity-50 border-primary bg-primary/5' : 'border-border-light bg-bg-base'}`}>
+              {!searching && <span className="shrink-0 cursor-grab active:cursor-grabbing text-text-muted/60" title="Drag to reorder"><GripVertical className="h-4 w-4" /></span>}
+              {/* Number badge (editable) */}
+              <input value={numFor(r)} onChange={(e) => setEdits({ ...edits, [r.name.toLowerCase()]: e.target.value.replace(/\D/g, '') })}
+                inputMode="numeric" placeholder="#"
+                className="h-9 w-9 shrink-0 rounded-xl border border-border-light bg-surface text-center text-sm font-black text-primary focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
+              {/* Name + count */}
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-bold text-text-main leading-snug">{r.name}</p>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-text-muted">👥 {r.count} devotee{r.count === 1 ? '' : 's'}</span>
+                  {!r.inMaster && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950/60">not numbered</span>}
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button onClick={() => save(r)} title="Save number"
+                  className={`flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold transition-colors ${dirty ? 'bg-primary text-white' : 'bg-surface text-text-muted hover:text-primary'}`}>
+                  <Save className="h-3.5 w-3.5" />{dirty ? 'Save' : ''}
+                </button>
                 {r.inMaster && (
-                  <button onClick={() => remove(r)} title="Remove from Area Master" className="flex h-7 w-7 items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950"><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => remove(r)} title="Remove from Area Master" className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                 )}
               </div>
             </div>
-          </div>
-        ))}
-        {rows.length === 0 && <p className="px-4 py-6 text-center text-sm font-semibold text-text-muted">No areas yet.</p>}
+          );
+        })}
+        {shown.length === 0 && <p className="px-4 py-6 text-center text-sm font-semibold text-text-muted">{searching ? `No areas match "${q}".` : 'No areas yet.'}</p>}
       </div>
     </div>
   );

@@ -9,17 +9,36 @@ import { firebaseConfig, VAPID_KEY, firebaseConfigured } from './firebaseConfig'
 
 let autoStarted = false;
 
-// Auto-attempt on login/launch. On Android/desktop this silently registers if
-// permission is already granted. On iOS the OS ignores a non-gesture permission
-// request, so iPhone users enable via the button (enablePush) instead.
+// Report this user's permission response to the backend (for the admin report).
+function logStatus_(user, status) {
+  try {
+    dataService.logPushStatus({
+      devoteeId: user?.devoteeId || '', mobile: user?.mobile || '', name: user?.name || '',
+      status, platform: (Capacitor?.isNativePlatform?.() ? Capacitor.getPlatform() : 'web'),
+    });
+  } catch (e) {}
+}
+
+// Auto-attempt on login/launch: log the current permission state (so admins can see
+// who hasn't decided), register if already granted, and best-effort prompt once if
+// still undecided (Android shows it; iOS ignores non-gesture prompts → the Enable
+// button handles iPhone).
 export async function initPush(user) {
   if (autoStarted) return;
   autoStarted = true;
   try {
     if (Capacitor?.isNativePlatform?.()) { await initNativePush(user); return; }
-    // Web: only auto-register if the user already granted permission before (no prompt).
-    if (firebaseConfigured && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      await registerWebPush(user);
+    if (!firebaseConfigured || typeof window === 'undefined' || !('Notification' in window)) return;
+    const perm = Notification.permission;
+    logStatus_(user, perm);                       // granted | denied | default
+    if (perm === 'granted') { await registerWebPush(user); return; }
+    if (perm === 'default') {
+      // Gentle one-time auto-ask on open (works on Android; harmless no-op on iOS).
+      try {
+        const res = await Notification.requestPermission();
+        logStatus_(user, res);
+        if (res === 'granted') await registerWebPush(user);
+      } catch (e) {}
     }
   } catch (e) { console.warn('initPush failed', e); }
 }
@@ -35,6 +54,7 @@ export async function enablePush(user) {
     if (!(await isSupported())) return 'unsupported'; // e.g. iOS Safari tab not installed as PWA
     let perm = Notification.permission;
     if (perm !== 'granted') perm = await Notification.requestPermission();
+    logStatus_(user, perm);
     if (perm !== 'granted') return perm === 'denied' ? 'denied' : 'dismissed';
     const ok = await registerWebPush(user);
     return ok ? 'granted' : 'error';
@@ -87,6 +107,7 @@ async function initNativePush(user) {
   const { PushNotifications } = await import('@capacitor/push-notifications');
   let perm = await PushNotifications.checkPermissions();
   if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
+  logStatus_(user, perm.receive === 'granted' ? 'granted' : (perm.receive === 'denied' ? 'denied' : 'default'));
   if (perm.receive !== 'granted') return;
   PushNotifications.addListener('registration', (tok) => {
     dataService.registerPushToken({

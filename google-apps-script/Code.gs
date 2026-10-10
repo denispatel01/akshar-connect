@@ -38,10 +38,13 @@ var HEADERS = {
   PushTokens: ['token','devoteeId','mobile','name','platform','updatedOn'],
   // Admin-posted announcements, shown in-app and sent as a push notification.
   // audience ∈ all | staff | devotees (who it targets).
-  Announcements: ['id','title','body','audience','createdBy','createdOn','sentCount']
+  Announcements: ['id','title','body','audience','createdBy','createdOn','sentCount'],
+  // Each person's notification-permission response (so admins can see who allowed /
+  // rejected). Keyed by devoteeId (or mobile). status ∈ granted|denied|default|unsupported.
+  PushStatus: ['key','devoteeId','mobile','name','status','platform','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-10-push';
+var SCHEMA_VERSION = '2026-10-11-pushstatus';
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
@@ -244,6 +247,22 @@ function doRegisterPushToken_(p){
   else appendRows_('PushTokens', [row]);
   return json_({ ok:true });
 }
+
+// Record a person's notification-permission response (upsert by key).
+function doLogPushStatus_(p){
+  var key = String(p.key || p.devoteeId || p.mobile || '').trim();
+  if(!key) return json_({ ok:false, error:'no key' });
+  var row = {
+    key: key, devoteeId: String(p.devoteeId||''), mobile: String(p.mobile||''),
+    name: String(p.name||''), status: String(p.status||''), platform: String(p.platform||''),
+    updatedOn: new Date().toISOString()
+  };
+  var rn = findRow_('PushStatus', 'key', key);
+  if(rn > 0) tab_('PushStatus').getRange(rn,1,1,HEADERS.PushStatus.length).setValues([rowFromObj_('PushStatus', row)]);
+  else appendRows_('PushStatus', [row]);
+  return json_({ ok:true });
+}
+function doGetPushStatus_(){ return json_({ ok:true, status: readAll_('PushStatus') }); }
 
 function doGetAnnouncements_(){
   var list = readAll_('Announcements');
@@ -561,7 +580,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -708,6 +727,8 @@ function handle_(p){
     if(action==='registerPushToken') return doRegisterPushToken_(p);
     if(action==='getAnnouncements') return doGetAnnouncements_();
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
+    if(action==='logPushStatus') return doLogPushStatus_(p);
+    if(action==='getPushStatus') return doGetPushStatus_();
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
