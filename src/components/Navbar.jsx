@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard,
   Users,
@@ -224,6 +225,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         </div>
       )}
 
+      {/* Mobile bottom bar + Menu sheet are rendered via a portal on <body> so no
+          transformed/animated ancestor can ever turn their `fixed` positioning into
+          `absolute` (which made the bar scroll with the page on some phones). */}
+      {createPortal(
+      <>
       {/* ── Mobile Bottom Tab Bar ────────────────────────────────────────────── */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border-light shadow-[0_-2px_16px_rgba(0,0,0,0.08)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -341,6 +347,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           </div>{/* /scroll region */}
         </div>
       </div>
+      </>,
+      document.body)}
     </>
   );
 }
