@@ -280,7 +280,7 @@ export default function FeedPage({ user }) {
 
         {posts.map((post) => (
           <PostCard key={post.id} post={post} liked={liked.has(post.id)}
-            canDelete={isAdmin || String(post.authorId) === String(myId)}
+            canDelete={isAdmin || (!!myId && !!post.authorId && String(post.authorId) === String(myId))}
             onToggleLike={() => toggleLike(post)} onDelete={() => deletePost(post)}
             me={{ myId, myName, isAdmin }} />
         ))}
@@ -437,7 +437,7 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
                       </p>
                       <p className="text-[10px] text-text-muted">{timeAgo(c.createdOn)}</p>
                     </div>
-                    {(me.isAdmin || String(c.authorId) === String(me.myId)) && (
+                    {(me.isAdmin || (!!me.myId && !!c.authorId && String(c.authorId) === String(me.myId))) && (
                       <button onClick={() => delComment(c)} className="shrink-0 text-text-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
