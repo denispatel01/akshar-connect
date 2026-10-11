@@ -241,10 +241,13 @@ export default function DashboardPage({ setActivePage, user }) {
 
   const isDevotee = user?.role === 'Devotee';
 
+  // Mobile: single column (grid-cols-1 = identical stack). Desktop: a real
+  // multi-column dashboard via lg:col-span / lg:order — DOM order is unchanged so
+  // mobile looks exactly the same.
   return (
-    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
+    <div className="w-full max-w-none 2xl:max-w-[1600px] 2xl:mx-auto px-4 py-6 sm:px-6 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8 lg:col-span-3 lg:order-1">
         <img
           src={`${import.meta.env.BASE_URL}images/swamiji-jode.webp`}
           alt="Jode cho Maharaj"
@@ -279,7 +282,7 @@ export default function DashboardPage({ setActivePage, user }) {
       </div>
 
       {/* Today's Inspiration — moved up, right below the welcome banner */}
-      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col">
+      <div className="rounded-3xl border border-border-light bg-surface shadow-xs relative overflow-hidden flex flex-col lg:col-span-3 lg:order-2">
         <div className="w-full p-6 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
@@ -320,7 +323,7 @@ export default function DashboardPage({ setActivePage, user }) {
         <img
           src={`${import.meta.env.BASE_URL}images/quote-rajipo.webp`}
           alt="Kariye aej kaam jema Taro Rajipo"
-          className="w-full object-contain bg-[#001a33]"
+          className="w-full object-contain bg-[#001a33] lg:max-h-[22rem]"
           loading="lazy"
         />
       </div>
@@ -335,7 +338,7 @@ export default function DashboardPage({ setActivePage, user }) {
         if (isAdmin && nMissingDob) chips.push({ key: 'dob', label: `${nMissingDob} missing DOB`, icon: Star, cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900', onClick: () => setActivePage('data') });
         if (!chips.length) return null;
         return (
-          <div className="rounded-3xl border border-border-light bg-surface p-4 shadow-xs">
+          <div className="rounded-3xl border border-border-light bg-surface p-4 shadow-xs lg:col-span-3 lg:order-3">
             <p className="mb-2.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-muted">
               <TrendingUp className="h-4 w-4 text-[#FF862A]" /> Needs attention
             </p>
@@ -353,7 +356,7 @@ export default function DashboardPage({ setActivePage, user }) {
       })()}
 
       {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:col-span-2 lg:order-4">
         {!isDevotee && (<>
         <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
@@ -494,7 +497,7 @@ export default function DashboardPage({ setActivePage, user }) {
       {/* Karyakartas — split into Male & Female panes. Tap a name to open the
           devotees under that karyakarta. */}
       {!isDevotee && (karyakartaPanes.male.length > 0 || karyakartaPanes.female.length > 0 || karyakartaPanes.other.length > 0) && (
-        <div id="kk-panes" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div id="kk-panes" className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:col-span-3 lg:order-6">
           {[
             { key: 'male', title: 'Male Karyakartas', rows: karyakartaPanes.male, tone: 'text-blue-600', chip: 'bg-blue-50 text-blue-600 dark:bg-blue-950' },
             { key: 'female', title: 'Female Karyakartas', rows: karyakartaPanes.female, tone: 'text-pink-600', chip: 'bg-pink-50 text-pink-600 dark:bg-pink-950' },
@@ -566,13 +569,13 @@ export default function DashboardPage({ setActivePage, user }) {
       )}
 
       {/* Feed preview — surfaced on Home so posts get seen */}
-      <FeedPreview setActivePage={setActivePage} />
+      <div className="lg:col-span-1 lg:order-5"><FeedPreview setActivePage={setActivePage} /></div>
 
       {/* Darshan & Vichar slider */}
-      <DarshanSlider />
+      <div className="lg:col-span-3 lg:order-9"><DarshanSlider /></div>
 
       {/* Upcoming Birthdays */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2 lg:order-8">
         <div className="flex items-center justify-between mb-4 gap-3">
           <h2 className="text-base font-bold text-text-main flex items-center gap-2">
             <Cake className="h-5 w-5 text-rose-500" /> Upcoming Birthdays
@@ -653,7 +656,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
       {/* Quick Actions */}
       {!isDevotee && (
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-1 lg:order-7">
         <h2 className="text-base font-bold text-text-main mb-4">⚡ Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
