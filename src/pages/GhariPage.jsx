@@ -404,6 +404,13 @@ function KaryakartaCard({ name, d, bySku }) {
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
+  const custList = useMemo(() => Object.values(r.byCustomer || {}).sort((a, b) => b.amount - a.amount), [r]);
+  const [custQ, setCustQ] = useState('');
+  const custShown = useMemo(() => {
+    const q = custQ.trim().toLowerCase();
+    return q ? custList.filter(c => c.name.toLowerCase().includes(q) || String(c.karyakarta || '').toLowerCase().includes(q)) : custList;
+  }, [custList, custQ]);
+  const kg1 = (n) => (+(n || 0).toFixed(1)).toLocaleString('en-IN');
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -509,6 +516,42 @@ function ReportView({ season }) {
           <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see the exact items.</p>
           <div className="space-y-2">
             {kkList.map(([name, d]) => <KaryakartaCard key={name} name={name} d={d} bySku={r.bySku} />)}
+          </div>
+        </div>
+      )}
+
+      {custList.length > 0 && (
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <h3 className="mb-1 text-sm font-black text-text-main">By customer</h3>
+          <p className="mb-3 text-[11px] text-text-muted">Total Ghari &amp; Bhusu each person ordered this season (all their orders added up).</p>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+            <Search className="h-4 w-4 text-text-muted" />
+            <input value={custQ} onChange={(e) => setCustQ(e.target.value)} placeholder="Search a customer…"
+              className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+            {custQ && <button onClick={() => setCustQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
+          </div>
+          <div className="divide-y divide-border-light">
+            {custShown.map((c, i) => {
+              const bal = c.amount - c.received;
+              return (
+                <div key={i} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-text-main">{c.name}</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {c.ghariKg > 0 && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: '#EA580C' }}>Ghari {kg1(c.ghariKg)} kg</span>}
+                      {c.bhusuKg > 0 && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: '#9333EA' }}>Bhusu {kg1(c.bhusuKg)} kg</span>}
+                      <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-muted">{c.orders} order{c.orders === 1 ? '' : 's'}</span>
+                      {c.karyakarta && <span className="truncate rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-semibold text-teal-600">via {c.karyakarta}</span>}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-black text-text-main">{rupee(c.amount)}</p>
+                    {bal > 0 && <p className="text-[10px] font-bold text-rose-600">{rupee(bal)} due</p>}
+                  </div>
+                </div>
+              );
+            })}
+            {custShown.length === 0 && <p className="py-4 text-center text-xs text-text-muted">No customers match “{custQ}”.</p>}
           </div>
         </div>
       )}

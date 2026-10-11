@@ -623,7 +623,7 @@ export const ghariService = {
       byCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       kgByCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       ghariKg: 0, bhusuKg: 0, totalKg: 0,
-      bySku: {}, byKaryakarta: {},
+      bySku: {}, byKaryakarta: {}, byCustomer: {},
     };
     prods.forEach(p => { r.bySku[p.sku] = { name: p.name, size: p.size, qty: 0, amount: 0 }; });
     list.forEach(o => {
@@ -652,6 +652,18 @@ export const ghariService = {
       const kr = r.byKaryakarta[kk];
       kr.orders++; kr.boxes += t.boxes; kr.amount += t.total; kr.received += num_(o.paymentReceived);
       o.items.forEach(it => { kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty; });
+      // Per-customer running totals (kg of Ghari vs Bhusu, till date) — a customer
+      // can have several orders, so we sum by name (+ karyakarta to disambiguate).
+      const cust = (o.customerName || '').trim() || '—';
+      const ckey = cust.toLowerCase() + '|' + String(o.karyakarta || '').toLowerCase();
+      if (!r.byCustomer[ckey]) r.byCustomer[ckey] = { name: cust, karyakarta: o.karyakarta || '', orders: 0, boxes: 0, amount: 0, received: 0, ghariKg: 0, bhusuKg: 0, byCatKg: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 } };
+      const cr = r.byCustomer[ckey];
+      cr.orders++; cr.boxes += t.boxes; cr.amount += t.total; cr.received += num_(o.paymentReceived);
+      o.items.forEach(it => {
+        const kg = it.qty * sizeToKg_(it.size);
+        cr.byCatKg[it.category] = (cr.byCatKg[it.category] || 0) + kg;
+        if (it.category === 'bhusu') cr.bhusuKg += kg; else cr.ghariKg += kg;
+      });
     });
     // Procurement + stock reconciliation (bought vs sold, per item).
     r.purchased = {}; r.purchasedBoxes = 0; r.purchaseCost = 0; r.purchaseCount = 0;
