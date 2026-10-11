@@ -226,7 +226,16 @@ function SevaSection({ devotee, open, onToggle }) {
     Promise.all([
       dataService.getSeva({ karyakartaId: devotee.id }),
       dataService.getSeva({ visitedId: devotee.id }),
-    ]).then(([d, r]) => { if (alive) { setDone(d || []); setReceived(r || []); setLoaded(true); } });
+    ]).then(([d, r]) => {
+      if (!alive) return;
+      const doneList = d || [];
+      const doneIds = new Set(doneList.map((s) => s.id));
+      // A "self" seva (visited === karyakarta === this devotee) comes back in both
+      // lists — keep it only under "done" so it isn't shown twice.
+      setDone(doneList);
+      setReceived((r || []).filter((s) => !doneIds.has(s.id)));
+      setLoaded(true);
+    });
     return () => { alive = false; };
   }, [devotee?.id]);
 
