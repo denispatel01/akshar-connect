@@ -48,6 +48,38 @@ export default function App() {
   // Register for push on launch when a session is already restored.
   useEffect(() => { if (user) { try { initPush(user); } catch (e) {} } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // iOS push deep-link recovery. On iOS the notificationclick target URL is
+  // dropped when the PWA was killed — iOS reopens the app at start_url, losing
+  // ?n=. The service worker instead stashes the target section in the Cache API;
+  // read it here on boot and route there. We poll briefly because the app launch
+  // and the SW's click handler race, and only honor a FRESH stash (< 60s) so an
+  // old tap can't hijack a normal open.
+  useEffect(() => {
+    let cancelled = false;
+    const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard'];
+    const tryRead = async () => {
+      try {
+        if (!('caches' in window)) return true; // nothing to read, stop
+        const cache = await caches.open('ac-deeplink');
+        const res = await cache.match('pending');
+        if (!res) return false; // not written yet — keep polling
+        const { page, ts } = await res.json();
+        await cache.delete('pending');
+        if (!cancelled && page && allowed.includes(page) && (Date.now() - ts) < 60000) {
+          setActivePage(page);
+        }
+        return true;
+      } catch (e) { return true; }
+    };
+    (async () => {
+      for (let i = 0; i < 8 && !cancelled; i++) {
+        if (await tryRead()) return;
+        await new Promise(r => setTimeout(r, 300));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // App-wide: tidy text inputs to proper case on blur (skips email/PIN/number/
   // search/date inputs, textareas, and any field marked data-nocase).
   useEffect(() => installProperCase(), []);
