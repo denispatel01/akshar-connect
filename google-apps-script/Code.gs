@@ -487,6 +487,20 @@ function doGetFeed_(p){
   }
   return json_({ ok:true, posts: page, hasMore: hasMore, liked: liked });
 }
+// Edit a post's text (author or admin). Same author double-check as delete so a
+// tampered call can't edit someone else's post. Media and counts are untouched.
+function doEditPost_(p){
+  var rn = findRow_('FeedPosts','id',String(p.id||''));
+  if(rn < 1) return json_({ ok:false, error:'not found' });
+  var sh = tab_('FeedPosts'); var H = HEADERS.FeedPosts;
+  var authorIdCol = H.indexOf('authorId')+1;
+  var curAuthor = String(sh.getRange(rn, authorIdCol).getValue()||'');
+  if(String(p.isAdmin||'') !== '1' && curAuthor && String(p.requesterId||'') !== curAuthor)
+    return json_({ ok:false, error:'not allowed' });
+  sh.getRange(rn, H.indexOf('caption')+1).setValue(String(p.caption||'').slice(0,2000));
+  sh.getRange(rn, H.indexOf('description')+1).setValue(String(p.description||'').slice(0,5000));
+  return json_({ ok:true, post: readRowObj_('FeedPosts', rn) });
+}
 // Soft-delete a post (author or admin — enforced on the client; we double-check the
 // authorId when `isAdmin` isn't set so a tampered call can't delete others' posts).
 function doDeletePost_(p){
@@ -1436,6 +1450,7 @@ function handle_(p){
     if(action==='createPost') return doCreatePost_(p);
     if(action==='getFeed') return doGetFeed_(p);
     if(action==='deletePost') return doDeletePost_(p);
+    if(action==='editPost') return doEditPost_(p);
     if(action==='toggleLike') return doToggleLike_(p);
     if(action==='getComments') return doGetComments_(p);
     if(action==='addComment') return doAddComment_(p);

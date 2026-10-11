@@ -78,6 +78,7 @@ export default function DataQualityPage({ user, setActivePage }) {
   const [quick, setQuick] = useState(''); // '' | incomplete | nomobile | nodob
   const [version, setVersion] = useState(0); // bump to recompute after a delete
   const [deleting, setDeleting] = useState('');
+  const [openBucket, setOpenBucket] = useState(''); // '' | bucket key — drilldown panel
 
   // Re-read devotees whenever a background refresh lands, so the review reflects edits.
   useEffect(() => {
@@ -105,6 +106,16 @@ export default function DataQualityPage({ user, setActivePage }) {
     });
     return c;
   }, [scored]);
+
+  // Devotees whose completeness falls in the currently-opened bucket.
+  const bucketList = useMemo(() => {
+    if (!openBucket) return [];
+    const b = BUCKETS.find((x) => x.key === openBucket);
+    if (!b) return [];
+    return scored
+      .filter(({ pct }) => pct >= b.min && pct <= b.max)
+      .sort((a, b2) => b2.pct - a.pct || String(a.d.name).localeCompare(String(b2.d.name)));
+  }, [scored, openBucket]);
 
   const missingMobile = useMemo(() => scored.filter(({ d }) => !last10(d.mobile)).length, [scored]);
   const missingDob = useMemo(() => scored.filter(({ d }) => !filled(d, 'dob')).length, [scored]);
@@ -267,17 +278,52 @@ export default function DataQualityPage({ user, setActivePage }) {
       {/* ── Completeness tab ──────────────────────────────────────────────────── */}
       {tab === 'complete' && (
         <div className="mt-4">
-          {/* Summary cards */}
+          {/* Summary cards — click to reveal who's in each bucket */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {BUCKETS.map((b) => (
               <button key={b.key}
-                onClick={() => { setQuick(b.key === 'full' ? '' : 'incomplete'); }}
-                className={`rounded-2xl border p-3 text-left transition-transform active:scale-95 ${bucketTone[b.color]}`}>
+                onClick={() => setOpenBucket((cur) => (cur === b.key ? '' : b.key))}
+                aria-expanded={openBucket === b.key}
+                className={`rounded-2xl border p-3 text-left transition-transform active:scale-95 ${bucketTone[b.color]} ${openBucket === b.key ? 'ring-2 ring-primary ring-offset-1 ring-offset-bg-base' : ''}`}>
                 <p className="text-2xl font-extrabold leading-none">{bucketCounts[b.key]}</p>
                 <p className="mt-1 text-[11px] font-bold opacity-80">{b.label}</p>
               </button>
             ))}
           </div>
+
+          {/* Bucket drilldown — inline expandable list of the devotees in the chosen bucket */}
+          {openBucket && (
+            <div className="mt-2 rounded-2xl border border-border-light bg-bg-base p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-bold text-text-main">
+                  {BUCKETS.find((x) => x.key === openBucket)?.label} completeness
+                  <span className="ml-1.5 font-semibold text-text-muted">· {bucketList.length} devotee{bucketList.length === 1 ? '' : 's'}</span>
+                </p>
+                <button onClick={() => setOpenBucket('')} className="text-text-muted hover:text-text-main">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {bucketList.length === 0 ? (
+                <p className="py-4 text-center text-xs text-text-muted">No devotees in this range.</p>
+              ) : (
+                <div className="max-h-80 space-y-1.5 overflow-y-auto">
+                  {bucketList.map(({ d, pct }) => (
+                    <button key={d.id} onClick={() => openProfile(d.id)}
+                      className="flex w-full items-center gap-3 rounded-xl border border-border-light bg-surface p-2.5 text-left transition-colors hover:border-primary">
+                      <span className={`shrink-0 text-xs font-extrabold ${pct >= 100 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>{pct}%</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-text-main">{d.name || '—'}</p>
+                        <p className="truncate text-[11px] text-text-muted">
+                          {d.area || 'No area'}{d.mobile ? ` · 📱 ${d.mobile}` : ''}{d.familyId ? ` · ${d.familyId}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Search + quick filters */}
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">

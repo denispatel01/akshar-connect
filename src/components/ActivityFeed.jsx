@@ -27,6 +27,23 @@ function fullTime(ts) {
 // "Digesh Patel (99…)" -> "Digesh Patel"
 const actorName = (a) => String(a || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || 'Someone';
 
+// Group actions into readable sections (first matching test wins).
+const GROUPS = [
+  { key: 'auth', title: 'Logins & Logouts', test: (a) => /^(login|logout)/i.test(a) },
+  { key: 'email', title: 'Email', test: (a) => /(mail|email)/i.test(a) },
+  { key: 'changes', title: 'Adds, Edits & Deletes', test: (a) => /(add|update|delete|create|edit|void|remove)/i.test(a) },
+  { key: 'other', title: 'Other activity', test: () => true },
+];
+function groupRows(rows) {
+  const buckets = { auth: [], email: [], changes: [], other: [] };
+  rows.forEach((r) => {
+    const a = String(r.action || '');
+    const g = GROUPS.find((x) => x.test(a)) || GROUPS[GROUPS.length - 1];
+    buckets[g.key].push(r);
+  });
+  return buckets;
+}
+
 const FIRST_BATCH = 15;
 export default function ActivityFeed({ mine = false, limit = 300 }) {
   const [rows, setRows] = useState([]);
@@ -71,23 +88,38 @@ export default function ActivityFeed({ mine = false, limit = 300 }) {
         </div>
       )}
 
-      <ol className="relative space-y-2">
-        {rows.map((r, i) => (
-          <li key={i} className="flex items-start gap-3 rounded-2xl border border-border-light bg-surface px-3.5 py-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{ACTION_EMOJI[r.action] || '•'}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-text-main break-words">
-                {!mine && <span className="font-black">{actorName(r.actor)} </span>}
-                {r.detail || r.action}
-              </p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-text-muted">
-                <span className="inline-flex items-center gap-1" title={fullTime(r.ts)}><Clock className="h-3 w-3" /> {timeAgo(r.ts)}</span>
-                {r.device && <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> {r.device}</span>}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
+      {(() => {
+        const buckets = groupRows(rows);
+        return (
+          <div className="space-y-6">
+            {GROUPS.filter((g) => buckets[g.key].length > 0).map((g) => (
+              <section key={g.key}>
+                <h3 className="mb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+                  {g.title}
+                  <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-muted">{buckets[g.key].length}</span>
+                </h3>
+                <ol className="space-y-2">
+                  {buckets[g.key].map((r, i) => (
+                    <li key={i} className="flex items-start gap-3 rounded-2xl border border-border-light bg-surface px-3.5 py-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{ACTION_EMOJI[r.action] || '•'}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-text-main break-words">
+                          {!mine && <span className="font-black">{actorName(r.actor)} </span>}
+                          {r.detail || r.action}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-text-muted">
+                          <span className="inline-flex items-center gap-1" title={fullTime(r.ts)}><Clock className="h-3 w-3" /> {timeAgo(r.ts)}</span>
+                          {r.device && <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> {r.device}</span>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

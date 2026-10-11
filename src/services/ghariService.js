@@ -452,6 +452,19 @@ export const ghariService = {
   },
   getOrderById: (id) => orders_().find(o => o.id === id) || null,
 
+  // Total Ghari still to be collected/delivered, in kilograms (active, undelivered
+  // orders). Used for the dashboard — we report pending quantity, not money.
+  pendingDeliveryKg: (season) => {
+    const s = season || meta_().season;
+    let kg = 0;
+    orders_().forEach(o => {
+      if (o.season === s && o.status !== 'void' && !o.delivered) {
+        (o.items || []).forEach(it => { kg += num_(it.qty) * sizeToKg_(it.size); });
+      }
+    });
+    return kg;
+  },
+
   // ---- Audit log (money — full change history + revert) ----
   // Fetch change history for one entity (order/purchase) or all. Backend-only.
   getLog: async ({ entityId = '', entity = '', limit = 300 } = {}) => {

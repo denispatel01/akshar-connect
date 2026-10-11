@@ -26,13 +26,13 @@ export default function DarshanSlider() {
     <div className="rounded-3xl border border-border-light bg-surface p-4 sm:p-5 shadow-xs">
       <div className="flex items-center justify-between mb-3 gap-2">
         <h2 className="text-base font-bold text-text-main flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-[#FF862A]" /> Darshan &amp; Vichar
+          <Sparkles className="h-5 w-5 text-[#FF862A]" /> Darshan
         </h2>
         <span className="text-[11px] font-semibold text-text-muted">{i + 1} / {n}</span>
       </div>
 
       <div
-        className="group relative overflow-hidden rounded-2xl bg-[#001a33] aspect-[16/10] sm:aspect-[16/7] lg:aspect-[21/8]"
+        className="group relative overflow-hidden rounded-2xl bg-[#001a33] aspect-[16/10] sm:aspect-[16/9]"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={(e) => { startX.current = e.touches[0].clientX; setPaused(true); }}

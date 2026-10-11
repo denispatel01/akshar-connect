@@ -638,6 +638,14 @@ export const dataService = {
     if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to delete.');
     return true;
   },
+  // Edit a post's text (author or admin — enforced on the server by author match).
+  editPost: async (id, { caption = '', description = '', requesterId = '', isAdmin = false } = {}) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('editPost', { id, caption, description, requesterId, isAdmin: isAdmin ? '1' : '' });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to edit.');
+    try { logActivity_('update-feed', '', `edited a feed post`); } catch (e) {}
+    return r.post || true;
+  },
   toggleFeedLike: async ({ postId, devoteeId, name = '', on }) => {
     if (!hasBackend()) throw new Error('No backend configured.');
     const r = await api('toggleLike', { postId, devoteeId, name, on: on ? '1' : '' });

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image as ImageIcon, Video, X, Send, Heart, MessageCircle, Trash2,
-  Loader2, Sparkles, ChevronLeft, ChevronRight, Camera, Film,
+  Loader2, Sparkles, ChevronLeft, ChevronRight, Camera, Film, Pencil,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
@@ -281,6 +281,7 @@ export default function FeedPage({ user }) {
         {posts.map((post) => (
           <PostCard key={post.id} post={post} liked={liked.has(post.id)}
             canDelete={isAdmin || (!!myId && !!post.authorId && String(post.authorId) === String(myId))}
+            canEdit={isAdmin || (!!myId && !!post.authorId && String(post.authorId) === String(myId))}
             onToggleLike={() => toggleLike(post)} onDelete={() => deletePost(post)}
             me={{ myId, myName, isAdmin }} />
         ))}
@@ -297,7 +298,7 @@ export default function FeedPage({ user }) {
 }
 
 // ── Single post card ─────────────────────────────────────────────────────────
-function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
+function PostCard({ post, liked, canDelete, canEdit, onToggleLike, onDelete, me }) {
   const media = useMemo(() => { try { return JSON.parse(post.mediaJson || '[]'); } catch { return []; } }, [post.mediaJson]);
   const [idx, setIdx] = useState(0);
   const [showComments, setShowComments] = useState(false);
@@ -306,7 +307,28 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
   const [cSending, setCSending] = useState(false);
   const [count, setCount] = useState(Number(post.commentCount) || 0);
   const [expanded, setExpanded] = useState(false);
-  const descLong = String(post.description || '').length > 180;
+
+  // Local edit state + an override so an edit shows instantly without a refetch.
+  const [override, setOverride] = useState(null);
+  const view = override || post;
+  const [editing, setEditing] = useState(false);
+  const [eCap, setECap] = useState(post.caption || '');
+  const [eDesc, setEDesc] = useState(post.description || '');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const descLong = String(view.description || '').length > 180;
+
+  const startEdit = () => { setECap(view.caption || ''); setEDesc(view.description || ''); setEditing(true); };
+  const saveEdit = async () => {
+    if (savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await dataService.editPost(post.id, { caption: eCap, description: eDesc, requesterId: me.myId, isAdmin: me.isAdmin });
+      setOverride({ ...view, caption: eCap, description: eDesc });
+      setEditing(false);
+    } catch (e) {
+      alertError('Could not save', e.message);
+    } finally { setSavingEdit(false); }
+  };
 
   const openComments = async () => {
     const next = !showComments;
@@ -354,6 +376,11 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
           <p className="truncate text-sm font-bold text-text-main">{post.authorName || 'Member'}</p>
           <p className="text-[11px] text-text-muted">{timeAgo(post.createdOn)}</p>
         </div>
+        {canEdit && !editing && (
+          <button onClick={startEdit} title="Edit post" className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-base hover:text-primary">
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
         {canDelete && (
           <button onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950">
             <Trash2 className="h-4 w-4" />
@@ -361,8 +388,23 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
         )}
       </div>
 
-      {/* Caption (above media, Instagram-ish when there's no media) */}
-      {post.caption && <p className="px-4 pb-2 text-sm font-semibold text-text-main">{post.caption}</p>}
+      {/* Edit panel */}
+      {editing ? (
+        <div className="space-y-2 px-4 pb-3">
+          <input value={eCap} onChange={(e) => setECap(e.target.value)} placeholder="Caption"
+            className="w-full rounded-2xl border border-border-light bg-bg-base px-3.5 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          <textarea value={eDesc} onChange={(e) => setEDesc(e.target.value)} rows={3} placeholder="Write something…"
+            className="w-full resize-y rounded-2xl border border-border-light bg-bg-base px-3.5 py-2.5 text-sm text-text-main outline-none focus:border-primary" />
+          <div className="flex items-center gap-2">
+            <button onClick={saveEdit} disabled={savingEdit}
+              className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">{savingEdit ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => setEditing(false)} className="rounded-2xl border border-border-light bg-surface px-4 py-2 text-sm font-bold text-text-muted hover:bg-bg-base">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        /* Caption (above media, Instagram-ish when there's no media) */
+        view.caption && <p className="px-4 pb-2 text-sm font-semibold text-text-main">{view.caption}</p>
+      )}
 
       {/* Media carousel */}
       {media.length > 0 && (
@@ -407,9 +449,9 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
       </div>
 
       {/* Description */}
-      {post.description && (
+      {!editing && view.description && (
         <p className="whitespace-pre-wrap px-4 pb-1 pt-2 text-sm text-text-main">
-          {descLong && !expanded ? String(post.description).slice(0, 180) + '… ' : post.description}
+          {descLong && !expanded ? String(view.description).slice(0, 180) + '… ' : view.description}
           {descLong && (
             <button onClick={() => setExpanded((e) => !e)} className="font-semibold text-text-muted">{expanded ? ' less' : 'more'}</button>
           )}
