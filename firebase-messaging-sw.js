@@ -18,6 +18,25 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 const APP_URL = 'https://denispatel01.github.io/akshar-connect/';
 
+// Pull the deep-link page (?n=vato|feed|…) out of a link so we can both navigate
+// to it AND stash it for iOS (see below).
+function pageFromLink(link) {
+  try { return new URL(link, APP_URL).searchParams.get('n') || ''; } catch (e) { return ''; }
+}
+
+// iOS drops the notificationclick target URL when the PWA was killed — it just
+// reopens the app at its manifest start_url, losing ?n=. So we also persist the
+// pending page to the Cache API (shared same-origin storage the SW can write and
+// the freshly-launched app reads on boot — see App.jsx). TTL guards staleness.
+async function stashPending(page) {
+  if (!page) return;
+  try {
+    const cache = await caches.open('ac-deeplink');
+    await cache.put('pending', new Response(JSON.stringify({ page, ts: Date.now() }),
+      { headers: { 'Content-Type': 'application/json' } }));
+  } catch (e) { /* best effort */ }
+}
+
 // Pushes are sent DATA-ONLY (no `notification` block), so the browser does NOT
 // auto-display one on top of ours — we show exactly one here. Title/body/link all
 // come from payload.data.
@@ -25,22 +44,27 @@ messaging.onBackgroundMessage((payload) => {
   const d = payload.data || {};
   self.registration.showNotification(d.title || 'Akshar Connect', {
     body: d.body || '',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: APP_URL + 'icons/icon-192.png',
+    badge: APP_URL + 'icons/icon-192.png',
     data: { link: d.link || APP_URL, type: d.type || '' },
   });
 });
 
 // Tapping the notification opens the deep-linked section (Vato/Feed/…). If the app
-// is already open, navigate that window to the link; otherwise open a new one.
+// is already open, navigate that window; otherwise open a new one. On iOS where the
+// target URL is ignored, the stashed page (read by the app on boot) routes instead.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.link) || APP_URL;
+  const page = pageFromLink(url);
   event.waitUntil((async () => {
+    await stashPending(page);
     const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const w of wins) {
+      // navigate() BEFORE focus() — on some platforms a focus()-first window
+      // refuses the later navigate() and stays on its current page.
       try { await w.navigate(url); } catch (e) { /* cross-doc nav may be blocked */ }
-      if ('focus' in w) return w.focus();
+      if ('focus' in w) { try { return await w.focus(); } catch (e) { /* ignore */ } }
     }
     if (clients.openWindow) return clients.openWindow(url);
   })());
