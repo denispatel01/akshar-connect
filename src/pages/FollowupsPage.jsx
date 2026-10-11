@@ -476,13 +476,25 @@ export default function FollowupsPage({ user }) {
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
                   </div>
                   <p className="text-[11px] text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {d.mobile || '—'}</p>
-                  {d.tags?.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {d.tags.slice(0, 3).map(k => (
-                        <span key={k} style={tagChipStyle(k)} className="rounded-full px-2 py-0.5 text-[9px] font-bold">{tagLabel(k)}</span>
-                      ))}
-                    </div>
-                  )}
+                  {d.tags?.length > 0 && (() => {
+                    // Show the tags that MATCH the active filter first, so it's clear
+                    // why this devotee qualifies (a devotee can have many tags and the
+                    // matching one may not be among the first few).
+                    const matching = d.tags.filter(k => selectedTags.includes(k));
+                    const rest = d.tags.filter(k => !selectedTags.includes(k));
+                    const shown = [...matching, ...rest].slice(0, 3);
+                    return (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {shown.map(k => (
+                          <span key={k} style={tagChipStyle(k)}
+                            className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${selectedTags.includes(k) ? 'ring-1 ring-primary ring-offset-1' : ''}`}>
+                            {tagLabel(k)}
+                          </span>
+                        ))}
+                        {d.tags.length > 3 && <span className="rounded-full bg-bg-base px-2 py-0.5 text-[9px] font-bold text-text-muted">+{d.tags.length - 3}</span>}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* actions */}
