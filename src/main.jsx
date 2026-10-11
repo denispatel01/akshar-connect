@@ -90,15 +90,19 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       })
       .catch(() => {})
 
-    // The new worker took control → reload ONCE to swap in the new code. Hard cap of
-    // one reload per tab session (sessionStorage, plus an in-memory fallback) so a
-    // churning service worker can NEVER put the app into an infinite refresh loop.
+    // The new worker took control → reload ONCE to swap in the new code. Loop guard
+    // is TIME-based (not once-per-session): at most one auto-reload per 15s. This
+    // still makes a churning worker harmless (loops fire within ~1s) but — unlike the
+    // old persistent per-session flag — lets a long-lived installed PWA pick up a
+    // LATER deploy in the same session instead of being stuck on a stale bundle.
     let reloadedThisLoad = false
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloadedThisLoad) return
-      try { if (sessionStorage.getItem('ac-sw-reloaded') === '1') return } catch (e) {}
+      let last = 0
+      try { last = Number(sessionStorage.getItem('ac-sw-reload-ts') || '0') } catch (e) {}
+      if (Date.now() - last < 15000) return // another reload just happened → avoid a loop
       reloadedThisLoad = true
-      try { sessionStorage.setItem('ac-sw-reloaded', '1') } catch (e) {}
+      try { sessionStorage.setItem('ac-sw-reload-ts', String(Date.now())) } catch (e) {}
       window.location.reload()
     })
   })
