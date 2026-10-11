@@ -404,6 +404,44 @@ function KaryakartaCard({ name, d, bySku }) {
   );
 }
 
+// One row in "Boxes to prepare" — tap to reveal which customers need those boxes
+// (and how many each), so the packing team can split a batch by customer.
+function BoxItemRow({ product, qty, customers }) {
+  const [open, setOpen] = useState(false);
+  const custList = useMemo(
+    () => Object.entries(customers || {}).sort((a, b) => b[1] - a[1]),
+    [customers]
+  );
+  const name = product.name.replace('Ghari ', '').replace(/[()]/g, '');
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-bg-base">
+        <span className="flex items-center gap-1.5 text-sm font-bold text-text-main">
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+          {name} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{product.size}</span>
+        </span>
+        <span className="shrink-0 font-black text-text-main"><span className="text-lg">{qty}</span> <span className="text-[11px] font-bold text-text-muted">box{qty === 1 ? '' : 'es'}</span></span>
+      </button>
+      {open && (
+        <div className="border-t border-border-light bg-bg-base/50 px-3 py-2">
+          {custList.length === 0 ? (
+            <p className="text-[11px] text-text-muted">No customer breakdown.</p>
+          ) : (
+            <div className="space-y-1">
+              {custList.map(([cust, q]) => (
+                <div key={cust} className="flex items-center justify-between text-[11px]">
+                  <span className="truncate font-semibold text-text-main">{cust}</span>
+                  <span className="shrink-0 font-black text-text-muted">{q} box{q === 1 ? '' : 'es'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
@@ -474,10 +512,7 @@ function ReportView({ season }) {
                 </div>
                 <div className="divide-y divide-border-light">
                   {items.map(({ p, d }) => (
-                    <div key={p.sku} className="flex items-center justify-between px-3 py-2">
-                      <span className="text-sm font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{p.size}</span></span>
-                      <span className="shrink-0 font-black text-text-main"><span className="text-lg">{d.qty}</span> <span className="text-[11px] font-bold text-text-muted">box{d.qty === 1 ? '' : 'es'}</span></span>
-                    </div>
+                    <BoxItemRow key={p.sku} product={p} qty={d.qty} customers={r.custBySku[p.sku]} />
                   ))}
                 </div>
               </div>
@@ -518,7 +553,7 @@ function ReportView({ season }) {
           <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
           <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see the exact items.</p>
           <div className="space-y-2">
-            {kkList.map(([name, d]) => <KaryakartaCard key={name} name={name} d={d} bySku={r.bySku} />)}
+            {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} bySku={r.bySku} />)}
           </div>
         </div>
       )}

@@ -53,7 +53,11 @@ export default function FollowupsPage({ user }) {
 
   useEffect(() => {
     setEvents(dataService.getEvents());
-    setDevotees(dataService.getDevotees());
+    // Dedupe by id — a sync/merge can leave the same devotee record in the array
+    // more than once, which otherwise renders the same person as multiple cards
+    // and double-counts them in the summary. Keep the first occurrence of each id.
+    const seen = new Set();
+    setDevotees(dataService.getDevotees().filter(d => (seen.has(d.id) ? false : (seen.add(d.id), true))));
   }, []);
 
   // Distinct follow-up karyakarta names (for the "my devotees" filter).

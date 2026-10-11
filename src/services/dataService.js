@@ -1070,7 +1070,13 @@ export const dataService = {
   getSabhas: () => DB.sabhas,
 
   addSabha: (sabha) => {
-    const newSabha = { ...sabha, id: `SAB-2026-0${DB.sabhas.length + 1}`, type: sabha.type || 'Sabha', presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
+    // Unique id — `SAB-2026-0${length+1}` collided: deleting/creating events or
+    // the seeded Sabhas reused ids, so a brand-new event inherited another event's
+    // follow-up records (showed phantom "contacted" counts). A timestamp id is
+    // globally unique; guard against the (practically impossible) clash anyway.
+    let id = `SAB-${Date.now()}`;
+    while (DB.sabhas.some(s => s.id === id)) id = `SAB-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newSabha = { ...sabha, id, type: sabha.type || 'Sabha', presentCount: 0, totalCount: DB.devotees.length, status: 'Scheduled' };
     DB.sabhas.unshift(newSabha); saveCache();
     push('insert', { collection: 'Sabhas', row: newSabha });
     logActivity_('add-event', newSabha.title, `created event "${newSabha.title}" (${newSabha.type}) on ${newSabha.date}`);

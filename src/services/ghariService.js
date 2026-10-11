@@ -679,9 +679,13 @@ export const ghariService = {
       byCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       kgByCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       ghariKg: 0, bhusuKg: 0, totalKg: 0,
-      bySku: {}, byKaryakarta: {}, byCustomer: {},
+      bySku: {}, byKaryakarta: {}, byCustomer: {}, custBySku: {},
     };
     prods.forEach(p => { r.bySku[p.sku] = { name: p.name, size: p.size, qty: 0, amount: 0 }; });
+    // Devotee id → canonical name, so a karyakarta stored under different name
+    // strings (free-typed vs picked) but the same id collapses to one row.
+    const devNameById = {};
+    (dataService.getDevotees() || []).forEach(d => { if (d.id) devNameById[d.id] = d.name || ''; });
     list.forEach(o => {
       const t = computeTotals(o.items);
       r.revenue += t.total; r.boxes += t.boxes;
@@ -697,15 +701,27 @@ export const ghariService = {
       o.items.forEach(it => {
         if (!r.bySku[it.sku]) r.bySku[it.sku] = { name: it.name, size: it.size, qty: 0, amount: 0 };
         r.bySku[it.sku].qty += it.qty; r.bySku[it.sku].amount += it.qty * it.unitPrice;
+        // Per-item customer breakdown — who needs how many boxes of each sku
+        // (powers the "Boxes to prepare" drilldown). sku -> { customer -> qty }.
+        const custNm = (o.customerName || '').trim() || '—';
+        if (!r.custBySku[it.sku]) r.custBySku[it.sku] = {};
+        r.custBySku[it.sku][custNm] = (r.custBySku[it.sku][custNm] || 0) + it.qty;
         const kg = it.qty * sizeToKg_(it.size);
         if (r.kgByCategory[it.category] === undefined) r.kgByCategory[it.category] = 0;
         r.kgByCategory[it.category] += kg;
         r.totalKg += kg;
         if (it.category === 'bhusu') r.bhusuKg += kg; else r.ghariKg += kg;
       });
-      const kk = o.karyakarta || '—';
-      if (!r.byKaryakarta[kk]) r.byKaryakarta[kk] = { orders: 0, boxes: 0, amount: 0, received: 0, skus: {} };
-      const kr = r.byKaryakarta[kk];
+      // Group by karyakarta devotee id when known, so the same person stored
+      // under different name strings merges into one row; fall back to the
+      // (lowercased) name for free-typed references. `name` holds the display.
+      const kkId = String(o.karyakartaId || '').trim();
+      const kkName = (o.karyakarta || '').trim();
+      const kkKey = kkId ? ('id:' + kkId) : (kkName ? ('nm:' + kkName.toLowerCase()) : '—');
+      const kkDisplay = (kkId && devNameById[kkId]) || kkName || '—';
+      if (!r.byKaryakarta[kkKey]) r.byKaryakarta[kkKey] = { name: kkDisplay, orders: 0, boxes: 0, amount: 0, received: 0, skus: {} };
+      const kr = r.byKaryakarta[kkKey];
+      if (kkDisplay && kkDisplay.length > (kr.name || '').length) kr.name = kkDisplay; // keep fullest variant
       kr.orders++; kr.boxes += t.boxes; kr.amount += t.total; kr.received += num_(o.paymentReceived);
       o.items.forEach(it => { kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty; });
       // Per-customer running totals (kg of Ghari vs Bhusu, till date) — a customer
@@ -848,7 +864,7 @@ export const ghariService = {
     const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
     if (kkList.length) {
       y = heading('By karyakarta', doc.lastAutoTable.finalY + 26);
-      const kkBody = kkList.map(([name, d]) => [name, String(d.orders), rs(d.amount), rs(d.received), rs(Math.max(0, d.amount - d.received))]);
+      const kkBody = kkList.map(([key, d]) => [d.name || key, String(d.orders), rs(d.amount), rs(d.received), rs(Math.max(0, d.amount - d.received))]);
       autoTable(doc, {
         startY: y + 6, head: [['Karyakarta', 'Orders', 'Amount', 'Received', 'Due']], body: kkBody,
         theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5 },
