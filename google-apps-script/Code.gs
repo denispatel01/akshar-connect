@@ -1074,6 +1074,21 @@ var SEED_THOUGHTS = [
 function ss_(){ return SpreadsheetApp.getActive(); }
 function json_(o){ return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
+// Cached read: returns a cached JSON response when warm, otherwise builds it, caches
+// the string (only if it fits CacheService's ~100KB/key limit) and returns it. Use
+// for slow, rarely-changing reads (e.g. the external attendance sheet, Vato). A
+// short TTL keeps data fresh enough without re-reading whole sheets every request.
+function cachedJson_(key, ttlSec, buildObj){
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(key);
+  if(hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+  var obj = buildObj();
+  var s = JSON.stringify(obj);
+  // Never cache a failure (would persist the error for the whole TTL).
+  if(obj && obj.ok !== false){ try { if(s && s.length < 95000) cache.put(key, s, ttlSec); } catch(e){} }
+  return ContentService.createTextOutput(s).setMimeType(ContentService.MimeType.JSON);
+}
+
 function tab_(name){
   var ss = ss_(); var sh = ss.getSheetByName(name);
   if(!sh){
@@ -1314,7 +1329,10 @@ function handle_(p){
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
-      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), attendance:readAll_('Attendance'), followups:readAll_('Followups'), areas:readAll_('Areas'),
+      // `attendance` is intentionally NOT read here — the live app's Attendance page
+      // uses the cached getGroupAttendance endpoint instead, so reading the whole
+      // Attendance sheet on every bootstrap was wasted time.
+      sabhas:readAll_('Sabhas'), thoughts:readAll_('Thoughts'), followups:readAll_('Followups'), areas:readAll_('Areas'),
       announcements:(function(){ try{ var l=readAll_('Announcements'); l.sort(function(a,b){return String(b.createdOn).localeCompare(String(a.createdOn));}); return l.slice(0,50);}catch(e){return [];} })() });
     if(action==='seedDevotees'){
       if(readAll_('Devotees').length===0) appendRows_('Devotees', p.rows||[]);
@@ -1469,9 +1487,9 @@ function handle_(p){
       return json_({ ok:true, logs: gl.slice(0, Number(p.limit)||300) });
     }
     if(action==='ghariRevert') return doGhariRevert_(p);
-    if(action==='getVato') return doGetVato_();
+    if(action==='getVato') return cachedJson_('vato', 1800, function(){ return JSON.parse(doGetVato_().getContent()); });
     if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||30) });
-    if(action==='getGroupAttendance') return doGetGroupAttendance_();
+    if(action==='getGroupAttendance') return cachedJson_('groupAtt', 600, function(){ return JSON.parse(doGetGroupAttendance_().getContent()); });
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

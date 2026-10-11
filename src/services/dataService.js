@@ -600,9 +600,15 @@ export const dataService = {
   },
 
   // ---- Attendance (read-only from the external attendance sheet, our group only) ----
+  // Last attendance result cached locally so the page shows instantly (then refreshes).
+  getCachedGroupAttendance: () => { try { return JSON.parse(localStorage.getItem('ac-attendance') || 'null'); } catch { return null; } },
   getGroupAttendance: async () => {
     if (!hasBackend()) return null;
-    try { const r = await api('getGroupAttendance', {}); return (r && r.ok) ? r : null; } catch { return null; }
+    try {
+      const r = await api('getGroupAttendance', {});
+      if (r && r.ok) { try { localStorage.setItem('ac-attendance', JSON.stringify(r)); } catch (e) {} return r; }
+      return null;
+    } catch { return null; }
   },
 
   // ---- Feed (community photo/video posts) ----

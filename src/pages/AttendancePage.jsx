@@ -6,14 +6,16 @@ const fmtDate = (s) => { try { return new Date(s).toLocaleDateString('en-IN', { 
 
 export default function AttendancePage({ user }) {
   const isStaff = user?.role === 'Admin' || user?.role === 'Sevak';
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Show the last-seen attendance instantly from cache, then refresh in the
+  // background — no full-screen spinner on every open.
+  const [data, setData] = useState(() => dataService.getCachedGroupAttendance());
+  const [loading, setLoading] = useState(() => !dataService.getCachedGroupAttendance());
   const [tab, setTab] = useState('sessions');
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
     let alive = true;
-    dataService.getGroupAttendance().then((r) => { if (alive) { setData(r); setLoading(false); } });
+    dataService.getGroupAttendance().then((r) => { if (alive) { if (r) setData(r); setLoading(false); } });
     return () => { alive = false; };
   }, []);
 
