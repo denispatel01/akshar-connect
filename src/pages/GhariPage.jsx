@@ -1341,7 +1341,11 @@ export default function GhariPage({ user }) {
     return () => { window.removeEventListener('ac-ghari-changed', onChange); window.removeEventListener('ac-ghari-synced', onChange); };
   }, []);
 
-  const setSeason = (s) => { ghariService.setSeason(s); setSeasonState(s); setTick(t => t + 1); };
+  const setSeason = (s) => {
+    ghariService.setSeason(s); setSeasonState(s); setTick(t => t + 1);
+    // Pull that season on demand (scoped) — other years aren't fetched until picked.
+    ghariService.syncDown(s).then(() => setTick(t => t + 1)).catch(() => {});
+  };
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
 
   const orders = useMemo(() => {

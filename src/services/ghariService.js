@@ -346,10 +346,13 @@ async function flush() {
 }
 
 // ── Pull the latest from the backend, merging in un-synced local work ────────
-async function syncDown() {
+async function syncDown(season) {
   if (!backendOnline() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return { ok: false, offline: true };
+  // Scope the pull to one season so other years are never fetched/scanned. Orders
+  // and purchases of OTHER seasons already in the local cache are preserved below.
+  const scope = String(season || meta_().season || '');
   let res;
-  try { res = await backendApi('ghariBootstrap', {}); } catch (e) { return { ok: false, error: e.message }; }
+  try { res = await backendApi('ghariBootstrap', { season: scope }); } catch (e) { return { ok: false, error: e.message }; }
   const serverProducts = (res.products || []).map(normalizeProduct_);
   const serverOrders = (res.orders || []).map(normalizeOrder_);
   const serverPurchases = (res.purchases || []).map(normalizePurchase_);
@@ -367,18 +370,34 @@ async function syncDown() {
     pendingProductSkus.forEach(sku => { if (localBySku[sku]) merged.push(localBySku[sku]); });
     MEM.products = merged.map(normalizeProduct_); saveProductsLocal_();
   }
-  const localById = {}; orders_().forEach(o => { localById[o.id] = o; });
-  const mergedOrders = serverOrders.filter(o => !pendingOrderIds.has(o.id));
-  pendingOrderIds.forEach(id => { if (localById[id]) mergedOrders.push(localById[id]); });
+  // Orders: the server is authoritative for the SCOPED season only. Rebuild the
+  // cache as: server's scoped-season rows (minus any with pending local ops) +
+  // every locally-cached row that is either a DIFFERENT season (keep as-is) or has
+  // a pending op (keep the local, newer copy). This preserves other years' cache
+  // and un-synced edits while refreshing just the season we pulled.
+  const seenOrderIds = new Set();
+  const mergedOrders = [];
+  serverOrders.forEach(o => { if (!pendingOrderIds.has(o.id) && !seenOrderIds.has(o.id)) { seenOrderIds.add(o.id); mergedOrders.push(o); } });
+  orders_().forEach(o => {
+    if (seenOrderIds.has(o.id)) return;
+    if (String(o.season) !== scope || pendingOrderIds.has(o.id)) { seenOrderIds.add(o.id); mergedOrders.push(o); }
+  });
   MEM.orders = mergedOrders.map(normalizeOrder_); saveOrdersLocal_();
   backfillOrderNosLocal_();   // number any order the server hasn't backfilled yet
 
-  const localPurchaseById = {}; purchases_().forEach(p => { localPurchaseById[p.id] = p; });
-  const mergedPurchases = serverPurchases.filter(p => !pendingPurchaseIds.has(p.id));
-  pendingPurchaseIds.forEach(id => { if (localPurchaseById[id]) mergedPurchases.push(localPurchaseById[id]); });
+  const seenPurchaseIds = new Set();
+  const mergedPurchases = [];
+  serverPurchases.forEach(p => { if (!pendingPurchaseIds.has(p.id) && !seenPurchaseIds.has(p.id)) { seenPurchaseIds.add(p.id); mergedPurchases.push(p); } });
+  purchases_().forEach(p => {
+    if (seenPurchaseIds.has(p.id)) return;
+    if (String(p.season) !== scope || pendingPurchaseIds.has(p.id)) { seenPurchaseIds.add(p.id); mergedPurchases.push(p); }
+  });
   MEM.purchases = mergedPurchases.map(normalizePurchase_); savePurchasesLocal_();
 
-  MEM.meta = { ...meta_(), lastSyncDown: nowISO_() }; saveMetaLocal_();
+  // Remember the full list of seasons the server knows (small), so the season
+  // switcher still shows every year even though we only cache the loaded ones.
+  const seasonsList = Array.isArray(res.seasons) ? res.seasons.map(String).filter(Boolean) : (meta_().seasonsList || []);
+  MEM.meta = { ...meta_(), lastSyncDown: nowISO_(), seasonsList }; saveMetaLocal_();
   emit_('ac-ghari-synced', { pending: outbox_().length, refreshed: true });
   return { ok: true };
 }
@@ -390,11 +409,12 @@ function init() {
   products_(); orders_(); purchases_(); meta_();   // hydrate synchronously
   backfillOrderNosLocal_();   // ensure every cached order already shows a number
   try {
-    window.addEventListener('online', () => { flush().then(syncDown); });
+    window.addEventListener('online', () => { flush().then(() => syncDown()); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
   } catch { /* non-browser */ }
   // Drain anything left from a previous session, then pull fresh — background.
-  flush().then(syncDown).catch(() => {});
+  // (() => syncDown() so flush's resolved value is NOT passed as the season arg.)
+  flush().then(() => syncDown()).catch(() => {});
 }
 
 // ── Devotee lookup for autocomplete (reuse the cached directory) ─────────────
@@ -436,6 +456,7 @@ export const ghariService = {
   getSeasons: () => {
     const set = new Set(orders_().map(o => o.season).filter(Boolean));
     purchases_().forEach(p => { if (p.season) set.add(p.season); });
+    (meta_().seasonsList || []).forEach(s => { if (s) set.add(String(s)); }); // server-known years
     set.add(meta_().season);
     return [...set].sort((a, b) => Number(b) - Number(a));
   },

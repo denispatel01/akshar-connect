@@ -1543,7 +1543,24 @@ function handle_(p){
     // Identity is the caller's actorMobile, verified against the Users sheet.
     if(GHARI_WRITE_ACTIONS_[action] && !ghariCanWrite_(p))
       return json_({ ok:false, error:'Not allowed — Ghari Seva is view-only for your account.' });
-    if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders'), purchases: readAll_('GhariPurchases') });
+    if(action==='ghariBootstrap'){
+      // Optional season scoping: when the client asks for one season, return only
+      // that year's orders/purchases so other years are never scanned or sent.
+      // Products are a small shared catalog → always returned in full.
+      var _gSeason = (p && p.season) ? String(p.season) : '';
+      var _gOrders = readAll_('GhariOrders');
+      var _gPurch  = readAll_('GhariPurchases');
+      // Distinct list of years present (tiny) so the client's season switcher shows
+      // every year even when the orders payload is scoped to just one.
+      var _seasonSet = {}; _gOrders.forEach(function(o){ var s=String(o.season||''); if(s) _seasonSet[s]=1; });
+      _gPurch.forEach(function(pu){ var s=String(pu.season||''); if(s) _seasonSet[s]=1; });
+      var _seasons = Object.keys(_seasonSet).sort(function(a,b){ return Number(b)-Number(a); });
+      if(_gSeason){
+        _gOrders = _gOrders.filter(function(o){ return String(o.season) === _gSeason; });
+        _gPurch  = _gPurch.filter(function(pu){ return String(pu.season) === _gSeason; });
+      }
+      return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, season: _gSeason, seasons: _seasons });
+    }
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
     if(action==='ghariDeleteOrder')   return doGhariDelete_('GhariOrders', p.id, 'id');
