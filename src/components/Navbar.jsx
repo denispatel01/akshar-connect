@@ -52,6 +52,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const navigate = (id) => { if (id === 'feed') clearNewFeed(); setActivePage(id); setMoreOpen(false); };
 
   const isDarkModeOn = isDarkMode;
+  const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <>
@@ -59,7 +60,16 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
-        <div className="flex items-center justify-between px-4 py-2.5 sm:px-6">
+        <div className="relative flex items-center justify-between px-4 py-2.5 sm:px-6">
+
+          {/* Centred greeting — desktop only, fills the header without crowding the
+              left/right clusters (absolutely positioned, non-interactive). */}
+          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:flex">
+            <span className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-bold text-primary">
+              🙏 Jai Swaminarayan
+            </span>
+            <span className="text-xs font-semibold text-text-muted">{todayLabel}</span>
+          </div>
 
           {/* Left: sidebar toggle (desktop) + back + refresh + search + brand */}
           <div className="flex items-center gap-2">
@@ -85,17 +95,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               <Search className="h-4 w-4" />
             </button>
 
-            <div className="flex items-center gap-2.5 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
-              {/* Square app icon — mobile only. On desktop we show just the full
-                  wordmark (bigger & clearer), so the brand doesn't appear twice. */}
+            <div className="flex items-center gap-3 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
               <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
-                className="sm:hidden h-10 w-10 shrink-0 rounded-2xl shadow-md ring-1 ring-border-light" />
-              <div className="min-w-0">
-                <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
-                  className="hidden sm:block h-16 w-auto max-w-[340px] object-contain object-left dark:brightness-200 dark:contrast-200" />
-                <span className="sm:hidden flex items-center gap-1 font-display text-base font-bold text-text-main leading-tight">
-                  Akshar Connect <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                className="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-2xl shadow-md ring-1 ring-border-light" />
+              <div className="min-w-0 leading-tight">
+                <span className="block font-display text-lg sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FF9D52] bg-clip-text text-transparent">
+                  Akshar Connect
                 </span>
+                <p className="hidden sm:block text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">Connecting Devotees with Divinity</p>
               </div>
             </div>
           </div>
