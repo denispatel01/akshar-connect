@@ -464,12 +464,15 @@ export const ghariService = {
   getProducts: () => products_().slice().sort((a, b) => a.sortOrder - b.sortOrder),
   getActiveProducts: () => products_().filter(p => p.active).sort((a, b) => a.sortOrder - b.sortOrder),
 
-  // All non-void orders for a season (newest first). Pass {includeVoid:true} for trash.
+  // All non-void orders for a season, highest order number first (last order on
+  // top, first order at the bottom). Falls back to createdOn when numbers tie.
+  // Pass {includeVoid:true} for trash.
   getOrders: (season, { includeVoid = false } = {}) => {
     const s = season || meta_().season;
     return orders_()
       .filter(o => o.season === s && (includeVoid || o.status !== 'void'))
-      .sort((a, b) => String(b.createdOn).localeCompare(String(a.createdOn)));
+      .sort((a, b) => (Number(b.orderNo) || 0) - (Number(a.orderNo) || 0)
+        || String(b.createdOn).localeCompare(String(a.createdOn)));
   },
   getOrderById: (id) => orders_().find(o => o.id === id) || null,
 
