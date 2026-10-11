@@ -33,11 +33,11 @@ const SECTIONS = [
 export default function Footer() {
   return (
     <footer className="mt-8 bg-gradient-to-b from-[#022c54] to-[#001a33] text-white">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-10 pb-[calc(7rem_+_env(safe-area-inset-bottom))] md:pb-10">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+      <div className="w-full px-4 sm:px-6 lg:px-10 pt-10 pb-[calc(7rem_+_env(safe-area-inset-bottom))] md:pb-10">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-[minmax(260px,340px)_1fr_1fr_1fr] lg:gap-12">
           {/* Brand */}
-          <div className="md:col-span-1">
-            <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-md w-full">
+          <div>
+            <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-md w-full max-w-[340px]">
               <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="w-full h-auto object-contain" />
             </div>
             <p className="mt-3 text-sm font-semibold text-white/90">Adajan Satsang Mandal</p>

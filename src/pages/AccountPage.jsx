@@ -56,14 +56,14 @@ export default function AccountPage({ user, setActivePage }) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6">
       <div>
         <h1 className="text-2xl font-black text-text-main tracking-tight">My Account</h1>
         <p className="text-sm font-semibold text-text-muted mt-1">Your profile and sign-in settings.</p>
       </div>
 
       {/* Profile card */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs flex items-center gap-4">
+      <div className="mt-6 rounded-3xl border border-border-light bg-surface p-6 shadow-xs flex items-center gap-4">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white text-xl font-black">{initials}</div>
         <div className="min-w-0">
           <p className="text-lg font-bold text-text-main truncate">{user?.name || 'Devotee'}</p>
@@ -74,11 +74,12 @@ export default function AccountPage({ user, setActivePage }) {
         </div>
       </div>
 
+      <div className="mt-6 lg:columns-2 lg:gap-6">
       {/* Notifications */}
       <NotificationCard user={user} />
 
       {/* My devotee profile */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+      <div className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
         <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><UserCircle className="h-4 w-4 text-primary" /> My Profile</h2>
         {myDevotee ? (
           <>
@@ -96,14 +97,14 @@ export default function AccountPage({ user, setActivePage }) {
       </div>
 
       {msg && (
-        <div className={`flex items-center gap-2.5 rounded-2xl border p-3 text-sm font-semibold ${msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
+        <div className={`mb-6 break-inside-avoid flex items-center gap-2.5 rounded-2xl border p-3 text-sm font-semibold ${msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
           {msg.type === 'ok' ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
           {msg.text}
         </div>
       )}
 
       {/* Change password */}
-      <form onSubmit={savePassword} className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+      <form onSubmit={savePassword} className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
         <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><Lock className="h-4 w-4 text-primary" /> Change Password</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="New password"
@@ -118,7 +119,7 @@ export default function AccountPage({ user, setActivePage }) {
       </form>
 
       {/* Change PIN */}
-      <form onSubmit={savePin} className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+      <form onSubmit={savePin} className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
         <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><KeyRound className="h-4 w-4 text-primary" /> Change 6-Digit PIN</h2>
         <div className="space-y-3">
           <div>
@@ -135,6 +136,7 @@ export default function AccountPage({ user, setActivePage }) {
           {busy ? 'Saving…' : 'Update PIN'}
         </button>
       </form>
+      </div>
     </div>
   );
 }
@@ -165,7 +167,7 @@ function NotificationCard({ user }) {
 
   const on = perm === 'granted';
   return (
-    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+    <div className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
       <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><Bell className="h-4 w-4 text-primary" /> Notifications</h2>
       <p className="text-sm text-text-muted">Get announcements from the Mandal as notifications on this device.</p>
       {on ? (

@@ -225,7 +225,7 @@ export default function SwadhyayPage({ user }) {
   }, []);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 pb-28">
+    <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 pb-28">
       {showGroup && <SwadhyayGroupReport onClose={() => setShowGroup(false)} />}
       {isAdmin && (
         <button onClick={() => setShowGroup(true)}
@@ -278,7 +278,7 @@ export default function SwadhyayPage({ user }) {
       </div>
 
       {(
-        <div className="mt-5 space-y-4">
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
           {PRACTICES.map((p) => {
             const Icon = p.icon;
             const val = Number(form[p.key]) || 0;
@@ -339,7 +339,7 @@ export default function SwadhyayPage({ user }) {
 
       {/* Sticky save bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border-light bg-surface/90 p-3 backdrop-blur-xl sm:px-6">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <div className="mx-auto flex max-w-[1100px] items-center gap-3">
           <div className="flex-1">
             <p className="text-[11px] font-semibold text-text-muted">{isToday ? "Today's total" : dateLabel + ' total'}</p>
             <p className="text-lg font-black text-text-main leading-none">{fmtMin(totalToday)}</p>

@@ -78,7 +78,7 @@ export default function AdminPage({ user }) {
 
 
   return (
-    <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
+    <div className="w-full mx-auto max-w-[1400px] px-4 py-6 sm:px-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-text-main">⚙️ Admin</h1>
         <p className="text-sm font-medium text-text-muted">Manage announcements, users, areas, notifications and system settings.</p>

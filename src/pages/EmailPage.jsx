@@ -192,7 +192,7 @@ export default function EmailPage({ user }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
+    <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30">
@@ -215,7 +215,9 @@ export default function EmailPage({ user }) {
       </div>
 
       {tab === 'compose' && (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 lg:gap-4 lg:items-start">
+        {/* Left column (desktop): recipients + templates */}
+        <div className="space-y-4">
           {/* Recipients */}
           <div className="rounded-3xl border border-border-light bg-surface p-4">
             <div className="mb-2 flex items-center justify-between">
@@ -298,7 +300,10 @@ export default function EmailPage({ user }) {
               )}
             </div>
           </div>
+        </div>{/* /left column */}
 
+        {/* Right column (desktop): the message + send */}
+        <div className="mt-4 space-y-4 lg:mt-0">
           {/* Compose */}
           <div className="rounded-3xl border border-border-light bg-surface p-4">
             <input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} placeholder="Subject"
@@ -334,11 +339,12 @@ export default function EmailPage({ user }) {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>Emails send from the Mandal's Google account and count toward a daily limit{quota != null ? ` (${quota} left today)` : ''}. Recipients without a valid email are skipped automatically.</p>
           </div>
+        </div>{/* /right column */}
         </div>
       )}
 
       {tab === 'history' && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 grid grid-cols-1 gap-y-2 lg:grid-cols-2 lg:gap-x-4">
           {loadingHist && <p className="text-sm text-text-muted">Loading…</p>}
           {!loadingHist && campaigns.length === 0 && (
             <div className="rounded-3xl border border-dashed border-border-light bg-surface p-10 text-center">

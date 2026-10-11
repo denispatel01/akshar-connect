@@ -179,7 +179,8 @@ export default function FeedPage({ user }) {
   };
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-5 sm:px-6">
+    <div className="mx-auto w-full max-w-[1100px] px-4 py-5 sm:px-6">
+      <div className="lg:max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30">
@@ -251,13 +252,14 @@ export default function FeedPage({ user }) {
           </button>
         </div>
       </div>
+      </div>
 
       {/* Feed */}
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 lg:columns-2 lg:gap-5">
         {loading && (
           <>
             {[0, 1].map((i) => (
-              <div key={i} className="animate-pulse rounded-3xl border border-border-light bg-surface p-4">
+              <div key={i} className="mb-4 break-inside-avoid animate-pulse rounded-3xl border border-border-light bg-surface p-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-bg-base" />
                   <div className="h-3 w-28 rounded bg-bg-base" />
@@ -269,7 +271,7 @@ export default function FeedPage({ user }) {
         )}
 
         {!loading && posts.length === 0 && (
-          <div className="rounded-3xl border border-dashed border-border-light bg-surface p-10 text-center">
+          <div className="mb-4 break-inside-avoid rounded-3xl border border-dashed border-border-light bg-surface p-10 text-center">
             <Sparkles className="mx-auto h-8 w-8 text-text-muted" />
             <p className="mt-2 text-sm font-semibold text-text-main">No posts yet</p>
             <p className="text-xs text-text-muted">Be the first to share something with the Mandal.</p>
@@ -285,7 +287,7 @@ export default function FeedPage({ user }) {
 
         {hasMore && !loading && (
           <button onClick={() => load(false)} disabled={loadingMore}
-            className="w-full rounded-2xl border border-border-light bg-surface py-3 text-sm font-bold text-text-muted transition-colors hover:text-text-main disabled:opacity-50">
+            className="mb-4 break-inside-avoid w-full rounded-2xl border border-border-light bg-surface py-3 text-sm font-bold text-text-muted transition-colors hover:text-text-main disabled:opacity-50">
             {loadingMore ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</span> : 'Load more'}
           </button>
         )}
@@ -342,7 +344,7 @@ function PostCard({ post, liked, canDelete, onToggleLike, onDelete, me }) {
   };
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-border-light bg-surface shadow-sm">
+    <article className="mb-4 break-inside-avoid overflow-hidden rounded-3xl border border-border-light bg-surface shadow-sm">
       {/* Header */}
       <div className="flex items-center gap-3 p-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">

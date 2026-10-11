@@ -327,6 +327,9 @@ function OrderRow({ order, onOpen }) {
       <button onClick={() => onOpen(order)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            {order.orderNo && (
+              <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-black text-primary">#{order.orderNo}</span>
+            )}
             <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
             {order.delivered && <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
           </div>
@@ -830,7 +833,10 @@ function EditModal({ order, onClose, onSaved, canEdit = true }) {
     <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
       <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
-        <span className="text-sm font-black text-text-main">{canEdit ? 'Edit order' : 'View order'}</span>
+        <span className="flex items-center gap-2 text-sm font-black text-text-main">
+          {canEdit ? 'Edit order' : 'View order'}
+          {order?.orderNo && <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-black text-primary">#{order.orderNo}</span>}
+        </span>
         <div className="flex items-center gap-3">
           <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 text-xs font-bold text-text-muted hover:text-primary" title="Change history">
             <History className="h-4 w-4" /> History

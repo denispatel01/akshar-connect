@@ -248,13 +248,6 @@ export default function DashboardPage({ setActivePage, user }) {
     <div className="w-full max-w-none 2xl:max-w-[1600px] 2xl:mx-auto px-4 py-6 sm:px-6 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8 lg:col-span-3 lg:order-1">
-        <img
-          src={`${import.meta.env.BASE_URL}images/swamiji-jode.webp`}
-          alt="Jode cho Maharaj"
-          className="absolute inset-y-0 right-0 z-0 hidden h-full w-1/2 object-cover object-[center_25%] opacity-90 sm:block"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 z-0 hidden bg-gradient-to-r from-[#E56F18] via-[#E56F18]/95 to-[#E56F18]/30 sm:block" />
         <div
           className="absolute -right-10 -top-10 h-64 w-64 rounded-full opacity-25 z-0"
           style={{ background: 'radial-gradient(circle, rgba(255,210,170,1) 0%, transparent 70%)' }}

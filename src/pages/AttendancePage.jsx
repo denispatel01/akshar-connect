@@ -34,7 +34,7 @@ export default function AttendancePage({ user }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
+    <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30">
           <CalendarCheck className="h-5 w-5" />
@@ -84,7 +84,7 @@ export default function AttendancePage({ user }) {
           </div>
 
           {tab === 'sessions' && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 grid grid-cols-1 gap-y-2 lg:grid-cols-2 lg:gap-x-4">
               {data.sessions.map((s) => {
                 const pct = s.total ? Math.round((s.present / s.total) * 100) : 0;
                 const open = openId === s.id;
@@ -123,7 +123,7 @@ export default function AttendancePage({ user }) {
           )}
 
           {tab === 'devotees' && (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-border-light bg-surface">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-border-light bg-surface lg:grid lg:grid-cols-2">
               {data.byDevotee.map((d, i) => (
                 <div key={d.id} className="flex items-center gap-3 border-b border-border-light/60 px-3 py-2.5 last:border-0">
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${i < 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-bg-base text-text-muted'}`}>

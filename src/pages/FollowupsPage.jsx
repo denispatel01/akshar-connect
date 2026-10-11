@@ -190,7 +190,7 @@ export default function FollowupsPage({ user }) {
     return (
       <>
       {eventToast}
-      <div className="w-full max-w-none px-4 py-6 sm:px-6 space-y-6">
+      <div className="w-full mx-auto max-w-[1600px] px-4 py-6 sm:px-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-text-main">📞 Event Follow-ups</h1>

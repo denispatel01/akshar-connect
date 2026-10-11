@@ -203,7 +203,7 @@ export default function CalendarPage({ user }) {
   const goToday = () => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)); };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -229,6 +229,8 @@ export default function CalendarPage({ user }) {
         </span>
       </div>
 
+      {/* Calendar + below-content: two columns on desktop, stacked on mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-6 lg:items-start">
       {/* Calendar grid */}
       <div className="mt-4 rounded-3xl border border-border-light bg-surface p-3 shadow-xs">
         <div className="grid grid-cols-7 gap-1">
@@ -276,6 +278,7 @@ export default function CalendarPage({ user }) {
           <p className="mt-1 text-2xl font-black text-text-main">{summary.planned}</p>
           <p className="text-[10px] font-semibold text-text-muted">upcoming / to do</p>
         </div>
+      </div>
       </div>
 
       {openDay && (

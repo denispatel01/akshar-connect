@@ -84,7 +84,7 @@ export default function VatoPage({ user }) {
   const dateLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -104,6 +104,12 @@ export default function VatoPage({ user }) {
           ))}
         </div>
       </div>
+
+      {/* Desktop: reading card (left) + a clickable index of every Vato (right).
+          Mobile (<lg): single column — the index is hidden, so it reads exactly
+          as before. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] lg:gap-6 lg:items-start">
+      <div className="min-w-0">
 
       {loading && list.length === 0 && (
         <div className="mt-5 animate-pulse rounded-3xl border border-border-light bg-surface p-8">
@@ -189,6 +195,42 @@ export default function VatoPage({ user }) {
           <p className="mt-4 text-center text-[11px] text-text-muted">← Swipe to read more · a new Vato arrives every morning 🙏</p>
         </>
       )}
+      </div>{/* /left reading column */}
+
+      {/* Index — desktop only. Click any entry to jump to it. */}
+      {list.length > 0 && (
+        <aside className="hidden lg:block mt-5">
+          <div className="overflow-hidden rounded-3xl border border-border-light bg-surface shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border-light bg-bg-base px-4 py-3">
+              <BookOpen className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-bold text-text-main">All Vato</h3>
+              <span className="ml-auto text-[11px] font-semibold text-text-muted">{list.length}</span>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto p-2">
+              {list.map((it, i) => {
+                const g = splitRef(it.Gujarati);
+                const e = splitRef(it.English);
+                const preview = (g.body || e.body || '').replace(/\s+/g, ' ').trim().slice(0, 72);
+                const active = i === idx;
+                return (
+                  <button key={i} onClick={() => setIdx(i)}
+                    className={`mb-1 w-full rounded-xl px-3 py-2 text-left transition-colors ${active ? 'bg-primary/10' : 'hover:bg-bg-base'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`shrink-0 text-[10px] font-black ${active ? 'text-primary' : 'text-text-muted'}`}>#{it.SN || i + 1}</span>
+                      {i === todayIdx && <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">TODAY</span>}
+                    </div>
+                    <div className={`truncate text-xs ${active ? 'font-semibold text-primary' : 'text-text-main'}`}
+                      style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
+                      {preview || '—'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+      )}
+      </div>{/* /grid */}
     </div>
   );
 }

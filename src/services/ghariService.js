@@ -125,6 +125,24 @@ function normalizeProduct_(p) {
     active: p.active === undefined ? true : bool_(p.active),
   };
 }
+// A short, human-friendly order number for talking/texting about an order
+// ("order #12, Ramesh bhai"). It is a per-season sequence (#1, #2, …) by creation
+// time — unique and collision-free, clean to read aloud, and fully derived (no
+// storage or backend change, works for every existing order). Void orders keep
+// their slot in the count, so voiding one never renumbers the others. `list` is the
+// orders to tag; they are numbered against ALL orders in `season`.
+function withOrderNos_(list, season) {
+  const ordered = orders_()
+    .filter(o => o.season === season)
+    .sort((a, b) => {
+      const c = String(a.createdOn).localeCompare(String(b.createdOn));
+      return c !== 0 ? c : String(a.id).localeCompare(String(b.id));
+    });
+  const seq = {};
+  ordered.forEach((o, i) => { seq[o.id] = i + 1; });
+  return list.map(o => ({ ...o, orderNo: seq[o.id] || '' }));
+}
+
 function normalizeOrder_(o) {
   let items = o.items;
   if (!items) { try { items = JSON.parse(o.itemsJson || '[]'); } catch { items = []; } }
@@ -408,11 +426,15 @@ export const ghariService = {
   // All non-void orders for a season (newest first). Pass {includeVoid:true} for trash.
   getOrders: (season, { includeVoid = false } = {}) => {
     const s = season || meta_().season;
-    return orders_()
+    const list = orders_()
       .filter(o => o.season === s && (includeVoid || o.status !== 'void'))
       .sort((a, b) => String(b.createdOn).localeCompare(String(a.createdOn)));
+    return withOrderNos_(list, s);
   },
-  getOrderById: (id) => orders_().find(o => o.id === id) || null,
+  getOrderById: (id) => {
+    const o = orders_().find(x => x.id === id);
+    return o ? withOrderNos_([o], o.season)[0] : null;
+  },
 
   // ---- Audit log (money — full change history + revert) ----
   // Fetch change history for one entity (order/purchase) or all. Backend-only.
@@ -447,9 +469,11 @@ export const ghariService = {
     const num = mob.length === 10 ? '91' + mob : mob;
     const items = (order.items || []).map(i => `• ${i.qty} × ${i.name} ${i.size}`).join('\n');
     const bal = (order.total || 0) - Number(order.paymentReceived || 0);
+    const orderNo = order.orderNo || '';
     const msg = [
       `Jai Swaminarayan ${order.customerName} 🙏`,
       `🪔 Ghari Seva ${order.season}`,
+      orderNo ? `Order #${orderNo}` : '',
       items,
       `Total: ₹${order.total}`,
       bal > 0 ? `Balance due: ₹${bal}` : `Payment received ✓${order.paymentType ? ' (' + order.paymentType + ')' : ''}`,
