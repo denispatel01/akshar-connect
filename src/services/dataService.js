@@ -168,6 +168,22 @@ function push(action, payload) {
 
 function saveCache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(DB)); } catch (e) {} }
 
+// In-memory overlay of Swadhyay rows saved this session (key = devoteeId|date), so
+// a just-saved value is never hidden by a briefly-stale backend read.
+const swadhyayLocal_ = {};
+function overlaySwadhyay_(devoteeId, rows) {
+  const out = (rows || []).slice();
+  const byKey = {};
+  out.forEach((r, i) => { byKey[String(r.devoteeId) + '|' + r.date] = i; });
+  Object.keys(swadhyayLocal_).forEach((k) => {
+    const row = swadhyayLocal_[k];
+    if (String(row.devoteeId) !== String(devoteeId)) return;
+    if (byKey[k] !== undefined) out[byKey[k]] = { ...out[byKey[k]], ...row };
+    else out.push(row);
+  });
+  return out;
+}
+
 // ── Background profile-photo upload (#107 optimistic) ─────────────────────────
 // A devotee is saved INSTANTLY with the photo held locally as a data URI (so the
 // UI feels snappy and the base64 never bloats the sheet). The heavy Drive upload
@@ -686,16 +702,22 @@ export const dataService = {
   // Save today's (or any day's) Swadhyay for the current user. Upserts by day.
   saveSwadhyay: async ({ devoteeId, mobile = '', name = '', date, bhajanMin = 0, bhajanTime = '', listenMin = 0, readMin = 0 }) => {
     if (!hasBackend()) throw new Error('No backend configured.');
+    // Remember the latest value locally so it survives a page/tab remount even if
+    // the backend read lags behind this write.
+    swadhyayLocal_[devoteeId + '|' + date] = { devoteeId, mobile, name, date, bhajanMin, bhajanTime, listenMin, readMin };
     const r = await api('saveSwadhyay', { devoteeId, mobile, name, date, bhajanMin, bhajanTime, listenMin, readMin });
     if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
     // Let other open modules (e.g. the Calendar) live-sync this change.
     try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ac-swadhyay-saved', { detail: r.row })); } catch (e) {}
     return r.row;
   },
-  // My recent Swadhyay entries (most recent first).
+  // My recent Swadhyay entries (most recent first), with any just-saved rows from
+  // this session overlaid on top — so a save always shows even if the backend
+  // read briefly lags behind the write.
   getMySwadhyay: async (devoteeId, limit = 120) => {
-    if (!hasBackend() || !devoteeId) return [];
-    try { const r = await api('getSwadhyay', { devoteeId, limit }); return (r && r.entries) || []; } catch { return []; }
+    if (!hasBackend() || !devoteeId) return overlaySwadhyay_(devoteeId, []);
+    try { const r = await api('getSwadhyay', { devoteeId, limit }); return overlaySwadhyay_(devoteeId, (r && r.entries) || []); }
+    catch { return overlaySwadhyay_(devoteeId, []); }
   },
   // Admin: everyone's Swadhyay entries (for the group report / leaderboard).
   getAllSwadhyay: async (limit = 5000) => {
