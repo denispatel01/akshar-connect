@@ -23,8 +23,8 @@ export default function Sidebar({ activePage, setActivePage, user, onLogout, col
 
   return (
     <aside
-      className={`hidden md:flex flex-col shrink-0 border-r border-border-light bg-surface
-        sticky top-[72px] h-[calc(100vh-72px)] transition-[width] duration-200 ease-out
+      className={`hidden md:flex flex-col border-r border-border-light bg-surface
+        fixed left-0 top-[72px] bottom-0 z-30 transition-[width] duration-200 ease-out
         ${collapsed ? 'w-[72px]' : 'w-60'}`}
     >
       {/* Nav groups — scrolls independently of the page content */}

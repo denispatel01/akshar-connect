@@ -62,81 +62,92 @@ export default function AccountPage({ user, setActivePage }) {
         <p className="text-sm font-semibold text-text-muted mt-1">Your profile and sign-in settings.</p>
       </div>
 
-      {/* Profile card */}
-      <div className="mt-6 rounded-3xl border border-border-light bg-surface p-6 shadow-xs flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white text-xl font-black">{initials}</div>
-        <div className="min-w-0">
-          <p className="text-lg font-bold text-text-main truncate">{user?.name || 'Devotee'}</p>
-          <p className="text-sm text-text-muted flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> +91 {user?.mobile || '—'}</p>
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
-            <ShieldCheck className="h-3 w-3" /> {user?.role || 'Devotee'}
-          </span>
+      {/* ── Section 1 · My Details ───────────────────────────────────────── */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">My Details</h2>
+        <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
+          {/* Identity */}
+          <div className="flex items-center gap-4 rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white text-xl font-black">{initials}</div>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-text-main">{user?.name || 'Devotee'}</p>
+              <p className="flex items-center gap-1.5 text-sm text-text-muted"><Phone className="h-3.5 w-3.5" /> +91 {user?.mobile || '—'}</p>
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                <ShieldCheck className="h-3 w-3" /> {user?.role || 'Devotee'}
+              </span>
+            </div>
+          </div>
+
+          {/* My devotee profile */}
+          <div className="flex flex-col rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+            <h3 className="flex items-center gap-2 text-base font-bold text-text-main"><UserCircle className="h-4 w-4 text-primary" /> My Profile</h3>
+            {myDevotee ? (
+              <>
+                <p className="mt-2 flex-1 text-sm text-text-muted">Your devotee record — view your full details and edit your profile.</p>
+                <button onClick={openMyProfile}
+                  className="mt-3 inline-flex w-fit items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
+                  <Pencil className="h-4 w-4" /> View / Edit My Profile
+                </button>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-text-muted">
+                No devotee record is linked to your mobile number. Ask an admin to add you to the directory with this mobile ({user?.mobile || '—'}) to enable your profile.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="mt-6 lg:columns-2 lg:gap-6">
-      {/* Notifications */}
-      <NotificationCard user={user} />
+      {/* ── Section 2 · Account Settings ─────────────────────────────────── */}
+      <section className="mt-8">
+        <h2 className="mb-3 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">Account Settings</h2>
 
-      {/* My devotee profile */}
-      <div className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><UserCircle className="h-4 w-4 text-primary" /> My Profile</h2>
-        {myDevotee ? (
-          <>
-            <p className="text-sm text-text-muted">Your devotee record — view your full details and edit your profile.</p>
-            <button onClick={openMyProfile}
-              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
-              <Pencil className="h-4 w-4" /> View / Edit My Profile
-            </button>
-          </>
-        ) : (
-          <p className="text-sm text-text-muted">
-            No devotee record is linked to your mobile number. Ask an admin to add you to the directory with this mobile ({user?.mobile || '—'}) to enable your profile.
-          </p>
+        {msg && (
+          <div className={`mb-4 flex items-center gap-2.5 rounded-2xl border p-3 text-sm font-semibold ${msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
+            {msg.type === 'ok' ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+            {msg.text}
+          </div>
         )}
-      </div>
 
-      {msg && (
-        <div className={`mb-6 break-inside-avoid flex items-center gap-2.5 rounded-2xl border p-3 text-sm font-semibold ${msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
-          {msg.type === 'ok' ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
-          {msg.text}
-        </div>
-      )}
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Notifications */}
+          <NotificationCard user={user} />
 
-      {/* Change password */}
-      <form onSubmit={savePassword} className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
-        <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><Lock className="h-4 w-4 text-primary" /> Change Password</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="New password"
-            className="rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
-          <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirm new password"
-            className="rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
-        </div>
-        <button type="submit" disabled={busy}
-          className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Update Password'}
-        </button>
-      </form>
+          {/* Change password */}
+          <form onSubmit={savePassword} className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+            <h3 className="flex items-center gap-2 text-base font-bold text-text-main"><Lock className="h-4 w-4 text-primary" /> Change Password</h3>
+            <div className="space-y-3">
+              <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="New password"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+              <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirm new password"
+                className="w-full rounded-2xl border border-border-light bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+            </div>
+            <button type="submit" disabled={busy}
+              className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">
+              {busy ? 'Saving…' : 'Update Password'}
+            </button>
+          </form>
 
-      {/* Change PIN */}
-      <form onSubmit={savePin} className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
-        <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><KeyRound className="h-4 w-4 text-primary" /> Change 6-Digit PIN</h2>
-        <div className="space-y-3">
-          <div>
-            <span className="text-xs font-bold text-text-muted mb-1.5 block">New PIN</span>
-            <PinDigitInput length={6} value={pin} onChange={setPin} masked />
-          </div>
-          <div>
-            <span className="text-xs font-bold text-text-muted mb-1.5 block">Confirm PIN</span>
-            <PinDigitInput length={6} value={pin2} onChange={setPin2} masked />
-          </div>
+          {/* Change PIN */}
+          <form onSubmit={savePin} className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
+            <h3 className="flex items-center gap-2 text-base font-bold text-text-main"><KeyRound className="h-4 w-4 text-primary" /> Change 6-Digit PIN</h3>
+            <div className="space-y-3">
+              <div>
+                <span className="mb-1.5 block text-xs font-bold text-text-muted">New PIN</span>
+                <PinDigitInput length={6} value={pin} onChange={setPin} masked />
+              </div>
+              <div>
+                <span className="mb-1.5 block text-xs font-bold text-text-muted">Confirm PIN</span>
+                <PinDigitInput length={6} value={pin2} onChange={setPin2} masked />
+              </div>
+            </div>
+            <button type="submit" disabled={busy}
+              className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">
+              {busy ? 'Saving…' : 'Update PIN'}
+            </button>
+          </form>
         </div>
-        <button type="submit" disabled={busy}
-          className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Update PIN'}
-        </button>
-      </form>
-      </div>
+      </section>
     </div>
   );
 }
@@ -167,8 +178,8 @@ function NotificationCard({ user }) {
 
   const on = perm === 'granted';
   return (
-    <div className="mb-6 break-inside-avoid rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
-      <h2 className="flex items-center gap-2 text-base font-bold text-text-main"><Bell className="h-4 w-4 text-primary" /> Notifications</h2>
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-3">
+      <h3 className="flex items-center gap-2 text-base font-bold text-text-main"><Bell className="h-4 w-4 text-primary" /> Notifications</h3>
       <p className="text-sm text-text-muted">Get announcements from the Mandal as notifications on this device.</p>
       {on ? (
         <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
