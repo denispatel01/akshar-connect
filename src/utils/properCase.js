@@ -26,8 +26,12 @@ export function installProperCase() {
     if (SKIP_TYPES.has(type)) return;
     if (el.readOnly || el.disabled) return;
     if (el.dataset && el.dataset.nocase !== undefined) return; // per-field opt-out
+    const ph = (el.getAttribute('placeholder') || '');
+    if (/^\s*search/i.test(ph)) return;                        // search boxes stay as typed
     const v = el.value;
-    if (!v || v.includes('@')) return;                         // skip emails / handles
+    if (!v) return;
+    // Skip emails, URLs, paths, handles, @mentions — capitalising these breaks them.
+    if (/[@/]/.test(v) || /:\/\//.test(v) || /^www\./i.test(v)) return;
     if (!/[a-z]/.test(v)) return;                              // nothing to upcase
     const next = toProperCase(v);
     if (next === v) return;

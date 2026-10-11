@@ -77,6 +77,12 @@
 }
 
 /* Custom Pin Input animation & styles */
+/* App-wide indeterminate top loading bar (non-blocking). */
+@keyframes ac-progress {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(560%); }
+}
+
 .pin-digit {
   width: 44px;
   height: 52px;

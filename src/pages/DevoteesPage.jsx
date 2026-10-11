@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
+import { profileInviteLink } from '../utils/profileInvite';
 import { dataService } from '../services/dataService';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
 import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed, alertError } from '../utils/sweetAlert';
@@ -1483,6 +1484,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       className="inline-flex items-center gap-1.5 rounded-full border border-border-light bg-surface px-4 py-2 text-xs font-bold text-text-main hover:border-primary transition-colors">
                       <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> WhatsApp
                     </a>
+                    {profileInviteLink(selectedDevotee) && (
+                      <a href={profileInviteLink(selectedDevotee)} target="_blank" rel="noreferrer"
+                        title="Send a WhatsApp asking them to log in and complete their profile"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:border-emerald-400 transition-colors dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <MessageSquare className="h-3.5 w-3.5" /> Complete profile
+                      </a>
+                    )}
                   </div>
                 )}
 

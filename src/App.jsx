@@ -51,6 +51,16 @@ export default function App() {
   // App-wide: tidy text inputs to proper case on blur (skips email/PIN/number/
   // search/date inputs, textareas, and any field marked data-nocase).
   useEffect(() => installProperCase(), []);
+
+  // Non-blocking "loading" awareness: a thin top bar shows during a manual refresh
+  // and briefly whenever the page changes, so the user knows something is loading
+  // without being blocked from interacting.
+  const [navPulse, setNavPulse] = useState(false);
+  useEffect(() => {
+    setNavPulse(true);
+    const t = setTimeout(() => setNavPulse(false), 700);
+    return () => clearTimeout(t);
+  }, [activePage]);
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -193,6 +203,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      {/* Non-blocking top loading bar */}
+      <div className={`pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 overflow-hidden transition-opacity duration-200 ${(refreshing || navPulse) ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-[#FF862A] to-transparent" style={{ animation: 'ac-progress 0.9s linear infinite' }} />
+      </div>
       <NotificationsPopup user={user} />
       <Navbar
         activePage={activePage}
