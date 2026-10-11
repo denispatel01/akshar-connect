@@ -889,6 +889,69 @@ function sendPush_(title, body, audience, data){
 }
 function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
 
+// One-time repair for misaligned GhariOrders rows. An older write path left ~101
+// orders shifted by +7 columns: the real order block (season→balance) sits at raw
+// indices 9–24 instead of 2–17, so readAll_ saw season="1" and the app hid them.
+// This rebuilds each shifted row into the correct 25-col schema WITHOUT losing the
+// recoverable data (id, season, customer, mobile, devoteeId, karyakarta, items,
+// totals, delivered, paymentReceived, balance). Fields never stored for those rows
+// (orderNo, paymentType, status, remarks, created/updated) are set to safe defaults
+// (status='active'; orderNo left blank for backfillGhariOrderNos_ to assign).
+// Strict: a row is only rewritten when season is a year at idx9 AND itemsJson at
+// idx15 is empty or starts with '['; anything else is SKIPPED untouched and
+// reported. Pass apply=true to write; otherwise it's a dry run (counts only).
+function realignGhariOrders_(apply){
+  var sh = ss_().getSheetByName('GhariOrders'); if(!sh) return { error:'no GhariOrders tab' };
+  var lr = sh.getLastRow(), lc = sh.getLastColumn();
+  if(lr < 2) return { fixed:0, aligned:0, skipped:0 };
+  var vals = sh.getRange(1,1,lr,lc).getValues();
+  var yr = /^20(2[4-9])$/;
+  var fixed=0, aligned=0, skipped=[], toWrite=[];
+  for(var i=1;i<vals.length;i++){
+    var r = vals[i];
+    if(yr.test(String(r[2]))){ aligned++; toWrite.push(r.slice(0,25)); continue; } // already correct — keep as-is
+    if(!yr.test(String(r[9]))){ skipped.push({ row:i+1, id:r[0], reason:'season not a year at idx9 (col3='+String(r[2])+')' }); toWrite.push(r.slice(0,25)); continue; }
+    var ij = String(r[15]||'');
+    if(ij && ij.charAt(0) !== '['){ skipped.push({ row:i+1, id:r[0], reason:'itemsJson at idx15 not JSON' }); toWrite.push(r.slice(0,25)); continue; }
+    var neo = ['','','','','','','','','','','','','','','','','','','','','','','','',''];
+    neo[0]=r[0];            // id
+    neo[1]='';             // orderNo → backfill assigns
+    neo[2]=r[9];           // season
+    neo[3]=r[10];          // customerName
+    neo[4]=r[11];          // customerMobile
+    neo[5]=r[12];          // devoteeId
+    neo[6]=r[13];          // karyakarta
+    neo[7]=r[14];          // karyakartaId
+    neo[8]=r[15];          // itemsJson
+    neo[9]=r[16];          // itemsSummary
+    neo[10]=r[17];         // total
+    neo[11]=r[18];         // withGheeAmt
+    neo[12]=r[19];         // withoutGheeAmt
+    neo[13]=r[20];         // sugarFreeAmt
+    neo[14]=r[21];         // bhusuAmt
+    neo[15]=r[22];         // delivered
+    neo[16]=r[23];         // paymentReceived
+    neo[17]=r[24];         // balance
+    neo[18]='';            // paymentType (unknown → app computes paid/unpaid from amounts)
+    neo[19]='active';      // status (none were void)
+    neo[20]='';            // remarks
+    neo[21]='';            // createdBy (unknown)
+    neo[22]='';            // createdOn (unknown)
+    neo[23]='';            // updatedBy
+    neo[24]='';            // updatedOn
+    toWrite.push(neo);
+    fixed++;
+  }
+  if(apply){
+    // toWrite holds ONLY the data rows (loop began at i=1), newest schema order.
+    // Normalize each to exactly 25 cells and write them starting at sheet row 2.
+    var out = toWrite.map(function(row){ var x=row.slice(0,25); while(x.length<25) x.push(''); return x; });
+    sh.getRange(2,1,out.length,25).setValues(out);
+    if(lc > 25) sh.getRange(2,26,lr-1,lc-25).clearContent(); // drop any stray columns past the schema
+  }
+  return { applied: !!apply, fixed:fixed, aligned:aligned, skipped:skipped.length, skippedDetails:skipped.slice(0,20) };
+}
+
 // One-time repair: the old addSabha id scheme (SAB-2026-0{len+1}) could assign the
 // SAME id to two events. Follow-ups are keyed by eventId, so records bled from one
 // event into another (phantom "contacted"). Give every DUPLICATE occurrence (keeping
@@ -1356,6 +1419,9 @@ function handle_(p){
     if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
     if(action==='syncFamilyFields') return json_({ ok:true, result: syncFamilyFieldsNow() });
     if(action==='repairDupSabhaIds') return json_({ ok:true, result: repairDuplicateSabhaIds_() });
+    if(action==='ghariRawDump'){ var _sh=ss_().getSheetByName(p.tab||'GhariOrders'); if(!_sh) return json_({ok:false,error:'no tab'}); var _lc=_sh.getLastColumn(), _lr=_sh.getLastRow(); return json_({ ok:true, rows: _sh.getRange(1,1,_lr,_lc).getValues() }); }
+    if(action==='realignGhariOrders') return json_({ ok:true, result: realignGhariOrders_(p && p.apply === true) });
+    if(action==='backfillGhariOrderNos') return json_({ ok:true, result: backfillGhariOrderNos_() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
