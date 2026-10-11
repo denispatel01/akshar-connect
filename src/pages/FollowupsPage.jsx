@@ -48,7 +48,7 @@ export default function FollowupsPage({ user }) {
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagPanel, setShowTagPanel] = useState(false);
-  const [pendingOnly, setPendingOnly] = useState(false);
+  const [viewFilter, setViewFilter] = useState('all'); // all | pending | contacted
   const [karyakarta, setKaryakarta] = useState('');
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function FollowupsPage({ user }) {
     // Pre-filter the drive to the event's audience tags, so a karyakarta only sees
     // the relevant devotees (e.g. an event tagged "Friday Sabha" shows only them).
     const evTags = parseEventTags(ev.tags);
-    setSearch(''); setSelectedTags(evTags); setPendingOnly(false); setShowTagPanel(false);
+    setSearch(''); setSelectedTags(evTags); setViewFilter('all'); setShowTagPanel(false);
   };
 
   const contacted = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
@@ -145,10 +145,11 @@ export default function FollowupsPage({ user }) {
       if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
-      if (pendingOnly && contacted(fmap[d.id])) return false;
+      if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
+      if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
       return true;
     });
-  }, [devotees, search, selectedTags, pendingOnly, fmap, karyakarta]);
+  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta]);
 
   // Summary over the current (search + tag) audience, ignoring the pendingOnly view filter
   const summary = useMemo(() => {
@@ -405,10 +406,14 @@ export default function FollowupsPage({ user }) {
               className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
               <Filter className="h-4 w-4" /> Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}
             </button>
-            <button onClick={() => setPendingOnly(v => !v)}
-              className={`flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold ${pendingOnly ? 'border-[#FF862A] bg-amber-50 text-[#C8642B]' : 'border-border-light bg-surface text-text-muted'}`}>
-              Pending only
-            </button>
+            <div className="flex overflow-hidden rounded-2xl border border-border-light">
+              {[['all', 'All'], ['pending', 'Pending'], ['contacted', 'Contacted']].map(([v, label]) => (
+                <button key={v} onClick={() => setViewFilter(v)}
+                  className={`px-3.5 py-2.5 text-sm font-bold transition-colors ${viewFilter === v ? (v === 'contacted' ? 'bg-emerald-500 text-white' : v === 'pending' ? 'bg-[#FF862A] text-white' : 'bg-primary text-white') : 'bg-surface text-text-muted'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

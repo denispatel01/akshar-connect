@@ -94,6 +94,11 @@ var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivere
 // The installed app URL — tapping a push notification opens this (not the domain root).
 var APP_URL = 'https://denispatel01.github.io/akshar-connect/';
 
+// External attendance sheet (maintained by another app). We read it READ-ONLY and
+// only surface rows for OUR group (Reference Karyakarta contains this name).
+var ATTENDANCE_SHEET_ID = '1j62Jpf8dM4xdPD1afSrB26TMx5ecd6BAbyjD8ljh1zI';
+var ATTENDANCE_GROUP_KARYAKARTA = 'digesh'; // normalized substring match
+
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
 // Send AS this address, shown with this display name. `from` only works once it
@@ -846,8 +851,9 @@ function sendPush_(title, body, audience, data){
         muteHttpExceptions: true,
         payload: JSON.stringify({ message: {
           token: r.token,
-          notification: { title: title, body: body },
-          data: msgData,
+          // DATA-ONLY (no notification block) so the browser doesn't show a second
+          // notification on top of the one our service worker shows.
+          data: mergeData_(msgData, title, body, link),
           android: { priority: 'high' },
           webpush: { fcm_options: { link: link } }
         }})
@@ -871,6 +877,12 @@ function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
 
 // Deep-link a push to the right in-app screen based on its type. The app reads
 // the ?n= param on launch and opens that page.
+// Merge title/body/link into the data payload (all values must be strings for FCM data).
+function mergeData_(msgData, title, body, link){
+  var out = {}; for(var k in msgData) out[k] = String(msgData[k]);
+  out.title = String(title||''); out.body = String(body||''); out.link = String(link||'');
+  return out;
+}
 function pushLink_(type){
   var t = String(type || '').toLowerCase();
   var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard' })[t];
@@ -924,7 +936,7 @@ function pushToMobile_(title, body, mobile, data){
     var link = pushLink_(msgData.type);
     var reqs = targets.map(function(r){
       return { url:url, method:'post', contentType:'application/json', headers:{ Authorization:'Bearer '+token }, muteHttpExceptions:true,
-        payload: JSON.stringify({ message:{ token:r.token, notification:{ title:title, body:body }, data:msgData, android:{ priority:'high' }, webpush:{ fcm_options:{ link: link } } }}) };
+        payload: JSON.stringify({ message:{ token:r.token, data: mergeData_(msgData, title, body, link), android:{ priority:'high' }, webpush:{ fcm_options:{ link: link } } }}) };
     });
     var resps = UrlFetchApp.fetchAll(reqs); var sent = 0;
     for(var i=0;i<resps.length;i++){ if(resps[i].getResponseCode() === 200) sent++; }
@@ -1185,6 +1197,64 @@ function readTail_(name, n){
   }
   return out;
 }
+// Read any sheet (in any spreadsheet) as objects keyed by its header row.
+function sheetObjects_(ss, name){
+  var sh = ss.getSheetByName(name); if(!sh) return [];
+  var last = sh.getLastRow(), lc = sh.getLastColumn(); if(last < 2 || lc < 1) return [];
+  var vals = sh.getRange(1,1,last,lc).getValues();
+  var head = vals[0].map(function(h){ return String(h).trim(); });
+  var out = [];
+  for(var i=1;i<vals.length;i++){
+    var o = {}, blank = true;
+    for(var c=0;c<head.length;c++){ var v = vals[i][c]; if(v!=='' && v!==null) blank=false; o[head[c]] = v; }
+    if(!blank) out.push(o);
+  }
+  return out;
+}
+// Group attendance from the external attendance sheet — ONLY devotees whose
+// "Reference Karyakarta" matches our group. Read-only.
+function doGetGroupAttendance_(){
+  try{
+    var xss = SpreadsheetApp.openById(ATTENDANCE_SHEET_ID);
+    var devs = sheetObjects_(xss, 'Devotees');
+    var sess = sheetObjects_(xss, 'Sessions');
+    var att  = sheetObjects_(xss, 'Attendance');
+    var key = String(ATTENDANCE_GROUP_KARYAKARTA).toLowerCase();
+    var our = {}, ourList = [];
+    devs.forEach(function(d){
+      var ref = String(d['Reference Karyakarta']||'').toLowerCase();
+      var active = String(d['Active']||'Y').toUpperCase();
+      if(ref.indexOf(key) >= 0 && active !== 'N'){
+        var id = String(d['ID']||'');
+        var name = [d['First Name'], d['Middle Name'], d['Last Name']].filter(function(x){return x;}).join(' ');
+        our[id] = { id:id, name:name, mobile:String(d['Mobile']||'') };
+        ourList.push(our[id]);
+      }
+    });
+    var presentBy = {};
+    att.forEach(function(a){
+      if(String(a['Status']||'').toLowerCase() !== 'present') return;
+      var sid = String(a['Session ID']||''), did = String(a['Devotee ID']||'');
+      if(!our[did]) return;
+      (presentBy[sid] = presentBy[sid] || {})[did] = true;
+    });
+    var attended = {};
+    var sessions = sess.filter(function(s){ var c=String(s['Cancelled']||'').toLowerCase(); return c!=='y' && c!=='yes' && c!=='true'; })
+      .map(function(s){
+        var sid = String(s['Session ID']||'');
+        var pres = presentBy[sid] || {};
+        var names = [];
+        Object.keys(pres).forEach(function(did){ names.push(our[did].name); attended[did] = (attended[did]||0)+1; });
+        var dt = s['Session Date']; var dateStr = (dt instanceof Date) ? dt.toISOString() : String(dt||'');
+        return { id:sid, date:dateStr, title:String(s['Session Title']||''), present:names.length, total:ourList.length, names:names.sort() };
+      });
+    sessions.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
+    var byDevotee = ourList.map(function(d){ return { id:d.id, name:d.name, attended: attended[d.id]||0 }; })
+      .sort(function(a,b){ return b.attended - a.attended || a.name.localeCompare(b.name); });
+    return json_({ ok:true, devoteeCount: ourList.length, sessionCount: sessions.length, sessions: sessions, byDevotee: byDevotee });
+  }catch(e){ return json_({ ok:false, error:String(e) }); }
+}
+
 function rowFromObj_(name, obj){ return HEADERS[name].map(function(h){ var x=obj[h]; return (x===undefined||x===null)?'':x; }); }
 function appendRows_(name, arr){
   if(!arr || !arr.length) return;
@@ -1385,6 +1455,7 @@ function handle_(p){
     if(action==='ghariRevert') return doGhariRevert_(p);
     if(action==='getVato') return doGetVato_();
     if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||30) });
+    if(action==='getGroupAttendance') return doGetGroupAttendance_();
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }

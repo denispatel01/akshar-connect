@@ -583,6 +583,12 @@ export const dataService = {
     return dataService.getCachedVato();
   },
 
+  // ---- Attendance (read-only from the external attendance sheet, our group only) ----
+  getGroupAttendance: async () => {
+    if (!hasBackend()) return null;
+    try { const r = await api('getGroupAttendance', {}); return (r && r.ok) ? r : null; } catch { return null; }
+  },
+
   // ---- Feed (community photo/video posts) ----
   // Upload one media item (image or short video data URI) to Drive and get a
   // stable URL. Falls back to the data URI if there's no backend / upload fails.

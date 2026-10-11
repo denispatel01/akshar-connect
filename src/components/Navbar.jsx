@@ -26,6 +26,7 @@ import {
   Database,
   Quote,
   Search,
+  CalendarCheck,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import GlobalSearch from './GlobalSearch';
@@ -96,6 +97,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         ...(isAdmin || isSevak
           ? [
               { id: 'followups', label: 'Follow-up', icon: PhoneCall },
+              { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
             ]

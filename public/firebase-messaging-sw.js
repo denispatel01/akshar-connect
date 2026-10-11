@@ -16,25 +16,32 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
+const APP_URL = 'https://denispatel01.github.io/akshar-connect/';
 
-// Show the notification when a push arrives in the background.
+// Pushes are sent DATA-ONLY (no `notification` block), so the browser does NOT
+// auto-display one on top of ours — we show exactly one here. Title/body/link all
+// come from payload.data.
 messaging.onBackgroundMessage((payload) => {
-  const n = payload.notification || {};
-  self.registration.showNotification(n.title || 'Akshar Connect', {
-    body: n.body || '',
+  const d = payload.data || {};
+  self.registration.showNotification(d.title || 'Akshar Connect', {
+    body: d.body || '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    data: payload.data || {},
+    data: { link: d.link || APP_URL, type: d.type || '' },
   });
 });
 
-// Focus/open the app when the user taps the notification.
+// Tapping the notification opens the deep-linked section (Vato/Feed/…). If the app
+// is already open, navigate that window to the link; otherwise open a new one.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) { if ('focus' in w) return w.focus(); }
-      if (clients.openWindow) return clients.openWindow('/');
-    })
-  );
+  const url = (event.notification.data && event.notification.data.link) || APP_URL;
+  event.waitUntil((async () => {
+    const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      try { await w.navigate(url); } catch (e) { /* cross-doc nav may be blocked */ }
+      if ('focus' in w) return w.focus();
+    }
+    if (clients.openWindow) return clients.openWindow(url);
+  })());
 });
