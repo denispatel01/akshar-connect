@@ -170,6 +170,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [remarks, setRemarks] = useState(initialOrder?.remarks || '');
   const [payEdited, setPayEdited] = useState(isEdit);
   const [paymentReceived, setPaymentReceived] = useState(initialOrder?.paymentReceived ?? 0);
+  const [review, setReview] = useState(null); // {addAnother} while showing the confirm-order preview
 
   const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => {
     const p = bySku[sku]; return p ? { sku, name: p.name, size: p.size, category: p.category, qty, unitPrice: p.unitPrice } : null;
@@ -181,9 +182,18 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
   const reset = () => { setCart({}); setCustomerName(''); setCustomerMobile(''); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
+  // Review-before-save: validate, then show a preview so the user can confirm the
+  // exact order (items hard to re-check by scrolling up past many product cards).
+  const requestSave = (addAnother) => {
+    if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return; }
+    if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return; }
+    setReview({ addAnother });
+  };
+
   const save = (addAnother) => {
     if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return; }
     if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return; }
+    setReview(null);
     const order = ghariService.saveOrder({
       id: initialOrder?.id, season: initialOrder?.season,
       customerName: customerName.trim(), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
@@ -305,13 +315,57 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
         <div className="ml-auto flex items-center gap-2">
           {onDelete && <button onClick={onDelete} title="Delete order" className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:border-rose-900"><Trash2 className="h-4 w-4" /></button>}
           {onCancel && <button onClick={onCancel} className="rounded-xl border border-border-light px-3 py-2.5 text-sm font-bold text-text-muted">Cancel</button>}
-          {!isEdit && <button onClick={() => save(true)} className="rounded-xl border-2 border-primary px-3 py-2.5 text-sm font-black text-primary">Save & new</button>}
-          <button onClick={() => save(false)} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Save' : 'Save order'}</button>
+          {!isEdit && <button onClick={() => requestSave(true)} className="rounded-xl border-2 border-primary px-3 py-2.5 text-sm font-black text-primary">Save & new</button>}
+          <button onClick={() => requestSave(false)} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Review & save' : 'Review & save'}</button>
         </div>
       </div>
       )}
       {/* Spacer so the last content clears the sticky bar + bottom nav */}
       {embedded && <div className="h-4" />}
+
+      {/* Confirm-order preview — one place to check everything before saving. */}
+      {review && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setReview(null)}>
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+              <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><ShoppingCart className="h-4 w-4 text-primary" /> Confirm order</h3>
+              <button onClick={() => setReview(null)} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="rounded-2xl bg-bg-base px-3 py-2">
+                <p className="text-sm font-black text-text-main">{customerName || '(no name)'}</p>
+                <p className="text-[11px] font-semibold text-text-muted">{[customerMobile && `📱 ${customerMobile}`, karyakarta && `via ${karyakarta}`].filter(Boolean).join(' · ') || 'No mobile / karyakarta'}</p>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-border-light">
+                {items.map(it => (
+                  <div key={it.sku} className="flex items-center justify-between gap-2 border-b border-border-light px-3 py-2 last:border-0">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
+                    <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                    <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.values(GHARI_CATEGORIES).map(c => totals.byCategory[c.key] > 0 && (
+                  <span key={c.key} className="rounded-full px-2.5 py-1 text-[11px] font-bold text-white" style={{ background: c.color }}>{c.short}: {rupee(totals.byCategory[c.key])}</span>
+                ))}
+              </div>
+              <div className="space-y-1 rounded-2xl bg-bg-base px-3 py-2.5 text-sm">
+                <div className="flex justify-between"><span className="font-semibold text-text-muted">{totals.boxes} box{totals.boxes === 1 ? '' : 'es'} · Total</span><span className="font-black text-text-main">{rupee(totals.total)}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>
+                {balance > 0 && <div className="flex justify-between"><span className="font-semibold text-rose-600">Balance due</span><span className="font-black text-rose-600">{rupee(balance)}</span></div>}
+                <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery</span><span className="font-bold text-text-main">{delivered ? 'Delivered ✓' : 'Not yet'}</span></div>
+                {remarks.trim() && <div className="pt-1 text-[12px] text-text-muted">📝 {remarks.trim()}</div>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-border-light p-3">
+              <button onClick={() => setReview(null)} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text-muted">Edit order</button>
+              <button onClick={() => save(review.addAnother)} className="flex-[1.4] rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-2.5 text-sm font-black text-white shadow-md active:scale-95">Confirm &amp; save {rupee(totals.total)}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </fieldset>
   );
 }
