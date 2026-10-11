@@ -132,12 +132,14 @@ export default function SwadhyayPage({ user }) {
   const saveTimer = useRef(null);
 
   // Prefill the form from the selected day's saved entry (blank if none).
+  // NEVER clobber in-progress edits (dirtyRef) — otherwise a background history
+  // update would wipe a value the user just tapped.
   useEffect(() => {
+    if (dirtyRef.current) return;
     const entry = history.find((r) => r.date === date);
     setForm(entry
       ? { bhajanMin: +entry.bhajanMin || 0, bhajanTime: entry.bhajanTime || '', listenMin: +entry.listenMin || 0, readMin: +entry.readMin || 0 }
       : { bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
-    dirtyRef.current = false; // this is a load, not a user edit
     setSaved(false);
   }, [date, history]);
 
@@ -190,13 +192,12 @@ export default function SwadhyayPage({ user }) {
     try {
       await dataService.saveSwadhyay({ devoteeId, mobile: myMobile, name: myName, date: savedDate, ...snapshot });
       setSaved(true);
-      // Merge the saved row into local history so switching dates keeps showing it,
-      // then refresh from the backend so streak/week reflect the save.
+      // Merge the saved row into local history (optimistic). We do NOT refetch from
+      // the server here — a just-saved row can read back stale and wipe the form.
       setHistory((prev) => {
         const others = (prev || []).filter((r) => r.date !== savedDate);
         return [...others, { devoteeId, mobile: myMobile, name: myName, date: savedDate, ...snapshot }];
       });
-      dataService.getMySwadhyay(devoteeId).then((rows) => { if (rows && rows.length) setHistory(rows); });
       setTimeout(() => setSaved(false), 2500);
     } catch (e) { alertError('Could not save', e.message || 'Try again.'); }
     finally { setSaving(false); }
@@ -210,6 +211,18 @@ export default function SwadhyayPage({ user }) {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.bhajanMin, form.bhajanTime, form.listenMin, form.readMin]);
+
+  // Keep the latest values in a ref so we can flush a pending edit on unmount
+  // (e.g. the user taps 30 then immediately switches to another tab).
+  const latest = useRef({});
+  latest.current = { form, date, devoteeId, myMobile, myName };
+  useEffect(() => () => {
+    if (dirtyRef.current && latest.current.devoteeId) {
+      const l = latest.current;
+      try { dataService.saveSwadhyay({ devoteeId: l.devoteeId, mobile: l.myMobile, name: l.myName, date: l.date, ...l.form }); } catch (e) { /* fire-and-forget */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 pb-28">
