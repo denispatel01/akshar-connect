@@ -1210,6 +1210,64 @@ function PurchasesView({ season, canEdit = true }) {
   );
 }
 
+// ───────────────────────── Trash (voided orders) ────────────────────────────
+// Deleting an order soft-voids it (money is recoverable) and its permanent order
+// number is kept — which is why the active list shows gaps (e.g. #6, #7 missing).
+// This view surfaces those voided orders, who voided them and when, with Restore.
+function TrashView({ season, onRestored, flash }) {
+  const [tick, setTick] = useState(0);
+  const voided = useMemo(
+    () => ghariService.getOrders(season, { includeVoid: true }).filter(o => o.status === 'void'),
+    [season, tick]
+  );
+  const restore = (o) => {
+    if (!window.confirm(`Restore order #${o.orderNo} for ${o.customerName}? It will reappear in the active orders list.`)) return;
+    ghariService.restoreOrder(o.id);
+    setTick(t => t + 1);
+    onRestored?.();
+    flash?.(`Order #${o.orderNo} restored ✓`);
+  };
+  if (!voided.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
+        <RotateCcw className="mx-auto mb-2 h-10 w-10 text-text-muted" />
+        <p className="text-sm font-bold text-text-muted">No voided orders</p>
+        <p className="mt-1 text-[11px] text-text-muted">Deleted orders appear here and can be restored. Order numbers are never reused, so a deleted order leaves a gap in the list.</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <p className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+        🗑️ {voided.length} voided order{voided.length === 1 ? '' : 's'} this season. They keep their number (so the active list skips it) and are excluded from totals. Restore any deleted by mistake.
+      </p>
+      <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+        {voided.map(o => {
+          const summary = o.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ');
+          const when = String(o.updatedOn || o.createdOn || '').slice(0, 10);
+          const who = String(o.updatedBy || o.createdBy || '').replace(/\s*\(.*\)$/, '');
+          return (
+            <div key={o.id} className="flex items-center gap-2 border-b border-border-light px-3 py-3 last:border-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 rounded-md bg-rose-100 px-1.5 py-0.5 font-mono text-[11px] font-black text-rose-700 dark:bg-rose-950 dark:text-rose-300">#{o.orderNo}</span>
+                  <span className="truncate text-sm font-extrabold text-text-main line-through decoration-rose-400">{o.customerName || '(no name)'}</span>
+                </div>
+                <div className="truncate text-[11px] text-text-muted">{summary}</div>
+                <div className="text-[10px] font-semibold text-text-muted">Voided{when ? ` ${when}` : ''}{who ? ` · by ${who}` : ''} · {rupee(o.total)}</div>
+              </div>
+              <button onClick={() => restore(o)}
+                className="flex shrink-0 items-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <RotateCcw className="h-3.5 w-3.5" /> Restore
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
   const canEdit = user?.role === 'Admin'; // Sevaks have view-only access
@@ -1258,6 +1316,7 @@ export default function GhariPage({ user }) {
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
+    ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
     ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
   ];
 
@@ -1322,6 +1381,7 @@ export default function GhariPage({ user }) {
 
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
+      {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
 
       {editing && <EditModal order={editing} canEdit={canEdit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); flash(canEdit ? 'Order updated ✓' : ''); }} />}
