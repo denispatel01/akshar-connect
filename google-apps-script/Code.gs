@@ -889,6 +889,35 @@ function sendPush_(title, body, audience, data){
 }
 function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
 
+// One-time repair: the old addSabha id scheme (SAB-2026-0{len+1}) could assign the
+// SAME id to two events. Follow-ups are keyed by eventId, so records bled from one
+// event into another (phantom "contacted"). Give every DUPLICATE occurrence (keeping
+// the FIRST, which is the original owner of that id and its follow-ups) a fresh unique
+// id. No follow-up records are moved or deleted, so the first event keeps its history
+// and the duplicate becomes a clean, empty event. Idempotent — safe to run repeatedly.
+function repairDuplicateSabhaIds_(){
+  var sh = ss_().getSheetByName('Sabhas'); if(!sh) return { fixed: 0, details: [] };
+  var last = sh.getLastRow(); if(last < 2) return { fixed: 0, details: [] };
+  var ids = sh.getRange(2, 1, last-1, 1).getValues(); // column 1 = id
+  var seen = {}, details = [], changed = false;
+  for(var i=0;i<ids.length;i++){
+    var id = String(ids[i][0] || '');
+    if(!id) continue;
+    if(seen[id]){
+      var newId;
+      do { newId = 'SAB-' + Date.now() + '-' + Math.floor(Math.random()*100000); } while(seen[newId]);
+      seen[newId] = true;
+      ids[i][0] = newId;
+      details.push({ row: i+2, oldId: id, newId: newId });
+      changed = true;
+    } else {
+      seen[id] = true;
+    }
+  }
+  if(changed) sh.getRange(2, 1, ids.length, 1).setValues(ids);
+  return { fixed: details.length, details: details };
+}
+
 // Deep-link a push to the right in-app screen based on its type. The app reads
 // the ?n= param on launch and opens that page.
 // Merge title/body/link into the data payload (all values must be strings for FCM data).
@@ -1326,6 +1355,7 @@ function handle_(p){
     if(action==='classifyOldNew') return json_({ ok:true, result: classifyOldNewNow() });
     if(action==='markReference') return json_({ ok:true, result: markReferenceNow() });
     if(action==='syncFamilyFields') return json_({ ok:true, result: syncFamilyFieldsNow() });
+    if(action==='repairDupSabhaIds') return json_({ ok:true, result: repairDuplicateSabhaIds_() });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
