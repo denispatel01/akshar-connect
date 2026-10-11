@@ -357,12 +357,12 @@ export default function DashboardPage({ setActivePage, user }) {
           labels only make sense per gender. Total Devotees & Families appear in both. */}
       <div className="lg:col-span-2 lg:order-4 space-y-6">
         {!isDevotee ? (<>
-        {/* MALE section */}
+        {/* Common — not gender-specific */}
         <section>
           <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
-            <User className="h-4 w-4" /> Male
+            <Users className="h-4 w-4" /> Overview
           </h3>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Total Devotees</span>
@@ -385,50 +385,6 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-text-main">{familiesCount}</p>
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('ambrish')} className={statCardCls} title="View Ambrish devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Ambrish</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
-              <Award className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
-          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
-        </button>
-
-        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View Male Karyakartas">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Karyakartas</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
-              <UserCheck className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.male.length}</p>
-          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view the list</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('male-head')} className={statCardCls} title="View male family heads">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Heads</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
-              <Home className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{maleHeadCount}</p>
-          <p className="text-[11px] font-semibold text-blue-600 mt-1">Primary members · male</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('male')} className={statCardCls} title="View male devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
-              <User className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{maleCount}</p>
-          <p className="text-[11px] font-semibold text-blue-600 mt-1">Tap to view male devotees</p>
         </button>
 
         <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
@@ -455,36 +411,64 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
         </section>
 
-        {/* FEMALE section */}
+        {/* Male */}
+        <section>
+          <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
+            <User className="h-4 w-4" /> Male
+          </h3>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <button type="button" onClick={() => openDevotees('ambrish')} className={statCardCls} title="View Ambrish devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Ambrish</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
+              <Award className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
+          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
+        </button>
+
+        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View male karyakartas">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakartas</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.male.length}</p>
+          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view the list</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('male-head')} className={statCardCls} title="View male family heads">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Heads</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
+              <Home className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{maleHeadCount}</p>
+          <p className="text-[11px] font-semibold text-blue-600 mt-1">Primary family members</p>
+        </button>
+
+        <button type="button" onClick={() => openDevotees('male')} className={statCardCls} title="View male devotees">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Devotees</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
+              <User className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{maleCount}</p>
+          <p className="text-[11px] font-semibold text-blue-600 mt-1">Tap to view the list</p>
+        </button>
+          </div>
+        </section>
+
+        {/* Female */}
         <section>
           <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
             <User className="h-4 w-4" /> Female
           </h3>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <button type="button" onClick={() => openDevotees('total')} className={statCardCls} title="View all devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Total Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-text-main">
-              <Users className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{totalDevotees}</p>
-          <p className="text-[11px] font-semibold text-emerald-600 mt-1 flex items-center gap-1">
-            <TrendingUp className="h-3 w-3" /> Tap to open full directory
-          </p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('families')} className={statCardCls} title="View family heads">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Families</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <Home className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{familiesCount}</p>
-          <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
-        </button>
-
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button type="button" onClick={() => openDevotees('sahradyi')} className={statCardCls} title="View Sahradyi devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Sahradyi</span>
@@ -496,9 +480,9 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Sahradyi</p>
         </button>
 
-        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View Female Karyakartas">
+        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View female karyakartas">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Karyakartas</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakartas</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
               <UserCheck className="h-5 w-5" />
             </div>
@@ -509,24 +493,24 @@ export default function DashboardPage({ setActivePage, user }) {
 
         <button type="button" onClick={() => openDevotees('female-head')} className={statCardCls} title="View female family heads">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Heads</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Heads</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
               <Home className="h-5 w-5" />
             </div>
           </div>
           <p className="text-2xl font-extrabold text-text-main">{femaleHeadCount}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Primary members · female</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Primary family members</p>
         </button>
 
         <button type="button" onClick={() => openDevotees('female')} className={statCardCls} title="View female devotees">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Devotees</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Devotees</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
               <User className="h-5 w-5" />
             </div>
           </div>
           <p className="text-2xl font-extrabold text-text-main">{femaleCount}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view female devotees</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view the list</p>
         </button>
           </div>
         </section>
@@ -625,7 +609,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
 
       {/* Upcoming Birthdays */}
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-2 lg:order-8">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-3 lg:order-8">
         <div className="flex items-center justify-between mb-4 gap-3">
           <h2 className="text-base font-bold text-text-main flex items-center gap-2">
             <Cake className="h-5 w-5 text-rose-500" /> Upcoming Birthdays
@@ -637,7 +621,7 @@ export default function DashboardPage({ setActivePage, user }) {
         {upcoming.length === 0 ? (
           <p className="text-sm font-semibold text-text-muted">No birthdays in the next 30 days.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-start">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start">
             {upcoming.map(({ devotee, info }) => {
               const open = expandedBday === devotee.id;
               const wa = birthdayWaLink(devotee);
@@ -706,7 +690,7 @@ export default function DashboardPage({ setActivePage, user }) {
 
       {/* Quick Actions */}
       {!isDevotee && (
-      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-1 lg:order-7">
+      <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs lg:col-span-3 lg:order-7">
         <h2 className="text-base font-bold text-text-main mb-4">⚡ Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
@@ -723,6 +707,22 @@ export default function DashboardPage({ setActivePage, user }) {
           >
             <PhoneCall className="h-6 w-6 text-[#FF862A]" />
             <span className="text-xs font-bold text-text-main">Run Follow-ups</span>
+          </button>
+
+          <button
+            onClick={() => setActivePage('reports')}
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base p-4 text-center transition-all hover:bg-surface hover:border-primary hover:shadow-md"
+          >
+            <TrendingUp className="h-6 w-6 text-emerald-600" />
+            <span className="text-xs font-bold text-text-main">Reports</span>
+          </button>
+
+          <button
+            onClick={() => setActivePage('ghari')}
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base p-4 text-center transition-all hover:bg-surface hover:border-primary hover:shadow-md"
+          >
+            <Award className="h-6 w-6 text-[#FF862A]" />
+            <span className="text-xs font-bold text-text-main">Ghari Seva</span>
           </button>
         </div>
       </div>

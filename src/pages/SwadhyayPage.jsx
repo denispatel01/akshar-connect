@@ -307,7 +307,7 @@ export default function SwadhyayPage({ user }) {
                   <div className="flex-1 overflow-x-auto">
                     <div className="flex gap-1.5">
                       {QUICK.map((q) => (
-                        <button key={q} onClick={() => set(p.key, q)}
+                        <button key={q} onClick={() => set(p.key, val === q ? 0 : q)}
                           className={`shrink-0 rounded-xl px-3 py-2 text-sm font-bold transition-colors ${val === q ? `bg-gradient-to-br ${p.from} ${p.to} text-white shadow` : `${p.soft} ${p.text}`}`}>
                           {q}
                         </button>

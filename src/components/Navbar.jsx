@@ -54,6 +54,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const isDarkModeOn = isDarkMode;
   const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  // Rotating Gujarati slogans shown in the header centre (desktop). Text is taken
+  // from the app's own darshan / quote assets, so the Gujarati is accurate.
+  const SLOGANS = ['જય સ્વામિનારાયણ 🙏', 'બસ, એક તું રાજી થા', 'કરીએ એ જ કામ, જેમાં તારો રાજીપો'];
+  const [sloganIdx, setSloganIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSloganIdx((s) => (s + 1) % SLOGANS.length), 5000);
+    return () => clearInterval(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
@@ -64,11 +73,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
 
           {/* Centred greeting — desktop only, fills the header without crowding the
               left/right clusters (absolutely positioned, non-interactive). */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:flex">
-            <span className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-bold text-primary">
-              🙏 Jai Swaminarayan
+          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden max-w-[46%] -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:flex">
+            <span key={sloganIdx} className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-bold text-primary animate-fade-in whitespace-nowrap"
+              style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
+              {SLOGANS[sloganIdx]}
             </span>
-            <span className="text-xs font-semibold text-text-muted">{todayLabel}</span>
+            <span className="shrink-0 text-xs font-semibold text-text-muted">{todayLabel}</span>
           </div>
 
           {/* Left: sidebar toggle (desktop) + back + refresh + search + brand */}
