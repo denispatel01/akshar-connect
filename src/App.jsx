@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import DevoteesPage from './pages/DevoteesPage';
@@ -156,6 +157,16 @@ export default function App() {
     setActivePage('dashboard');
   };
 
+  // Desktop sidebar collapse — remembered across sessions.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('ac-sidebar-collapsed') === 'true'; } catch (e) { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed((c) => {
+    const next = !c;
+    try { localStorage.setItem('ac-sidebar-collapsed', String(next)); } catch (e) {}
+    return next;
+  });
+
   // Dark Mode Toggle
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('ac-dark-mode') === 'true';
@@ -191,8 +202,22 @@ export default function App() {
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         updateAvailable={updateAvailable}
         onHardRefresh={hardRefresh}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={toggleSidebar}
       />
 
+      {/* Desktop app shell: left sidebar + content column. On mobile the sidebar is
+          hidden (Navbar's bottom bar handles nav) and this is just the content. */}
+      <div className="flex flex-1 min-h-0 items-start">
+        <Sidebar
+          activePage={activePage}
+          setActivePage={navigate}
+          user={user}
+          onLogout={handleLogout}
+          collapsed={sidebarCollapsed}
+        />
+
+        <div className="flex-1 flex flex-col min-w-0">
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
@@ -231,7 +256,9 @@ export default function App() {
         </ErrorBoundary>
       </main>
 
-      <Footer />
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }

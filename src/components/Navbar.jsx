@@ -1,42 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  LayoutDashboard,
-  Users,
-  PhoneCall,
-  FileSpreadsheet,
-  BookOpen,
-  CalendarDays,
-  Mail,
-  Settings,
   LogOut,
-  User,
   Moon,
   Sun,
   ArrowLeft,
   RefreshCw,
-  Tags,
-  Tag,
   Menu,
   X,
   ChevronRight,
-  Activity,
-  Cookie,
-  Sparkles,
-  Database,
-  Quote,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
-  CalendarCheck,
 } from 'lucide-react';
-import { dataService } from '../services/dataService';
+import { getAllNavItems, getPrimaryMobile } from '../utils/navItems';
+import { useNewFeed } from '../utils/useNewFeed';
 import GlobalSearch from './GlobalSearch';
 
-export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
-  const isDevotee = user?.role === 'Devotee';
+export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh, sidebarCollapsed, onToggleSidebar }) {
   const isAdmin = user?.role === 'Admin';
   const isSevak = user?.role === 'Sevak';
-  // Ghari Seva is visible to Admins and to any user explicitly granted the module.
-  const canGhari = isAdmin || String(user?.modules || '').split(/[,|]/).map((s) => s.trim().toLowerCase()).includes('ghari');
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -49,100 +32,26 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     return () => { document.body.style.overflow = prev; };
   }, [moreOpen]);
 
-  // New-post indicator on the Feed nav: compare the newest post to what this
-  // device last saw (written by the Feed page when viewed).
-  const [hasNewFeed, setHasNewFeed] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    const check = async () => {
-      try {
-        const r = await dataService.getFeed({ limit: 1 });
-        const newest = (r.posts && r.posts[0] && r.posts[0].createdOn) || '';
-        let seen = '';
-        try { seen = localStorage.getItem('ac-feed-seen') || ''; } catch (e) {}
-        if (alive) setHasNewFeed(!!newest && String(newest) > String(seen));
-      } catch (e) { /* offline — no dot */ }
-    };
-    check();
-    const onSeen = () => setHasNewFeed(false);
-    const onRefresh = () => check();
-    window.addEventListener('ac-feed-seen', onSeen);
-    window.addEventListener('ac-data-refreshed', onRefresh);
-    return () => { alive = false; window.removeEventListener('ac-feed-seen', onSeen); window.removeEventListener('ac-data-refreshed', onRefresh); };
-  }, []);
+  const [hasNewFeed, clearNewFeed] = useNewFeed();
 
   const longPressTimer = useRef(null);
   const startLongPress = () => { longPressTimer.current = setTimeout(() => onHardRefresh?.(), 1500); };
   const cancelLongPress = () => { clearTimeout(longPressTimer.current); };
 
-  // ── Desktop nav: all items ──────────────────────────────────────────────────
-  const allNavItems = isDevotee
-    ? [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'vato', label: 'Vato', icon: Quote },
-        { id: 'feed', label: 'Feed', icon: Sparkles },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
-        { id: 'devotees', label: 'My Profile', icon: User },
-        { id: 'family', label: 'Family', icon: Users },
-        { id: 'activity', label: 'My Activity', icon: Activity },
-      ]
-    : [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'vato', label: 'Vato', icon: Quote },
-        { id: 'feed', label: 'Feed', icon: Sparkles },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
-        { id: 'devotees', label: 'Divine Devotees', icon: Users },
-        ...(isAdmin || isSevak
-          ? [
-              { id: 'followups', label: 'Follow-up', icon: PhoneCall },
-              { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
-              { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-              { id: 'email', label: 'Email', icon: Mail },
-            ]
-          : []),
-        ...(isAdmin || isSevak
-          ? [
-              { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
-              { id: 'ghari', label: 'Ghari Seva', icon: Cookie },
-            ]
-          : []),
-        ...(isAdmin
-          ? [
-              { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
-              { id: 'data', label: 'Data Quality', icon: Database, adminOnly: true },
-              { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
-            ]
-          : []),
-        { id: 'activity', label: 'My Activity', icon: Activity },
-      ];
-
   // ── Mobile: 3 core tabs + a Menu (hamburger). Everything else goes in the Menu,
   // so adding modules never makes the bar taller/crowded. ──────────────────────
-  const primaryMobile = isDevotee
-    ? [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-        { id: 'devotees', label: 'My Profile', icon: User },
-      ]
-    : [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'devotees', label: 'Devotees', icon: Users },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-      ];
+  const primaryMobile = getPrimaryMobile(user);
 
   // The Menu holds every nav item that isn't a primary tab — nothing is lost.
   const primaryIds = new Set(primaryMobile.map((i) => i.id));
-  const moreItems = allNavItems.filter((i) => !primaryIds.has(i.id));
+  const moreItems = getAllNavItems(user).filter((i) => !primaryIds.has(i.id));
 
   // Is the active page inside the "More" sheet?
   const moreActive = moreItems.some((i) => i.id === activePage);
 
-  const navigate = (id) => { if (id === 'feed') setHasNewFeed(false); setActivePage(id); setMoreOpen(false); };
+  const navigate = (id) => { if (id === 'feed') clearNewFeed(); setActivePage(id); setMoreOpen(false); };
 
-  const roleColor = isAdmin ? 'text-red-500' : isSevak ? 'text-amber-600' : 'text-indigo-500';
-  const roleBg   = isAdmin ? 'bg-red-50 dark:bg-red-950' : isSevak ? 'bg-amber-50 dark:bg-amber-950' : 'bg-indigo-50 dark:bg-indigo-950';
+  const isDarkModeOn = isDarkMode;
 
   return (
     <>
@@ -150,10 +59,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-2.5 sm:px-6">
+        <div className="flex items-center justify-between px-4 py-2.5 sm:px-6">
 
-          {/* Left: back + refresh + brand */}
+          {/* Left: sidebar toggle (desktop) + back + refresh + search + brand */}
           <div className="flex items-center gap-2">
+            {/* Desktop-only: collapse / expand the sidebar */}
+            <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
             <button onClick={onBack} disabled={!canBack} title="Back"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed">
               <ArrowLeft className="h-4 w-4" />
@@ -184,29 +98,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </div>
           </div>
 
-          {/* Centre: desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 bg-bg-base/70 p-1.5 rounded-2xl border border-border-light shadow-inner">
-            {allNavItems.map(({ id, label, icon: Icon, adminOnly }) => {
-              const active = activePage === id;
-              return (
-                <button key={id} onClick={() => { if (id === 'feed') setHasNewFeed(false); setActivePage(id); }}
-                  className={`group relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${active
-                    ? 'bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow-md shadow-primary/30'
-                    : 'text-text-muted hover:text-text-main hover:bg-surface'}`}>
-                  <Icon className={`h-4 w-4 transition-transform duration-200 ${active ? 'text-[#FFB26B]' : 'text-text-muted group-hover:text-accent group-hover:scale-110'}`} strokeWidth={active ? 2.5 : 2} />
-                  {label}
-                  {adminOnly && <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ${active ? 'ring-primary' : 'ring-bg-base'}`} />}
-                  {id === 'feed' && hasNewFeed && !active && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-bg-base" />}
-                </button>
-              );
-            })}
-          </nav>
-
           {/* Right: dark mode + user badge + logout (desktop) */}
           <div className="flex items-center gap-2">
             <button onClick={toggleDarkMode} title="Toggle theme"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
-              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDarkModeOn ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <div className="hidden sm:flex items-center gap-2">
               <button onClick={() => setActivePage('account')} title="My Account"
@@ -216,7 +112,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                 </div>
                 <div className="text-left">
                   <p className="text-xs font-bold text-text-main leading-tight">{user?.name || 'User'}</p>
-                  <span className={`inline-block text-[10px] font-bold ${roleColor}`}>{user?.role || 'Devotee'}</span>
+                  <span className={`inline-block text-[10px] font-bold ${isAdmin ? 'text-red-500' : isSevak ? 'text-amber-600' : 'text-indigo-500'}`}>{user?.role || 'Devotee'}</span>
                 </div>
               </button>
               <button onClick={onLogout} title="Logout"
@@ -340,8 +236,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <div className="flex items-center gap-2 px-4 py-3">
             <button onClick={toggleDarkMode}
               className="flex flex-1 items-center gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-sm font-semibold text-text-main transition-colors hover:bg-border-light">
-              {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
-              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+              {isDarkModeOn ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+              {isDarkModeOn ? 'Light Mode' : 'Dark Mode'}
             </button>
             <button onClick={() => { setMoreOpen(false); onHardRefresh?.(); }}
               className="flex items-center justify-center h-12 w-12 rounded-2xl border border-border-light bg-bg-base text-text-muted hover:bg-border-light transition-colors"
