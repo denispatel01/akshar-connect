@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Share2, Sparkles, CalendarDays, Shuffle, BookOpen } from 'lucide-react';
 
 import { dataService } from '../services/dataService';
@@ -58,6 +58,19 @@ export default function VatoPage({ user }) {
   const isToday = idx === todayIdx;
 
   const go = (d) => setList((l) => { setIdx((i) => (l.length ? (i + d + l.length) % l.length : 0)); return l; });
+
+  // Swipe left = next, swipe right = previous.
+  const touchX = useRef(null);
+  const [swipeHint, setSwipeHint] = useState(0); // -1 left, 1 right (brief nudge anim)
+  const onTouchStart = (e) => { touchX.current = e.changedTouches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touchX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchX.current;
+    touchX.current = null;
+    if (Math.abs(dx) < 45) return;
+    if (dx < 0) { go(1); setSwipeHint(-1); } else { go(-1); setSwipeHint(1); }
+    setTimeout(() => setSwipeHint(0), 180);
+  };
   const random = () => { if (list.length > 1) { let r = idx; while (r === idx) r = Math.floor(Math.random() * list.length); setIdx(r); } };
 
   const shareText = [gu.body, gu.ref, '', en.body, en.ref, '', '— Akshar Connect'].filter((x) => x !== undefined).join('\n').trim();
@@ -109,8 +122,10 @@ export default function VatoPage({ user }) {
 
       {list.length > 0 && (
         <>
-          {/* The card */}
-          <div className="relative mt-5 overflow-hidden rounded-[28px] border border-[#F0C9A0]/60 bg-gradient-to-br from-[#FFF7EF] to-[#FFEBD7] shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:to-orange-950/20">
+          {/* The card — swipe left/right to change */}
+          <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+            style={{ transform: swipeHint ? `translateX(${swipeHint * 6}px)` : 'none', transition: 'transform 160ms ease' }}
+            className="relative mt-5 touch-pan-y select-none overflow-hidden rounded-[28px] border border-[#F0C9A0]/60 bg-gradient-to-br from-[#FFF7EF] to-[#FFEBD7] shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:to-orange-950/20">
             {/* glow */}
             <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#FF862A]/20 blur-3xl" />
             <div className="relative p-6 sm:p-7">
@@ -171,7 +186,7 @@ export default function VatoPage({ user }) {
             </button>
           </div>
 
-          <p className="mt-4 text-center text-[11px] text-text-muted">🌸 A new Vato arrives every morning. Read a little, reflect a little. 🙏</p>
+          <p className="mt-4 text-center text-[11px] text-text-muted">← Swipe to read more · a new Vato arrives every morning 🙏</p>
         </>
       )}
     </div>
