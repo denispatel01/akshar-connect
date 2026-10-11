@@ -691,6 +691,11 @@ export const dataService = {
     if (!hasBackend() || !devoteeId) return [];
     try { const r = await api('getSwadhyay', { devoteeId, limit }); return (r && r.entries) || []; } catch { return []; }
   },
+  // Admin: everyone's Swadhyay entries (for the group report / leaderboard).
+  getAllSwadhyay: async (limit = 5000) => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getSwadhyay', { all: '1', limit }); return (r && r.entries) || []; } catch { return []; }
+  },
 
   // ---- Seva (karyakarta visit log) ----
   saveSeva: async (seva) => {

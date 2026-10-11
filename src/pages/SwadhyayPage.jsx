@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight, BarChart3, X, Trophy } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError } from '../utils/sweetAlert';
 
@@ -23,6 +24,81 @@ const fmtMin = (m) => {
   return r ? `${h}h ${r}m` : `${h}h`;
 };
 
+// Admin group report / leaderboard — who's consistent, streaks, weekly participation.
+function SwadhyayGroupReport({ onClose }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { dataService.getAllSwadhyay().then((e) => setRows(e || [])); }, []);
+
+  const last7Keys = useMemo(() => {
+    const out = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); out.push(d.toLocaleDateString('en-CA')); } return out;
+  }, []);
+
+  const people = useMemo(() => {
+    if (!rows) return [];
+    const by = new Map();
+    rows.forEach((r) => {
+      const id = String(r.devoteeId || r.mobile || r.name);
+      const tot = (+r.bhajanMin || 0) + (+r.listenMin || 0) + (+r.readMin || 0);
+      if (!by.has(id)) by.set(id, { id, name: r.name || id, total: 0, days: new Set() });
+      const p = by.get(id);
+      if (tot > 0) { p.total += tot; p.days.add(r.date); }
+    });
+    const todayISO2 = new Date().toLocaleDateString('en-CA');
+    const list = [...by.values()].map((p) => {
+      const last7 = last7Keys.filter((k) => p.days.has(k)).length;
+      // streak: consecutive days up to today
+      let streak = 0; const d = new Date();
+      for (;;) { const k = d.toLocaleDateString('en-CA'); if (p.days.has(k)) { streak++; d.setDate(d.getDate() - 1); } else { if (k === todayISO2) { d.setDate(d.getDate() - 1); continue; } break; } }
+      return { ...p, daysCount: p.days.size, last7, streak };
+    });
+    return list.sort((a, b) => b.last7 - a.last7 || b.total - a.total || b.daysCount - a.daysCount);
+  }, [rows, last7Keys]);
+
+  const activeThisWeek = people.filter((p) => p.last7 > 0).length;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex flex-col bg-bg-base">
+      <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+        <span className="flex items-center gap-2 text-base font-black text-text-main"><BarChart3 className="h-5 w-5 text-[#FF862A]" /> Swadhyay — Group Report</span>
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+        {rows === null && <p className="py-10 text-center text-sm text-text-muted">Loading…</p>}
+        {rows && people.length === 0 && <p className="py-10 text-center text-sm text-text-muted">No Swadhyay logged yet.</p>}
+        {people.length > 0 && (
+          <>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Active this week</div><div className="text-2xl font-black text-text-main">{activeThisWeek}</div></div>
+              <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">People logged</div><div className="text-2xl font-black text-text-main">{people.length}</div></div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+              {people.map((p, i) => (
+                <div key={p.id} className="flex items-center gap-3 border-b border-border-light/60 px-3 py-2.5 last:border-0">
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${i < 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-bg-base text-text-muted'}`}>{i < 3 ? <Trophy className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-text-main">{p.name}</p>
+                    <div className="mt-0.5 flex items-center gap-1">
+                      {last7Keys.slice().reverse().map((k) => (
+                        <span key={k} className={`h-1.5 w-4 rounded-full ${p.days.has(k) ? 'bg-emerald-500' : 'bg-bg-base border border-border-light'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-black text-text-main">{fmtMin(p.total)}</p>
+                    <p className="text-[10px] font-semibold text-text-muted">{p.daysCount} days{p.streak > 0 ? ` · 🔥${p.streak}` : ''}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-center text-[11px] text-text-muted">Sorted by participation in the last 7 days. The row of bars shows this week (left = 6 days ago, right = today).</p>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function SwadhyayPage({ user }) {
   const me = useMemo(() => {
     const list = dataService.getDevotees();
@@ -33,6 +109,8 @@ export default function SwadhyayPage({ user }) {
   const devoteeId = me?.id || user?.devoteeId || user?.mobile || '';
   const myName = me?.name || user?.name || '';
   const myMobile = me?.mobile || user?.mobile || '';
+  const isAdmin = user?.role === 'Admin';
+  const [showGroup, setShowGroup] = useState(false);
 
   const [date, setDate] = useState(todayISO());
   const [form, setForm] = useState({ bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
@@ -135,6 +213,13 @@ export default function SwadhyayPage({ user }) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 pb-28">
+      {showGroup && <SwadhyayGroupReport onClose={() => setShowGroup(false)} />}
+      {isAdmin && (
+        <button onClick={() => setShowGroup(true)}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">
+          <BarChart3 className="h-4 w-4 text-[#FF862A]" /> Group report &amp; leaderboard
+        </button>
+      )}
       {/* Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#001F3D] via-[#06325c] to-[#0a4a7a] p-6 text-white shadow-lg">
         <div className="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-[#FF862A]/20 blur-2xl" />

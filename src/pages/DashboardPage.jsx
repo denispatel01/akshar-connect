@@ -26,6 +26,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { ghariService } from '../services/ghariService';
 import DarshanSlider from '../components/DarshanSlider';
 import { tagLabel, tagChipStyle } from '../services/tagCatalog';
 
@@ -163,6 +164,12 @@ export default function DashboardPage({ setActivePage, user }) {
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
   const familiesCount = devotees.filter(d => d.type === 'Primary').length;
+  // "Needs attention" counts (actionable data gaps).
+  const nMissingMobile = devotees.filter(d => !String(d.mobile || '').replace(/\D/g, '')).length;
+  const nMissingDob = devotees.filter(d => !String(d.dob || '').trim()).length;
+  const ghariOutstanding = React.useMemo(() => {
+    try { const r = ghariService.buildReport(ghariService.getSeason()); return Math.round(r.outstanding || 0); } catch (e) { return 0; }
+  }, []);
   // Gender splits + family-head splits.
   const maleCount = devotees.filter(d => d.gender === 'Male').length;
   const femaleCount = devotees.filter(d => d.gender === 'Female').length;
@@ -317,6 +324,33 @@ export default function DashboardPage({ setActivePage, user }) {
           loading="lazy"
         />
       </div>
+
+      {/* Needs attention — actionable data gaps (staff only) */}
+      {!isDevotee && (() => {
+        const isAdmin = user?.role === 'Admin';
+        const chips = [];
+        if (birthdaysToday.length) chips.push({ key: 'bday', label: `${birthdaysToday.length} birthday${birthdaysToday.length === 1 ? '' : 's'} today`, icon: Cake, cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900', onClick: () => setShowTodayBdays(true) });
+        if (ghariOutstanding > 0) chips.push({ key: 'ghari', label: `₹${ghariOutstanding.toLocaleString('en-IN')} Ghari to collect`, icon: TrendingUp, cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900', onClick: () => setActivePage('ghari') });
+        if (isAdmin && nMissingMobile) chips.push({ key: 'mob', label: `${nMissingMobile} missing mobile`, icon: Phone, cls: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900', onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingDob) chips.push({ key: 'dob', label: `${nMissingDob} missing DOB`, icon: Star, cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900', onClick: () => setActivePage('data') });
+        if (!chips.length) return null;
+        return (
+          <div className="rounded-3xl border border-border-light bg-surface p-4 shadow-xs">
+            <p className="mb-2.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-muted">
+              <TrendingUp className="h-4 w-4 text-[#FF862A]" /> Needs attention
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {chips.map((c) => (
+                <button key={c.key} onClick={c.onClick}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-transform active:scale-95 ${c.cls}`}>
+                  <c.icon className="h-3.5 w-3.5" /> {c.label}
+                  <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
