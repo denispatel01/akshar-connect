@@ -849,6 +849,8 @@ export const dataService = {
   hasModule: (u, key) => {
     if (!u) return false;
     if (u.role === 'Admin') return true;
+    // Sevaks can view the Ghari module (read-only; enforced in the UI).
+    if (u.role === 'Sevak' && String(key).toLowerCase() === 'ghari') return true;
     return String(u.modules || '').split(/[,|]/).map(s => s.trim().toLowerCase()).includes(String(key).toLowerCase());
   },
 

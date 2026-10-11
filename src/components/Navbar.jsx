@@ -101,11 +101,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             ]
           : []),
         ...(isAdmin || isSevak
-          ? [{ id: 'bulk-tags', label: 'Bulk Tags', icon: Tag }]
+          ? [
+              { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
+              { id: 'ghari', label: 'Ghari Seva', icon: Cookie },
+            ]
           : []),
         ...(isAdmin
           ? [
-              { id: 'ghari', label: 'Ghari Seva', icon: Cookie, adminOnly: true },
               { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
               { id: 'data', label: 'Data Quality', icon: Database, adminOnly: true },
               { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },

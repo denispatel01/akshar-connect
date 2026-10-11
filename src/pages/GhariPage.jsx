@@ -144,7 +144,7 @@ function ProductCard({ product, qty, onChange }) {
 }
 
 // ───────────────────────── Order form (new + edit) ──────────────────────────
-function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, onDelete }) {
+function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, onDelete, readOnly }) {
   // Show active items; if the admin has (accidentally) hidden them all, fall back
   // to showing every item so entry is never blocked by an empty grid.
   const products = useMemo(() => {
@@ -203,7 +203,12 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   };
 
   return (
-    <div className="space-y-4">
+    <fieldset disabled={readOnly} className="space-y-4 m-0 min-w-0 border-0 p-0">
+      {readOnly && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          👁️ View only — Sevaks can see orders but cannot edit or delete.
+        </div>
+      )}
       {/* People */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div>
@@ -291,6 +296,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       {/* Sticky action bar — always pinned to the bottom so Save/Delete are never
           cut off. In the entry form it floats above the app's bottom nav; inside
           the full-screen editor (which covers the nav) it pins to bottom:0. */}
+      {!readOnly && (
       <div className={`sticky z-20 ${embedded ? 'bottom-[76px] md:bottom-3' : 'bottom-0'} flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur`}>
         <div className="pl-1">
           <div className="text-[10px] font-bold uppercase text-text-muted">{totals.boxes} box{totals.boxes === 1 ? '' : 'es'}</div>
@@ -303,9 +309,10 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
           <button onClick={() => save(false)} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Save' : 'Save order'}</button>
         </div>
       </div>
+      )}
       {/* Spacer so the last content clears the sticky bar + bottom nav */}
       {embedded && <div className="h-4" />}
-    </div>
+    </fieldset>
   );
 }
 
@@ -767,7 +774,7 @@ function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReve
 }
 
 // ───────────────────────── Edit modal ───────────────────────────────────────
-function EditModal({ order, onClose, onSaved }) {
+function EditModal({ order, onClose, onSaved, canEdit = true }) {
   const [showHistory, setShowHistory] = useState(false);
   const wa = ghariService.whatsappLink(order);
   const del = () => {
@@ -780,7 +787,7 @@ function EditModal({ order, onClose, onSaved }) {
     <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
       <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
-        <span className="text-sm font-black text-text-main">Edit order</span>
+        <span className="text-sm font-black text-text-main">{canEdit ? 'Edit order' : 'View order'}</span>
         <div className="flex items-center gap-3">
           <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 text-xs font-bold text-text-muted hover:text-primary" title="Change history">
             <History className="h-4 w-4" /> History
@@ -799,7 +806,7 @@ function EditModal({ order, onClose, onSaved }) {
             {order.updatedBy && order.updatedBy !== order.createdBy && <span className="block">Last edited by <b className="text-text-main">{order.updatedBy}</b></span>}
           </div>
         )}
-        <OrderForm initialOrder={order} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} />
+        <OrderForm initialOrder={order} onCancel={onClose} onDelete={canEdit ? del : undefined} onSaved={() => onSaved?.()} readOnly={!canEdit} />
       </div>
     </div>,
     document.body
@@ -904,7 +911,7 @@ function BuyCard({ product, qty, onChange }) {
   );
 }
 
-function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
+function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }) {
   const products = useMemo(() => { const a = ghariService.getActiveProducts(); return a.length ? a : ghariService.getProducts(); }, []);
   const bySku = useMemo(() => Object.fromEntries(products.map(p => [p.sku, p])), [products]);
   // Quick-pick chips of suppliers used before (most recent first, deduped).
@@ -948,7 +955,12 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
   };
 
   return (
-    <div className="space-y-4">
+    <fieldset disabled={readOnly} className="space-y-4 m-0 min-w-0 border-0 p-0">
+      {readOnly && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          👁️ View only — Sevaks can see purchases but cannot edit or delete.
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Bought from (supplier)</label>
@@ -1021,6 +1033,7 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
       <input value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Remarks (optional)"
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
 
+      {!readOnly && (
       <div className="sticky bottom-0 z-20 flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur">
         <div className="pl-1">
           <div className="text-[10px] font-bold uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'} bought</div>
@@ -1032,7 +1045,8 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete }) {
           <button onClick={save} disabled={busy} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-60">{busy ? 'Saving…' : (isEdit ? 'Save' : 'Save purchase')}</button>
         </div>
       </div>
-    </div>
+      )}
+    </fieldset>
   );
 }
 
@@ -1059,8 +1073,8 @@ function PurchaseRow({ purchase, onOpen }) {
   );
 }
 
-function PurchaseEditModal({ purchase, onClose, onSaved }) {
-  const del = purchase ? () => {
+function PurchaseEditModal({ purchase, onClose, onSaved, canEdit = true }) {
+  const del = (purchase && canEdit) ? () => {
     if (!window.confirm(`Delete this purchase from ${purchase.supplier || 'this supplier'}?`)) return;
     ghariService.voidPurchase(purchase.id); onSaved?.();
   } : null;
@@ -1068,18 +1082,18 @@ function PurchaseEditModal({ purchase, onClose, onSaved }) {
     <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
       <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
-        <span className="text-sm font-black text-text-main">{purchase ? 'Edit purchase' : 'New purchase'}</span>
+        <span className="text-sm font-black text-text-main">{purchase ? (canEdit ? 'Edit purchase' : 'View purchase') : 'New purchase'}</span>
         <span className="w-12" />
       </div>
       <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-        <PurchaseForm initialPurchase={purchase} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} />
+        <PurchaseForm initialPurchase={purchase} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} readOnly={!canEdit} />
       </div>
     </div>,
     document.body
   );
 }
 
-function PurchasesView({ season }) {
+function PurchasesView({ season, canEdit = true }) {
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1094,7 +1108,7 @@ function PurchasesView({ season }) {
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Boxes bought</div><div className="text-xl font-black text-text-main">{totalBoxes}</div></div>
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
       </div>
-      <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>
+      {canEdit && <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>}
       {list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
           <ShoppingCart className="mx-auto mb-2 h-10 w-10 text-text-muted" />
@@ -1107,14 +1121,15 @@ function PurchasesView({ season }) {
         </div>
       )}
       {adding && <PurchaseEditModal onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setTick(t => t + 1); }} />}
-      {editing && <PurchaseEditModal purchase={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); }} />}
+      {editing && <PurchaseEditModal purchase={editing} canEdit={canEdit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); }} />}
     </div>
   );
 }
 
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
-  const [tab, setTab] = useState('entry');
+  const canEdit = user?.role === 'Admin'; // Sevaks have view-only access
+  const [tab, setTab] = useState(canEdit ? 'entry' : 'orders');
   const [season, setSeasonState] = useState(ghariService.getSeason());
   const [tick, setTick] = useState(0);
   const [editing, setEditing] = useState(null);
@@ -1155,11 +1170,11 @@ export default function GhariPage({ user }) {
   }
 
   const TABS = [
-    { id: 'entry', label: 'Sell', icon: Plus },
+    ...(canEdit ? [{ id: 'entry', label: 'Sell', icon: Plus }] : []),
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
   ];
 
   return (
@@ -1221,11 +1236,11 @@ export default function GhariPage({ user }) {
         </div>
       )}
 
-      {tab === 'purchases' && <PurchasesView key={tick} season={season} />}
+      {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
-      {tab === 'settings' && <SettingsView season={season} onSeason={setSeason} />}
+      {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
 
-      {editing && <EditModal order={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); flash('Order updated ✓'); }} />}
+      {editing && <EditModal order={editing} canEdit={canEdit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); flash(canEdit ? 'Order updated ✓' : ''); }} />}
     </div>
   );
 }
