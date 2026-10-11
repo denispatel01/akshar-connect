@@ -36,7 +36,9 @@ export function getNavGroups(user) {
   const isDevotee = user?.role === 'Devotee';
   const isAdmin = user?.role === 'Admin';
   const isSevak = user?.role === 'Sevak';
-  const canGhari = isAdmin || hasModule(user, 'ghari');
+  // Admins get full access; all Sevaks see Ghari read-only (GhariPage gates
+  // add/edit/delete to Admins). `ghari` module grant still works for any other role.
+  const canGhari = isAdmin || isSevak || hasModule(user, 'ghari');
 
   if (isDevotee) {
     return [
