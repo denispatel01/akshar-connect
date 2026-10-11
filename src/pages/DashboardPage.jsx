@@ -159,8 +159,6 @@ export default function DashboardPage({ setActivePage, user }) {
   // both is counted in neither, matching the directory's Ambrish/Sahradyi views).
   const ambrishCount = devotees.filter(d => d.tags?.includes('ambrish') && !d.tags?.includes('sahradyi')).length;
   const sahradyiCount = devotees.filter(d => d.tags?.includes('sahradyi') && !d.tags?.includes('ambrish')).length;
-  const karyakartaCount = devotees.filter(d => d.tags?.includes('karyakarta') && d.gender !== 'Female').length;
-  const femaleKaryakartaCount = devotees.filter(d => d.tags?.includes('karyakarta') && d.gender === 'Female').length;
   const oldCount = devotees.filter(d => String(d.oldNew || '').trim().toLowerCase() === 'old').length;
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
@@ -232,6 +230,7 @@ export default function DashboardPage({ setActivePage, user }) {
     'rounded-2xl border border-border-light bg-surface p-5 shadow-xs transition-all hover:shadow-md hover:border-primary/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
 
   const openDevotees = (devoteesPreset) => setActivePage('devotees', { devoteesPreset });
+  const scrollToKaryakartas = () => { try { document.getElementById('kk-panes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} };
 
   const isDevotee = user?.role === 'Devotee';
 
@@ -368,26 +367,26 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
         </button>
 
-        <button type="button" onClick={() => openDevotees('karyakarta')} className={statCardCls} title="View Karyakartas">
+        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View Male Karyakartas">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakarta</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Karyakartas</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
               <UserCheck className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-text-main">{karyakartaCount}</p>
-          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view karyakartas</p>
+          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.male.length}</p>
+          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view the list</p>
         </button>
 
-        <button type="button" onClick={() => openDevotees('karyakarta-female')} className={statCardCls} title="View Female Karyakartas">
+        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View Female Karyakartas">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Karyakarta</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Female Karyakartas</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
               <UserCheck className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-text-main">{femaleKaryakartaCount}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view female karyakartas</p>
+          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.female.length}</p>
+          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view the list</p>
         </button>
 
         <button type="button" onClick={() => openDevotees('old')} className={statCardCls} title="View Old devotees">
@@ -461,7 +460,7 @@ export default function DashboardPage({ setActivePage, user }) {
       {/* Karyakartas — split into Male & Female panes. Tap a name to open the
           devotees under that karyakarta. */}
       {!isDevotee && (karyakartaPanes.male.length > 0 || karyakartaPanes.female.length > 0 || karyakartaPanes.other.length > 0) && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div id="kk-panes" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {[
             { key: 'male', title: 'Male Karyakartas', rows: karyakartaPanes.male, tone: 'text-blue-600', chip: 'bg-blue-50 text-blue-600 dark:bg-blue-950' },
             { key: 'female', title: 'Female Karyakartas', rows: karyakartaPanes.female, tone: 'text-pink-600', chip: 'bg-pink-50 text-pink-600 dark:bg-pink-950' },

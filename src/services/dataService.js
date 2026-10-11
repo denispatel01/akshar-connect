@@ -461,6 +461,14 @@ export const dataService = {
   },
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
+  // Admin: make an on-demand Drive backup of the whole sheet now.
+  backupNow: async () => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('backupNow', {});
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Backup failed.');
+    return r.result;
+  },
+
   // Admin "watch all activity": push every logged action to the watcher's device(s).
   getActivityWatch: async () => {
     if (!hasBackend()) return { on: false, mobile: '' };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import ActivityFeed from '../components/ActivityFeed';
 
@@ -29,6 +29,16 @@ export default function AdminPage({ user }) {
     finally { setWatchBusy(false); }
   };
   const watchIsMine = String(watch.mobile || '').replace(/\D/g, '').slice(-10) === String(user?.mobile || '').replace(/\D/g, '').slice(-10);
+
+  // On-demand Drive backup
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMsg, setBackupMsg] = useState('');
+  const doBackup = async () => {
+    setBackupBusy(true); setBackupMsg('');
+    try { const r = await dataService.backupNow(); setBackupMsg(`Backed up ✓ — ${r.kept} copies kept${r.pruned ? `, ${r.pruned} old removed` : ''}.`); }
+    catch (e) { setBackupMsg('Failed: ' + (e.message || 'error')); }
+    finally { setBackupBusy(false); }
+  };
 
   const [editingMobile, setEditingMobile] = useState(null); // null = adding new
 
@@ -216,6 +226,30 @@ export default function AdminPage({ user }) {
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             Make sure notifications are enabled for your account (My Account → Enable Notifications). Only one admin number receives these at a time.
           </p>
+        </div>
+      )}
+
+      {/* SYSTEM TAB — Drive backup */}
+      {isAdmin && tab === 'system' && (
+        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+            <Database className="h-4 w-4 text-[#FF862A]" /> 💾 Backup &amp; Archive
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-text-main">Backup the full sheet to Drive</p>
+              <p className="text-[11px] text-text-muted mt-0.5">Saves a dated copy of every tab to <b>akshar-connect/backups</b> (keeps the latest 30, older ones auto-removed). A daily copy runs automatically at 1&nbsp;AM.</p>
+            </div>
+            <button onClick={doBackup} disabled={backupBusy}
+              className="flex shrink-0 items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#00223f] disabled:opacity-60">
+              <RefreshCw className={`h-4 w-4 ${backupBusy ? 'animate-spin' : ''}`} /> {backupBusy ? 'Backing up…' : 'Backup now'}
+            </button>
+          </div>
+          {backupMsg && (
+            <p className={`mt-3 text-xs font-bold flex items-center gap-1 ${backupMsg.startsWith('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+              <CheckCircle className="h-4 w-4" /> {backupMsg}
+            </p>
+          )}
         </div>
       )}
 

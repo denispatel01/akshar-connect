@@ -711,6 +711,37 @@ function installBirthdayReminder(){
   Logger.log('Birthday daily reminder installed at 08:00 (Asia/Kolkata).');
 }
 
+// ── Daily backup / archive of the whole spreadsheet to Drive ───────────────────
+// Copies the entire Google Sheet (all tabs) into akshar-connect/backups with a
+// timestamped name, then prunes to the most recent `keep` copies. Restorable by
+// simply opening a copy. Uses the already-granted Drive scope.
+function backupFolder_(){
+  var root = subFolder_(DriveApp.getRootFolder(), 'akshar-connect');
+  return subFolder_(root, 'backups');
+}
+function backupSpreadsheet_(keep){
+  keep = keep || 30;
+  var folder = backupFolder_();
+  var tz = Session.getScriptTimeZone() || 'Asia/Kolkata';
+  var stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd_HHmm');
+  var name = 'AksharConnect_backup_' + stamp;
+  var copy = DriveApp.getFileById(ss_().getId()).makeCopy(name, folder);
+  // Gather existing backups, newest first, and trash any beyond `keep`.
+  var files = [], it = folder.getFiles();
+  while(it.hasNext()){ var f = it.next(); if(/^AksharConnect_backup_/.test(f.getName())) files.push(f); }
+  files.sort(function(a,b){ return b.getDateCreated() - a.getDateCreated(); });
+  var pruned = 0;
+  for(var i = keep; i < files.length; i++){ try{ files[i].setTrashed(true); pruned++; }catch(e){} }
+  return { name: name, id: copy.getId(), kept: Math.min(files.length, keep), pruned: pruned };
+}
+function dailyBackup_(){ try{ backupSpreadsheet_(30); }catch(e){ Logger.log('daily backup failed: ' + e); } }
+// RUN ONCE in the editor to schedule a daily 1 AM backup (approve the trigger).
+function installDailyBackup(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='dailyBackup_') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('dailyBackup_').timeBased().atHour(1).everyDays(1).create();
+  Logger.log('Daily backup installed at 01:00 (' + (Session.getScriptTimeZone()||'Asia/Kolkata') + ').');
+}
+
 function doGetAnnouncements_(){
   var list = readAll_('Announcements');
   list.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
@@ -1286,6 +1317,7 @@ function handle_(p){
     }
     if(action==='ghariRevert') return doGhariRevert_(p);
     if(action==='getVato') return doGetVato_();
+    if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||30) });
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
     if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
