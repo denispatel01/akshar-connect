@@ -92,7 +92,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
                 className="sm:hidden h-10 w-10 shrink-0 rounded-2xl shadow-md ring-1 ring-border-light" />
               <div className="min-w-0">
                 <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
-                  className="hidden sm:block h-11 w-auto max-w-[280px] object-contain object-left dark:brightness-200 dark:contrast-200" />
+                  className="hidden sm:block h-16 w-auto max-w-[340px] object-contain object-left dark:brightness-200 dark:contrast-200" />
                 <span className="sm:hidden flex items-center gap-1 font-display text-base font-bold text-text-main leading-tight">
                   Akshar Connect <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                 </span>

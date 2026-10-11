@@ -28,7 +28,7 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
+  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
   // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
@@ -77,7 +77,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-12-devotee-audit';
+var SCHEMA_VERSION = '2026-10-12-ghari-orderno';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1162,6 +1162,7 @@ function ensureSheets_(){
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
   }
+  backfillGhariOrderNos_();   // give every legacy order a permanent #number
   if(readAll_('Users').length===0)    appendRows_('Users', SEED_USERS);
   if(readAll_('Sabhas').length===0)   appendRows_('Sabhas', SEED_SABHAS);
   if(readAll_('Thoughts').length===0) appendRows_('Thoughts', SEED_THOUGHTS);
@@ -1637,6 +1638,13 @@ function doGhariUpsertOrder_(p){
     var rn=findRow_('GhariOrders','id',row.id);
     var isNew = rn<0;
     var beforeOrder = rn>0 ? readRowObj_('GhariOrders', rn) : null;
+    // Order number is permanent: keep whatever was assigned when the order was
+    // created. Only mint a new one if this order has never had one (a brand-new
+    // order from an old client, or a legacy row not yet backfilled).
+    if(!(parseInt(row.orderNo,10) > 0)){
+      if(beforeOrder && parseInt(beforeOrder.orderNo,10) > 0) row.orderNo = beforeOrder.orderNo;
+      else row.orderNo = nextGhariOrderNo_(row.season);
+    }
     if(rn>0) tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',row)]);
     else appendRows_('GhariOrders',[row]);
     // Audit every order change (money) with a revertible before/after snapshot.
@@ -1651,6 +1659,49 @@ function doGhariUpsertOrder_(p){
     }
     return json_({ ok:true });
   } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
+// Next permanent order number for a season = (highest existing) + 1.
+function nextGhariOrderNo_(season){
+  var rows = readAll_('GhariOrders'); var max = 0;
+  rows.forEach(function(o){
+    if(String(o.season||'') === String(season||'')){ var n = parseInt(o.orderNo,10); if(n > max) max = n; }
+  });
+  return String(max + 1);
+}
+
+// One-time (idempotent) backfill: give every GhariOrders row that has no orderNo a
+// permanent number. Per season, rows are numbered in creation order (createdOn, then
+// id), continuing after the highest number already present. Writes only the orderNo
+// column. Safe to run repeatedly — rows that already have a number are left alone.
+function backfillGhariOrderNos_(){
+  var sh = ss_().getSheetByName('GhariOrders'); if(!sh) return;
+  var last = sh.getLastRow(); if(last < 2) return;
+  var headers = HEADERS.GhariOrders;
+  var col = {}; headers.forEach(function(h,i){ col[h] = i; });
+  if(col.orderNo === undefined) return;
+  var width = headers.length;
+  var vals = sh.getRange(2,1,last-1,width).getValues();
+  var bySeason = {};
+  vals.forEach(function(row, r){ var s = String(row[col.season]||''); (bySeason[s] = bySeason[s] || []).push(r); });
+  var changed = false;
+  Object.keys(bySeason).forEach(function(season){
+    var idxs = bySeason[season];
+    var max = 0;
+    idxs.forEach(function(r){ var n = parseInt(vals[r][col.orderNo],10); if(n > max) max = n; });
+    var missing = idxs.filter(function(r){ return !(parseInt(vals[r][col.orderNo],10) > 0); });
+    missing.sort(function(a,b){
+      var ca = String(vals[a][col.createdOn]||''), cb = String(vals[b][col.createdOn]||'');
+      if(ca !== cb) return ca < cb ? -1 : 1;
+      var ia = String(vals[a][col.id]||''), ib = String(vals[b][col.id]||'');
+      return ia < ib ? -1 : (ia > ib ? 1 : 0);
+    });
+    missing.forEach(function(r){ vals[r][col.orderNo] = String(++max); changed = true; });
+  });
+  if(changed){
+    var out = vals.map(function(row){ return [String(row[col.orderNo] || '')]; });
+    sh.getRange(2, col.orderNo + 1, out.length, 1).setValues(out);
+  }
 }
 
 // Returns true the first time a given email key is seen, false on repeats — so a

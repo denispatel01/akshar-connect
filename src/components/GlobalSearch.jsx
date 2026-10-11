@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, User, MapPin, Phone } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { devoteeSearchText, scoreMatch } from '../utils/search';
 
 const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
 
@@ -23,19 +24,19 @@ export default function GlobalSearch({ open, onClose, onOpenDevotee, user }) {
     return () => { document.body.style.overflow = prev; };
   }, [open]);
 
+  // Match on the devotee's OWN name (and mobile / DOB) only — never by their
+  // karyakarta / reference / area. So typing "Prerak" returns people *named* Prerak,
+  // not everyone Prerak manages. (See utils/search.js — one source of truth.)
   const results = useMemo(() => {
-    const s = q.trim().toLowerCase();
+    const s = q.trim();
     if (!s) return [];
-    const digits = s.replace(/\D/g, '');
     const devs = dataService.getDevotees() || [];
-    return devs.filter((d) => {
-      const name = String(d.name || '').toLowerCase();
-      return name.includes(s)
-        || (digits && last10(d.mobile).includes(digits))
-        || String(d.area || '').toLowerCase().includes(s)
-        || String(d.familyId || '').toLowerCase().includes(s)
-        || String(d.followupKaryakarta || '').toLowerCase().includes(s);
-    }).slice(0, 25);
+    return devs
+      .map((d) => ({ d, score: scoreMatch(devoteeSearchText(d), d.name || '', s) }))
+      .filter((x) => x.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 25)
+      .map((x) => x.d);
   }, [q]);
 
   if (!open) return null;

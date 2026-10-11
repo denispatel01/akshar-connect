@@ -126,21 +126,38 @@ function normalizeProduct_(p) {
   };
 }
 // A short, human-friendly order number for talking/texting about an order
-// ("order #12, Ramesh bhai"). It is a per-season sequence (#1, #2, …) by creation
-// time — unique and collision-free, clean to read aloud, and fully derived (no
-// storage or backend change, works for every existing order). Void orders keep
-// their slot in the count, so voiding one never renumbers the others. `list` is the
-// orders to tag; they are numbered against ALL orders in `season`.
-function withOrderNos_(list, season) {
-  const ordered = orders_()
-    .filter(o => o.season === season)
-    .sort((a, b) => {
-      const c = String(a.createdOn).localeCompare(String(b.createdOn));
-      return c !== 0 ? c : String(a.id).localeCompare(String(b.id));
-    });
-  const seq = {};
-  ordered.forEach((o, i) => { seq[o.id] = i + 1; });
-  return list.map(o => ({ ...o, orderNo: seq[o.id] || '' }));
+// ("order #12, Ramesh bhai"). It is a per-season sequence (#1, #2, …) assigned once
+// when the order is created and then STORED on the order (and synced to the sheet),
+// so it is permanent — it never changes afterwards. The next number for a season is
+// one past the highest already used (void orders keep their number, so voiding one
+// never renumbers the others).
+function nextOrderNo_(season) {
+  let max = 0;
+  orders_().forEach(o => { if (o.season === season) { const n = Number(o.orderNo) || 0; if (n > max) max = n; } });
+  return max + 1;
+}
+
+// Give any order still missing a number a permanent one, locally — so numbers show
+// immediately (even offline) before the backend backfill has run. Deterministic:
+// per season, number the un-numbered orders in creation order (createdOn, then id),
+// continuing after the current max — the same rule the Apps Script backfill uses, so
+// the two agree and a later sync won't shift anything. Idempotent.
+function backfillOrderNosLocal_() {
+  const bySeason = {};
+  orders_().forEach(o => { (bySeason[o.season] = bySeason[o.season] || []).push(o); });
+  let changed = false;
+  Object.keys(bySeason).forEach(season => {
+    const list = bySeason[season];
+    let max = 0;
+    list.forEach(o => { const n = Number(o.orderNo) || 0; if (n > max) max = n; });
+    list.filter(o => !(Number(o.orderNo) > 0))
+      .sort((a, b) => {
+        const c = String(a.createdOn).localeCompare(String(b.createdOn));
+        return c !== 0 ? c : String(a.id).localeCompare(String(b.id));
+      })
+      .forEach(o => { o.orderNo = ++max; changed = true; });
+  });
+  if (changed) saveOrdersLocal_();
 }
 
 function normalizeOrder_(o) {
@@ -153,6 +170,7 @@ function normalizeOrder_(o) {
   const totals = computeTotals(items);
   return {
     id: String(o.id || ''),
+    orderNo: (o.orderNo === '' || o.orderNo == null) ? '' : (Number(o.orderNo) || ''),
     season: String(o.season || defaultSeason_()),
     customerName: String(o.customerName || '').trim(),
     customerMobile: String(o.customerMobile || '').replace(/\D/g, ''),
@@ -234,7 +252,7 @@ function itemsSummary_(items) {
 function toBackendRow_(o) {
   const t = computeTotals(o.items);
   return {
-    id: o.id, season: o.season, customerName: o.customerName, customerMobile: o.customerMobile || '',
+    id: o.id, orderNo: o.orderNo || '', season: o.season, customerName: o.customerName, customerMobile: o.customerMobile || '',
     devoteeId: o.devoteeId, karyakarta: o.karyakarta, karyakartaId: o.karyakartaId,
     itemsJson: JSON.stringify(o.items || []), itemsSummary: itemsSummary_(o.items),
     total: t.total, withGheeAmt: t.byCategory.ghee, withoutGheeAmt: t.byCategory.noghee,
@@ -353,6 +371,7 @@ async function syncDown() {
   const mergedOrders = serverOrders.filter(o => !pendingOrderIds.has(o.id));
   pendingOrderIds.forEach(id => { if (localById[id]) mergedOrders.push(localById[id]); });
   MEM.orders = mergedOrders.map(normalizeOrder_); saveOrdersLocal_();
+  backfillOrderNosLocal_();   // number any order the server hasn't backfilled yet
 
   const localPurchaseById = {}; purchases_().forEach(p => { localPurchaseById[p.id] = p; });
   const mergedPurchases = serverPurchases.filter(p => !pendingPurchaseIds.has(p.id));
@@ -369,6 +388,7 @@ function init() {
   if (inited) return;
   inited = true;
   products_(); orders_(); purchases_(); meta_();   // hydrate synchronously
+  backfillOrderNosLocal_();   // ensure every cached order already shows a number
   try {
     window.addEventListener('online', () => { flush().then(syncDown); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
@@ -426,15 +446,11 @@ export const ghariService = {
   // All non-void orders for a season (newest first). Pass {includeVoid:true} for trash.
   getOrders: (season, { includeVoid = false } = {}) => {
     const s = season || meta_().season;
-    const list = orders_()
+    return orders_()
       .filter(o => o.season === s && (includeVoid || o.status !== 'void'))
       .sort((a, b) => String(b.createdOn).localeCompare(String(a.createdOn)));
-    return withOrderNos_(list, s);
   },
-  getOrderById: (id) => {
-    const o = orders_().find(x => x.id === id);
-    return o ? withOrderNos_([o], o.season)[0] : null;
-  },
+  getOrderById: (id) => orders_().find(o => o.id === id) || null,
 
   // ---- Audit log (money — full change history + revert) ----
   // Fetch change history for one entity (order/purchase) or all. Backend-only.
@@ -493,13 +509,16 @@ export const ghariService = {
     const prev = existingIdx >= 0 ? MEM.orders[existingIdx] : null;
     const season = input.season || meta_().season;
     const id = input.id || `GHO-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    // A new order gets the next permanent number for its season; an edit keeps the
+    // number it was given at creation.
+    const orderNo = prev?.orderNo || input.orderNo || (isNew ? nextOrderNo_(season) : '');
     const items = (input.items || []).filter(i => num_(i.qty) > 0).map(i => ({
       sku: i.sku, name: i.name, size: i.size, category: i.category,
       qty: num_(i.qty), unitPrice: num_(i.unitPrice),
     }));
     const order = normalizeOrder_({
       ...(prev || {}),
-      id, season,
+      id, orderNo, season,
       customerName: input.customerName ?? prev?.customerName ?? '',
       customerMobile: input.customerMobile ?? prev?.customerMobile ?? '',
       devoteeId: input.devoteeId ?? prev?.devoteeId ?? '',
