@@ -1440,6 +1440,13 @@ function handle_(p){
     // All ghari writes are IDEMPOTENT upserts keyed by id/sku, so the client's
     // durable offline outbox can safely replay an op whose ack was lost without
     // ever creating a duplicate row (critical: this module handles money).
+    // Server-side write protection: Ghari is view-only for everyone except
+    // Admins and users explicitly granted the `ghari` module. The UI already
+    // hides write controls from Sevaks, but this guard blocks a crafted request
+    // that bypasses the UI (money ledger — never trust the client alone).
+    // Identity is the caller's actorMobile, verified against the Users sheet.
+    if(GHARI_WRITE_ACTIONS_[action] && !ghariCanWrite_(p))
+      return json_({ ok:false, error:'Not allowed — Ghari Seva is view-only for your account.' });
     if(action==='ghariBootstrap') return json_({ ok:true, products: readAll_('GhariProducts'), orders: readAll_('GhariOrders'), purchases: readAll_('GhariPurchases') });
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
@@ -1571,6 +1578,32 @@ function doDeleteUser_(p){
 // writes so two near-simultaneous saves can't both append the same id. Because
 // the key is client-generated and stable, replaying a lost op is a no-op update
 // rather than a duplicate — no money row is ever doubled or lost.
+// ── Ghari write authorization ────────────────────────────────────────────────
+// The set of actions that mutate the Ghari ledger (orders, products, purchases,
+// imports, reverts). Reads (ghariBootstrap, getGhariLog) are intentionally open.
+var GHARI_WRITE_ACTIONS_ = {
+  ghariUpsertOrder: 1, ghariUpsertProduct: 1, ghariUpsertPurchase: 1,
+  ghariDeleteOrder: 1, ghariDeleteProduct: 1, ghariDeletePurchase: 1,
+  ghariImportOrders: 1, ghariRevert: 1,
+};
+// True only for Admins and users whose `modules` column grants `ghari`. The
+// caller is identified by actorMobile (sent by the client on every request) and
+// looked up in the Users sheet — mirrors the client gate in src/utils/navItems.js
+// so Sevaks stay read-only even if they forge a request.
+function ghariCanWrite_(p){
+  var mob = normMob_(p && p.actorMobile || '');
+  if(!mob) return false;
+  var users = readAll_('Users');
+  for(var i=0;i<users.length;i++){
+    if(normMob_(users[i].mobile) !== mob) continue;
+    if(String(users[i].role||'').trim() === 'Admin') return true;
+    var mods = String(users[i].modules||'').toLowerCase().split(/[,|]/);
+    for(var j=0;j<mods.length;j++) if(mods[j].trim() === 'ghari') return true;
+    return false;
+  }
+  return false;
+}
+
 // Read one row (1-based sheet row number) as an object keyed by HEADERS.
 function readRowObj_(collection, rn){
   var H=HEADERS[collection]; var v=tab_(collection).getRange(rn,1,1,H.length).getValues()[0];

@@ -128,7 +128,10 @@ let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], fo
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function api(action, payload = {}) {
-  const body = JSON.stringify({ action, ...payload });
+  // Attach the signed-in actor's mobile so the backend can authorize writes
+  // (e.g. Ghari Seva is view-only for Sevaks). Harmless for other endpoints;
+  // an explicit payload.actorMobile still wins.
+  const body = JSON.stringify({ action, actorMobile: actorMobile_(), ...payload });
   let lastErr;
   for (let n = 1; n <= 4; n++) {
     try {
