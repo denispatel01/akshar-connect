@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
-import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
+import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed, alertError } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, devoteeSearchText } from '../utils/search';
@@ -276,6 +276,85 @@ function SevaSection({ devotee, open, onToggle }) {
           <div className="space-y-1.5">{done.map((s) => <Row key={s.id} s={s} who="At" whoName={s.visitedName} />)}</div>
         </div>
       )}
+    </Collapsible>
+  );
+}
+
+// Edit history (old↔new) for a devotee, with admin revert. Lazy-loads on open.
+const DLOG_LABEL = {
+  firstName: 'First name', middleName: 'Middle name', lastName: 'Last name', name: 'Name',
+  gender: 'Gender', dob: 'DOB', bloodGroup: 'Blood group', maritalStatus: 'Marital status', anniversary: 'Anniversary',
+  mobile: 'Mobile', whatsapp: 'WhatsApp', email: 'Email', area: 'Area', address: 'Address', areaRoute: 'Area route',
+  qualification: 'Qualification', grade: 'Grade', education: 'Education', educationStatus: 'Edu. status', school: 'School',
+  profession: 'Profession', professionField: 'Field', companyName: 'Company', yuvakType: 'Yuvak type',
+  familyId: 'Family', relation: 'Relation', type: 'Family role', followupKaryakarta: 'Karyakarta',
+  followupKaryakartaMobile: 'Karyakarta mobile', reference: 'Reference', tags: 'Tags', notes: 'Notes',
+  status: 'Status', dateOfJoining: 'Joined', photo: 'Photo', oldNew: 'Old/New',
+};
+const dlogLabel = (f) => DLOG_LABEL[f] || f;
+const dlogVal = (v) => { const s = String(v == null ? '' : v); return s === '' ? '—' : (s.length > 50 ? s.slice(0, 50) + '…' : s); };
+const DLOG_ACTION = {
+  create: { label: 'Created', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
+  update: { label: 'Edited', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+  delete: { label: 'Deleted', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' },
+  revert: { label: 'Reverted', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
+};
+function DevoteeHistorySection({ devotee, user, open, onToggle, onReverted }) {
+  const [logs, setLogs] = React.useState(null);
+  const [busy, setBusy] = React.useState('');
+  const isAdmin = user?.role === 'Admin';
+  const load = React.useCallback(() => dataService.getDevoteeLog(devotee.id).then((l) => setLogs(l || [])), [devotee.id]);
+  React.useEffect(() => { if (open && logs === null) load(); }, [open, logs, load]);
+
+  const revert = async (log) => {
+    if (!window.confirm('Revert this profile to the values BEFORE this change? Current values will be replaced (the revert is itself logged).')) return;
+    setBusy(log.id);
+    try { await dataService.devoteeRevert(log.id, user?.name || ''); await load(); onReverted?.(); }
+    catch (e) { alertError('Could not revert', e.message); }
+    finally { setBusy(''); }
+  };
+
+  const count = logs ? logs.filter((l) => l.action !== 'create').length : 0;
+  return (
+    <Collapsible title={<span className="flex items-center gap-2">🕓 Edit History {count > 0 && <span className="font-bold text-text-muted">· {count}</span>}</span>} open={open} onToggle={onToggle}>
+      {logs === null && <p className="text-xs text-text-muted">Loading…</p>}
+      {logs && logs.length === 0 && <p className="text-xs text-text-muted">No edits recorded yet.</p>}
+      <div className="space-y-2">
+        {(logs || []).map((log) => {
+          let changes = []; try { changes = JSON.parse(log.changesJson || '[]'); } catch (e) {}
+          const st = DLOG_ACTION[log.action] || { label: log.action, cls: 'bg-slate-100 text-slate-700' };
+          const canRevert = isAdmin && log.action !== 'create' && !!log.beforeJson;
+          return (
+            <div key={log.id} className="rounded-xl border border-border-light bg-bg-base p-2.5">
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${st.cls}`}>{st.label}</span>
+                <span className="text-[11px] font-semibold text-text-muted">{new Date(log.ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>
+                {log.actor && <span className="truncate text-[11px] text-text-muted">· {log.actor}</span>}
+              </div>
+              {changes.length > 0 && (
+                <div className="mt-1.5 space-y-1">
+                  {changes.map((c, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-[12px]">
+                      <span className="shrink-0 font-bold text-text-main">{dlogLabel(c.field)}:</span>
+                      <span className="text-rose-500 line-through">{dlogVal(c.before)}</span>
+                      <span className="text-text-muted">→</span>
+                      <span className="font-semibold text-emerald-600">{dlogVal(c.after)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {log.action === 'create' && <p className="mt-1 text-[11px] text-text-muted">Profile first created.</p>}
+              {log.action === 'delete' && <p className="mt-1 text-[11px] text-text-muted">Profile was deleted — revert re-creates it.</p>}
+              {canRevert && (
+                <button onClick={() => revert(log)} disabled={busy === log.id}
+                  className="mt-2 flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-700 disabled:opacity-50 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
+                  {busy === log.id ? 'Reverting…' : '↺ Revert to before this'}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Collapsible>
   );
 }
@@ -1554,6 +1633,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   );
                 })}
                 <SevaSection devotee={selectedDevotee} open={!!openSec.Seva} onToggle={() => toggleSec('Seva')} />
+                {(user?.role === 'Admin' || user?.role === 'Sevak') && (
+                  <DevoteeHistorySection devotee={selectedDevotee} user={user} open={!!openSec.History} onToggle={() => toggleSec('History')}
+                    onReverted={() => { const fresh = dataService.getDevoteeById(selectedDevotee.id); if (fresh) setSelectedDevotee(fresh); setDevotees(dataService.getDevotees()); }} />
+                )}
               </div>
             </div>
 

@@ -28,7 +28,20 @@ export default function App() {
   // Restore the saved session synchronously so a returning user goes straight
   // to the app — no re-login, no flash of the sign-in screen.
   const [user, setUser] = useState(() => dataService.getCurrentSession());
-  const [activePage, setActivePage] = useState('dashboard');
+  // Deep-link from a push notification: ?n=<page> opens that section on launch.
+  const initialPage = (() => {
+    try {
+      const n = new URLSearchParams(window.location.search).get('n');
+      const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard'];
+      if (n && allowed.includes(n)) {
+        // Clean the URL so a later refresh doesn't re-trigger it.
+        try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+        return n;
+      }
+    } catch (e) {}
+    return 'dashboard';
+  })();
+  const [activePage, setActivePage] = useState(initialPage);
   // Register for push on launch when a session is already restored.
   useEffect(() => { if (user) { try { initPush(user); } catch (e) {} } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)

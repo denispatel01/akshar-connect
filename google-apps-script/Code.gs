@@ -71,10 +71,13 @@ var HEADERS = {
   // (beforeJson lets an admin revert to the prior state).
   GhariLog: ['id','ts','entity','entityId','action','actor','changesJson','beforeJson','afterJson'],
   // ── Vato (daily Gujarati/English teachings, maintained by hand in the sheet) ─
-  Vato: ['SN','Gujarati','English']
+  Vato: ['SN','Gujarati','English'],
+  // ── Devotee edit audit (old↔new on every add/edit/delete, revertible) ───────
+  // action ∈ create|update|delete|revert. before/afterJson = full row snapshots.
+  DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-12-vato';
+var SCHEMA_VERSION = '2026-10-12-devotee-audit';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -87,6 +90,9 @@ var SEED_EMAIL_TEMPLATES = [
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
+
+// The installed app URL — tapping a push notification opens this (not the domain root).
+var APP_URL = 'https://denispatel01.github.io/akshar-connect/';
 
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
@@ -822,10 +828,12 @@ function sendPush_(title, body, audience, data){
     var isStaff = !!staffMobiles[normMob_(r.mobile)];
     return audience === 'staff' ? isStaff : !isStaff;
   });
+  targets = dedupeTokens_(targets);
   if(!targets.length) return 0;
 
   var msgData = { type: 'announcement' };
   if(data) for(var k in data) msgData[k] = String(data[k]);
+  var link = pushLink_(msgData.type);
 
   var sent = 0, toDelete = [];
   // UrlFetchApp.fetchAll batches the HTTP calls so hundreds of devices stay fast.
@@ -840,7 +848,8 @@ function sendPush_(title, body, audience, data){
           token: r.token,
           notification: { title: title, body: body },
           data: msgData,
-          android: { priority: 'high' }
+          android: { priority: 'high' },
+          webpush: { fcm_options: { link: link } }
         }})
       };
     });
@@ -859,6 +868,33 @@ function sendPush_(title, body, audience, data){
   return sent;
 }
 function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
+
+// Deep-link a push to the right in-app screen based on its type. The app reads
+// the ?n= param on launch and opens that page.
+function pushLink_(type){
+  var t = String(type || '').toLowerCase();
+  var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard' })[t];
+  return page ? (APP_URL + '?n=' + page) : APP_URL;
+}
+
+// Collapse duplicate tokens for the SAME device so a person doesn't get the same
+// push twice (the PWA can re-register and leave a stale-but-still-valid token).
+// Keeps the most recently updated token per (mobile + platform); tokens without a
+// mobile are kept as-is. Also de-dupes exact repeated token strings.
+function dedupeTokens_(targets){
+  var byDevice = {}, noMobile = [], seenTok = {};
+  (targets||[]).forEach(function(r){
+    if(seenTok[r.token]) return; seenTok[r.token] = true;
+    var mob = normMob_(r.mobile);
+    if(!mob){ noMobile.push(r); return; }
+    var key = mob + '|' + (r.platform || '');
+    var cur = byDevice[key];
+    if(!cur || String(r.updatedOn||'') > String(cur.updatedOn||'')) byDevice[key] = r;
+  });
+  var out = noMobile.slice();
+  for(var k in byDevice) out.push(byDevice[k]);
+  return out;
+}
 
 // Cached FCM access token (valid ~1h) so frequent pushes (e.g. activity watch)
 // don't mint a fresh JWT every time.
@@ -880,14 +916,15 @@ function pushToMobile_(title, body, mobile, data){
     var sa = JSON.parse(saRaw);
     var nm = normMob_(mobile);
     if(!nm) return 0;
-    var targets = readAll_('PushTokens').filter(function(r){ return normMob_(r.mobile) === nm; });
+    var targets = dedupeTokens_(readAll_('PushTokens').filter(function(r){ return normMob_(r.mobile) === nm; }));
     if(!targets.length) return 0;
     var token = fcmAccessTokenCached_(sa);
     var url = 'https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send';
     var msgData = { type:'activity' }; if(data) for(var k in data) msgData[k] = String(data[k]);
+    var link = pushLink_(msgData.type);
     var reqs = targets.map(function(r){
       return { url:url, method:'post', contentType:'application/json', headers:{ Authorization:'Bearer '+token }, muteHttpExceptions:true,
-        payload: JSON.stringify({ message:{ token:r.token, notification:{ title:title, body:body }, data:msgData, android:{ priority:'high' } }}) };
+        payload: JSON.stringify({ message:{ token:r.token, notification:{ title:title, body:body }, data:msgData, android:{ priority:'high' }, webpush:{ fcm_options:{ link: link } } }}) };
     });
     var resps = UrlFetchApp.fetchAll(reqs); var sent = 0;
     for(var i=0;i<resps.length;i++){ if(resps[i].getResponseCode() === 200) sent++; }
@@ -1108,7 +1145,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','Vato'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1208,21 +1245,36 @@ function handle_(p){
     // Writes return as fast as possible — no synchronous email (it blocked the
     // response by 1-3s). Change notifications are logged and emailed hourly by the
     // emailChangeDigest_ time-trigger instead.
-    if(action==='insert'){ appendRows_(p.collection, [p.row]); logChange_('INSERT', p.collection, p.row, mailFlag_(p)); return json_({ ok:true, row:p.row }); }
+    if(action==='insert'){
+      appendRows_(p.collection, [p.row]); logChange_('INSERT', p.collection, p.row, mailFlag_(p));
+      if(p.collection==='Devotees') devoteeLog_('create', (p.row&&p.row.createdBy)||p.actor||'', null, p.row);
+      return json_({ ok:true, row:p.row });
+    }
     if(action==='bulkUpdateTags') return doBulkUpdateTags_(p);
     if(action==='bulkSetTags') return doBulkSetTags_(p);
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
+      var beforeDev = (p.collection==='Devotees') ? readRowObj_(p.collection, rn) : null;
       tab_(p.collection).getRange(rn,1,1,HEADERS[p.collection].length).setValues([rowFromObj_(p.collection,p.row)]);
       logChange_('UPDATE', p.collection, p.row, mailFlag_(p), p.changed);
+      if(p.collection==='Devotees') devoteeLog_('update', (p.row&&p.row.updatedBy)||p.actor||'', beforeDev, p.row);
       return json_({ ok:true });
     }
     if(action==='remove'){
       var r=findRow_(p.collection, p.keyField||'id', p.key);
+      var beforeRem = (r>0 && p.collection==='Devotees') ? readRowObj_(p.collection, r) : null;
       if(r>0) { tab_(p.collection).deleteRow(r); logChange_('DELETE', p.collection, { key: p.key, name: p.name, actor: p.actor }, mailFlag_(p)); }
+      if(beforeRem) devoteeLog_('delete', p.actor||'', beforeRem, null);
       return json_({ ok:true });
     }
+    if(action==='getDevoteeLog'){
+      var dl = readAll_('DevoteeLog');
+      if(p.devoteeId) dl = dl.filter(function(r){ return String(r.devoteeId) === String(p.devoteeId); });
+      dl.sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
+      return json_({ ok:true, logs: dl.slice(0, Number(p.limit)||200) });
+    }
+    if(action==='devoteeRevert') return doDevoteeRevert_(p);
     if(action==='markAttendance') { return doMark_(p); }
     if(action==='saveFollowup') return doSaveFollowup_(p);
     if(action==='upsertUser') return doUpsertUser_(p);
@@ -1445,6 +1497,46 @@ function ghariLog_(entity, action, actor, beforeRow, afterRow){
     };
     appendRows_('GhariLog', [rec]);
   }catch(e){}
+}
+
+// Append one devotee audit entry (old↔new snapshot) for history + revert.
+function devoteeLog_(action, actor, beforeRow, afterRow){
+  try{
+    var H = HEADERS.Devotees;
+    var skip = { updatedOn:1, createdOn:1, updatedBy:1, createdBy:1, attendanceRate:1 };
+    var changes = [];
+    if(beforeRow && afterRow){
+      H.forEach(function(f){ if(skip[f]) return; var b=beforeRow[f], a=afterRow[f]; if(String(b==null?'':b) !== String(a==null?'':a)) changes.push({ field:f, before:(b==null?'':b), after:(a==null?'':a) }); });
+    }
+    var rec = {
+      id: 'DLOG-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      ts: new Date().toISOString(),
+      devoteeId: String((afterRow&&afterRow.id)||(beforeRow&&beforeRow.id)||''),
+      name: String((afterRow&&afterRow.name)||(beforeRow&&beforeRow.name)||''),
+      action: action, actor: String(actor||''),
+      changesJson: JSON.stringify(changes),
+      beforeJson: beforeRow ? JSON.stringify(beforeRow) : '',
+      afterJson: afterRow ? JSON.stringify(afterRow) : ''
+    };
+    appendRows_('DevoteeLog', [rec]);
+  }catch(e){}
+}
+// Revert a devotee to the "before" snapshot of a log entry (restores old values).
+function doDevoteeRevert_(p){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    var logs = readAll_('DevoteeLog'); var entry = null;
+    for(var i=0;i<logs.length;i++){ if(String(logs[i].id) === String(p.logId)){ entry = logs[i]; break; } }
+    if(!entry) return json_({ ok:false, error:'log entry not found' });
+    var before; try{ before = JSON.parse(entry.beforeJson || 'null'); }catch(e){ before = null; }
+    if(!before) return json_({ ok:false, error:'no previous values to revert to (this was the first version)' });
+    var rn = findRow_('Devotees','id', before.id);
+    var cur = rn>0 ? readRowObj_('Devotees', rn) : null;
+    if(rn>0) tab_('Devotees').getRange(rn,1,1,HEADERS.Devotees.length).setValues([rowFromObj_('Devotees', before)]);
+    else appendRows_('Devotees', [before]);
+    devoteeLog_('revert', String(p.actor||''), cur, before);
+    return json_({ ok:true, restored: before });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
 function doGhariUpsert_(collection, row, keyField){

@@ -854,6 +854,19 @@ export const dataService = {
     return String(u.modules || '').split(/[,|]/).map(s => s.trim().toLowerCase()).includes(String(key).toLowerCase());
   },
 
+  // ---- Devotee edit history (old↔new) + revert ----
+  getDevoteeLog: async (devoteeId) => {
+    if (!hasBackend() || !devoteeId) return [];
+    try { const r = await api('getDevoteeLog', { devoteeId }); return (r && r.logs) || []; } catch { return []; }
+  },
+  devoteeRevert: async (logId, actor = '') => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('devoteeRevert', { logId, actor });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Could not revert.');
+    try { await bootstrap(); saveCache(); if (typeof window !== 'undefined') window.dispatchEvent(new Event('ac-data-refreshed')); } catch (e) {}
+    return r.restored;
+  },
+
   // ---- Devotees ----
   getDevotees: () => DB.devotees,
   getDevoteeById: (id) => DB.devotees.find(d => d.id === id) || null,
