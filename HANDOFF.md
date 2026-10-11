@@ -131,6 +131,10 @@ Swadhyay, Seva, CalPlan`.
 
 ## 4. ~~PENDING~~ manual steps the OWNER must do
 
+> ✅ Daily push triggers installed (owner ran them in the Apps Script editor):
+> `installSwadhyayReminder` (10 PM), `installVatoReminder` (6 AM Vato),
+> `installBirthdayReminder` (8 AM birthdays).
+
 1. ✅ **DONE (2026-10-11) — Schedule the Swadhyay reminder at 10 PM.** In the Apps Script editor
    (`script.google.com/d/1GLXaTVufgSoOtPn-n6FULEDrmV53Z3epPWTMkzVZzWwkj1OL5UKkJ3y6/edit`):
    function dropdown → **`installSwadhyayReminder`** → Run → approve the time-trigger permission.

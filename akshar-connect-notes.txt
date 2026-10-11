@@ -146,7 +146,7 @@ Done 91.add/edit profile > tag > sabha attendance > only 1 option should be allo
 Done 92.review tab showing family role: member brother but not showing whoose brother.
 Done 93.Email for add devotee > photo base64 should be not shown in email. email looks very simple. it should also looks same like profile in app. same to same.
 Done 94.add devotee does not saving DOB. make it working.
-95.delete devotee mail > only showing ID. it should be shown name with ID and who is deleted their name also with date time.
+Done 95.delete devotee mail > only showing ID. it should be shown name with ID and who is deleted their name also with date time.
 96.add devotee screen should be little bit colorful instead of white background.
 97.if user select Bal then why are we asking, diploma, bachelor, master etc?
 98.devotees profile > equipped with very few emoji and icons. add more emoji and icons.
@@ -174,5 +174,7 @@ Done 94.add devotee does not saving DOB. make it working.
 
 
 
-profile picture should be big and cover page should be "simple life, high thinking" image. image attached.
-Use orange color in our theme. reference image given.
+
+
+Area drag and drop not working.
+what if data became too much in sheet?
