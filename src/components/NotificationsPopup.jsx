@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus, Megaphone } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { hasAnyTag } from '../services/devoteeSchema';
 import { isBirthdayToday, upcomingBirthdays, birthdayDate } from '../utils/birthdays';
 
 const fmtWhen = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } };
@@ -37,16 +38,25 @@ export default function NotificationsPopup({ user }) {
     [devotees]
   );
 
-  // Pending follow-ups on upcoming events (staff only).
+  // Pending follow-ups on upcoming events (staff only). Pending must be counted
+  // over the EVENT'S AUDIENCE (devotees matching its tags), not the whole
+  // directory — otherwise an event tagged for 54 people showed ~531 pending
+  // (total devotees minus a few contacted). Mirrors FollowupsPage's audience.
   const pendingEvents = useMemo(() => {
     if (!canManage) return [];
     const todayISO = new Date().toISOString().slice(0, 10);
-    const total = devotees.length;
+    // Dedupe by id so duplicate records don't inflate the count.
+    const seen = new Set();
+    const uniqueDevotees = devotees.filter(d => (seen.has(d.id) ? false : (seen.add(d.id), true)));
     return dataService.getEvents()
       .filter(ev => (ev.date || '') >= todayISO)
       .map(ev => {
-        const done = dataService.getFollowupsForEvent(ev.id).filter(contactedF).length;
-        return { ev, pending: Math.max(0, total - done) };
+        const tags = String(ev.tags || '').split('|').map(s => s.trim()).filter(Boolean);
+        const audience = tags.length ? uniqueDevotees.filter(d => hasAnyTag(d, tags)) : uniqueDevotees;
+        const fmap = {};
+        dataService.getFollowupsForEvent(ev.id).forEach(f => { fmap[f.devoteeId] = f; });
+        const pending = audience.reduce((n, d) => n + (contactedF(fmap[d.id]) ? 0 : 1), 0);
+        return { ev, pending };
       })
       .filter(x => x.pending > 0)
       .sort((a, b) => (a.ev.date || '').localeCompare(b.ev.date || ''))
