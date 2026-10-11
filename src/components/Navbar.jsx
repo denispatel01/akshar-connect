@@ -25,8 +25,10 @@ import {
   Sparkles,
   Database,
   Quote,
+  Search,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import GlobalSearch from './GlobalSearch';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh }) {
   const isDevotee = user?.role === 'Devotee';
@@ -35,6 +37,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   // Ghari Seva is visible to Admins and to any user explicitly granted the module.
   const canGhari = isAdmin || String(user?.modules || '').split(/[,|]/).map((s) => s.trim().toLowerCase()).includes('ghari');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Lock the page behind the Menu sheet so dragging inside the sheet scrolls the
   // sheet — not the background screen.
@@ -159,6 +162,10 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               className={`flex h-9 w-9 items-center justify-center rounded-xl border bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface transition-colors ${updateAvailable ? 'border-amber-400 text-amber-500 animate-pulse' : 'border-border-light'}`}>
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
+            <button onClick={() => setSearchOpen(true)} title="Search"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              <Search className="h-4 w-4" />
+            </button>
 
             <div className="flex items-center gap-2.5 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
               <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
@@ -224,6 +231,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <RefreshCw className="h-3 w-3 animate-spin" /> Updating to the latest version…
         </div>
       )}
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} user={user}
+        onOpenDevotee={(id) => setActivePage('devotees', { openDevoteeId: id })} />
 
       {/* Mobile bottom bar + Menu sheet are rendered via a portal on <body> so no
           transformed/animated ancestor can ever turn their `fixed` positioning into

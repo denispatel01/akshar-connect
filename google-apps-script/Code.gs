@@ -450,6 +450,12 @@ function doCreatePost_(p){
     createdOn: now, status: 'active'
   };
   appendRows_('FeedPosts', [row]);
+  // Notify everyone a new post is up (keeps the Feed active).
+  try {
+    var hasMedia = false; try { hasMedia = JSON.parse(media).length > 0; } catch(e){}
+    var body = (row.authorName || 'Someone') + (row.caption ? (': ' + row.caption) : (hasMedia ? ' shared a photo/video' : ' shared an update'));
+    sendPush_('🌸 New post on the Feed', body.slice(0,180), 'all', { type:'feed', postId: id });
+  } catch(e){}
   return json_({ ok:true, post: row });
 }
 // Paginated feed, newest first. `before` = createdOn cursor (exclusive). Returns
@@ -520,7 +526,16 @@ function doAddComment_(p){
   appendRows_('FeedComments', [row]);
   var count = readAll_('FeedComments').filter(function(c){ return String(c.postId) === postId && String(c.status||'active') !== 'removed'; }).length;
   var prn = findRow_('FeedPosts','id',postId);
-  if(prn > 0) tab_('FeedPosts').getRange(prn, HEADERS.FeedPosts.indexOf('commentCount')+1).setValue(count);
+  if(prn > 0){
+    tab_('FeedPosts').getRange(prn, HEADERS.FeedPosts.indexOf('commentCount')+1).setValue(count);
+    // Notify the post's author that someone commented (unless they commented themselves).
+    try {
+      var post = readRowObj_('FeedPosts', prn);
+      if(post.authorMobile && String(post.authorId) !== String(row.authorId)){
+        pushToMobile_('💬 New comment on your post', (row.authorName || 'Someone') + ': ' + text.slice(0,100), post.authorMobile, { type:'feed', postId: postId });
+      }
+    } catch(e){}
+  }
   return json_({ ok:true, comment: row, commentCount: count });
 }
 function doDeleteComment_(p){
