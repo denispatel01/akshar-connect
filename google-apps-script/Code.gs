@@ -77,7 +77,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-13-seva-planned';
+var SCHEMA_VERSION = '2026-10-14-names-propercase-all';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1354,11 +1354,43 @@ function ensureSheets_(){
     try{ ss_().deleteSheet(first); }catch(e){}
   }
   backfillGhariOrderNos_();   // give every legacy order a permanent #number
+  properCaseNamesOnce_(); // one-time: tidy existing customer/karyakarta/supplier/devotee names
   if(readAll_('Users').length===0)    appendRows_('Users', SEED_USERS);
   if(readAll_('Sabhas').length===0)   appendRows_('Sabhas', SEED_SABHAS);
   if(readAll_('Thoughts').length===0) appendRows_('Thoughts', SEED_THOUGHTS);
   if(readAll_('EmailTemplates').length===0) appendRows_('EmailTemplates', SEED_EMAIL_TEMPLATES);
   props.setProperty('ensuredSchema', SCHEMA_VERSION);
+}
+
+// Proper-case an English name however it was typed ("RAVI"/"ravi" → "Ravi").
+// Non-Latin scripts (e.g. Gujarati કાર્યકર્તા) have no case, so \w leaves them as-is.
+function properName_(s){
+  return String(s==null?'':s).trim().toLowerCase().replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+}
+// Proper-case the given columns on every row of a sheet, in place (no log churn).
+function properCaseColumns_(sheetName, colNames){
+  var sh = ss_().getSheetByName(sheetName); if(!sh) return;
+  var H = HEADERS[sheetName]; if(!H) return;
+  var lr = sh.getLastRow(); if(lr < 2) return;
+  colNames.forEach(function(name){
+    var c = H.indexOf(name) + 1; if(c <= 0) return;
+    var vals = sh.getRange(2, c, lr-1, 1).getValues(), changed = false;
+    for(var i=0;i<vals.length;i++){ var p = properName_(vals[i][0]); if(p !== String(vals[i][0]==null?'':vals[i][0])){ vals[i][0] = p; changed = true; } }
+    if(changed) sh.getRange(2, c, vals.length, 1).setValues(vals);
+  });
+}
+// One-time cleanup (guarded by a Script Property): proper-case existing NAMES across
+// orders (customer/karyakarta), purchases (supplier) and the devotee directory.
+// Idempotent — the guard value is bumped whenever the set of columns grows.
+function properCaseNamesOnce_(){
+  var props = PropertiesService.getScriptProperties();
+  if(props.getProperty('ghariNamesPropered') === '3') return;
+  try {
+    properCaseColumns_('GhariOrders', ['customerName','karyakarta']);
+    properCaseColumns_('GhariPurchases', ['supplier']);
+    properCaseColumns_('Devotees', ['name','firstName','middleName','lastName']);
+  } catch(e){ /* non-fatal */ }
+  props.setProperty('ghariNamesPropered', '3');
 }
 
 function readAll_(name){

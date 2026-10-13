@@ -149,26 +149,37 @@ let DB = { users: [], devotees: [], sabhas: [], thoughts: [], attendance: [], fo
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
+// App-wide "something is loading" signal. Every backend call flows through api(),
+// so counting in-flight requests here gives a single, accurate loading state for
+// the whole app — surfaced as the thin, non-blocking top progress bar. Components
+// never have to wire this up themselves.
+let inFlight_ = 0;
+function emitLoading_() { try { window.dispatchEvent(new CustomEvent('ac-loading', { detail: { count: inFlight_, loading: inFlight_ > 0 } })); } catch { /* non-browser */ } }
+export function isBackendBusy() { return inFlight_ > 0; }
+
 async function api(action, payload = {}) {
   // Attach the signed-in actor's mobile so the backend can authorize writes
   // (e.g. Ghari Seva is view-only for Sevaks). Harmless for other endpoints;
   // an explicit payload.actorMobile still wins.
   const body = JSON.stringify({ action, actorMobile: actorMobile_(), ...payload });
+  inFlight_++; emitLoading_();
   let lastErr;
-  for (let n = 1; n <= 4; n++) {
-    try {
-      const r = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // simple request, no CORS preflight
-        body, redirect: 'follow'
-      });
-      const t = await r.text();
-      let d; try { d = JSON.parse(t); } catch (e) { lastErr = new Error('Server busy'); await delay(500 * n); continue; }
-      if (d && d.ok === false) throw new Error(d.error || 'Error');
-      return d;
-    } catch (e) { lastErr = e; await delay(500 * n); }
-  }
-  throw lastErr || new Error('Network error');
+  try {
+    for (let n = 1; n <= 4; n++) {
+      try {
+        const r = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // simple request, no CORS preflight
+          body, redirect: 'follow'
+        });
+        const t = await r.text();
+        let d; try { d = JSON.parse(t); } catch (e) { lastErr = new Error('Server busy'); await delay(500 * n); continue; }
+        if (d && d.ok === false) throw new Error(d.error || 'Error');
+        return d;
+      } catch (e) { lastErr = e; await delay(500 * n); }
+    }
+    throw lastErr || new Error('Network error');
+  } finally { inFlight_ = Math.max(0, inFlight_ - 1); emitLoading_(); }
 }
 
 // Reusable backend access for sibling services (e.g. the Ghari module), so they

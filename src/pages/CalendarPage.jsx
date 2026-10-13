@@ -168,6 +168,10 @@ export default function CalendarPage({ user }) {
 
   const reloadPlans = () => dataService.getPlans(devoteeId).then((p) => setPlans(p || []));
   const reloadSeva = () => dataService.getSeva({ karyakartaId: devoteeId }).then((r) => setSeva(r || []));
+  // Optimistic local removal so a deleted seva disappears instantly (the server
+  // delete + re-fetch happen in the background).
+  const removeSevaLocal = (id) => setSeva((prev) => (prev || []).filter((s) => s.id !== id));
+  const patchSevaLocal = (id, patch) => setSeva((prev) => (prev || []).map((s) => (s.id === id ? { ...s, ...patch } : s)));
   useEffect(() => {
     if (!devoteeId) return;
     reloadSeva();
@@ -375,6 +379,8 @@ export default function CalendarPage({ user }) {
           onClose={() => setOpenDay(null)}
           onChanged={reloadPlans}
           onChangedSeva={reloadSeva}
+          onRemoveSeva={removeSevaLocal}
+          onPatchSeva={patchSevaLocal}
         />
       )}
     </div>
@@ -383,7 +389,7 @@ export default function CalendarPage({ user }) {
 
 // Bottom sheet for a single day: done activities, logged Seva (+ full Seva logging
 // for staff — merged from the Seva module), plans, and quick-add.
-function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMobile, onClose, onChanged, onChangedSeva }) {
+function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMobile, onClose, onChanged, onChangedSeva, onRemoveSeva, onPatchSeva }) {
   const [type, setType] = useState('seva');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -453,17 +459,16 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
 
   // Mark a planned seva as done — clears the `planned` flag (so it stops reminding)
   // and keeps it in the day's log. Re-sends the full row so nothing is lost.
-  const markSevaDone = async (s) => {
-    try {
-      await dataService.saveSeva({
-        id: s.id, date: s.date, fromTime: s.fromTime || '', toTime: s.toTime || '',
-        category: s.category || '', work: s.work || '', visitedId: s.visitedId || '', visitedName: s.visitedName || '',
-        companionsJson: s.companionsJson || '[]',
-        karyakartaId: s.karyakartaId || devoteeId, karyakartaName: s.karyakartaName || karyakartaName, karyakartaMobile: s.karyakartaMobile || karyakartaMobile,
-        planned: '',
-      });
-      await onChangedSeva();
-    } catch (e) { alertError('Could not update', e.message || 'Try again.'); }
+  const markSevaDone = (s) => {
+    // Optimistic: flip to done immediately, save on the server in the background.
+    onPatchSeva?.(s.id, { planned: '' });
+    dataService.saveSeva({
+      id: s.id, date: s.date, fromTime: s.fromTime || '', toTime: s.toTime || '',
+      category: s.category || '', work: s.work || '', visitedId: s.visitedId || '', visitedName: s.visitedName || '',
+      companionsJson: s.companionsJson || '[]',
+      karyakartaId: s.karyakartaId || devoteeId, karyakartaName: s.karyakartaName || karyakartaName, karyakartaMobile: s.karyakartaMobile || karyakartaMobile,
+      planned: '',
+    }).catch((e) => { alertError('Could not update', e.message || 'Try again.'); onChangedSeva?.(); });
   };
 
   const delSeva = async (s) => {
@@ -474,8 +479,10 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
       customClass: { popup: 'rounded-3xl font-sans', confirmButton: 'rounded-2xl px-6 py-2.5 font-bold', cancelButton: 'rounded-2xl px-6 py-2.5 font-bold' },
     });
     if (!res.isConfirmed) return;
-    try { await dataService.deleteSeva(s.id); await onChangedSeva(); }
-    catch (e) { alertError('Could not delete', e.message || 'Try again.'); }
+    // Optimistic: remove it from the UI immediately, then delete on the server in
+    // the background. If the delete fails, re-fetch to restore the true state.
+    onRemoveSeva?.(s.id);
+    dataService.deleteSeva(s.id).catch((e) => { alertError('Could not delete', e.message || 'Try again.'); onChangedSeva?.(); });
   };
 
   return createPortal(

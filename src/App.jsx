@@ -103,6 +103,15 @@ export default function App() {
     const t = setTimeout(() => setNavPulse(false), 700);
     return () => clearTimeout(t);
   }, [activePage]);
+  // App-wide data-loading indicator: any in-flight backend request keeps the thin
+  // top bar visible (non-blocking — the user can keep interacting). Driven by the
+  // 'ac-loading' event dispatched from dataService's api() in-flight counter.
+  const [dataLoading, setDataLoading] = useState(false);
+  useEffect(() => {
+    const onLoading = (e) => setDataLoading(!!e?.detail?.loading);
+    window.addEventListener('ac-loading', onLoading);
+    return () => window.removeEventListener('ac-loading', onLoading);
+  }, []);
   const [history, setHistory] = useState([]);        // stack of previous pages (for Back)
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -247,8 +256,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Non-blocking top loading bar */}
-      <div className={`pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 overflow-hidden transition-opacity duration-200 ${(refreshing || navPulse) ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-[#FF862A] to-transparent" style={{ animation: 'ac-progress 0.9s linear infinite' }} />
+      <div className={`pointer-events-none fixed inset-x-0 top-0 z-[60] h-1 overflow-hidden bg-[#FF862A]/10 transition-opacity duration-200 ${(refreshing || navPulse || dataLoading) ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-[#FF862A] to-transparent" style={{ animation: 'ac-progress 0.9s linear infinite' }} />
       </div>
       {/* View-as banner — always visible while impersonating, with a one-tap exit. */}
       {viewAs && realIsAdmin && (
