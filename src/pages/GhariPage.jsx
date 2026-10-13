@@ -17,6 +17,9 @@ const fmtKg = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
 // Proper (title) case — capitalizes the first letter of each word as you type,
 // so the text always reads in proper case no matter how it was entered.
 const toProperCase = (s) => String(s || '').replace(/\b\w/g, (c) => c.toUpperCase());
+// Proper-case a NAME however it was typed — lowercases first so ALL-CAPS ("RAVI")
+// and all-lowercase ("ravi") both become "Ravi".
+const properName = (s) => String(s || '').trim().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
 // ───────────────────────── Sync / connectivity strip ────────────────────────
 function SyncStrip() {
@@ -209,8 +212,9 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
     setReview(null);
     const order = ghariService.saveOrder({
       id: initialOrder?.id, season: initialOrder?.season,
-      customerName: customerName.trim(), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
-      karyakarta: karyakarta.trim(), karyakartaId,
+      // Names are always stored in proper case, however they were typed.
+      customerName: properName(customerName), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
+      karyakarta: properName(karyakarta), karyakartaId,
       items, delivered,
       paymentReceived: paid, paymentType: paymentType || (paid > 0 ? 'Cash' : 'Pending'),
       remarks: remarks.trim(), status: initialOrder?.status || 'active',
@@ -1013,6 +1017,106 @@ function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReve
   );
 }
 
+// ───────────────────────── Module-wide activity log ─────────────────────────
+// Every Ghari change (orders, purchases, catalog) across all seasons in one list —
+// newest first, searchable by customer / karyakarta / supplier / who made it, with
+// the exact before→after of each change and a revert on past edits.
+function GhariLogView({ flash }) {
+  const [logs, setLogs] = useState(null);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState('');
+  const actor = (dataService.getCurrentSession() || {}).name || '';
+
+  const load = () => { setLogs(null); ghariService.getLog({ limit: 500 }).then((l) => setLogs(l || [])); };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const parse_ = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
+  const metaOf = (log) => {
+    const row = parse_(log.afterJson) || {};
+    const prev = parse_(log.beforeJson) || {};
+    const r = Object.keys(row).length ? row : prev;
+    if (log.entity === 'purchase') return { title: r.supplier || 'Purchase', sub: r.date || '', extra: '' };
+    if (log.entity === 'product') return { title: [r.name, r.size].filter(Boolean).join(' ') || 'Item', sub: '', extra: '' };
+    return { title: r.customerName || 'Order', sub: r.karyakarta ? `via ${r.karyakarta}` : '', extra: r.season || '' };
+  };
+
+  const shown = useMemo(() => {
+    if (!logs) return [];
+    const t = q.trim().toLowerCase();
+    if (!t) return logs;
+    return logs.filter((log) => {
+      const m = metaOf(log);
+      return [m.title, m.sub, log.actor, log.entity, log.action].join(' ').toLowerCase().includes(t);
+    });
+    // eslint-disable-next-line
+  }, [logs, q]);
+
+  const revert = async (log) => {
+    if (!(await confirmDialog({ title: 'Revert this change?', text: 'The current values will be replaced with the values BEFORE this change (and this revert is itself logged).', confirmText: 'Revert' }))) return;
+    setBusy(log.id);
+    try { await ghariService.revert(log.id, actor); load(); flash?.('Change reverted ✓'); }
+    catch (e) { alertError('Could not revert', e.message); }
+    finally { setBusy(''); }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">
+        <Search className="h-4 w-4 text-text-muted" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customer, karyakarta, supplier or who changed it"
+          className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+        {q && <button onClick={() => setQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
+        <button onClick={load} title="Refresh" className="shrink-0 text-text-muted hover:text-primary"><RefreshCw className={`h-4 w-4 ${logs === null ? 'animate-spin' : ''}`} /></button>
+      </div>
+
+      {logs === null && <p className="py-10 text-center text-sm text-text-muted">Loading history…</p>}
+      {logs && shown.length === 0 && <p className="py-10 text-center text-sm text-text-muted">{q ? `No changes match “${q}”.` : 'No Ghari changes recorded yet.'}</p>}
+
+      <div className="space-y-2">
+        {shown.map((log) => {
+          let changes = []; try { changes = JSON.parse(log.changesJson || '[]'); } catch (e) {}
+          changes = changes.filter((c) => c.field !== 'itemsJson');
+          const st = ACTION_STYLE[log.action] || { label: log.action, cls: 'bg-slate-100 text-slate-700' };
+          const m = metaOf(log);
+          const canRevert = log.action !== 'create' && !!log.beforeJson;
+          return (
+            <div key={log.id} className="rounded-2xl border border-border-light bg-surface p-3">
+              <div className="flex items-center gap-2">
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${st.cls}`}>{st.label}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-black text-text-main">{m.title}
+                  {m.sub && <span className="ml-1 text-[11px] font-semibold text-teal-600">{m.sub}</span>}</span>
+                <span className="shrink-0 rounded-md bg-bg-base px-1.5 py-0.5 text-[9px] font-bold uppercase text-text-muted">{log.entity}{m.extra ? ' · ' + m.extra : ''}</span>
+              </div>
+              <div className="mt-0.5 text-[11px] font-semibold text-text-muted">
+                {new Date(log.ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}{log.actor ? ` · ${log.actor}` : ''}
+              </div>
+              {changes.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {changes.map((c, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-[12px]">
+                      <span className="shrink-0 font-bold text-text-main">{ghariFieldLabel(c.field)}:</span>
+                      <span className="text-rose-500 line-through">{ghariVal(c.before)}</span>
+                      <span className="text-text-muted">→</span>
+                      <span className="font-semibold text-emerald-600">{ghariVal(c.after)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {log.action === 'create' && <p className="mt-1 text-[11px] text-text-muted">First created.</p>}
+              {canRevert && (
+                <button onClick={() => revert(log)} disabled={busy === log.id}
+                  className="mt-2 flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-700 disabled:opacity-50 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
+                  <RotateCcw className="h-3.5 w-3.5" /> {busy === log.id ? 'Reverting…' : 'Revert to before this change'}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Edit modal ───────────────────────────────────────
 function EditModal({ order, onClose, onSaved, canEdit = true }) {
   const [showHistory, setShowHistory] = useState(false);
@@ -1191,7 +1295,7 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
     if (!supplier.trim()) { alertError('Supplier needed', 'Enter the person/shop you bought from.'); return; }
     setBusy(true);
     try {
-      const pu = await ghariService.savePurchase({ id: initialPurchase?.id, season: initialPurchase?.season, date: fromLocalInput_(date), supplier: supplier.trim(), items, amount: Number(String(amount).replace(/[^\d]/g, '')) || 0, challan, remarks: remarks.trim(), status: initialPurchase?.status || 'active' });
+      const pu = await ghariService.savePurchase({ id: initialPurchase?.id, season: initialPurchase?.season, date: fromLocalInput_(date), supplier: properName(supplier), items, amount: Number(String(amount).replace(/[^\d]/g, '')) || 0, challan, remarks: remarks.trim(), status: initialPurchase?.status || 'active' });
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
       onSaved?.(pu);
     } finally { setBusy(false); }
@@ -1483,6 +1587,7 @@ export default function GhariPage({ user }) {
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
+    ...(canEdit ? [{ id: 'log', label: 'Log', icon: History }] : []),
     ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
     ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
   ];
@@ -1548,6 +1653,7 @@ export default function GhariPage({ user }) {
 
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
+      {tab === 'log' && canEdit && <GhariLogView key={tick} flash={flash} />}
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
 
