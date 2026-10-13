@@ -586,6 +586,15 @@ export const dataService = {
     logActivity_('announcement', '', `posted announcement "${title}" (sent to ${r.sent} device${r.sent === 1 ? '' : 's'})`);
     return r;
   },
+  // Admin: send a push notification WITHOUT saving an announcement (not shown in
+  // the in-app 🔔 list) — a pure manual notification.
+  sendPushNotification: async ({ title, body, audience = 'all' }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('sendPush', { title, body, audience });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to send.');
+    logActivity_('push', '', `sent a push notification "${title}" to ${r.sent} device${r.sent === 1 ? '' : 's'}`);
+    return r;
+  },
   // Admin: edit an announcement's text (does not re-push).
   updateAnnouncement: async (row) => {
     if (!hasBackend()) throw new Error('No backend configured.');

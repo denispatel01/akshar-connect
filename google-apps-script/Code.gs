@@ -1663,6 +1663,14 @@ function handle_(p){
     if(action==='registerPushToken') return doRegisterPushToken_(p);
     if(action==='getAnnouncements') return doGetAnnouncements_();
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
+    if(action==='sendPush'){
+      // Manual admin push WITHOUT saving an announcement (not shown in the 🔔 list).
+      var _aud = (['all','staff','devotees'].indexOf(p.audience) >= 0 ? p.audience : 'all');
+      var _t = String(p.title || '').slice(0,120), _b = String(p.body || '').slice(0,2000);
+      if(!_t) return json_({ ok:false, error:'Title required' });
+      var _sent = 0; try { _sent = sendPush_(_t, _b, _aud, { type:'announcement' }); } catch(e){ return json_({ ok:false, error:String(e) }); }
+      return json_({ ok:true, sent:_sent });
+    }
     if(action==='logPushStatus') return doLogPushStatus_(p);
     if(action==='getPushStatus') return doGetPushStatus_();
     if(action==='saveSwadhyay') return doSaveSwadhyay_(p);

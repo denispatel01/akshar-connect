@@ -337,6 +337,7 @@ function AnnouncementSender() {
   const [title, setTitle] = React.useState('');
   const [body, setBody] = React.useState('');
   const [audience, setAudience] = React.useState('all');
+  const [saveInBell, setSaveInBell] = React.useState(true); // also keep it in the 🔔 list
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState(null);
 
@@ -345,10 +346,16 @@ function AnnouncementSender() {
     if (!title.trim()) return;
     setBusy(true); setResult(null);
     try {
-      const r = await dataService.createAnnouncement({ title: title.trim(), body: body.trim(), audience });
+      let r;
+      if (saveInBell) {
+        r = await dataService.createAnnouncement({ title: title.trim(), body: body.trim(), audience });
+        try { window.dispatchEvent(new CustomEvent('ac-announcements-changed')); } catch (e) {}
+      } else {
+        // Pure push — not stored in anyone's 🔔 list.
+        r = await dataService.sendPushNotification({ title: title.trim(), body: body.trim(), audience });
+      }
       setResult({ ok: true, sent: r.sent });
       setTitle(''); setBody('');
-      try { window.dispatchEvent(new CustomEvent('ac-announcements-changed')); } catch (e) {}
     } catch (err) {
       setResult({ ok: false, error: String(err.message || err) });
     } finally { setBusy(false); }
@@ -357,9 +364,9 @@ function AnnouncementSender() {
   return (
     <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs space-y-4">
       <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-        <Megaphone className="h-4 w-4 text-[#FF862A]" /> 📣 Send Announcement
+        <Megaphone className="h-4 w-4 text-[#FF862A]" /> 📣 Send Notification
       </div>
-      <p className="text-xs text-text-muted -mt-2">Shows in everyone's 🔔 and pushes a notification to their phone.</p>
+      <p className="text-xs text-text-muted -mt-2">{saveInBell ? "Pushes to phones AND shows in everyone's 🔔 list." : 'Pushes to phones only — not saved in the 🔔 list.'}</p>
       <form onSubmit={send} className="grid grid-cols-1 gap-4">
         <div>
           <label className="text-xs font-bold text-slate-500 block mb-1">Title</label>
@@ -382,12 +389,16 @@ function AnnouncementSender() {
             <option value="devotees">Devotees only</option>
           </select>
         </div>
+        <label className="flex items-center gap-2 rounded-2xl border border-border-light bg-bg-base px-3 py-2.5">
+          <input type="checkbox" checked={saveInBell} onChange={(e) => setSaveInBell(e.target.checked)} className="h-4 w-4 accent-[#FF862A]" />
+          <span className="text-xs font-semibold text-text-main">Also save in the 🔔 list <span className="font-normal text-text-muted">(uncheck to send a one-off push only)</span></span>
+        </label>
         <button type="submit" disabled={busy || !title.trim()}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-[#00223f] disabled:opacity-60">
-          {busy ? 'Sending…' : <>Send announcement</>}
+          {busy ? 'Sending…' : (saveInBell ? 'Send announcement' : 'Send push')}
         </button>
         {result && (result.ok
-          ? <p className="text-xs font-bold text-emerald-600">✅ Posted — pushed to {result.sent} device{result.sent === 1 ? '' : 's'}.</p>
+          ? <p className="text-xs font-bold text-emerald-600">✅ Pushed to {result.sent} device{result.sent === 1 ? '' : 's'}{saveInBell ? ' · saved in 🔔' : ''}.</p>
           : <p className="text-xs font-bold text-rose-600">⚠️ {result.error}</p>)}
       </form>
     </div>
