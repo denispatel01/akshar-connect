@@ -152,15 +152,6 @@ export default function FollowupsPage({ user }) {
     return m;
   }, [devotees]);
 
-  // Other family members (excluding this devotee) who already have a follow-up.
-  const familyContext = (d) => {
-    if (!d.familyId) return [];
-    return (familyMembers.get(d.familyId) || [])
-      .filter(m => m.id !== d.id)
-      .map(m => ({ member: m, f: fmap[m.id] }))
-      .filter(x => x.f && contacted(x.f));
-  };
-
   // Apply one outcome to every member of the family at once.
   const applyToFamily = (d, outcome) => {
     const members = familyMembers.get(d.familyId) || [d];
@@ -522,7 +513,9 @@ export default function FollowupsPage({ user }) {
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
         {audience.slice(0, AUDIENCE_CAP).map(d => {
           const f = fmap[d.id] || {};
-          const fam = familyContext(d);
+          // All OTHER members of this devotee's family (contacted or not) — so a
+          // karyakarta can mark each member coming / not coming right here.
+          const famAll = d.familyId ? (familyMembers.get(d.familyId) || []).filter(m => m.id !== d.id) : [];
           // Assigned karyakarta = this follow-up's own override, else the devotee's
           // default assignee. "Done by" = who actually saved the follow-up — so if
           // Prerakbhai is assigned but Nirdoshbhai covered for him, both are visible.
@@ -610,23 +603,31 @@ export default function FollowupsPage({ user }) {
                 </div>
               </div>
 
-              {/* Family context — so a karyakarta knows a relative was already
-                  contacted by someone else, and what they said (e.g. the head said
-                  the whole family is coming). Keeps male/female karyakartas in sync. */}
-              {fam.length > 0 && (
+              {/* Family — mark each member coming / not coming right here, so a
+                  mixed household (e.g. 3 coming, 2 not) can be recorded without
+                  opening every member's card. Shows who already followed up too. */}
+              {famAll.length > 0 && (
                 <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
                   <p className="flex items-center gap-1 text-[11px] font-bold text-primary">
-                    <Users className="h-3 w-3" /> Family already followed up
+                    <Users className="h-3 w-3" /> Family members ({famAll.length})
                   </p>
-                  <div className="mt-1 space-y-0.5">
-                    {fam.map(({ member, f: ff }) => (
-                      <p key={member.id} className="text-[11px] text-text-muted">
-                        <span className="font-semibold text-text-main">{member.name}</span>
-                        {ff.outcome ? <span className="font-bold"> → {ff.outcome}</span> : ' → contacted'}
-                        {ff.contactedBy ? ` · by ${ff.contactedBy}` : ''}
-                        {ff.remark ? ` · “${ff.remark}”` : ''}
-                      </p>
-                    ))}
+                  <div className="mt-1.5 space-y-1.5">
+                    {famAll.map((member) => {
+                      const mf = fmap[member.id] || {};
+                      return (
+                        <div key={member.id} className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12px] font-semibold text-text-main">{member.name}</p>
+                            {mf.contactedBy && <p className="truncate text-[10px] text-text-muted">by {mf.contactedBy}</p>}
+                          </div>
+                          <select value={mf.outcome || ''} onChange={e => save(member.id, { outcome: e.target.value })}
+                            className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold outline-none ${OUTCOME_STYLE[mf.outcome || '']}`}>
+                            <option value="">No response</option>
+                            {OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
