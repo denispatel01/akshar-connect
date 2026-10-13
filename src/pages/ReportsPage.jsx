@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Users, MapPin, Activity, Calendar, ShieldCheck, User, FileText, Loader2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { alertError } from '../utils/sweetAlert';
 import { deriveAge } from '../services/devoteeSchema';
 import { isBirthdayWithin } from '../utils/birthdays';
 import { downloadReportPdf } from '../utils/reportPdf';
@@ -105,7 +106,7 @@ export default function ReportsPage({ setActivePage }) {
     } catch (e) {
       // Email the admin the detail so it can be diagnosed.
       dataService.reportError({ message: 'PDF report failed: ' + (e?.message || e), stack: e?.stack, page: 'reports:' + title });
-      alert('Could not generate PDF: ' + (e?.message || e));
+      alertError('Could not generate PDF', (e?.message || String(e)));
     } finally {
       setBusy(null);
     }

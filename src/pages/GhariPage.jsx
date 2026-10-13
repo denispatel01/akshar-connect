@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
-import { alertError } from '../utils/sweetAlert';
+import { alertError, confirmDialog } from '../utils/sweetAlert';
 
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 
@@ -765,8 +765,8 @@ function SettingsView({ season, onSeason }) {
   const refresh = () => setProducts(ghariService.getProducts());
 
   const save = (p) => { ghariService.saveProduct(p); refresh(); };
-  const del = (p) => {
-    if (!window.confirm(`Delete "${p.name} ${p.size}"?\n\nPast orders keep their own saved copy, so totals won't change.`)) return;
+  const del = async (p) => {
+    if (!(await confirmDialog({ title: 'Delete product?', text: `Delete "${p.name} ${p.size}"? Past orders keep their own saved copy, so totals won't change.`, confirmText: 'Delete', danger: true }))) return;
     ghariService.deleteProduct(p.sku); refresh();
   };
   const add = (p) => { ghariService.saveProduct(p); refresh(); };
@@ -845,7 +845,7 @@ function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReve
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [entityId]);
 
   const revert = async (log) => {
-    if (!window.confirm('Revert to the values BEFORE this change? The current values will be replaced (and this revert is itself logged).')) return;
+    if (!(await confirmDialog({ title: 'Revert this change?', text: 'The current values will be replaced with the values BEFORE this change (and this revert is itself logged).', confirmText: 'Revert' }))) return;
     setBusy(log.id);
     try {
       await ghariService.revert(log.id, actor);
@@ -912,8 +912,8 @@ function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReve
 function EditModal({ order, onClose, onSaved, canEdit = true }) {
   const [showHistory, setShowHistory] = useState(false);
   const wa = ghariService.whatsappLink(order);
-  const del = () => {
-    if (!window.confirm(`Delete this order for ${order.customerName || 'this customer'}?\n\nIt will be removed from totals (recoverable by an admin if needed).`)) return;
+  const del = async () => {
+    if (!(await confirmDialog({ title: 'Delete order?', text: `Delete this order for ${order.customerName || 'this customer'}? It will be removed from totals (recoverable by an admin if needed).`, confirmText: 'Delete', danger: true }))) return;
     ghariService.voidOrder(order.id); onSaved?.();
   };
   // Rendered through a portal on document.body so it sits ABOVE the app's fixed
@@ -1212,8 +1212,8 @@ function PurchaseRow({ purchase, onOpen }) {
 }
 
 function PurchaseEditModal({ purchase, onClose, onSaved, canEdit = true }) {
-  const del = (purchase && canEdit) ? () => {
-    if (!window.confirm(`Delete this purchase from ${purchase.supplier || 'this supplier'}?`)) return;
+  const del = (purchase && canEdit) ? async () => {
+    if (!(await confirmDialog({ title: 'Delete purchase?', text: `Delete this purchase from ${purchase.supplier || 'this supplier'}?`, confirmText: 'Delete', danger: true }))) return;
     ghariService.voidPurchase(purchase.id); onSaved?.();
   } : null;
   return createPortal(
@@ -1274,8 +1274,8 @@ function TrashView({ season, onRestored, flash }) {
     () => ghariService.getOrders(season, { includeVoid: true }).filter(o => o.status === 'void'),
     [season, tick]
   );
-  const restore = (o) => {
-    if (!window.confirm(`Restore order #${o.orderNo} for ${o.customerName}? It will reappear in the active orders list.`)) return;
+  const restore = async (o) => {
+    if (!(await confirmDialog({ title: 'Restore order?', text: `Restore order #${o.orderNo} for ${o.customerName}? It will reappear in the active orders list.`, confirmText: 'Restore' }))) return;
     ghariService.restoreOrder(o.id);
     setTick(t => t + 1);
     onRestored?.();

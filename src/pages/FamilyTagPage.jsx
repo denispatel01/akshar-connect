@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Search, Tag, CheckSquare, Square, ChevronDown, ChevronUp, Save, X, ShieldCheck, UserCheck, User, Calendar, MapPin, Filter } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { tagsByCategory, tagLabel, tagChipStyle, getMutuallyExclusiveKeys, TAG_CATEGORIES } from '../services/tagCatalog';
-import { alertDevoteeSaved, alertDevoteeSaveFailed } from '../utils/sweetAlert';
+import { alertDevoteeSaved, alertDevoteeSaveFailed, alertError } from '../utils/sweetAlert';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const dobShort = (dob) => {
@@ -135,7 +135,7 @@ export default function FamilyTagPage({ user }) {
       setSelectedIds(new Set());
       setTimeout(() => setToast(null), 3500);
     } catch (e) {
-      alert('Failed: ' + e.message);
+      alertError('Save failed', e.message);
     } finally {
       setSaving(false);
     }
@@ -178,7 +178,7 @@ export default function FamilyTagPage({ user }) {
       setToast(`Tags saved for ${devotee.name} ✓`);
       setTimeout(() => setToast(null), 3500);
     } catch (e) {
-      alert('Failed: ' + e.message);
+      alertError('Save failed', e.message);
     } finally {
       setSavingIndividual(false);
     }

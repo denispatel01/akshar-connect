@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CalendarCheck, Plus, CheckCircle2, Circle, Search, X, UserCheck, Sparkles } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { alertSuccess } from '../utils/sweetAlert';
 
 export default function SabhasPage({ user }) {
   const [sabhas, setSabhas] = useState([]);
@@ -55,7 +56,7 @@ export default function SabhasPage({ user }) {
     });
     loadData();
     setActiveSabha(null);
-    alert('Attendance saved successfully!');
+    alertSuccess('Attendance saved', 'Attendance was saved successfully.');
   };
 
   const handleCreateSabha = (e) => {

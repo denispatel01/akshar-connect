@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { confirmDialog } from '../utils/sweetAlert';
 import ActivityFeed from '../components/ActivityFeed';
 
 export default function AdminPage({ user }) {
@@ -69,7 +70,7 @@ export default function AdminPage({ user }) {
 
   const removeUser = async (u) => {
     if (String(u.mobile) === String(user?.mobile)) { setFormErr('You cannot delete your own account.'); return; }
-    if (!window.confirm(`Delete user "${u.name || u.mobile}"? They will lose access. This cannot be undone.`)) return;
+    if (!(await confirmDialog({ title: 'Delete user?', text: `Delete user "${u.name || u.mobile}"? They will lose access. This cannot be undone.`, confirmText: 'Delete', danger: true }))) return;
     await dataService.deleteUserAndSync(u.mobile);
     setUsers([...dataService.getUsers()]);
     if (editingMobile === String(u.mobile)) { setForm(emptyForm); setEditingMobile(null); }
@@ -417,7 +418,7 @@ function AnnouncementManager() {
     finally { setBusy(false); }
   };
   const del = async (a) => {
-    if (!window.confirm(`Delete announcement "${a.title}"? This removes it from everyone's notifications list.`)) return;
+    if (!(await confirmDialog({ title: 'Delete announcement?', text: `Delete announcement "${a.title}"? This removes it from everyone's notifications list.`, confirmText: 'Delete', danger: true }))) return;
     setBusy(true);
     try { await dataService.deleteAnnouncement(a.id); load(); } finally { setBusy(false); }
   };
@@ -613,7 +614,7 @@ function AreaMaster() {
     } catch (e) { flash('⚠️ ' + e.message); }
   };
   const remove = async (r) => {
-    if (!window.confirm(`Remove "${r.name}" from Area Master? (Devotee records keep their area text.)`)) return;
+    if (!(await confirmDialog({ title: 'Remove area?', text: `Remove "${r.name}" from Area Master? (Devotee records keep their area text.)`, confirmText: 'Remove', danger: true }))) return;
     await dataService.deleteAreaAndSync(r.name);
     refresh(); flash(`🗑️ Removed "${r.name}"`);
   };

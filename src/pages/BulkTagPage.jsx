@@ -4,6 +4,7 @@ import {
   Calendar, MapPin, Phone, Check, X,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { alertError } from '../utils/sweetAlert';
 import { deriveAge, QUALIFICATIONS } from '../services/devoteeSchema';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { devoteeMatches } from '../utils/search';
@@ -137,7 +138,7 @@ export default function BulkTagPage() {
       setDraft(fresh);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (e) {
-      alert('Failed to save tags: ' + e.message);
+      alertError('Could not save tags', e.message);
     } finally {
       setSaving(false);
     }

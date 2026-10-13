@@ -8,7 +8,7 @@ import { dataService } from '../services/dataService';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
-import { alertSuccess } from '../utils/sweetAlert';
+import { alertSuccess, confirmDialog } from '../utils/sweetAlert';
 
 const OUTCOMES = ['Coming', 'Maybe', 'Not Coming', 'Call not received'];
 const OUTCOME_STYLE = {
@@ -123,8 +123,8 @@ export default function FollowupsPage({ user }) {
     setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags) });
     setShowEventModal(true);
   };
-  const deleteEvent = (ev) => {
-    if (!window.confirm(`Delete event "${ev.title}"? This also removes its follow-up records. This cannot be undone.`)) return;
+  const deleteEvent = async (ev) => {
+    if (!(await confirmDialog({ title: 'Delete event?', text: `Delete event "${ev.title}"? This also removes its follow-up records. This cannot be undone.`, confirmText: 'Delete', danger: true }))) return;
     dataService.deleteSabha(ev.id);
     setEvents(dataService.getEvents());
   };

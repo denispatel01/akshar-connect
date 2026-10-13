@@ -4,7 +4,7 @@ import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, C
 import { profileInviteLink } from '../utils/profileInvite';
 import { dataService } from '../services/dataService';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
-import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed, alertError } from '../utils/sweetAlert';
+import { alertDevoteeCreated, alertDevoteeSaved, alertDevoteeSaveFailed, alertError, alertInfo, confirmDialog } from '../utils/sweetAlert';
 import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, devoteeSearchText } from '../utils/search';
@@ -308,7 +308,7 @@ function DevoteeHistorySection({ devotee, user, open, onToggle, onReverted }) {
   React.useEffect(() => { if (open && logs === null) load(); }, [open, logs, load]);
 
   const revert = async (log) => {
-    if (!window.confirm('Revert this profile to the values BEFORE this change? Current values will be replaced (the revert is itself logged).')) return;
+    if (!(await confirmDialog({ title: 'Revert profile?', text: 'Revert this profile to the values BEFORE this change? Current values will be replaced (the revert is itself logged).', confirmText: 'Revert' }))) return;
     setBusy(log.id);
     try { await dataService.devoteeRevert(log.id, user?.name || ''); await load(); onReverted?.(); }
     catch (e) { alertError('Could not revert', e.message); }
@@ -683,7 +683,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     if (!mob) missing.push('Mobile number');
     else if (mob.length !== 10) missing.push('Mobile number must be 10 digits');
     if (formData.familyId && !(formData.relation || '').trim()) missing.push('Relation to family head');
-    if (missing.length) { window.alert('Please complete before saving:\n\n• ' + missing.join('\n• ')); return; }
+    if (missing.length) { alertInfo('Please complete before saving', missing.join('\n')); return; }
     const whatsapp = addWhatsappSameAsMobile ? formData.mobile : formData.whatsapp;
     setSaving(true);
     try {
@@ -764,8 +764,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDevoteeId]);
 
-  const handleDelete = (id) => {
-    if (window.confirm('Delete this devotee record?')) { dataService.deleteDevotee(id); loadDevotees(); setSelectedDevotee(null); }
+  const handleDelete = async (id) => {
+    if (await confirmDialog({ title: 'Delete devotee?', text: 'Delete this devotee record? This cannot be undone.', confirmText: 'Delete', danger: true })) {
+      dataService.deleteDevotee(id); loadDevotees(); setSelectedDevotee(null);
+    }
   };
 
   const val = (v, fieldKey) => {
