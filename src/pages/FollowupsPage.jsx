@@ -528,6 +528,14 @@ export default function FollowupsPage({ user }) {
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
                   </div>
                   <p className="text-[11px] text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {d.mobile || '—'}</p>
+                  {/* Who did this devotee's follow-up (and when) — so any karyakarta
+                      can see who already reached out to this person. */}
+                  {contacted(f) && f.contactedBy && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                      <UserRound className="h-3 w-3" /> by {f.contactedBy}
+                      {f.contactedOn ? <span className="font-normal text-text-muted"> · {new Date(f.contactedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span> : null}
+                    </p>
+                  )}
                   {d.tags?.length > 0 && (() => {
                     // Show the tags that MATCH the active filter first, so it's clear
                     // why this devotee qualifies (a devotee can have many tags and the
