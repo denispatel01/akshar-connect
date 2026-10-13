@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  PhoneCall, Phone, Users2, ArrowLeft, Search, Filter, X, Check,
+  PhoneCall, Phone, Users2, Users, ArrowLeft, Search, Filter, X, Check,
   CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus, Pencil, Trash2
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
@@ -10,11 +10,12 @@ import { hasAnyTag } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
 import { alertSuccess } from '../utils/sweetAlert';
 
-const OUTCOMES = ['Coming', 'Maybe', 'Not Coming'];
+const OUTCOMES = ['Coming', 'Maybe', 'Not Coming', 'Call not received'];
 const OUTCOME_STYLE = {
   'Coming': 'bg-emerald-100 text-emerald-700 border-emerald-200',
   'Maybe': 'bg-amber-100 text-amber-700 border-amber-200',
   'Not Coming': 'bg-red-100 text-red-700 border-red-200',
+  'Call not received': 'bg-slate-100 text-slate-600 border-slate-200',
   '': 'bg-surface text-slate-500 border-border-light',
 };
 const AUDIENCE_CAP = 250;
@@ -133,6 +134,39 @@ export default function FollowupsPage({ user }) {
     setFmap(prev => ({ ...prev, [devId]: rec }));
   };
 
+  // ── Family-aware follow-up ────────────────────────────────────────────────
+  // A drive has separate male/female karyakartas, but a family often answers as a
+  // unit (the head says "my whole family is coming"). So two things are needed:
+  //  1) VISIBILITY — when one karyakarta opens a devotee, they can see that another
+  //     already contacted someone in the same family, who, and what they said.
+  //  2) BULK MARK — one tap applies an outcome to every family member, while each
+  //     member's own outcome can still be overridden afterwards (partial: 2 coming,
+  //     2 not is just two different per-member outcomes).
+  const familyMembers = useMemo(() => {
+    const m = new Map();
+    devotees.forEach(d => {
+      if (!d.familyId) return;
+      if (!m.has(d.familyId)) m.set(d.familyId, []);
+      m.get(d.familyId).push(d);
+    });
+    return m;
+  }, [devotees]);
+
+  // Other family members (excluding this devotee) who already have a follow-up.
+  const familyContext = (d) => {
+    if (!d.familyId) return [];
+    return (familyMembers.get(d.familyId) || [])
+      .filter(m => m.id !== d.id)
+      .map(m => ({ member: m, f: fmap[m.id] }))
+      .filter(x => x.f && contacted(x.f));
+  };
+
+  // Apply one outcome to every member of the family at once.
+  const applyToFamily = (d, outcome) => {
+    const members = familyMembers.get(d.familyId) || [d];
+    members.forEach(m => save(m.id, { outcome }));
+  };
+
   // Tags the event was created with are LOCKED during follow-up — they define the
   // event's audience, so a sevak must not be able to remove them by mistake (#64).
   // They can still ADD extra filter tags to narrow the list further.
@@ -174,6 +208,12 @@ export default function FollowupsPage({ user }) {
     });
     return s;
   }, [devotees, search, selectedTags, fmap, karyakarta]);
+
+  const telLink = (d) => {
+    const num = String(d.mobile || d.whatsapp || '').replace(/\D/g, '');
+    if (!num) return null;
+    return `tel:${num.length === 10 ? '+91' + num : (num.startsWith('91') ? '+' + num : num)}`;
+  };
 
   const waLink = (d) => {
     const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
@@ -407,13 +447,15 @@ export default function FollowupsPage({ user }) {
               </select>
             )}
             <button onClick={() => setShowTagPanel(v => !v)}
-              className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+              className={`col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
               <Filter className="h-4 w-4" /> Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}
             </button>
-            <div className="flex overflow-hidden rounded-2xl border border-border-light">
+            {/* Segmented filter takes its own full-width row on mobile with equal-width
+                buttons so "Contacted" never clips off the screen edge. */}
+            <div className="col-span-2 sm:col-auto flex w-full sm:w-auto overflow-hidden rounded-2xl border border-border-light">
               {[['all', 'All'], ['pending', 'Pending'], ['contacted', 'Contacted']].map(([v, label]) => (
                 <button key={v} onClick={() => setViewFilter(v)}
-                  className={`px-3.5 py-2.5 text-sm font-bold transition-colors ${viewFilter === v ? (v === 'contacted' ? 'bg-emerald-500 text-white' : v === 'pending' ? 'bg-[#FF862A] text-white' : 'bg-primary text-white') : 'bg-surface text-text-muted'}`}>
+                  className={`flex-1 sm:flex-none px-2.5 sm:px-3.5 py-2.5 text-sm font-bold transition-colors ${viewFilter === v ? (v === 'contacted' ? 'bg-emerald-500 text-white' : v === 'pending' ? 'bg-[#FF862A] text-white' : 'bg-primary text-white') : 'bg-surface text-text-muted'}`}>
                   {label}
                 </button>
               ))}
@@ -457,15 +499,25 @@ export default function FollowupsPage({ user }) {
         )}
       </div>
 
-      {/* Result count */}
-      <p className="text-xs font-bold text-text-muted">
-        Showing <span className="text-text-main">{audience.length}</span> of {devotees.length} devotees
-      </p>
+      {/* Result count — devotees AND distinct families, since a drive is usually
+          thought of per family (one head often answers for the whole household). */}
+      {(() => {
+        const famOf = (d) => d.familyId || `solo:${d.id}`;
+        const shownFam = new Set(audience.map(famOf)).size;
+        const totalFam = new Set(devotees.map(famOf)).size;
+        return (
+          <p className="text-xs font-bold text-text-muted">
+            Showing <span className="text-text-main">{audience.length}</span> of {devotees.length} devotees
+            {' · '}<span className="text-text-main">{shownFam}</span> of {totalFam} families
+          </p>
+        );
+      })()}
 
       {/* Roster */}
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
         {audience.slice(0, AUDIENCE_CAP).map(d => {
           const f = fmap[d.id] || {};
+          const fam = familyContext(d);
           return (
             <div key={d.id} className="rounded-2xl border border-border-light bg-surface p-3 shadow-xs">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -509,6 +561,23 @@ export default function FollowupsPage({ user }) {
                     {OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
 
+                  {/* Apply the chosen outcome to the WHOLE family in one tap. Only
+                      shown when this devotee is in a family of 2+ and has an outcome. */}
+                  {d.familyId && (familyMembers.get(d.familyId)?.length || 0) > 1 && f.outcome && (
+                    <button type="button" onClick={() => applyToFamily(d, f.outcome)}
+                      title={`Mark all ${familyMembers.get(d.familyId).length} family members as "${f.outcome}"`}
+                      className="flex h-8 items-center gap-1 rounded-xl bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/20">
+                      <Users className="h-3.5 w-3.5" /> Family
+                    </button>
+                  )}
+
+                  {telLink(d) && (
+                    <a href={telLink(d)}
+                      className="flex h-8 items-center gap-1 rounded-xl bg-sky-50 px-2.5 text-xs font-bold text-sky-700 hover:bg-sky-100"
+                      title={`Call ${d.mobile || ''}`}>
+                      <PhoneCall className="h-3.5 w-3.5" /> Call
+                    </a>
+                  )}
                   <a href={waLink(d)} target="_blank" rel="noreferrer"
                     className="flex h-8 items-center gap-1 rounded-xl bg-emerald-50 px-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
                     title="Send WhatsApp invite">
@@ -516,6 +585,27 @@ export default function FollowupsPage({ user }) {
                   </a>
                 </div>
               </div>
+
+              {/* Family context — so a karyakarta knows a relative was already
+                  contacted by someone else, and what they said (e.g. the head said
+                  the whole family is coming). Keeps male/female karyakartas in sync. */}
+              {fam.length > 0 && (
+                <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                  <p className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                    <Users className="h-3 w-3" /> Family already followed up
+                  </p>
+                  <div className="mt-1 space-y-0.5">
+                    {fam.map(({ member, f: ff }) => (
+                      <p key={member.id} className="text-[11px] text-text-muted">
+                        <span className="font-semibold text-text-main">{member.name}</span>
+                        {ff.outcome ? <span className="font-bold"> → {ff.outcome}</span> : ' → contacted'}
+                        {ff.contactedBy ? ` · by ${ff.contactedBy}` : ''}
+                        {ff.remark ? ` · “${ff.remark}”` : ''}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <input
                 defaultValue={f.remark || ''}

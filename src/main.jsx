@@ -10,7 +10,7 @@ import { ghariService } from './services/ghariService'
 // (a newer build replaced it), reload once to pick up the fresh build.
 window.addEventListener('vite:preloadError', (e) => {
   try {
-    dataService.reportError({ message: 'vite:preloadError — ' + (e?.payload?.message || 'dynamic import failed'), page: location.hash });
+    dataService.reportError({ message: 'vite:preloadError — ' + (e?.payload?.message || 'dynamic import failed'), page: location.href });
     if (!sessionStorage.getItem('ac-preload-reloaded')) {
       sessionStorage.setItem('ac-preload-reloaded', '1');
       e.preventDefault();
@@ -20,12 +20,25 @@ window.addEventListener('vite:preloadError', (e) => {
 });
 
 // Global safety net: email the admin on any uncaught error / promise rejection.
+// A bare "Script error." with no stack is the browser's opaque cross-origin error
+// (details hidden for scripts without CORS) — so capture whatever context IS
+// available (source file, line/col, and the full page URL) to make it diagnosable.
 window.addEventListener('error', (e) => {
-  dataService.reportError({ message: e?.message, stack: e?.error?.stack, page: location.hash });
+  const loc = [e?.filename, e?.lineno, e?.colno].filter(Boolean).join(':');
+  const msg = (e?.message || 'Unknown error') + (loc ? ` @ ${loc}` : '');
+  dataService.reportError({
+    message: msg,
+    stack: e?.error?.stack || (loc ? `at ${loc}` : ''),
+    page: location.href,
+  });
 });
 window.addEventListener('unhandledrejection', (e) => {
   const r = e?.reason;
-  dataService.reportError({ message: r?.message || String(r), stack: r?.stack, page: location.hash });
+  dataService.reportError({
+    message: r?.message || String(r),
+    stack: r?.stack || '',
+    page: location.href,
+  });
 });
 
 const root = createRoot(document.getElementById('root'))

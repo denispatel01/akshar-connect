@@ -689,14 +689,23 @@ function swadhyayReminder_(){
 // hour and re-run installSwadhyayReminder(). Defaults to 22 (10 PM).
 function swadhyayHour_(){
   var h = parseInt(PropertiesService.getScriptProperties().getProperty('swadhyayHour'), 10);
-  return (isNaN(h) || h < 0 || h > 23) ? 22 : h;
+  return (isNaN(h) || h < 0 || h > 23) ? 21 : h;
 }
+function swadhyayMinute_(){
+  var m = parseInt(PropertiesService.getScriptProperties().getProperty('swadhyayMinute'), 10);
+  return (isNaN(m) || m < 0 || m > 59) ? 30 : m;
+}
+// IMPORTANT: changing the 'swadhyayHour'/'swadhyayMinute' Script Properties does NOT
+// move an already-scheduled trigger — you MUST re-run installSwadhyayReminder() after
+// changing them, otherwise the push keeps firing at the OLD time (this is why a push
+// set to a new hour still arrived ~10 PM). Note GAS fires within a ~15-min window of
+// the requested time, so a 21:30 trigger may arrive 21:15–21:45.
 function installSwadhyayReminder(){
   // Remove any existing copy first so re-running doesn't stack duplicates.
   ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction() === 'swadhyayReminder_') ScriptApp.deleteTrigger(t); });
-  var h = swadhyayHour_();
-  ScriptApp.newTrigger('swadhyayReminder_').timeBased().atHour(h).everyDays(1).create();
-  Logger.log('Swadhyay daily reminder installed at ' + h + ':00 (Asia/Kolkata).');
+  var h = swadhyayHour_(), m = swadhyayMinute_();
+  ScriptApp.newTrigger('swadhyayReminder_').timeBased().atHour(h).nearMinute(m).everyDays(1).create();
+  Logger.log('Swadhyay daily reminder installed at ' + h + ':' + (m < 10 ? '0' + m : m) + ' (Asia/Kolkata).');
 }
 
 // ── Vato (daily teachings) ────────────────────────────────────────────────────
@@ -1497,10 +1506,29 @@ function handle_(p){
           if(_pr.getProperty('activityWatchOn') === 'true'){
             var _wm = _pr.getProperty('activityWatchMobile') || '';
             if(_wm && normMob_(_wm) !== normMob_(a.actorMobile||'')){
-              var _who = a.actor || 'Someone';
-              var _title = '👁️ ' + _who;
-              var _body = (a.detail || a.action || 'did something') + (a.device ? ' · ' + a.device : '');
-              pushToMobile_(_title, _body, _wm, { type:'activity', action: a.action||'' });
+              // Follow-up spam guard: a drive can log hundreds of follow-ups a day.
+              // The watcher only wants to know a karyakarta is ACTIVE, not every
+              // devotee they touch — so send at most ONE follow-up push per
+              // (karyakarta + event + day). Other action types still push every time.
+              var _skip = false;
+              if((a.action||'') === 'followup'){
+                var _ev = (String(a.detail||'').match(/\(([^)]+)\)/) || [,''])[1]; // event title in "…(Event) — …"
+                var _day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                var _key = normMob_(a.actorMobile||'') + '|' + _ev + '|' + _day;
+                var _sentDay = _pr.getProperty('fupNotifDay') || '';
+                var _sentKeys = (_sentDay === _day) ? (_pr.getProperty('fupNotifKeys') || '') : '';
+                if(('|' + _sentKeys + '|').indexOf('|' + _key + '|') >= 0){ _skip = true; }
+                else {
+                  _pr.setProperty('fupNotifDay', _day);
+                  _pr.setProperty('fupNotifKeys', (_sentKeys ? _sentKeys + '|' : '') + _key);
+                }
+              }
+              if(!_skip){
+                var _who = a.actor || 'Someone';
+                var _title = '👁️ ' + _who;
+                var _body = (a.detail || a.action || 'did something') + (a.device ? ' · ' + a.device : '');
+                pushToMobile_(_title, _body, _wm, { type:'activity', action: a.action||'' });
+              }
             }
           }
         } catch(e){}
@@ -1542,7 +1570,7 @@ function handle_(p){
     // that bypasses the UI (money ledger — never trust the client alone).
     // Identity is the caller's actorMobile, verified against the Users sheet.
     if(GHARI_WRITE_ACTIONS_[action] && !ghariCanWrite_(p))
-      return json_({ ok:false, error:'Not allowed — Ghari Seva is view-only for your account.' });
+      return json_({ ok:false, error:'Not allowed — Ghari Seva is view-only for your account. (actorMobile=' + normMob_(p && p.actorMobile || '') + ')' });
     if(action==='ghariBootstrap'){
       // Optional season scoping: when the client asks for one season, return only
       // that year's orders/purchases so other years are never scanned or sent.
@@ -1709,7 +1737,8 @@ function ghariCanWrite_(p){
   var users = readAll_('Users');
   for(var i=0;i<users.length;i++){
     if(normMob_(users[i].mobile) !== mob) continue;
-    if(String(users[i].role||'').trim() === 'Admin') return true;
+    // Case/space-insensitive so a role saved as "admin" or " Admin " still counts.
+    if(String(users[i].role||'').trim().toLowerCase() === 'admin') return true;
     var mods = String(users[i].modules||'').toLowerCase().split(/[,|]/);
     for(var j=0;j<mods.length;j++) if(mods[j].trim() === 'ghari') return true;
     return false;

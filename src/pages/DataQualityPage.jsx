@@ -120,6 +120,20 @@ export default function DataQualityPage({ user, setActivePage }) {
   const missingMobile = useMemo(() => scored.filter(({ d }) => !last10(d.mobile)).length, [scored]);
   const missingDob = useMemo(() => scored.filter(({ d }) => !filled(d, 'dob')).length, [scored]);
 
+  // Mobile is only collected for male devotees by design — so a flat "missing
+  // mobile" count is misleading. Split by gender and show missing-of-total so the
+  // real gap (e.g. 319 of 514 males) is visible, while female gaps are expected.
+  const mobileByGender = useMemo(() => {
+    const out = { Male: { total: 0, missing: 0 }, Female: { total: 0, missing: 0 } };
+    scored.forEach(({ d }) => {
+      const key = d.gender === 'Female' ? 'Female' : d.gender === 'Male' ? 'Male' : null;
+      if (!key) return;
+      out[key].total++;
+      if (!last10(d.mobile)) out[key].missing++;
+    });
+    return out;
+  }, [scored]);
+
   // Filtered + sorted completeness list (descending — 100% first, as requested).
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -456,9 +470,9 @@ export default function DataQualityPage({ user, setActivePage }) {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               { label: 'Total devotees', value: insights.total, icon: Users },
-              { label: 'Missing mobile', value: missingMobile, icon: Phone, warn: missingMobile > 0 },
+              { label: 'Missing mobile · Male', value: `${mobileByGender.Male.missing} / ${mobileByGender.Male.total}`, icon: Phone, warn: mobileByGender.Male.missing > 0 },
+              { label: 'Missing mobile · Female (expected)', value: `${mobileByGender.Female.missing} / ${mobileByGender.Female.total}`, icon: Phone, warn: false },
               { label: 'Missing DOB', value: missingDob, icon: CalendarDays, warn: missingDob > 0 },
-              { label: 'No family linked', value: insights.noFamily, icon: Users, warn: insights.noFamily > 0 },
             ].map((s) => (
               <div key={s.label} className={`rounded-2xl border p-3 ${s.warn ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40' : 'border-border-light bg-surface'}`}>
                 <s.icon className={`h-4 w-4 ${s.warn ? 'text-amber-600' : 'text-text-muted'}`} />
