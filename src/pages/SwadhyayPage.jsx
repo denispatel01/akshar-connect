@@ -131,16 +131,34 @@ export default function SwadhyayPage({ user }) {
   const dirtyRef = useRef(false);
   const saveTimer = useRef(null);
 
-  // Prefill the form from the selected day's saved entry (blank if none).
-  // NEVER clobber in-progress edits (dirtyRef) — otherwise a background history
-  // update would wipe a value the user just tapped.
+  // The date the form currently reflects, and whether we've populated it from the
+  // (background-loaded) history yet. Together these stop the flicker: the form is
+  // derived from history ONLY when the user switches day, or the FIRST time this
+  // day's data arrives — never on later history updates (e.g. the optimistic merge
+  // right after a save, which previously flashed the value back to 0 and then 30).
+  const shownDateRef = useRef(null);
+  const hydratedRef = useRef(false);
+  const fillFrom = (entry) => setForm(entry
+    ? { bhajanMin: +entry.bhajanMin || 0, bhajanTime: entry.bhajanTime || '', listenMin: +entry.listenMin || 0, readMin: +entry.readMin || 0 }
+    : { bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
   useEffect(() => {
-    if (dirtyRef.current) return;
+    if (dirtyRef.current) return; // never clobber in-progress edits
     const entry = history.find((r) => r.date === date);
-    setForm(entry
-      ? { bhajanMin: +entry.bhajanMin || 0, bhajanTime: entry.bhajanTime || '', listenMin: +entry.listenMin || 0, readMin: +entry.readMin || 0 }
-      : { bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
-    setSaved(false);
+    if (shownDateRef.current !== date) {
+      // Switched to a different day → load that day's saved entry (blank if none).
+      fillFrom(entry);
+      shownDateRef.current = date;
+      hydratedRef.current = !!entry || (history && history.length > 0);
+      setSaved(false);
+      return;
+    }
+    // Same day: hydrate exactly ONCE, when the background load first brings data —
+    // then stop, so post-save history updates can't re-derive (and flicker) the form.
+    if (!hydratedRef.current && history && history.length > 0) {
+      if (entry) fillFrom(entry);
+      hydratedRef.current = true;
+      setSaved(false);
+    }
   }, [date, history]);
 
   const shiftDate = (delta) => {
@@ -241,16 +259,18 @@ export default function SwadhyayPage({ user }) {
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/70">
               <Sparkles className="h-3.5 w-3.5 text-[#FF862A]" /> My Swadhyay
             </div>
-            {/* Date switcher — log today or a previous day */}
-            <div className="flex items-center gap-1 rounded-full bg-white/10 p-0.5 backdrop-blur">
-              <button onClick={() => shiftDate(-1)} className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/15"><ChevronLeft className="h-4 w-4" /></button>
-              <label className="relative px-1 text-xs font-bold">
+            {/* Date switcher — log today or a previous day. Big tap targets so
+                moving between days is easy (the small chevrons were fiddly). */}
+            <div className="flex items-center gap-1.5 rounded-2xl bg-white/10 p-1 backdrop-blur">
+              <button onClick={() => shiftDate(-1)} aria-label="Previous day"
+                className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 hover:bg-white/25 active:scale-95"><ChevronLeft className="h-6 w-6" /></button>
+              <label className="relative grid min-w-[84px] place-items-center px-2 py-1 text-sm font-black">
                 {dateLabel}
                 <input type="date" value={date} max={todayISO()} onChange={(e) => e.target.value && setDate(e.target.value)}
                   className="absolute inset-0 cursor-pointer opacity-0" title="Pick a date" />
               </label>
-              <button onClick={() => shiftDate(1)} disabled={isToday}
-                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/15 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+              <button onClick={() => shiftDate(1)} disabled={isToday} aria-label="Next day"
+                className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 hover:bg-white/25 active:scale-95 disabled:opacity-30"><ChevronRight className="h-6 w-6" /></button>
             </div>
           </div>
           <div className="mt-2 flex items-end gap-3">

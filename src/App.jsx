@@ -21,6 +21,7 @@ import VatoPage from './pages/VatoPage';
 import AttendancePage from './pages/AttendancePage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import Footer from './components/Footer';
+import ScrollHelper from './components/ScrollHelper';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
@@ -31,6 +32,15 @@ export default function App() {
   // Restore the saved session synchronously so a returning user goes straight
   // to the app — no re-login, no flash of the sign-in screen.
   const [user, setUser] = useState(() => dataService.getCurrentSession());
+  // "View as" — an Admin can preview the app as another user (their role, menus
+  // and screens). The real `user` stays the signed-in admin (backend auth and the
+  // Exit control use it); `effectiveUser` is what the UI renders as. Only an Admin
+  // can start it, and a persistent banner makes the impersonation impossible to miss.
+  const [viewAs, setViewAs] = useState(null);
+  const realIsAdmin = String(user?.role || '').trim().toLowerCase() === 'admin';
+  const effectiveUser = (realIsAdmin && viewAs) ? viewAs : user;
+  const startViewAs = (u) => { if (realIsAdmin && u) { setViewAs(u); setActivePage('dashboard'); setHistory([]); try { dataService.breadcrumb(`view-as ${u.name}`); } catch (e) {} } };
+  const exitViewAs = () => { setViewAs(null); setActivePage('dashboard'); setHistory([]); };
   // Deep-link from a push notification: ?n=<page> opens that section on launch.
   const initialPage = (() => {
     try {
@@ -134,6 +144,7 @@ export default function App() {
     try { window.scrollTo(0, 0); document.scrollingElement && (document.scrollingElement.scrollTop = 0); } catch (e) {}
     if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId && !options?.filterPreset) return;
     if (page !== activePage) {
+      try { dataService.breadcrumb(`open ${page}`); } catch (e) {}
       setHistory((h) => [...h, activePage]);
       setActivePage(page);
     }
@@ -239,11 +250,18 @@ export default function App() {
       <div className={`pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 overflow-hidden transition-opacity duration-200 ${(refreshing || navPulse) ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-[#FF862A] to-transparent" style={{ animation: 'ac-progress 0.9s linear infinite' }} />
       </div>
-      <NotificationsPopup user={user} />
+      {/* View-as banner — always visible while impersonating, with a one-tap exit. */}
+      {viewAs && realIsAdmin && (
+        <div className="sticky top-0 z-[55] flex items-center justify-center gap-2 bg-indigo-600 px-4 py-1.5 text-center text-[12px] font-bold text-white">
+          <span>👁️ Viewing as <b>{viewAs.name}</b> ({viewAs.role}) — changes you make are saved as yourself.</span>
+          <button onClick={exitViewAs} className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-black hover:bg-white/30">Exit</button>
+        </div>
+      )}
+      <NotificationsPopup user={effectiveUser} />
       <Navbar
         activePage={activePage}
         setActivePage={navigate}
-        user={user}
+        user={effectiveUser}
         onLogout={handleLogout}
         onBack={goBack}
         canBack={history.length > 0}
@@ -263,7 +281,7 @@ export default function App() {
         <Sidebar
           activePage={activePage}
           setActivePage={navigate}
-          user={user}
+          user={effectiveUser}
           onLogout={handleLogout}
           collapsed={sidebarCollapsed}
         />
@@ -273,11 +291,11 @@ export default function App() {
         <div className={`flex-1 flex flex-col min-w-0 transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
-        {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={user} refreshing={refreshing} />}
+        {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={effectiveUser} refreshing={refreshing} />}
         {(activePage === 'devotees' || activePage === 'family') && (
           <DevoteesPage
             key={activePage}
-            user={user}
+            user={effectiveUser}
             familyView={activePage === 'family'}
             devoteesPreset={devoteesPreset}
             filterPreset={filterPreset}
@@ -287,31 +305,32 @@ export default function App() {
             refreshing={refreshing}
           />
         )}
-        {activePage === 'followups' && <FollowupsPage user={user} refreshing={refreshing} />}
-        {activePage === 'email' && <EmailPage user={user} />}
-        {activePage === 'admin' && <AdminPage user={user} />}
+        {activePage === 'followups' && <FollowupsPage user={effectiveUser} refreshing={refreshing} />}
+        {activePage === 'email' && <EmailPage user={effectiveUser} />}
+        {activePage === 'admin' && <AdminPage user={effectiveUser} onViewAs={startViewAs} />}
         {activePage === 'sabhas' && <ComingSoonPage title="Events & Attendance" />}
         {activePage === 'qr-scanner' && <ComingSoonPage title="QR Scanner" />}
         {activePage === 'reports' && <ReportsPage setActivePage={navigate} />}
-        {activePage === 'bulk-tags' && <BulkTagPage user={user} />}
-        {activePage === 'family-tags' && <FamilyTagPage user={user} />}
-        {activePage === 'ghari' && <GhariPage user={user} />}
-        {activePage === 'swadhyay' && <SwadhyayPage user={user} />}
+        {activePage === 'bulk-tags' && <BulkTagPage user={effectiveUser} />}
+        {activePage === 'family-tags' && <FamilyTagPage user={effectiveUser} />}
+        {activePage === 'ghari' && <GhariPage user={effectiveUser} />}
+        {activePage === 'swadhyay' && <SwadhyayPage user={effectiveUser} />}
         {/* Seva is merged into the Calendar — keep the route as a redirect for any
             existing links/bookmarks so nothing breaks. */}
-        {(activePage === 'calendar' || activePage === 'seva') && <CalendarPage user={user} />}
-        {activePage === 'feed' && <FeedPage user={user} />}
-        {activePage === 'vato' && <VatoPage user={user} />}
-        {activePage === 'attendance' && <AttendancePage user={user} />}
-        {activePage === 'data' && <DataQualityPage user={user} setActivePage={navigate} />}
-        {activePage === 'account' && <AccountPage user={user} setActivePage={navigate} />}
-        {activePage === 'activity' && <ActivityPage user={user} />}
+        {(activePage === 'calendar' || activePage === 'seva') && <CalendarPage user={effectiveUser} />}
+        {activePage === 'feed' && <FeedPage user={effectiveUser} />}
+        {activePage === 'vato' && <VatoPage user={effectiveUser} />}
+        {activePage === 'attendance' && <AttendancePage user={effectiveUser} />}
+        {activePage === 'data' && <DataQualityPage user={effectiveUser} setActivePage={navigate} />}
+        {activePage === 'account' && <AccountPage user={effectiveUser} setActivePage={navigate} />}
+        {activePage === 'activity' && <ActivityPage user={effectiveUser} />}
         </ErrorBoundary>
       </main>
 
           <Footer />
         </div>
       </div>
+      <ScrollHelper />
     </div>
   );
 }

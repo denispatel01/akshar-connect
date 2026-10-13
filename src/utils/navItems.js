@@ -21,6 +21,16 @@ import {
   CalendarCheck,
 } from 'lucide-react';
 
+// A role stored in the Users sheet can drift in case/whitespace ("admin",
+// " Admin ", etc.). The BACKEND compares roles case/space-insensitively
+// (see ghariCanWrite_ in Code.gs), so the client MUST too — otherwise an
+// Admin whose role isn't the exact string "Admin" is silently demoted to
+// read-only here while the backend would happily accept their writes.
+export const normRole = (user) => String(user?.role || '').trim().toLowerCase();
+export const isAdminRole = (user) => normRole(user) === 'admin';
+export const isSevakRole = (user) => normRole(user) === 'sevak';
+export const isDevoteeRole = (user) => normRole(user) === 'devotee';
+
 const hasModule = (user, mod) =>
   String(user?.modules || '')
     .split(/[,|]/)
@@ -33,9 +43,9 @@ const hasModule = (user, mod) =>
  * Mobile flattens this (see getAllNavItems).
  */
 export function getNavGroups(user) {
-  const isDevotee = user?.role === 'Devotee';
-  const isAdmin = user?.role === 'Admin';
-  const isSevak = user?.role === 'Sevak';
+  const isDevotee = isDevoteeRole(user);
+  const isAdmin = isAdminRole(user);
+  const isSevak = isSevakRole(user);
   // Admins get full access; all Sevaks see Ghari read-only (GhariPage gates
   // add/edit/delete to Admins). `ghari` module grant still works for any other role.
   const canGhari = isAdmin || isSevak || hasModule(user, 'ghari');
@@ -121,18 +131,24 @@ export function getAllNavItems(user) {
   return getNavGroups(user).flatMap((g) => g.items);
 }
 
-/** The 3 core tabs shown directly on the mobile bottom bar. */
+/** The core tabs shown directly on the mobile bottom bar. */
 export function getPrimaryMobile(user) {
-  const isDevotee = user?.role === 'Devotee';
-  return isDevotee
-    ? [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-        { id: 'devotees', label: 'My Profile', icon: User },
-      ]
-    : [
-        { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-        { id: 'devotees', label: 'Devotees', icon: Users },
-        { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
-      ];
+  const isDevotee = isDevoteeRole(user);
+  if (isDevotee) {
+    return [
+      { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+      { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
+      { id: 'devotees', label: 'My Profile', icon: User },
+    ];
+  }
+  // Staff bar. During Ghari Seva, Ghari is the busiest screen — surface it as a
+  // primary tab (one tap from app-open) for anyone with Ghari access, instead of
+  // burying it in the Menu.
+  const canGhari = isAdminRole(user) || isSevakRole(user) || hasModule(user, 'ghari');
+  return [
+    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'devotees', label: 'Devotees', icon: Users },
+    ...(canGhari ? [{ id: 'ghari', label: 'Ghari', icon: Cookie }] : []),
+    { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
+  ];
 }

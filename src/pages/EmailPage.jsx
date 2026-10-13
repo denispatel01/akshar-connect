@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { AREAS, YUVAK_TYPES, GENDERS } from '../services/devoteeSchema';
+import { devoteeMatches } from '../utils/search';
 import { alertError } from '../utils/sweetAlert';
 import Swal from 'sweetalert2';
 
@@ -135,7 +136,7 @@ export default function EmailPage({ user }) {
     if (!s) return [];
     return withEmail
       .filter((d) => !emailSet.has(String(d.email).toLowerCase()))
-      .filter((d) => String(d.name || '').toLowerCase().includes(s) || last10(d.mobile).includes(s) || String(d.email).toLowerCase().includes(s))
+      .filter((d) => devoteeMatches(d, search) || String(d.email).toLowerCase().includes(s))
       .slice(0, 8);
   }, [search, withEmail, emailSet]);
 

@@ -22,6 +22,7 @@
 // ===========================================================================
 
 import { dataService, backendApi, backendOnline } from './dataService';
+import { scoreMatch, devoteeSearchText } from '../utils/search';
 
 // ── Storage keys ────────────────────────────────────────────────────────────
 const ORDERS_KEY   = 'ac_ghari_orders_v1';
@@ -231,6 +232,22 @@ function sizeToKg_(size) {
   return /kg/.test(m[2] || '') ? n : n / 1000; // default to grams when unit missing
 }
 
+// Stable grouping key for an order's karyakarta — prefers the devotee id so the
+// same person entered under different name spellings collapses to one group;
+// falls back to the lowercased name. MUST match buildReport's kkKey so the
+// "by karyakarta" report and the per-karyakarta export agree.
+function orderKaryakartaKey_(o) {
+  const kkId = String(o.karyakartaId || '').trim();
+  const kkName = (o.karyakarta || '').trim();
+  return kkId ? ('id:' + kkId) : (kkName ? ('nm:' + kkName.toLowerCase()) : '—');
+}
+// Kilograms of Ghari vs Bhusu in one order.
+function orderKg_(o) {
+  let g = 0, b = 0;
+  (o.items || []).forEach(it => { const kg = num_(it.qty) * sizeToKg_(it.size); if (it.category === 'bhusu') b += kg; else g += kg; });
+  return { ghariKg: g, bhusuKg: b };
+}
+
 // ── Money math (the single source of truth for every total) ──────────────────
 export function computeTotals(items) {
   const by = { ghee: 0, noghee: 0, sf: 0, bhusu: 0 };
@@ -432,24 +449,16 @@ function norm_(s) { return String(s || '').toLowerCase().trim(); }
 function searchDevotees(query, limit = 8) {
   const q = norm_(query);
   if (!q) return [];
-  const digits = q.replace(/\D/g, '');
   const list = dataService.getDevotees() || [];
-  const out = [];
-  for (const d of list) {
-    const name = norm_(d.name);
-    const words = name.split(/\s+/);
-    const nameHit = words.some(w => w.startsWith(q)) || name.startsWith(q);
-    const mobileHit = digits && String(d.mobile || '').replace(/\D/g, '').includes(digits);
-    if (nameHit || mobileHit) out.push(d);
-    if (out.length >= limit * 3) break;
-  }
-  // Prefer name-start matches, then shorter names.
-  out.sort((a, b) => {
-    const an = norm_(a.name).startsWith(q) ? 0 : 1, bn = norm_(b.name).startsWith(q) ? 0 : 1;
-    if (an !== bn) return an - bn;
-    return norm_(a.name).length - norm_(b.name).length;
-  });
-  return out.slice(0, limit);
+  // Use the app-wide tokenized matcher (one source of truth) so a devotee is
+  // found by ANY combination of their name parts — first + last even when a
+  // middle name sits between them — plus mobile / DOB. Highest score first.
+  return list
+    .map(d => ({ d, s: scoreMatch(devoteeSearchText(d), d.name || '', query) }))
+    .filter(x => x.s >= 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, limit)
+    .map(x => x.d);
 }
 
 // ===========================================================================
@@ -753,11 +762,17 @@ export const ghariService = {
       const kkName = (o.karyakarta || '').trim();
       const kkKey = kkId ? ('id:' + kkId) : (kkName ? ('nm:' + kkName.toLowerCase()) : '—');
       const kkDisplay = (kkId && devNameById[kkId]) || kkName || '—';
-      if (!r.byKaryakarta[kkKey]) r.byKaryakarta[kkKey] = { name: kkDisplay, orders: 0, boxes: 0, amount: 0, received: 0, skus: {} };
+      if (!r.byKaryakarta[kkKey]) r.byKaryakarta[kkKey] = { name: kkDisplay, orders: 0, boxes: 0, amount: 0, received: 0, skus: {}, ghariKg: 0, bhusuKg: 0 };
       const kr = r.byKaryakarta[kkKey];
       if (kkDisplay && kkDisplay.length > (kr.name || '').length) kr.name = kkDisplay; // keep fullest variant
       kr.orders++; kr.boxes += t.boxes; kr.amount += t.total; kr.received += num_(o.paymentReceived);
-      o.items.forEach(it => { kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty; });
+      o.items.forEach(it => {
+        kr.skus[it.sku] = (kr.skus[it.sku] || 0) + it.qty;
+        // Track weight per karyakarta too — the team thinks in kilograms of Ghari
+        // ("Digesh brought 5 kg"), not only in rupees collected.
+        const kg = it.qty * sizeToKg_(it.size);
+        if (it.category === 'bhusu') kr.bhusuKg += kg; else kr.ghariKg += kg;
+      });
       // Per-customer running totals (kg of Ghari vs Bhusu, till date) — a customer
       // can have several orders, so we sum by name (+ karyakarta to disambiguate).
       const cust = (o.customerName || '').trim() || '—';
@@ -805,6 +820,114 @@ export const ghariService = {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `Ghari ${s}`);
     XLSX.writeFile(wb, `Ghari_Seva_${s}.xlsx`);
+  },
+
+  // ---- Per-karyakarta export (select several karyakartas → one share file) ----
+  // The list of karyakartas for a season, with their order/kg/amount totals — used
+  // to populate the export picker. Highest collection first.
+  karyakartaList: (season) => {
+    const r = ghariService.buildReport(season || meta_().season);
+    return Object.entries(r.byKaryakarta)
+      .map(([key, d]) => ({ key, name: d.name || key, orders: d.orders, ghariKg: d.ghariKg || 0, bhusuKg: d.bhusuKg || 0, amount: d.amount, received: d.received }))
+      .sort((a, b) => b.amount - a.amount);
+  },
+  // Orders belonging to the selected karyakartas (by stable key), newest first.
+  ordersByKaryakarta: (season, keys) => {
+    const set = new Set(keys || []);
+    return ghariService.getOrders(season || meta_().season).filter(o => set.has(orderKaryakartaKey_(o)));
+  },
+
+  // Excel: one row per order, grouped by karyakarta — the list the follow-up team
+  // works from (customer, mobile, what they ordered, amount, balance).
+  exportKaryakartaXlsx: async (season, keys, label = '') => {
+    const s = season || meta_().season;
+    const kkName = {}; ghariService.karyakartaList(s).forEach(k => { kkName[k.key] = k.name; });
+    const list = ghariService.ordersByKaryakarta(s, keys)
+      .sort((a, b) => orderKaryakartaKey_(a).localeCompare(orderKaryakartaKey_(b)) || (Number(b.orderNo) || 0) - (Number(a.orderNo) || 0));
+    const XLSX = await import('xlsx');
+    const header = ['Karyakarta', '#', 'Customer', 'Mobile', 'Items', 'Ghari kg', 'Bhusu kg', 'Total', 'Paid', 'Balance', 'Delivered', 'Remarks'];
+    const rows = list.map(o => {
+      const t = computeTotals(o.items); const kg = orderKg_(o);
+      const items = (o.items || []).map(i => `${i.qty}× ${i.name} ${i.size}`).join('; ');
+      return [kkName[orderKaryakartaKey_(o)] || o.karyakarta || '—', o.orderNo || '', o.customerName, o.customerMobile || '',
+        items, +kg.ghariKg.toFixed(2), +kg.bhusuKg.toFixed(2), t.total, num_(o.paymentReceived),
+        t.total - num_(o.paymentReceived), o.delivered ? 'Yes' : 'No', o.remarks || ''];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ghari orders');
+    XLSX.writeFile(wb, `Ghari_${s}_${(label || 'karyakartas').replace(/[^\w]+/g, '_')}.xlsx`);
+  },
+
+  // PDF: a shareable sheet grouped by karyakarta, each with their customers' order
+  // details — so (e.g.) the Kolkata team can follow up with those devotees.
+  exportKaryakartaPdf: async (season, keys, label = '') => {
+    const s = season || meta_().season;
+    const kkMeta = {}; ghariService.karyakartaList(s).forEach(k => { kkMeta[k.key] = k; });
+    const list = ghariService.ordersByKaryakarta(s, keys);
+    const groups = {}; // key -> orders[]
+    list.forEach(o => { const k = orderKaryakartaKey_(o); (groups[k] = groups[k] || []).push(o); });
+    const orderedKeys = (keys || []).filter(k => groups[k] && groups[k].length);
+
+    let jsPDF, autoTableMod;
+    try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+    catch (e) {
+      try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+      throw new Error('The app was updated in the background. Reloading — please tap export again.');
+    }
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    const ORANGE = [229, 111, 24], DARK = [38, 48, 59], STRIPE = [252, 241, 231];
+    const rs = (n) => 'Rs ' + Number(n || 0).toLocaleString('en-IN');
+    const kg1 = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const now = new Date();
+    const when = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 92, 'F');
+    doc.setFillColor(255, 157, 82); doc.rect(0, 92, pageW, 4, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9); doc.text('AKSHAR CONNECT', 40, 32);
+    doc.setFontSize(18); doc.text('Ghari Orders by Karyakarta', 40, 58);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(255, 235, 220);
+    doc.text(`Season ${s}${label ? ' · ' + label : ''}`, 40, 78);
+    doc.setFontSize(9); doc.text(`Generated: ${when}`, pageW - 40, 32, { align: 'right' });
+
+    const footer = () => {
+      const h = doc.internal.pageSize.getHeight(), w = doc.internal.pageSize.getWidth();
+      doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+      doc.text('Adajan Satsang Mandal · Akshar Connect', 40, h - 20);
+      doc.text(`Page ${doc.internal.getNumberOfPages()}`, w - 40, h - 20, { align: 'right' });
+    };
+
+    let startY = 112;
+    orderedKeys.forEach((k) => {
+      const orders = groups[k].slice().sort((a, b) => (Number(b.orderNo) || 0) - (Number(a.orderNo) || 0));
+      const m = kkMeta[k] || { name: orders[0]?.karyakarta || '—', ghariKg: 0, bhusuKg: 0, amount: 0, received: 0 };
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...DARK);
+      doc.text(`${m.name}`, 40, startY);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120, 130, 145);
+      doc.text(`${orders.length} order${orders.length === 1 ? '' : 's'} · Ghari ${kg1(m.ghariKg)} kg${m.bhusuKg ? ' · Bhusu ' + kg1(m.bhusuKg) + ' kg' : ''} · ${rs(m.amount)}`, 40, startY + 14);
+      const body = orders.map(o => {
+        const t = computeTotals(o.items); const bal = t.total - num_(o.paymentReceived);
+        const items = (o.items || []).map(i => `${i.qty}x ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
+        return [o.orderNo ? '#' + o.orderNo : '', o.customerName || '—', o.customerMobile || '—', items, rs(t.total), bal > 0 ? rs(bal) : '-', o.delivered ? 'Yes' : 'No'];
+      });
+      autoTable(doc, {
+        startY: startY + 22,
+        head: [['#', 'Customer', 'Mobile', 'Items', 'Total', 'Balance', 'Delv.']],
+        body,
+        theme: 'striped', styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+        headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 95 }, 2: { cellWidth: 68 }, 3: { cellWidth: 150 }, 4: { halign: 'right', cellWidth: 52 }, 5: { halign: 'right', cellWidth: 52 }, 6: { halign: 'center', cellWidth: 34 } },
+        margin: { left: 40, right: 40, bottom: 44 }, didDrawPage: footer,
+      });
+      startY = doc.lastAutoTable.finalY + 26;
+    });
+    if (!orderedKeys.length) { doc.setTextColor(...DARK); doc.setFontSize(11); doc.text('No orders for the selected karyakartas.', 40, startY); }
+
+    doc.save(`Ghari_${s}_${(label || 'karyakartas').replace(/[^\w]+/g, '_')}.pdf`);
   },
 
   // ---- Export the season summary / dashboard as a styled PDF ----

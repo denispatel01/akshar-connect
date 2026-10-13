@@ -7,8 +7,12 @@ import {
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
 import { alertError, confirmDialog } from '../utils/sweetAlert';
+import { isAdminRole } from '../utils/navItems';
+import AutoTextarea from '../components/AutoTextarea';
 
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+// One-decimal kilograms, e.g. 5, 2.5 — the team talks in kg of Ghari, not only ₹.
+const fmtKg = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
 
 // Proper (title) case — capitalizes the first letter of each word as you type,
 // so the text always reads in proper case no matter how it was entered.
@@ -300,7 +304,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
         </button>
       </div>
 
-      <input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks (optional)"
+      <AutoTextarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks (optional)" minRows={1}
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
 
       {/* Category mini-breakdown */}
@@ -334,7 +338,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
 
       {/* Confirm-order preview — one place to check everything before saving. */}
       {review && createPortal(
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setReview(null)}>
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setReview(null)}>
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
               <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><ShoppingCart className="h-4 w-4 text-primary" /> Confirm order</h3>
@@ -444,7 +448,11 @@ function KaryakartaCard({ name, d, bySku }) {
       <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 p-2.5 text-left">
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-black text-text-main">{name}</div>
-          <div className="text-[10px] font-semibold text-text-muted">{d.orders} order{d.orders === 1 ? '' : 's'}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            {d.ghariKg > 0 && <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white" style={{ background: '#EA580C' }}>Ghari {fmtKg(d.ghariKg)} kg</span>}
+            {d.bhusuKg > 0 && <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white" style={{ background: '#9333EA' }}>Bhusu {fmtKg(d.bhusuKg)} kg</span>}
+            <span className="text-[10px] font-semibold text-text-muted">{d.orders} order{d.orders === 1 ? '' : 's'}</span>
+          </div>
         </div>
         <div className="shrink-0 text-right">
           <div className="text-sm font-black text-text-main">{rupee(d.amount)}</div>
@@ -505,8 +513,89 @@ function BoxItemRow({ product, qty, customers }) {
   );
 }
 
+// Pick one or more karyakartas, then export just their orders to PDF / Excel —
+// so (e.g.) an out-of-town team can get a shareable list of the devotees those
+// karyakartas took Ghari orders from, and follow up.
+function KaryakartaExportModal({ season, onClose }) {
+  const people = useMemo(() => ghariService.karyakartaList(season), [season]);
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState(() => new Set());
+  const [busy, setBusy] = useState('');
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? people.filter(p => p.name.toLowerCase().includes(t)) : people;
+  }, [people, q]);
+  const toggle = (key) => setPicked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const allShownPicked = shown.length > 0 && shown.every(p => picked.has(p.key));
+  const toggleAll = () => setPicked(prev => {
+    const n = new Set(prev);
+    if (allShownPicked) shown.forEach(p => n.delete(p.key)); else shown.forEach(p => n.add(p.key));
+    return n;
+  });
+  const keys = [...picked];
+  const label = keys.length === 1 ? (people.find(p => p.key === keys[0])?.name || '') : `${keys.length}_karyakartas`;
+  const doExport = async (kind) => {
+    if (!keys.length) { alertError('Pick karyakartas', 'Select at least one karyakarta to export.'); return; }
+    setBusy(kind);
+    try {
+      if (kind === 'pdf') await ghariService.exportKaryakartaPdf(season, keys, label);
+      else await ghariService.exportKaryakartaXlsx(season, keys, label);
+    } catch (e) { alertError('Export failed', e.message); }
+    finally { setBusy(''); }
+  };
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><Users className="h-4 w-4 text-primary" /> Export by karyakarta</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="border-b border-border-light p-3">
+          <div className="flex items-center gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+            <Search className="h-4 w-4 text-text-muted" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search karyakarta…" className="w-full bg-transparent text-sm font-semibold text-text-main outline-none" />
+            {q && <button onClick={() => setQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <button onClick={toggleAll} className="text-[11px] font-black text-primary">{allShownPicked ? 'Clear all' : 'Select all'}</button>
+            <span className="text-[11px] font-bold text-text-muted">{picked.size} selected</span>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {shown.length === 0 && <p className="py-8 text-center text-xs text-text-muted">No karyakartas{q ? ` match “${q}”` : ' yet'}.</p>}
+          {shown.map(p => {
+            const on = picked.has(p.key);
+            return (
+              <button key={p.key} onClick={() => toggle(p.key)}
+                className={`mb-1 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left ${on ? 'border-primary bg-primary/5' : 'border-border-light bg-surface'}`}>
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${on ? 'border-primary bg-primary text-white' : 'border-border-light'}`}>{on && <Check className="h-3.5 w-3.5" />}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-text-main">{p.name}</span>
+                  <span className="block truncate text-[11px] font-semibold text-text-muted">{p.orders} order{p.orders === 1 ? '' : 's'} · {fmtKg(p.ghariKg)} kg Ghari{p.bhusuKg > 0 ? ` · ${fmtKg(p.bhusuKg)} kg Bhusu` : ''} · {rupee(p.amount)}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 border-t border-border-light p-3">
+          <button onClick={() => doExport('pdf')} disabled={!!busy || !picked.size}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-2.5 text-sm font-black text-white shadow-md disabled:opacity-50">
+            <Download className="h-4 w-4" /> {busy === 'pdf' ? 'Preparing…' : 'PDF'}
+          </button>
+          <button onClick={() => doExport('xlsx')} disabled={!!busy || !picked.size}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/5 py-2.5 text-sm font-black text-primary disabled:opacity-50">
+            <Download className="h-4 w-4" /> {busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
+  const [exportKk, setExportKk] = useState(false);
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
   const custList = useMemo(() => Object.values(r.byCustomer || {}).sort((a, b) => b.amount - a.amount), [r]);
   const [custQ, setCustQ] = useState('');
@@ -665,6 +754,13 @@ function ReportView({ season }) {
           <Download className="h-4 w-4" /> Excel ledger
         </button>
       </div>
+
+      {/* Share just one or a few karyakartas' orders — e.g. for an out-of-town
+          team to follow up with the devotees who order Ghari every year. */}
+      <button onClick={() => setExportKk(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-3 text-sm font-black text-text-main">
+        <Users className="h-4 w-4 text-primary" /> Export orders by karyakarta (PDF / Excel)
+      </button>
+      {exportKk && <KaryakartaExportModal season={season} onClose={() => setExportKk(false)} />}
     </div>
   );
 }
@@ -1177,7 +1273,7 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
         </div>
       </div>
 
-      <input value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Remarks (optional)"
+      <AutoTextarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Remarks (optional)" minRows={1}
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
 
       {!readOnly && (
@@ -1333,7 +1429,7 @@ function TrashView({ season, onRestored, flash }) {
 
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
-  const canEdit = user?.role === 'Admin'; // Sevaks have view-only access
+  const canEdit = isAdminRole(user); // Sevaks have view-only access (case/space-insensitive — mirrors backend ghariCanWrite_)
   const [tab, setTab] = useState(canEdit ? 'entry' : 'orders');
   const [season, setSeasonState] = useState(ghariService.getSeason());
   const [tick, setTick] = useState(0);

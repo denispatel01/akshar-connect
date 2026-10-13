@@ -183,99 +183,71 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 transition-colors relative ${moreOpen || moreActive ? 'text-primary' : 'text-text-muted'}`}>
             <div className={`flex items-center justify-center h-7 w-12 rounded-2xl transition-all duration-200 ${moreOpen || moreActive ? 'bg-primary/10' : ''}`}>
               {moreOpen ? <X className="h-5 w-5" strokeWidth={2.5} /> : <Menu className="h-5 w-5" strokeWidth={1.8} />}
-              {/* Red dot if admin-only items are in overflow */}
-              {!moreOpen && isAdmin && (
-                <span className="absolute top-2 right-[calc(50%-14px)] h-2 w-2 rounded-full bg-red-500 ring-1 ring-surface" />
-              )}
-              {/* Green dot when there are new Feed posts (Feed lives in this menu on mobile) */}
-              {!moreOpen && hasNewFeed && (
-                <span className="absolute top-2 right-[calc(50%-2px)] h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-surface" />
-              )}
             </div>
             <span className={`text-[10px] font-semibold ${moreOpen || moreActive ? 'font-bold' : ''}`}>Menu</span>
           </button>
         </div>
       </div>
 
-      {/* ── More Bottom Sheet ────────────────────────────────────────────────── */}
-      {/* Backdrop */}
+      {/* ── Full-screen Menu ─────────────────────────────────────────────────── */}
+      {/* Opens as its OWN screen (not a popup), covering the whole viewport incl.
+          the bottom bar, with every item shown as a tile so nothing is hidden
+          behind a scroll. */}
       {moreOpen && (
-        <div className="md:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
-      )}
+        <div className="md:hidden fixed inset-0 z-[60] flex flex-col bg-bg-base"
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
-      {/* Sheet sits BELOW the tab bar (z-40 < z-50) so the "More" button is never
-          covered by the sheet's transparent padding — otherwise taps meant to
-          close it land on the sheet instead (hide appeared broken). It also
-          clears the tab bar height including the safe-area inset. */}
-      <div className={`md:hidden fixed left-0 right-0 z-40 transition-all duration-300 ease-out ${moreOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
-        style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
-        <div className="mx-3 mb-3 flex max-h-[75vh] flex-col overflow-hidden rounded-3xl bg-surface border border-border-light shadow-2xl">
-
-          {/* User card → My Account (pinned header) */}
-          <button onClick={() => { setMoreOpen(false); navigate('account'); }}
-            className="w-full shrink-0 text-left flex items-center gap-3 px-5 py-4 bg-primary border-b border-primary/20">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">
-              {user?.name?.[0] || 'U'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-white leading-tight truncate">{user?.name || 'User'}</p>
-              <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white ${isAdmin ? 'bg-red-500' : isSevak ? 'bg-amber-500' : 'bg-white/25'}`}>{user?.role || 'Devotee'}</span>
-            </div>
-            <span className="text-[11px] font-bold text-white/70">My Account ›</span>
-          </button>
-
-          {/* Scroll region — everything below the header scrolls INSIDE the box */}
-          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
-
-          {/* Nav items in More — scrollable so a long list never gets cut off */}
-          {moreItems.length > 0 && (
-            <div className="py-2">
-              {moreItems.map(({ id, label, icon: Icon, adminOnly }) => {
-                const active = activePage === id;
-                return (
-                  <button key={id} onClick={() => navigate(id)}
-                    className={`w-full flex items-center gap-4 px-5 py-3.5 transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-text-main hover:bg-bg-base'}`}>
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-primary text-white' : 'bg-bg-base border border-border-light text-text-muted'}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <span className={`flex-1 text-sm text-left ${active ? 'font-bold' : 'font-semibold'}`}>{label}</span>
-                    {id === 'feed' && hasNewFeed && <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">NEW</span>}
-                    {adminOnly && <span className="h-2 w-2 rounded-full bg-red-500" />}
-                    <ChevronRight className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-muted'}`} />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Divider */}
-          <div className="h-px bg-border-light mx-4" />
-
-          {/* Utilities row */}
-          <div className="flex items-center gap-2 px-4 py-3">
-            <button onClick={toggleDarkMode}
-              className="flex flex-1 items-center gap-3 rounded-2xl border border-border-light bg-bg-base px-4 py-3 text-sm font-semibold text-text-main transition-colors hover:bg-border-light">
-              {isDarkModeOn ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
-              {isDarkModeOn ? 'Light Mode' : 'Dark Mode'}
+          {/* Header: My Account + close */}
+          <div className="flex shrink-0 items-center gap-3 border-b border-border-light bg-primary px-4 py-3">
+            <button onClick={() => { setMoreOpen(false); navigate('account'); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">{user?.name?.[0] || 'U'}</div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold leading-tight text-white">{user?.name || 'User'}</p>
+                <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white ${isAdmin ? 'bg-red-500' : isSevak ? 'bg-amber-500' : 'bg-white/25'}`}>{user?.role || 'Devotee'}</span>
+              </div>
+              <span className="text-[11px] font-bold text-white/70">My Account ›</span>
             </button>
-            <button onClick={() => { setMoreOpen(false); onHardRefresh?.(); }}
-              className="flex items-center justify-center h-12 w-12 rounded-2xl border border-border-light bg-bg-base text-text-muted hover:bg-border-light transition-colors"
-              title="Clear cache & hard reload">
+            <button onClick={() => setMoreOpen(false)} aria-label="Close menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15 text-white hover:bg-white/25">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Tile grid — sized to fit on one screen (auto-rows share the height). */}
+          <div className="grid flex-1 content-start grid-cols-3 gap-2.5 overflow-y-auto p-3">
+            {moreItems.map(({ id, label, icon: Icon, adminOnly }) => {
+              const active = activePage === id;
+              return (
+                <button key={id} onClick={() => navigate(id)}
+                  className={`relative flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl border p-2 text-center transition-colors ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border-light bg-surface text-text-main hover:bg-bg-base'}`}>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${active ? 'bg-primary text-white' : 'bg-bg-base border border-border-light text-text-muted'}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <span className="text-[11px] font-bold leading-tight">{label}</span>
+                  {id === 'feed' && hasNewFeed && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-500" />}
+                  {adminOnly && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer: theme, hard refresh, sign out */}
+          <div className="flex shrink-0 items-center gap-2 border-t border-border-light bg-surface px-3 py-3">
+            <button onClick={toggleDarkMode}
+              className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base px-3 py-3 text-sm font-semibold text-text-main hover:bg-border-light">
+              {isDarkModeOn ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+              {isDarkModeOn ? 'Light' : 'Dark'}
+            </button>
+            <button onClick={() => { setMoreOpen(false); onHardRefresh?.(); }} title="Clear cache & hard reload"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border-light bg-bg-base text-text-muted hover:bg-border-light">
               <RefreshCw className={`h-4 w-4 ${updateAvailable ? 'text-amber-500' : ''}`} />
             </button>
-          </div>
-
-          {/* Logout */}
-          <div className="px-4 pb-4">
             <button onClick={() => { setMoreOpen(false); onLogout(); }}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-900 px-4 py-3.5 text-sm font-bold text-red-500 hover:bg-red-100 dark:hover:bg-red-900 transition-colors">
-              <LogOut className="h-4 w-4" />
-              Sign Out
+              className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 py-3 text-sm font-bold text-red-500 hover:bg-red-100 dark:border-red-900 dark:bg-red-950">
+              <LogOut className="h-4 w-4" /> Sign Out
             </button>
           </div>
-          </div>{/* /scroll region */}
         </div>
-      </div>
+      )}
       </>,
       document.body)}
     </>

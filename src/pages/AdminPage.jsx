@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell, Eye } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { confirmDialog } from '../utils/sweetAlert';
 import ActivityFeed from '../components/ActivityFeed';
 
-export default function AdminPage({ user }) {
+export default function AdminPage({ user, onViewAs }) {
   const [users, setUsers] = useState([]);
   const isAdmin = user?.role === 'Admin';
   const [tab, setTab] = useState('announcements');
@@ -306,6 +306,10 @@ export default function AdminPage({ user }) {
               </div>
               {isAdmin && (
                 <div className="mt-3 flex items-center justify-end gap-2 border-t border-border-light pt-2">
+                  {onViewAs && String(u.mobile) !== String(user?.mobile) && (
+                    <button onClick={() => onViewAs({ mobile: String(u.mobile), name: u.name || 'User', role: u.role || 'Devotee', modules: u.modules || '', devoteeId: u.devoteeId || '' })}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted hover:bg-surface hover:text-indigo-600"><Eye className="h-4 w-4" /> View as</button>
+                  )}
                   <button onClick={() => editUser(u)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted hover:bg-surface hover:text-primary"><Pencil className="h-4 w-4" /> Edit</button>
                   <button onClick={() => removeUser(u)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /> Delete</button>
                 </div>
@@ -499,10 +503,35 @@ function NotificationsReport() {
         <button onClick={load} className="rounded-lg border border-border-light bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted hover:text-text-main"><RefreshCw className="h-3.5 w-3.5" /></button>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-center"><p className="text-2xl font-extrabold text-emerald-700">{stats.granted}</p><p className="text-[11px] font-bold text-emerald-700">Allowed</p></div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-center"><p className="text-2xl font-extrabold text-emerald-700">{stats.granted}</p><p className="text-[11px] font-bold text-emerald-700">Receiving</p></div>
         <div className="rounded-2xl border border-red-100 bg-red-50/60 p-3 text-center"><p className="text-2xl font-extrabold text-red-600">{stats.denied}</p><p className="text-[11px] font-bold text-red-600">Rejected</p></div>
         <div className="rounded-2xl border border-border-light bg-bg-base p-3 text-center"><p className="text-2xl font-extrabold text-text-muted">{stats.default + stats.other}</p><p className="text-[11px] font-bold text-text-muted">Not decided</p></div>
       </div>
+
+      {/* What the app sends — so an admin knows what "Receiving" people actually get. */}
+      <div className="rounded-2xl border border-border-light bg-bg-base p-3">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted">What notifications are sent</p>
+        <div className="space-y-1.5">
+          {[
+            ['📣', 'Announcements', 'When an admin posts an announcement (to everyone or a chosen audience).'],
+            ['🤝', 'Seva reminders', 'To everyone included in a planned seva — the evening before and the morning of.'],
+            ['🙏', 'Swadhyay reminder', 'A daily nudge to log Bhajan / Shravan / Vachan.'],
+            ['🌸', 'Daily Vato', "Today's teaching when it is posted."],
+            ['🎂', 'Birthdays', "A wish on devotees' birthdays."],
+            ['💬', 'Feed activity', 'New Feed posts, and comments on your own post.'],
+          ].map(([emoji, title, desc]) => (
+            <div key={title} className="flex items-start gap-2">
+              <span className="text-base leading-none">{emoji}</span>
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-text-main">{title}</p>
+                <p className="text-[11px] text-text-muted">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-[11px] font-semibold text-text-muted"><b className="text-emerald-700">Receiving</b> = allowed notifications on at least one device. The list below is who responded, newest first.</p>
       {rows === null ? <p className="text-xs text-text-muted">Loading…</p>
         : rows.length === 0 ? <p className="text-xs text-text-muted">No responses logged yet. They appear here as devotees open the app.</p>
         : (

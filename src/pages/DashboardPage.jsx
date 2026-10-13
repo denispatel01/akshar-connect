@@ -164,9 +164,19 @@ export default function DashboardPage({ setActivePage, user }) {
   // One family per head (Primary member) — same definition the directory uses,
   // so the family count matches everywhere.
   const familiesCount = devotees.filter(d => d.type === 'Primary').length;
-  // "Needs attention" counts (actionable data gaps).
-  const nMissingMobile = devotees.filter(d => !String(d.mobile || '').replace(/\D/g, '')).length;
-  const nMissingDob = devotees.filter(d => !String(d.dob || '').trim()).length;
+  // "Needs attention" counts (actionable data gaps), split by gender so the team
+  // can hand male/female lists to the right karyakarta.
+  const isMale = (d) => /^m/i.test(String(d.gender || '').trim());
+  const isFemale = (d) => /^f/i.test(String(d.gender || '').trim());
+  const missingMobile = devotees.filter(d => !String(d.mobile || '').replace(/\D/g, ''));
+  const missingDob = devotees.filter(d => !String(d.dob || '').trim());
+  const noGender = (d) => !isMale(d) && !isFemale(d); // gender blank/unrecognized
+  const nMissingMobileM = missingMobile.filter(isMale).length;
+  const nMissingMobileF = missingMobile.filter(isFemale).length;
+  const nMissingMobileU = missingMobile.filter(noGender).length;
+  const nMissingDobM = missingDob.filter(isMale).length;
+  const nMissingDobF = missingDob.filter(isFemale).length;
+  const nMissingDobU = missingDob.filter(noGender).length;
   const ghariPendingKg = React.useMemo(() => {
     try { return ghariService.pendingDeliveryKg(ghariService.getSeason()); } catch (e) { return 0; }
   }, []);
@@ -332,8 +342,15 @@ export default function DashboardPage({ setActivePage, user }) {
         const chips = [];
         if (birthdaysToday.length) chips.push({ key: 'bday', label: `${birthdaysToday.length} birthday${birthdaysToday.length === 1 ? '' : 's'} today`, icon: Cake, cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900', onClick: () => setShowTodayBdays(true) });
         if (ghariPendingKg > 0) chips.push({ key: 'ghari', label: `${fmtKg(ghariPendingKg)} Ghari to collect`, icon: TrendingUp, cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900', onClick: () => setActivePage('ghari') });
-        if (isAdmin && nMissingMobile) chips.push({ key: 'mob', label: `${nMissingMobile} missing mobile`, icon: Phone, cls: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900', onClick: () => setActivePage('data') });
-        if (isAdmin && nMissingDob) chips.push({ key: 'dob', label: `${nMissingDob} missing DOB`, icon: Star, cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900', onClick: () => setActivePage('data') });
+        const roseCls = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900';
+        const amberCls = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
+        // Separate male / female chips so each list goes to the right karyakarta.
+        if (isAdmin && nMissingMobileM) chips.push({ key: 'mob-m', label: `${nMissingMobileM} missing mobile (male)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingMobileF) chips.push({ key: 'mob-f', label: `${nMissingMobileF} missing mobile (female)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingMobileU) chips.push({ key: 'mob-u', label: `${nMissingMobileU} missing mobile (unspecified)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingDobM) chips.push({ key: 'dob-m', label: `${nMissingDobM} missing DOB (male)`, icon: Star, cls: amberCls, onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingDobF) chips.push({ key: 'dob-f', label: `${nMissingDobF} missing DOB (female)`, icon: Star, cls: amberCls, onClick: () => setActivePage('data') });
+        if (isAdmin && nMissingDobU) chips.push({ key: 'dob-u', label: `${nMissingDobU} missing DOB (unspecified)`, icon: Star, cls: amberCls, onClick: () => setActivePage('data') });
         if (!chips.length) return null;
         return (
           <div className="rounded-3xl border border-border-light bg-surface p-4 shadow-xs lg:col-span-3 lg:order-3">

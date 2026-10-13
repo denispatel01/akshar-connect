@@ -7,6 +7,9 @@ const API_URL = "https://script.google.com/macros/s/AKfycbw-LyYduU1mUaXwamTGPyh_
 const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') === 0;
 
 const SESSION_KEY = 'ac_session_v1';
+// Small in-memory trail of recent user actions, attached to any error report so
+// an opaque "Script error." still says what the user was doing when it hit.
+let breadcrumbs_ = [];
 const CACHE_KEY = 'ac_cache_v1';
 const MAIL_KEY = 'ac_mail_v1';
 const PENDING_PHOTO_KEY = 'ac_pending_photos_v1';
@@ -19,6 +22,25 @@ function mailCached_() {
 }
 
 const ADMIN_SEED = { mobile:'9924598434', pin:'170853', password:'', role:'Admin', name:'Denis Patel' };
+
+// A role typed into the Users sheet can drift in case/whitespace ("admin",
+// " Admin ", "SEVAK"). The whole client gates on exact strings (role === 'Admin'),
+// so a drifted role silently demotes a real Admin to read-only — e.g. they can't
+// edit Ghari orders even though the backend (case-insensitive) would accept it.
+// Canonicalize the role ONCE here, when the session is built, so every gate in
+// the app sees the exact expected casing.
+function canonRole_(role) {
+  const r = String(role || '').trim().toLowerCase();
+  if (r === 'admin') return 'Admin';
+  if (r === 'sevak') return 'Sevak';
+  if (r === 'devotee') return 'Devotee';
+  return role || 'Devotee';
+}
+function saveSession_(user) {
+  const u = user ? { ...user, role: canonRole_(user.role) } : user;
+  localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+  return u;
+}
 
 // The signed-in actor as a stable "Name (mobile)" label for audit columns
 // (createdBy / updatedBy). Reads the real session key — earlier code read a
@@ -433,7 +455,7 @@ export const dataService = {
       saveCache();
     }
     if (!user) throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    user = saveSession_(user);
     logActivity_('login', '', `logged in (${deviceLabel_()})`);
     return { success: true, user };
   },
@@ -445,7 +467,7 @@ export const dataService = {
       try { const r = await api('getUsers', {}); if (r && Array.isArray(r.users)) { DB.users = r.users; saveCache(); } } catch (e) { /* offline */ }
       user = matchUser_(mobile, pin);
     }
-    if (user) { localStorage.setItem(SESSION_KEY, JSON.stringify(user)); logActivity_('login', '', `logged in (${deviceLabel_()})`); return { success: true, user }; }
+    if (user) { user = saveSession_(user); logActivity_('login', '', `logged in (${deviceLabel_()})`); return { success: true, user }; }
     throw new Error('Invalid Mobile Number or PIN. Please check your credentials.');
   },
 
@@ -467,8 +489,7 @@ export const dataService = {
       if (!anyDob) throw new Error('Date of birth not set for this record. Contact your Mandal admin.');
       throw new Error('Incorrect date of birth. Use format DD-MM-YYYY (e.g. 01-12-1995).');
     }
-    const sessionUser = devSession_(matched);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    const sessionUser = saveSession_(devSession_(matched));
     logActivity_('login', '', `logged in (${deviceLabel_()})`);
     return { success: true, user: sessionUser };
   },
@@ -776,17 +797,42 @@ export const dataService = {
     return api('deletePlan', { id });
   },
 
-  // Fire-and-forget: email the admin when a user hits a runtime error.
+  // Leave a trail of what the user was doing, so even an opaque "Script error."
+  // (cross-origin, no stack) still arrives with context: which screen, what they
+  // just tapped. Kept in a small ring buffer in memory (and mirrored to a storage
+  // key so it survives the error-triggered reload on iOS).
+  breadcrumb: (msg) => {
+    try {
+      const b = { t: new Date().toISOString().slice(11, 19), m: String(msg || '').slice(0, 80) };
+      breadcrumbs_.push(b); if (breadcrumbs_.length > 15) breadcrumbs_.shift();
+      try { sessionStorage.setItem('ac-breadcrumbs', JSON.stringify(breadcrumbs_)); } catch { /* ignore */ }
+    } catch { /* never throw from a breadcrumb */ }
+  },
+
+  // Fire-and-forget: email the admin when a user hits a runtime error. The extra
+  // context (route, online state, build, breadcrumbs) is folded into the `stack`
+  // field so it reaches the existing error email without a backend change.
   reportError: (info) => {
     try {
       if (!hasBackend()) return;
       const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      let crumbs = breadcrumbs_;
+      try { if (!crumbs.length) crumbs = JSON.parse(sessionStorage.getItem('ac-breadcrumbs') || '[]'); } catch { /* ignore */ }
+      const ctx = [
+        `route: ${(typeof location !== 'undefined' && (location.hash || location.pathname)) || '—'}`,
+        `online: ${typeof navigator !== 'undefined' ? (navigator.onLine ? 'yes' : 'no') : '?'}`,
+        `build: ${(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev')}`,
+        `viewport: ${typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '?'}`,
+        crumbs.length ? `recent:\n  ${crumbs.map(c => `${c.t} ${c.m}`).join('\n  ')}` : '',
+      ].filter(Boolean).join('\n');
+      const rawStack = String(info?.stack || '').trim();
+      const stack = [rawStack, '--- context ---', ctx].filter(Boolean).join('\n').slice(0, 4000);
       const body = JSON.stringify({
         action: 'logError',
         user: sess?.name || '', mobile: sess?.mobile || '',
         message: String(info?.message || info || '').slice(0, 500),
-        stack: String(info?.stack || '').slice(0, 4000),
-        page: info?.page || (typeof location !== 'undefined' ? location.hash : ''),
+        stack,
+        page: info?.page || (typeof location !== 'undefined' ? (location.hash || location.href) : ''),
         ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         time: new Date().toISOString(),
       });
@@ -795,9 +841,9 @@ export const dataService = {
   },
 
   loginWithPassword: async (mobile, password) => {
-    const user = DB.users.find(u => String(u.mobile) === String(mobile) && u.password === password);
+    let user = DB.users.find(u => String(u.mobile) === String(mobile) && u.password === password);
     if (!user) throw new Error('Invalid Mobile Number or Password.');
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    user = saveSession_(user);
     return { success: true, user };
   },
 
@@ -819,8 +865,8 @@ export const dataService = {
     };
     if (idx >= 0) DB.users[idx] = user; else DB.users.push(user);
     saveCache(); push('upsertUser', user);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return { success: true, user };
+    const saved = saveSession_(user);
+    return { success: true, user: saved };
   },
 
   getUsers: () => DB.users,
@@ -886,7 +932,12 @@ export const dataService = {
     return { success: true, user: newSess };
   },
 
-  getCurrentSession: () => JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'),
+  // Canonicalize the role on read too, so a session saved before this fix (or by
+  // an older build) with a drifted role is corrected without requiring re-login.
+  getCurrentSession: () => {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return s ? { ...s, role: canonRole_(s.role) } : s;
+  },
   logout: () => { logActivity_('logout', '', `logged out (${deviceLabel_()})`); localStorage.removeItem(SESSION_KEY); },
 
   // Who is acting right now — used to stamp createdBy / updatedBy. Returns a
@@ -898,9 +949,10 @@ export const dataService = {
   // Admins implicitly have every module; others need it listed in `modules`.
   hasModule: (u, key) => {
     if (!u) return false;
-    if (u.role === 'Admin') return true;
+    const role = String(u.role || '').trim().toLowerCase();
+    if (role === 'admin') return true;
     // Sevaks can view the Ghari module (read-only; enforced in the UI).
-    if (u.role === 'Sevak' && String(key).toLowerCase() === 'ghari') return true;
+    if (role === 'sevak' && String(key).toLowerCase() === 'ghari') return true;
     return String(u.modules || '').split(/[,|]/).map(s => s.trim().toLowerCase()).includes(String(key).toLowerCase());
   },
 

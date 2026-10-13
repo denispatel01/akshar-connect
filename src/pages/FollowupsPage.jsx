@@ -5,23 +5,44 @@ import {
   CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus, Pencil, Trash2
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import AutoTextarea from '../components/AutoTextarea';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
 import { alertSuccess, confirmDialog } from '../utils/sweetAlert';
 
-const OUTCOMES = ['Coming', 'Maybe', 'Not Coming', 'Call not received'];
+// Default outcome options for a normal (attendance) event. Each event can now
+// define its OWN set — e.g. a Ghari Seva drive uses order-focused outcomes.
+const DEFAULT_OUTCOMES = ['Coming', 'Maybe', 'Not Coming', 'Call not received'];
+// One-tap preset for a Ghari Seva follow-up drive.
+const GHARI_OUTCOMES = ['Ghari order placed', 'Not interested', 'Did not receive a call', 'Unable to contact'];
+const OUTCOME_PRESETS = [
+  { label: 'Attendance (default)', outcomes: DEFAULT_OUTCOMES },
+  { label: 'Ghari Seva', outcomes: GHARI_OUTCOMES },
+];
 const OUTCOME_STYLE = {
   'Coming': 'bg-emerald-100 text-emerald-700 border-emerald-200',
   'Maybe': 'bg-amber-100 text-amber-700 border-amber-200',
   'Not Coming': 'bg-red-100 text-red-700 border-red-200',
   'Call not received': 'bg-slate-100 text-slate-600 border-slate-200',
+  'Ghari order placed': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'Not interested': 'bg-red-100 text-red-700 border-red-200',
+  'Did not receive a call': 'bg-slate-100 text-slate-600 border-slate-200',
+  'Unable to contact': 'bg-amber-100 text-amber-700 border-amber-200',
   '': 'bg-surface text-slate-500 border-border-light',
+};
+// Style for any outcome (custom ones fall back to a neutral chip).
+const outcomeStyle = (o) => OUTCOME_STYLE[o] || (o ? 'bg-sky-100 text-sky-700 border-sky-200' : OUTCOME_STYLE['']);
+// Events store outcomes as a pipe-joined string; parse to a clean array.
+const parseOutcomes = (v) => {
+  const arr = Array.isArray(v) ? v : String(v || '').split('|');
+  const out = arr.map(s => String(s).trim()).filter(Boolean);
+  return out.length ? out : DEFAULT_OUTCOMES;
 };
 const AUDIENCE_CAP = 250;
 const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani', 'Samaiyo', 'Karyakarta Sabha/Shibir'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha', description: '', tags: [] });
+const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha', description: '', tags: [], outcomes: [...DEFAULT_OUTCOMES] });
 // Event tags are stored as a pipe-joined string on the backend; parse to an array.
 const parseEventTags = (v) => Array.isArray(v) ? v : String(v || '').split('|').map(s => s.trim()).filter(Boolean);
 
@@ -98,6 +119,7 @@ export default function FollowupsPage({ user }) {
       type: eventForm.type,
       description: eventForm.description || '',
       tags: parseEventTags(eventForm.tags).join('|'),
+      outcomes: (eventForm.outcomes && eventForm.outcomes.length ? eventForm.outcomes : DEFAULT_OUTCOMES).join('|'),
     };
     const isNew = !editingEventId;
     const saved = editingEventId ? dataService.updateSabha(editingEventId, payload) : dataService.addSabha(payload);
@@ -120,7 +142,7 @@ export default function FollowupsPage({ user }) {
   const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
   const openEditEvent = (ev) => {
     setEditingEventId(ev.id);
-    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags) });
+    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags), outcomes: parseOutcomes(ev.outcomes) });
     setShowEventModal(true);
   };
   const deleteEvent = async (ev) => {
@@ -177,7 +199,7 @@ export default function FollowupsPage({ user }) {
       if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
       return true;
-    });
+    }).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))); // A→Z
   }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta]);
 
   // Summary over the current (search + tag) audience, ignoring the pendingOnly view filter
@@ -189,16 +211,17 @@ export default function FollowupsPage({ user }) {
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       return true;
     });
-    const s = { total: base.length, contacted: 0, coming: 0, notComing: 0, maybe: 0, pending: 0 };
+    const s = { total: base.length, contacted: 0, pending: 0, byOutcome: {} };
     base.forEach(d => {
       const f = fmap[d.id];
       if (contacted(f)) s.contacted++; else s.pending++;
-      if (f?.outcome === 'Coming') s.coming++;
-      else if (f?.outcome === 'Not Coming') s.notComing++;
-      else if (f?.outcome === 'Maybe') s.maybe++;
+      if (f?.outcome) s.byOutcome[f.outcome] = (s.byOutcome[f.outcome] || 0) + 1;
     });
     return s;
   }, [devotees, search, selectedTags, fmap, karyakarta]);
+
+  // This event's own outcome options (Ghari Seva drives differ from attendance).
+  const eventOutcomes = useMemo(() => parseOutcomes(selectedEvent?.outcomes), [selectedEvent]);
 
   const telLink = (d) => {
     const num = String(d.mobile || d.whatsapp || '').replace(/\D/g, '');
@@ -330,11 +353,39 @@ export default function FollowupsPage({ user }) {
                     {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
+                {/* Follow-up outcome options — editable per event. A Ghari Seva drive
+                    needs order-focused outcomes, not "Coming / Not coming". */}
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Follow-up outcome options</label>
+                  <p className="mb-1.5 text-[10px] font-semibold text-text-muted">These are the choices a karyakarta can pick when they follow up each devotee. Add, rename or remove them for this event.</p>
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {OUTCOME_PRESETS.map(p => (
+                      <button type="button" key={p.label} onClick={() => setEventForm(f => ({ ...f, outcomes: [...p.outcomes] }))}
+                        className="rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10">
+                        Use “{p.label}” set
+                      </button>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-border-light p-2 space-y-1.5">
+                    {eventForm.outcomes.map((o, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input value={o}
+                          onChange={e => setEventForm(f => { const n = [...f.outcomes]; n[i] = e.target.value; return { ...f, outcomes: n }; })}
+                          placeholder={`Option ${i + 1}`}
+                          className="flex-1 rounded-lg border border-border-light bg-surface px-3 py-1.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+                        <button type="button" onClick={() => setEventForm(f => ({ ...f, outcomes: f.outcomes.filter((_, j) => j !== i) }))}
+                          title="Remove option" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setEventForm(f => ({ ...f, outcomes: [...f.outcomes, ''] }))}
+                      className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-primary hover:bg-primary/5"><Plus className="h-3.5 w-3.5" /> Add option</button>
+                  </div>
+                </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Description <span className="normal-case text-slate-400">(optional)</span></label>
-                  <textarea value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
-                    rows={2} placeholder="Notes about this event…"
-                    className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary resize-none" />
+                  <AutoTextarea value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
+                    minRows={2} placeholder="Notes about this event…"
+                    className="w-full rounded-2xl border border-border-light bg-surface px-4 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-text-muted">Devotee tags <span className="normal-case text-slate-400">(optional)</span></label>
@@ -381,12 +432,14 @@ export default function FollowupsPage({ user }) {
   }
 
   // ---------------- FOLLOW-UP BOARD VIEW ----------------
+  // Positive-sounding outcomes (coming / order placed) show green, clearly-negative
+  // ones red, the rest neutral — so the chip row reads at a glance for any outcome set.
+  const outcomeChipCls = (o) => /coming|placed|yes|done|interested(?<!not interested)/i.test(o) && !/not /i.test(o)
+    ? 'text-emerald-600' : /not |unable|no\b|refus/i.test(o) ? 'text-red-600' : 'text-amber-600';
   const chips = [
     { label: 'Devotees', value: summary.total, cls: 'text-text-main' },
     { label: 'Contacted', value: summary.contacted, cls: 'text-sky-600' },
-    { label: 'Coming', value: summary.coming, cls: 'text-emerald-600' },
-    { label: 'Maybe', value: summary.maybe, cls: 'text-amber-600' },
-    { label: 'Not Coming', value: summary.notComing, cls: 'text-red-600' },
+    ...eventOutcomes.map(o => ({ label: o, value: summary.byOutcome[o] || 0, cls: outcomeChipCls(o) })),
     { label: 'Pending', value: summary.pending, cls: 'text-slate-500' },
   ];
 
@@ -573,20 +626,10 @@ export default function FollowupsPage({ user }) {
                   <Tick on={!!f.message} onClick={() => save(d.id, { message: !f.message })} icon={MessageSquare} label="Messaged" />
 
                   <select value={f.outcome || ''} onChange={e => save(d.id, { outcome: e.target.value })}
-                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold outline-none ${OUTCOME_STYLE[f.outcome || '']}`}>
+                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold outline-none ${outcomeStyle(f.outcome || '')}`}>
                     <option value="">No response</option>
-                    {OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
+                    {[...new Set([...eventOutcomes, ...(f.outcome ? [f.outcome] : [])])].map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
-
-                  {/* Apply the chosen outcome to the WHOLE family in one tap. Only
-                      shown when this devotee is in a family of 2+ and has an outcome. */}
-                  {d.familyId && (familyMembers.get(d.familyId)?.length || 0) > 1 && f.outcome && (
-                    <button type="button" onClick={() => applyToFamily(d, f.outcome)}
-                      title={`Mark all ${familyMembers.get(d.familyId).length} family members as "${f.outcome}"`}
-                      className="flex h-8 items-center gap-1 rounded-xl bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/20">
-                      <Users className="h-3.5 w-3.5" /> Family
-                    </button>
-                  )}
 
                   {telLink(d) && (
                     <a href={telLink(d)}
@@ -608,9 +651,19 @@ export default function FollowupsPage({ user }) {
                   opening every member's card. Shows who already followed up too. */}
               {famAll.length > 0 && (
                 <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
-                  <p className="flex items-center gap-1 text-[11px] font-bold text-primary">
-                    <Users className="h-3 w-3" /> Family members ({famAll.length})
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                      <Users className="h-3 w-3" /> Family members ({famAll.length})
+                    </p>
+                    {/* Apply one outcome to the WHOLE family (this devotee + all members)
+                        in a single step. Each member can still be changed individually. */}
+                    <select value="" onChange={e => { if (e.target.value) applyToFamily(d, e.target.value); }}
+                      title="Set the same outcome for everyone in this family"
+                      className="shrink-0 rounded-lg border border-primary/30 bg-surface px-2 py-1 text-[11px] font-bold text-primary outline-none">
+                      <option value="">Set all to…</option>
+                      {eventOutcomes.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
                   <div className="mt-1.5 space-y-1.5">
                     {famAll.map((member) => {
                       const mf = fmap[member.id] || {};
@@ -621,9 +674,9 @@ export default function FollowupsPage({ user }) {
                             {mf.contactedBy && <p className="truncate text-[10px] text-text-muted">by {mf.contactedBy}</p>}
                           </div>
                           <select value={mf.outcome || ''} onChange={e => save(member.id, { outcome: e.target.value })}
-                            className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold outline-none ${OUTCOME_STYLE[mf.outcome || '']}`}>
+                            className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold outline-none ${outcomeStyle(mf.outcome || '')}`}>
                             <option value="">No response</option>
-                            {OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
+                            {[...new Set([...eventOutcomes, ...(mf.outcome ? [mf.outcome] : [])])].map(o => <option key={o} value={o}>{o}</option>)}
                           </select>
                         </div>
                       );

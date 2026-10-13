@@ -24,8 +24,27 @@ window.addEventListener('vite:preloadError', (e) => {
 // (details hidden for scripts without CORS) — so capture whatever context IS
 // available (source file, line/col, and the full page URL) to make it diagnosable.
 window.addEventListener('error', (e) => {
+  // The same 'error' event fires for BOTH uncaught JS exceptions and failed
+  // resource loads (an <img>/<script>/<link> that 404s or is blocked). They need
+  // different handling: a resource error has no message but DOES name the element
+  // and its URL, while a JS error has a message but — when cross-origin — hides
+  // everything as a bare "Script error." Capture whichever context exists.
+  const tgt = e?.target;
+  const isResource = tgt && tgt !== window && (tgt.src || tgt.href);
+  if (isResource) {
+    dataService.reportError({
+      message: `Resource failed to load: <${(tgt.tagName || '?').toLowerCase()}>`,
+      stack: `url: ${tgt.src || tgt.href}`,
+      page: location.href,
+    });
+    return;
+  }
   const loc = [e?.filename, e?.lineno, e?.colno].filter(Boolean).join(':');
-  const msg = (e?.message || 'Unknown error') + (loc ? ` @ ${loc}` : '');
+  // A message of exactly "Script error." with no file/line is the browser's
+  // opaque cross-origin error — flag it so the admin knows WHY it has no stack.
+  const opaque = !loc && /^script error\.?$/i.test(String(e?.message || '').trim());
+  const msg = (e?.message || 'Unknown error') + (loc ? ` @ ${loc}` : '')
+    + (opaque ? ' (opaque cross-origin error — thrown by a 3rd-party/injected script or an uninstrumented chunk; no stack available)' : '');
   dataService.reportError({
     message: msg,
     stack: e?.error?.stack || (loc ? `at ${loc}` : ''),

@@ -13,7 +13,7 @@ var HEADERS = {
   // give a non-admin access to a specific module like Ghari Seva.
   Users:      ['mobile','pin','password','role','name','modules'],
   Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','gradeAsOf','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
-  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags'],
+  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags','outcomes'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date'],
@@ -47,7 +47,7 @@ var HEADERS = {
   Swadhyay: ['key','devoteeId','mobile','name','date','bhajanMin','bhajanTime','listenMin','readMin','createdOn','updatedOn'],
   // Seva log by karyakartas (Sevak/Admin). Each visit: date, from/to time, what was
   // done, and the devotee whose home was visited — shown on both profiles.
-  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','companionsJson','createdBy','createdOn','updatedBy','updatedOn'],
+  Seva: ['id','karyakartaId','karyakartaName','karyakartaMobile','date','fromTime','toTime','category','work','visitedId','visitedName','companionsJson','planned','createdBy','createdOn','updatedBy','updatedOn'],
   // Calendar plans — a devotee's planned/done activity on a day. type ∈ seva|bhajan|
   // katha; status ∈ planned|done. "Done" markers also come from Swadhyay & Seva.
   CalPlan: ['id','devoteeId','date','type','note','status','createdOn','updatedOn'],
@@ -77,7 +77,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-12-ghari-orderno';
+var SCHEMA_VERSION = '2026-10-13-seva-planned';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -360,6 +360,7 @@ function doSaveSeva_(p){
     category: String(p.category||''), work: String(p.work||''),
     visitedId: String(p.visitedId||''), visitedName: String(p.visitedName||''),
     companionsJson: String(p.companionsJson||'[]'),
+    planned: (p.planned === true || String(p.planned||'') === '1' || String(p.planned||'') === 'true') ? '1' : '',
     createdBy: String(p.createdBy||''), createdOn: now, updatedBy: String(p.createdBy||''), updatedOn: now
   };
   var existing = findRow_('Seva', 'id', id);
@@ -389,6 +390,66 @@ function doDeleteSeva_(p){
   var r = findRow_('Seva','id',String(p.id||''));
   if(r > 0) tab_('Seva').deleteRow(r);
   return json_({ ok:true });
+}
+
+// ── Planned-seva reminders (push to everyone included) ───────────────────────
+// A planned seva (planned='1') reminds its participants — the creator and every
+// companion who is a devotee in the directory (guests have no mobile, so they're
+// skipped) — on the MORNING of the seva and the EVENING BEFORE. Each (seva,
+// window) reminds at most once, tracked in Script Properties.
+// Set up once from the editor: run `setupSevaReminders`.
+function sevaDateKey_(v){
+  if(v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(v||'').slice(0,10);
+}
+function ymdLocal_(d){ return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
+function sevaParticipantMobiles_(seva){
+  var mobs = {};
+  var km = normMob_(seva.karyakartaMobile || '');
+  if(km) mobs[km] = true;
+  var comps = [];
+  try { comps = JSON.parse(seva.companionsJson || '[]'); } catch(e){ comps = []; }
+  if(comps.length){
+    var byId = {}; readAll_('Devotees').forEach(function(d){ byId[String(d.id)] = d; });
+    comps.forEach(function(c){ var d = byId[String(c && c.id)]; var m = normMob_(d && d.mobile || ''); if(m) mobs[m] = true; });
+  }
+  return Object.keys(mobs);
+}
+function sevaRemindOnce_(key){
+  var props = PropertiesService.getScriptProperties();
+  var k = 'sevaReminded:' + key;
+  if(props.getProperty(k)) return false;
+  props.setProperty(k, '1');
+  return true;
+}
+function sevaRemindersForDate_(dateStr, windowKey, whenWord){
+  var rows = readAll_('Seva').filter(function(r){
+    return String(r.planned||'') === '1' && sevaDateKey_(r.date) === dateStr;
+  });
+  var total = 0;
+  rows.forEach(function(s){
+    if(!sevaRemindOnce_(String(s.id) + ':' + windowKey + ':' + dateStr)) return;
+    var who = (s.visitedName ? ("at " + s.visitedName + "'s home") : (s.category || 'Seva'));
+    var time = [s.fromTime, s.toTime].filter(Boolean).join(' – ');
+    var title = '🤝 Seva ' + whenWord;
+    var body = who + (time ? (' · ' + time) : '') + (s.work ? (' — ' + String(s.work).slice(0,80)) : '');
+    sevaParticipantMobiles_(s).forEach(function(m){ try { total += pushToMobile_(title, body, m, { type:'seva', sevaId: s.id }); } catch(e){} });
+  });
+  return total;
+}
+// Trigger target — runs ~8 AM: reminds participants of TODAY's planned sevas.
+function sevaMorningReminders_(){ return sevaRemindersForDate_(ymdLocal_(new Date()), 'morning', 'today'); }
+// Trigger target — runs ~6 PM: reminds of TOMORROW's planned sevas (evening before).
+function sevaEveningReminders_(){ var t = new Date(); t.setDate(t.getDate() + 1); return sevaRemindersForDate_(ymdLocal_(t), 'eve', 'tomorrow'); }
+// Run ONCE from the Apps Script editor to schedule the two daily reminder triggers.
+function setupSevaReminders(){
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    var fn = t.getHandlerFunction();
+    if(fn === 'sevaMorningReminders_' || fn === 'sevaEveningReminders_') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sevaMorningReminders_').timeBased().atHour(8).everyDays(1).create();
+  ScriptApp.newTrigger('sevaEveningReminders_').timeBased().atHour(18).everyDays(1).create();
+  return 'Seva reminders scheduled: 8 AM (today) & 6 PM (evening before).';
 }
 
 // ── Calendar plans ───────────────────────────────────────────────────────────
@@ -1000,7 +1061,7 @@ function mergeData_(msgData, title, body, link){
 }
 function pushLink_(type){
   var t = String(type || '').toLowerCase();
-  var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard' })[t];
+  var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard', seva:'calendar', calendar:'calendar' })[t];
   return page ? (APP_URL + '?n=' + page) : APP_URL;
 }
 

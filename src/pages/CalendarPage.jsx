@@ -5,6 +5,8 @@ import {
   HeartHandshake, CalendarDays, Search, User, Users, Clock, MapPin, Pencil,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { devoteeMatches } from '../utils/search';
+import AutoTextarea from '../components/AutoTextarea';
 import { alertError } from '../utils/sweetAlert';
 import Swal from 'sweetalert2';
 
@@ -22,7 +24,10 @@ const TYPES = {
   bhajan: { label: 'Bhajan', icon: Music, dot: 'bg-rose-500', ring: 'ring-rose-500', text: 'text-rose-600', soft: 'bg-rose-50 dark:bg-rose-950/40' },
   katha: { label: 'Katha-Varta', icon: Headphones, dot: 'bg-violet-500', ring: 'ring-violet-500', text: 'text-violet-600', soft: 'bg-violet-50 dark:bg-violet-950/40' },
 };
-const TYPE_KEYS = ['seva', 'bhajan', 'katha'];
+// The calendar module shows ONLY Seva now — Bhajan / Katha-Varta live in the
+// Swadhyay module, not here. (TYPES keeps all three so any old bhajan/katha plan
+// rows still render a label, but the calendar never surfaces them itself.)
+const TYPE_KEYS = ['seva'];
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 // ── Searchable devotee picker (whose home was visited) — merged from Seva ──────
@@ -33,7 +38,9 @@ function DevoteePicker({ value, name, onPick }) {
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return [];
-    return devotees.filter((d) => String(d.name || '').toLowerCase().includes(s) || last10(d.mobile).includes(s)).slice(0, 8);
+    // Tokenized match — find by any combination of name parts (first + last even
+    // with a middle name between), mobile or DOB. Consistent across the app.
+    return devotees.filter((d) => devoteeMatches(d, q)).slice(0, 8);
   }, [q, devotees]);
 
   if (value && name) {
@@ -66,18 +73,37 @@ function DevoteePicker({ value, name, onPick }) {
   );
 }
 
-// Add several co-sevaks who went along — merged from Seva.
+// Add several co-sevaks who went along — merged from Seva. Companions can be
+// devotees from the directory OR free-typed names (someone not in the database).
 function CompanionPicker({ companions, excludeIds, onAdd, onRemove }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const inputRef = React.useRef(null);
   const devotees = useMemo(() => dataService.getDevotees(), []);
   const taken = new Set([...(excludeIds || []).filter(Boolean), ...companions.map((c) => c.id)]);
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return [];
-    return devotees.filter((d) => !taken.has(d.id) && (String(d.name || '').toLowerCase().includes(s) || last10(d.mobile).includes(s))).slice(0, 8);
+    return devotees.filter((d) => !taken.has(d.id) && devoteeMatches(d, q)).slice(0, 8);
     // eslint-disable-next-line
   }, [q, devotees, companions]);
+
+  // Keep the field focused after each add so several companions can be typed in a
+  // row without clicking back into the box every time.
+  const refocus = () => { setQ(''); setOpen(true); setTimeout(() => { try { inputRef.current?.focus(); } catch (e) {} }, 0); };
+  const addDevotee = (d) => { onAdd(d); refocus(); };
+  // Add a name that isn't in the directory — stored as a free-text "guest" with a
+  // stable local id so it never collides with a real devotee id.
+  const addGuest = () => {
+    const name = q.trim();
+    if (!name) return;
+    onAdd({ id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, name });
+    refocus();
+  };
+  // Show the "add typed name" option when something is typed and it isn't already
+  // an exact match of a devotee shown in the results.
+  const typed = q.trim();
+  const showAddGuest = typed.length > 0 && !results.some((d) => String(d.name || '').trim().toLowerCase() === typed.toLowerCase());
 
   return (
     <div>
@@ -85,7 +111,7 @@ function CompanionPicker({ companions, excludeIds, onAdd, onRemove }) {
         <div className="mb-2 flex flex-wrap gap-1.5">
           {companions.map((c) => (
             <span key={c.id} className="flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700 dark:bg-purple-950/50">
-              {c.name}
+              {c.name}{String(c.id).startsWith('guest-') && <span className="text-[9px] font-bold uppercase text-purple-400">guest</span>}
               <button onClick={() => onRemove(c.id)} className="text-purple-500 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
             </span>
           ))}
@@ -93,18 +119,27 @@ function CompanionPicker({ companions, excludeIds, onAdd, onRemove }) {
       )}
       <div className="relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-text-muted" />
-        <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-          placeholder="Add devotees who came along"
+        <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (results.length) addDevotee(results[0]); else if (typed) addGuest(); } }}
+          placeholder="Add devotees or type a name"
           className="w-full rounded-2xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-        {open && results.length > 0 && (
+        {open && (results.length > 0 || showAddGuest) && (
           <div className="mt-1 w-full max-h-56 overflow-y-auto rounded-2xl border border-border-light bg-surface shadow-lg">
             {results.map((d) => (
-              <button key={d.id} onClick={() => { onAdd(d); setQ(''); }}
+              <button key={d.id} onClick={() => addDevotee(d)}
                 className="block w-full border-b border-border-light/60 px-3.5 py-2.5 text-left text-sm last:border-0 hover:bg-bg-base">
                 <span className="font-bold text-text-main">{d.name}</span>
                 {d.area ? <span className="text-xs text-text-muted"> · {d.area}</span> : null}
               </button>
             ))}
+            {showAddGuest && (
+              <button onClick={addGuest}
+                className="flex w-full items-center gap-2 border-t border-border-light px-3.5 py-2.5 text-left text-sm hover:bg-bg-base">
+                <Plus className="h-4 w-4 text-[#7c3aed]" />
+                <span className="font-bold text-text-main">Add “{typed}”</span>
+                <span className="text-xs text-text-muted">— not in directory</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -124,55 +159,40 @@ export default function CalendarPage({ user }) {
   const karyakartaName = me?.name || user?.name || '';
   const karyakartaMobile = me?.mobile || user?.mobile || '';
 
+  const [view, setView] = useState('month'); // 'month' | 'week'
   const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
-  const [swadhyay, setSwadhyay] = useState([]);
+  const [anchor, setAnchor] = useState(() => new Date()); // any day within the shown week
   const [seva, setSeva] = useState([]);
   const [plans, setPlans] = useState([]);
   const [openDay, setOpenDay] = useState(null); // ISO date string
 
   const reloadPlans = () => dataService.getPlans(devoteeId).then((p) => setPlans(p || []));
   const reloadSeva = () => dataService.getSeva({ karyakartaId: devoteeId }).then((r) => setSeva(r || []));
-  const reloadSwadhyay = () => dataService.getMySwadhyay(devoteeId).then((r) => setSwadhyay(r || []));
   useEffect(() => {
     if (!devoteeId) return;
-    reloadSwadhyay();
     reloadSeva();
     reloadPlans();
     // eslint-disable-next-line
   }, [devoteeId]);
 
-  // Live-sync: when a Swadhyay entry is saved (in the Swadhyay module or anywhere)
-  // or the app does a background refresh, re-read so the Calendar reflects it
+  // Live-sync on a background data refresh so the Calendar reflects new Seva/plans
   // without needing to reopen the page.
   useEffect(() => {
     if (!devoteeId) return;
-    const onSwadhyay = () => reloadSwadhyay();
-    const onRefresh = () => { reloadSwadhyay(); reloadSeva(); reloadPlans(); };
-    window.addEventListener('ac-swadhyay-saved', onSwadhyay);
+    const onRefresh = () => { reloadSeva(); reloadPlans(); };
     window.addEventListener('ac-data-refreshed', onRefresh);
-    return () => {
-      window.removeEventListener('ac-swadhyay-saved', onSwadhyay);
-      window.removeEventListener('ac-data-refreshed', onRefresh);
-    };
+    return () => { window.removeEventListener('ac-data-refreshed', onRefresh); };
     // eslint-disable-next-line
   }, [devoteeId]);
 
-  // date -> { done:Set, planned:Set, bhajanMin, kathaMin, sevaCount, plans:[], sevaList:[] }
+  // date -> { done:Set, planned:Set, sevaCount, plans:[], sevaList:[] }
   const byDate = useMemo(() => {
     const m = {};
-    const get = (d) => (m[d] || (m[d] = { done: new Set(), planned: new Set(), bhajanMin: 0, kathaMin: 0, sevaCount: 0, plans: [], sevaList: [], swadhyayList: [] }));
-    swadhyay.forEach((s) => {
-      const e = get(s.date);
-      e.bhajanMin += +s.bhajanMin || 0;
-      e.kathaMin += (+s.listenMin || 0) + (+s.readMin || 0);
-      if ((+s.bhajanMin || 0) > 0) e.done.add('bhajan');
-      if (((+s.listenMin || 0) + (+s.readMin || 0)) > 0) e.done.add('katha');
-      e.swadhyayList.push(s);
-    });
+    const get = (d) => (m[d] || (m[d] = { done: new Set(), planned: new Set(), sevaCount: 0, plans: [], sevaList: [] }));
     seva.forEach((s) => { const e = get(s.date); e.sevaCount++; e.done.add('seva'); e.sevaList.push(s); });
     plans.forEach((p) => { const e = get(p.date); e.plans.push(p); if (p.status === 'done') e.done.add(p.type); else e.planned.add(p.type); });
     return m;
-  }, [swadhyay, seva, plans]);
+  }, [seva, plans]);
 
   // Build the month grid.
   const year = cursor.getFullYear(), month = cursor.getMonth();
@@ -199,21 +219,47 @@ export default function CalendarPage({ user }) {
     return s;
   }, [cells, byDate]);
 
+  // Week view — the 7 ISO dates (Sun…Sat) of the week containing `anchor`.
+  const weekCells = useMemo(() => {
+    const start = new Date(anchor); start.setDate(start.getDate() - start.getDay()); // back to Sunday
+    const out = [];
+    for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(start.getDate() + i); out.push(iso(d)); }
+    return out;
+  }, [anchor]);
+  const weekLabel = useMemo(() => {
+    const a = new Date(weekCells[0] + 'T00:00:00'), b = new Date(weekCells[6] + 'T00:00:00');
+    const left = a.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const right = b.toLocaleDateString('en-IN', a.getMonth() === b.getMonth() ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+    return `${left} – ${right}, ${b.getFullYear()}`;
+  }, [weekCells]);
+
   const shiftMonth = (delta) => setCursor(new Date(year, month + delta, 1));
-  const goToday = () => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)); };
+  const shiftWeek = (delta) => setAnchor((a) => { const d = new Date(a); d.setDate(d.getDate() + delta * 7); return d; });
+  const shiftView = (delta) => (view === 'week' ? shiftWeek(delta) : shiftMonth(delta));
+  const goToday = () => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)); setAnchor(new Date()); };
+  const headingLabel = view === 'week' ? weekLabel : monthLabel;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#FF862A]/10 text-[#FF862A]"><CalendarDays className="h-5 w-5" /></span>
-          <h1 className="text-xl font-black text-text-main">{monthLabel}</h1>
+          <h1 className="text-xl font-black text-text-main">{headingLabel}</h1>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => shiftMonth(-1)} className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-surface text-text-main hover:border-primary"><ChevronLeft className="h-4 w-4" /></button>
-          <button onClick={goToday} className="rounded-xl border border-border-light bg-surface px-3 py-2 text-xs font-bold text-text-main hover:border-primary">Today</button>
-          <button onClick={() => shiftMonth(1)} className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-surface text-text-main hover:border-primary"><ChevronRight className="h-4 w-4" /></button>
+        <div className="flex items-center gap-2">
+          {/* Month / Week toggle */}
+          <div className="inline-flex rounded-xl border border-border-light bg-bg-base p-0.5 text-xs font-bold">
+            {['month', 'week'].map((v) => (
+              <button key={v} onClick={() => setView(v)}
+                className={`rounded-lg px-3 py-1.5 capitalize transition-colors ${view === v ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>{v}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => shiftView(-1)} aria-label="Previous" className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-surface text-text-main hover:border-primary"><ChevronLeft className="h-4 w-4" /></button>
+            <button onClick={goToday} className="rounded-xl border border-border-light bg-surface px-3 py-2 text-xs font-bold text-text-main hover:border-primary">Today</button>
+            <button onClick={() => shiftView(1)} aria-label="Next" className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-surface text-text-main hover:border-primary"><ChevronRight className="h-4 w-4" /></button>
+          </div>
         </div>
       </div>
 
@@ -233,6 +279,42 @@ export default function CalendarPage({ user }) {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-6 lg:items-start">
       {/* Calendar grid */}
       <div className="mt-4 rounded-3xl border border-border-light bg-surface p-3 shadow-xs">
+        {view === 'week' ? (
+          /* Week view — one roomy card per day with the seva/plans listed in full. */
+          <div className="space-y-2">
+            {weekCells.map((d) => {
+              const e = byDate[d];
+              const isToday = d === todayISO();
+              const dt = new Date(d + 'T00:00:00');
+              const sevaList = e?.sevaList || [];
+              const planned = (e?.plans || []).filter((p) => p.status !== 'done');
+              return (
+                <button key={d} onClick={() => setOpenDay(d)}
+                  className={`flex w-full items-stretch gap-3 rounded-2xl border p-2.5 text-left transition-colors hover:bg-bg-base ${isToday ? 'border-primary bg-primary/5' : 'border-border-light bg-surface'}`}>
+                  <div className={`flex w-12 shrink-0 flex-col items-center justify-center rounded-xl ${isToday ? 'bg-primary text-white' : 'bg-bg-base text-text-main'}`}>
+                    <span className="text-[10px] font-bold uppercase">{dt.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+                    <span className="text-lg font-black leading-none">{dt.getDate()}</span>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1 py-0.5">
+                    {sevaList.length === 0 && planned.length === 0 && <p className="text-xs font-semibold text-text-muted">No seva</p>}
+                    {sevaList.map((s) => (
+                      <p key={s.id} className="flex items-center gap-1.5 truncate text-xs font-bold text-purple-700 dark:text-purple-300">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500" />
+                        {s.visitedName || s.category || 'Seva'}{fmtTimeRange(s.fromTime, s.toTime) ? ` · ${fmtTimeRange(s.fromTime, s.toTime)}` : ''}
+                      </p>
+                    ))}
+                    {planned.map((p) => (
+                      <p key={p.id} className="flex items-center gap-1.5 truncate text-xs font-semibold text-text-muted">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-transparent ring-[1.5px] ring-purple-400" />
+                        Planned: {(TYPES[p.type]?.label) || p.type}{p.note ? ` — ${p.note}` : ''}
+                      </p>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
         <div className="grid grid-cols-7 gap-1">
           {WEEKDAYS.map((w, i) => <div key={i} className="py-1 text-center text-[11px] font-black text-text-muted">{w}</div>)}
           {cells.map((d, i) => {
@@ -257,6 +339,7 @@ export default function CalendarPage({ user }) {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Month summary */}
@@ -312,7 +395,10 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
   const sevaList = (data?.sevaList || []);
 
   // ── Full Seva logging (merged from the Seva module) ──────────────────────────
-  const emptySeva = { id: '', fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '', companions: [] };
+  const isFuture = date > todayISO();
+  // A seva on a FUTURE day defaults to "planned" (everyone included gets a reminder
+  // the evening before and the morning of); today/past default to a done log.
+  const emptySeva = { id: '', fromTime: '', toTime: '', category: '', work: '', visitedId: '', visitedName: '', companions: [], planned: isFuture };
   const [sevaForm, setSevaForm] = useState(emptySeva);
   const [sevaOpen, setSevaOpen] = useState(false);
   const [sevaSaving, setSevaSaving] = useState(false);
@@ -335,13 +421,15 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
 
   const saveSeva = async () => {
     if (!sevaForm.visitedId) { alertError('Whose home?', 'Pick the devotee whose home you visited.'); return; }
-    if (!sevaForm.work.trim()) { alertError('What did you do?', 'Describe the seva you did.'); return; }
+    // A planned seva may not have a "what did you do" yet — only require it for a done log.
+    if (!sevaForm.planned && !sevaForm.work.trim()) { alertError('What did you do?', 'Describe the seva you did.'); return; }
     setSevaSaving(true);
     try {
       await dataService.saveSeva({
         ...sevaForm, date,
         companionsJson: JSON.stringify(sevaForm.companions || []),
         karyakartaId: devoteeId, karyakartaName, karyakartaMobile,
+        planned: sevaForm.planned ? '1' : '',
       });
       setSevaSaved(true); setSevaForm(emptySeva);
       await onChangedSeva();
@@ -358,8 +446,24 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
       category: s.category || '', work: s.work || '',
       visitedId: s.visitedId || '', visitedName: s.visitedName || '',
       companions: Array.isArray(comps) ? comps : [],
+      planned: String(s.planned || '') === '1',
     });
     setSevaOpen(true);
+  };
+
+  // Mark a planned seva as done — clears the `planned` flag (so it stops reminding)
+  // and keeps it in the day's log. Re-sends the full row so nothing is lost.
+  const markSevaDone = async (s) => {
+    try {
+      await dataService.saveSeva({
+        id: s.id, date: s.date, fromTime: s.fromTime || '', toTime: s.toTime || '',
+        category: s.category || '', work: s.work || '', visitedId: s.visitedId || '', visitedName: s.visitedName || '',
+        companionsJson: s.companionsJson || '[]',
+        karyakartaId: s.karyakartaId || devoteeId, karyakartaName: s.karyakartaName || karyakartaName, karyakartaMobile: s.karyakartaMobile || karyakartaMobile,
+        planned: '',
+      });
+      await onChangedSeva();
+    } catch (e) { alertError('Could not update', e.message || 'Try again.'); }
   };
 
   const delSeva = async (s) => {
@@ -384,30 +488,32 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
 
         <div className="overflow-y-auto px-5 py-4">
           {/* Done summary chips */}
-          {data && (data.done.size > 0) && (
+          {data && data.sevaCount > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
-              {data.bhajanMin > 0 && <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 dark:bg-rose-950/40">🎵 Bhajan {data.bhajanMin}m</span>}
-              {data.kathaMin > 0 && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-600 dark:bg-violet-950/40">🎧 Katha {data.kathaMin}m</span>}
-              {data.sevaCount > 0 && <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-600 dark:bg-purple-950/40">🤝 {data.sevaCount} seva</span>}
+              <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-600 dark:bg-purple-950/40">🤝 {data.sevaCount} seva</span>
             </div>
           )}
 
           {/* Seva done this day — with the visited devotee, karyakarta and companions */}
           {sevaList.length > 0 && (
             <div className="mb-3 space-y-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva done this day</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva this day</p>
               {sevaList.map((s) => {
                 let comps = [];
                 try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) { /* ignore */ }
                 const time = fmtTimeRange(s.fromTime, s.toTime);
+                const planned = String(s.planned || '') === '1';
+                const mine = (isStaff || String(s.karyakartaId) === String(devoteeId));
                 return (
-                  <div key={s.id} className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 dark:border-purple-900 dark:bg-purple-950/30">
+                  <div key={s.id} className={`rounded-xl border px-3 py-2 ${planned ? 'border-dashed border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20' : 'border-purple-200 bg-purple-50 dark:border-purple-900 dark:bg-purple-950/30'}`}>
                     <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-purple-600" />
+                      <MapPin className={`h-3.5 w-3.5 shrink-0 ${planned ? 'text-amber-600' : 'text-purple-600'}`} />
                       <p className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{s.visitedName || s.category || 'Seva'}</p>
+                      {planned && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">Planned</span>}
                       {s.category && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">{s.category}</span>}
-                      {(isStaff || String(s.karyakartaId) === String(devoteeId)) && (
+                      {mine && (
                         <>
+                          {planned && <button onClick={() => markSevaDone(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-emerald-600" title="Mark done"><Check className="h-3.5 w-3.5" /></button>}
                           <button onClick={() => editSeva(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-primary" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
                           <button onClick={() => delSeva(s)} className="shrink-0 rounded-lg p-1 text-text-muted hover:text-red-500" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                         </>
@@ -456,14 +562,27 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
               {!sevaOpen ? (
                 <button onClick={() => { setSevaForm(emptySeva); setSevaOpen(true); }}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] py-3 text-sm font-black text-white shadow-md transition-transform active:scale-[0.99]">
-                  <HeartHandshake className="h-4 w-4" /> Log a Seva visit
+                  <HeartHandshake className="h-4 w-4" /> {isFuture ? 'Plan a Seva visit' : 'Log a Seva visit'}
                 </button>
               ) : (
                 <div className="space-y-3 rounded-2xl border border-purple-200 bg-purple-50/60 p-3 dark:border-purple-900 dark:bg-purple-950/20">
                   <div className="flex items-center justify-between">
-                    <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-main"><HeartHandshake className="h-4 w-4 text-[#7c3aed]" /> {sevaForm.id ? 'Edit Seva' : 'Log Seva'}</p>
+                    <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-main"><HeartHandshake className="h-4 w-4 text-[#7c3aed]" /> {sevaForm.id ? 'Edit Seva' : (sevaForm.planned ? 'Plan Seva' : 'Log Seva')}</p>
                     <button onClick={() => { setSevaOpen(false); setSevaForm(emptySeva); }} className="rounded-lg p-1 text-text-muted hover:text-red-500"><X className="h-4 w-4" /></button>
                   </div>
+
+                  {/* Planned toggle — a planned seva reminds everyone included (creator +
+                      companions) the evening before and the morning of. */}
+                  <button type="button" onClick={() => setS('planned', !sevaForm.planned)}
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${sevaForm.planned ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : 'border-border-light bg-bg-base'}`}>
+                    <span className="min-w-0">
+                      <span className="block text-[12px] font-bold text-text-main">Planned seva (send reminders)</span>
+                      <span className="block text-[10px] font-semibold text-text-muted">Reminds everyone included the evening before &amp; that morning</span>
+                    </span>
+                    <span className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${sevaForm.planned ? 'bg-amber-500' : 'bg-border-light'}`}>
+                      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${sevaForm.planned ? 'left-[18px]' : 'left-0.5'}`} />
+                    </span>
+                  </button>
 
                   <div>
                     <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-text-muted">Whose home did you visit?</label>
@@ -507,7 +626,7 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
 
                   <div>
                     <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-text-muted">What did you do?</label>
-                    <textarea value={sevaForm.work} onChange={(e) => setS('work', e.target.value)} rows={2} placeholder="e.g. Ghar sabha, gift, invited for Yuva Sabha…"
+                    <AutoTextarea value={sevaForm.work} onChange={(e) => setS('work', e.target.value)} minRows={2} placeholder="e.g. Ghar sabha, gift, invited for Yuva Sabha…"
                       className="w-full rounded-xl border border-border-light bg-bg-base px-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
                   </div>
 

@@ -45,11 +45,31 @@ function groupRows(rows) {
 }
 
 const FIRST_BATCH = 15;
+// Last 10 digits of a mobile — used to match an actor to the signed-in user.
+const last10_ = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 export default function ActivityFeed({ mine = false, limit = 300 }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState('');
+
+  // In "Everyone" mode, hide the viewer's OWN actions — those live under "My
+  // activity". Match on the real signed-in mobile (not a view-as identity); fall
+  // back to the name when an older row has no mobile in its actor string.
+  const dropMine = (list) => {
+    if (mine) return list;
+    const sess = dataService.getCurrentSession() || {};
+    const myMob = last10_(sess.mobile);
+    const myName = String(sess.name || '').trim().toLowerCase();
+    if (!myMob && !myName) return list;
+    return list.filter((r) => {
+      const a = String(r.actor || '');
+      const m = (a.match(/\(([^)]*)\)\s*$/) || [])[1];
+      const aMob = last10_(m);
+      if (aMob && myMob) return aMob !== myMob;
+      return actorName(a).toLowerCase() !== myName;
+    });
+  };
 
   // Progressive load (#120): show the first few newest actions immediately, then
   // fetch the rest in the background so the user isn't staring at a spinner.
@@ -57,13 +77,13 @@ export default function ActivityFeed({ mine = false, limit = 300 }) {
     setLoading(true); setErr('');
     try {
       const first = await dataService.getActivity({ mine, limit: FIRST_BATCH });
-      setRows(first);
+      setRows(dropMine(first));
       setLoading(false);
       if (first.length >= FIRST_BATCH) {
         setLoadingMore(true);
         try {
           const full = await dataService.getActivity({ mine, limit });
-          setRows(full);
+          setRows(dropMine(full));
         } finally { setLoadingMore(false); }
       }
     } catch (e) { setErr('Could not load activity. Pull to refresh.'); setLoading(false); }

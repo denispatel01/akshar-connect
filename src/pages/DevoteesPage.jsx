@@ -646,7 +646,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         .filter((x) => x.s >= 0)
         .sort((a, b) => b.s - a.s) // exact first, then partial, then fuzzy
         .map((x) => x.d);
-    } else if (sortBy) {
+    } else {
+      // Default (no search) is ALWAYS alphabetical A→Z by name — the other sort
+      // modes override it. Devotees are shown A–Z everywhere unless explicitly
+      // sorted another way.
       const areaNum = (d) => {
         const n = areaNumMap[String(d.area || '').trim().toLowerCase()];
         return (n === undefined || n === '' || isNaN(parseInt(n, 10))) ? null : parseInt(n, 10);
@@ -907,8 +910,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} title="Sort"
               className={'rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ' +
                 (sortBy ? 'border-primary bg-primary/5 text-text-main' : 'border-border-light bg-surface text-text-muted')}>
-              <option value="">Sort: Default</option>
-              <option value="name">Name (A–Z)</option>
+              <option value="">Sort: Name (A–Z)</option>
               <option value="joinedDesc">Recently joined</option>
               <option value="joinedAsc">Oldest joined</option>
               <option value="areaAsc">Area (1 → last)</option>

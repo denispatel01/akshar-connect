@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Check, Camera, Phone, MapPin, User, UserCheck, AlertTriangle, UserPlus, Save, Calendar } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { devoteeMatches } from '../utils/search';
 import {
   AREAS, GENDERS, BLOOD_GROUPS, MARITAL_STATUS, YUVAK_TYPES,
   QUALIFICATIONS, EDUCATION_STATUS, PROFESSIONS, RELATIONS, GRADES, deriveAge, gradeDisplay,
@@ -52,7 +53,7 @@ function HeadPicker({ heads, value, onChange }) {
   const [open, setOpen] = useState(false);
   const selected = heads.find((h) => h.familyId === value);
   const ql = q.trim().toLowerCase();
-  const matches = (ql ? heads.filter((h) => (h.name || '').toLowerCase().includes(ql) || (h.area || '').toLowerCase().includes(ql)) : heads).slice(0, 40);
+  const matches = (ql ? heads.filter((h) => devoteeMatches(h, q) || (h.area || '').toLowerCase().includes(ql)) : heads).slice(0, 40);
   return (
     <div className="relative">
       <input value={open ? q : (selected ? `${selected.name}${selected.area ? ` — ${selected.area}` : ''}` : '')}
