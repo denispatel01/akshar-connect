@@ -117,6 +117,8 @@ export default function SwadhyayPage({ user }) {
   const [history, setHistory] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showCal, setShowCal] = useState(false); // month calendar view
+  const [calCursor, setCalCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
   // Fetch the full history in the BACKGROUND — the page renders instantly and the
   // numbers fill in when the data arrives (no blocking "Loading…" screen).
@@ -200,6 +202,35 @@ export default function SwadhyayPage({ user }) {
     return out;
   }, [history, totalToday, date]);
   const weekMax = Math.max(30, ...week.map((w) => w.total));
+
+  // ── Month calendar view (like the Calendar module) ──────────────────────────
+  // Total minutes logged per day, so the grid can mark which days have Swadhyay.
+  const minsByDate = useMemo(() => {
+    const m = {};
+    history.forEach((r) => { m[r.date] = (m[r.date] || 0) + (+r.bhajanMin || 0) + (+r.listenMin || 0) + (+r.readMin || 0); });
+    if (totalToday > 0) m[date] = totalToday; // reflect the in-progress day too
+    return m;
+  }, [history, totalToday, date]);
+  const calCells = useMemo(() => {
+    const y = calCursor.getFullYear(), mo = calCursor.getMonth();
+    const lead = new Date(y, mo, 1).getDay();
+    const dim = new Date(y, mo + 1, 0).getDate();
+    const out = [];
+    for (let i = 0; i < lead; i++) out.push(null);
+    for (let dd = 1; dd <= dim; dd++) out.push(new Date(y, mo, dd).toLocaleDateString('en-CA'));
+    return out;
+  }, [calCursor]);
+  const calLabel = calCursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const shiftCalMonth = (delta) => setCalCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
+  const pickCalDay = (d) => {
+    if (!d || d > todayISO() || d === date) return;
+    // Flush any pending edits for the current day before switching (same as the
+    // day arrows) so nothing typed is lost.
+    if (dirtyRef.current && devoteeId) { if (saveTimer.current) clearTimeout(saveTimer.current); save(); }
+    setDate(d);
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+  };
+  const CAL_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   const save = async () => {
     if (!devoteeId) { alertError('Not linked', 'Your account is not linked to a devotee record yet.'); return; }
@@ -295,6 +326,46 @@ export default function SwadhyayPage({ user }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Month calendar view — tap any day to log/view it (green = logged). */}
+      <div className="mt-4">
+        <button onClick={() => setShowCal((v) => !v)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">
+          📅 {showCal ? 'Hide calendar' : 'Calendar view'}
+        </button>
+        {showCal && (
+          <div className="mt-3 rounded-3xl border border-border-light bg-surface p-4 shadow-xs">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-black text-text-main">{calLabel}</h3>
+              <div className="flex items-center gap-1">
+                <button onClick={() => shiftCalMonth(-1)} aria-label="Previous month" className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-bg-base text-text-main hover:border-primary"><ChevronLeft className="h-4 w-4" /></button>
+                <button onClick={() => { const d = new Date(); setCalCursor(new Date(d.getFullYear(), d.getMonth(), 1)); setDate(todayISO()); }} className="rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-bold text-text-main hover:border-primary">Today</button>
+                <button onClick={() => shiftCalMonth(1)} aria-label="Next month" className="grid h-9 w-9 place-items-center rounded-xl border border-border-light bg-bg-base text-text-main hover:border-primary"><ChevronRight className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {CAL_WEEKDAYS.map((w, i) => <div key={i} className="py-1 text-center text-[11px] font-black text-text-muted">{w}</div>)}
+              {calCells.map((d, i) => {
+                if (!d) return <div key={i} />;
+                const mins = minsByDate[d] || 0;
+                const isSel = d === date;
+                const isTodayCell = d === todayISO();
+                const future = d > todayISO();
+                const dayNum = +d.slice(8, 10);
+                return (
+                  <button key={d} onClick={() => pickCalDay(d)} disabled={future}
+                    className={`relative flex aspect-square flex-col items-center justify-center rounded-xl p-1 transition-colors disabled:opacity-30 ${isSel ? 'bg-[#FF862A] text-white shadow' : isTodayCell ? 'bg-primary/10 ring-1 ring-primary' : 'hover:bg-bg-base'}`}>
+                    <span className={`text-xs font-bold ${isSel ? 'text-white' : isTodayCell ? 'text-primary' : 'text-text-main'}`}>{dayNum}</span>
+                    {mins > 0 && <span className={`mt-0.5 text-[8px] font-black leading-none ${isSel ? 'text-white' : 'text-emerald-600'}`}>{fmtMin(mins)}</span>}
+                    {mins > 0 && <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${isSel ? 'bg-white' : 'bg-emerald-500'}`} />}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-center text-[11px] text-text-muted">Tap a day to log or edit it. <span className="text-emerald-600 font-bold">Green</span> = Swadhyay logged.</p>
+          </div>
+        )}
       </div>
 
       {(
