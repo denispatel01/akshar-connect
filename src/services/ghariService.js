@@ -332,7 +332,17 @@ async function flush() {
         await backendApi(op.action, payload);
         succeeded.add(op.opId);
       } catch (e) {
-        meta[op.opId] = { tries: (op.tries || 0) + 1, lastError: String((e && e.message) || e) };
+        const msg = String((e && e.message) || e);
+        // A permission rejection ("Not allowed — Ghari Seva is view-only…") will
+        // NEVER succeed on retry, and leaving it queued makes the local edit look
+        // saved while syncDown silently reverts it. So surface it to the user and
+        // drop the op, so the revert is visible and explained rather than silent.
+        if (/not allowed/i.test(msg)) {
+          succeeded.add(op.opId); // stop retrying this doomed op
+          emit_('ac-ghari-error', { message: msg, action: op.action });
+        } else {
+          meta[op.opId] = { tries: (op.tries || 0) + 1, lastError: msg };
+        }
       }
       emit_('ac-ghari-synced', { pending: outbox_().filter(o => !succeeded.has(o.opId)).length });
     }

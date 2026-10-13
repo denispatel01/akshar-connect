@@ -172,9 +172,18 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [paymentReceived, setPaymentReceived] = useState(initialOrder?.paymentReceived ?? 0);
   const [review, setReview] = useState(null); // {addAnother} while showing the confirm-order preview
 
+  // Snapshot of the order's original items, so editing an order whose product was
+  // later deactivated/deleted (missing from the active catalog) never drops those
+  // lines — which previously left `items` empty and made "Review & save" silently
+  // refuse (the "Add items" guard tripped even though the order had items).
+  const origBySku = useMemo(() => {
+    const m = {}; (initialOrder?.items || []).forEach(it => { m[it.sku] = it; }); return m;
+  }, [initialOrder]);
+
   const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => {
-    const p = bySku[sku]; return p ? { sku, name: p.name, size: p.size, category: p.category, qty, unitPrice: p.unitPrice } : null;
-  }).filter(Boolean), [cart, bySku]);
+    const p = bySku[sku] || origBySku[sku];
+    return p ? { sku, name: p.name, size: p.size, category: p.category, qty, unitPrice: p.unitPrice } : null;
+  }).filter(Boolean), [cart, bySku, origBySku]);
   const totals = useMemo(() => ghariService.computeTotals(items), [items]);
   const paid = payEdited ? Number(paymentReceived || 0) : totals.total;
   const balance = totals.total - paid;
@@ -1336,9 +1345,13 @@ export default function GhariPage({ user }) {
   useEffect(() => { ghariService.init(); ghariService.syncDown().then(() => setTick(t => t + 1)); }, []);
   useEffect(() => {
     const onChange = () => setTick(t => t + 1);
+    // A write the backend rejected (e.g. permission) — tell the user WHY instead of
+    // letting the edit silently revert on the next sync.
+    const onError = (e) => alertError('Could not save to the server', e?.detail?.message || 'The change was rejected by the backend and has been undone.');
     window.addEventListener('ac-ghari-changed', onChange);
     window.addEventListener('ac-ghari-synced', onChange);
-    return () => { window.removeEventListener('ac-ghari-changed', onChange); window.removeEventListener('ac-ghari-synced', onChange); };
+    window.addEventListener('ac-ghari-error', onError);
+    return () => { window.removeEventListener('ac-ghari-changed', onChange); window.removeEventListener('ac-ghari-synced', onChange); window.removeEventListener('ac-ghari-error', onError); };
   }, []);
 
   const setSeason = (s) => {

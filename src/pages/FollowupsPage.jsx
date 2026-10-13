@@ -513,11 +513,22 @@ export default function FollowupsPage({ user }) {
         );
       })()}
 
+      {/* Shared karyakarta suggestions for the per-card "Assign" inputs. */}
+      <datalist id="followup-karyakarta-list">
+        {karyakartaOptions.map(k => <option key={k} value={k} />)}
+      </datalist>
+
       {/* Roster */}
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
         {audience.slice(0, AUDIENCE_CAP).map(d => {
           const f = fmap[d.id] || {};
           const fam = familyContext(d);
+          // Assigned karyakarta = this follow-up's own override, else the devotee's
+          // default assignee. "Done by" = who actually saved the follow-up — so if
+          // Prerakbhai is assigned but Nirdoshbhai covered for him, both are visible.
+          const assigned = (f.assignedTo || d.followupKaryakarta || '').trim();
+          const doneBy = (f.contactedBy || '').trim();
+          const coveredBy = contacted(f) && doneBy && assigned && doneBy.toLowerCase() !== assigned.toLowerCase();
           return (
             <div key={d.id} className="rounded-2xl border border-border-light bg-surface p-3 shadow-xs">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -528,11 +539,16 @@ export default function FollowupsPage({ user }) {
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
                   </div>
                   <p className="text-[11px] text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {d.mobile || '—'}</p>
-                  {/* Who did this devotee's follow-up (and when) — so any karyakarta
-                      can see who already reached out to this person. */}
-                  {contacted(f) && f.contactedBy && (
-                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                      <UserRound className="h-3 w-3" /> by {f.contactedBy}
+                  {/* Assigned karyakarta + who actually did the follow-up (and when). */}
+                  {assigned && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-text-muted">
+                      <Users className="h-3 w-3" /> Assigned: <span className="text-text-main">{assigned}</span>
+                    </p>
+                  )}
+                  {contacted(f) && doneBy && (
+                    <p className={`mt-0.5 flex items-center gap-1 text-[11px] font-semibold ${coveredBy ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <UserRound className="h-3 w-3" />
+                      {coveredBy ? <>Done by {doneBy} <span className="font-normal">(covered for {assigned})</span></> : <>by {doneBy}</>}
                       {f.contactedOn ? <span className="font-normal text-text-muted"> · {new Date(f.contactedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span> : null}
                     </p>
                   )}
@@ -615,10 +631,18 @@ export default function FollowupsPage({ user }) {
                 </div>
               )}
 
+              {/* Assign (or re-assign) the karyakarta for this devotee's follow-up.
+                  Overrides the devotee's default assignee for this event only. */}
+              <input
+                list="followup-karyakarta-list"
+                defaultValue={f.assignedTo || ''}
+                onBlur={e => { if (e.target.value.trim() !== (f.assignedTo || '')) save(d.id, { assignedTo: e.target.value.trim() }); }}
+                placeholder={d.followupKaryakarta ? `Assign karyakarta (default: ${d.followupKaryakarta})` : 'Assign karyakarta…'}
+                className="mt-2 w-full rounded-xl border border-[#EEF2F7] bg-[#F8FAFC] px-3 py-1.5 text-xs text-text-main outline-none focus:border-primary" />
               <input
                 defaultValue={f.remark || ''}
                 onBlur={e => { if (e.target.value !== (f.remark || '')) save(d.id, { remark: e.target.value }); }}
-                placeholder="Remark (assigned karyakarta, notes)…"
+                placeholder="Remark (notes)…"
                 className="mt-2 w-full rounded-xl border border-[#EEF2F7] bg-[#F8FAFC] px-3 py-1.5 text-xs text-text-main outline-none focus:border-primary" />
             </div>
           );
