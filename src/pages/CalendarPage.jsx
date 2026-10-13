@@ -193,7 +193,14 @@ export default function CalendarPage({ user }) {
   const byDate = useMemo(() => {
     const m = {};
     const get = (d) => (m[d] || (m[d] = { done: new Set(), planned: new Set(), sevaCount: 0, plans: [], sevaList: [] }));
-    seva.forEach((s) => { const e = get(s.date); e.sevaCount++; e.done.add('seva'); e.sevaList.push(s); });
+    seva.forEach((s) => {
+      const e = get(s.date);
+      // A PLANNED seva is upcoming, not done — show it as a hollow/ring dot (via
+      // `planned`), not a filled one, and don't count it as a completed visit.
+      if (String(s.planned || '') === '1') e.planned.add('seva');
+      else { e.done.add('seva'); e.sevaCount++; }
+      e.sevaList.push(s);
+    });
     plans.forEach((p) => { const e = get(p.date); e.plans.push(p); if (p.status === 'done') e.done.add(p.type); else e.planned.add(p.type); });
     return m;
   }, [seva, plans]);
@@ -301,12 +308,15 @@ export default function CalendarPage({ user }) {
                   </div>
                   <div className="min-w-0 flex-1 space-y-1 py-0.5">
                     {sevaList.length === 0 && planned.length === 0 && <p className="text-xs font-semibold text-text-muted">No seva</p>}
-                    {sevaList.map((s) => (
-                      <p key={s.id} className="flex items-center gap-1.5 truncate text-xs font-bold text-purple-700 dark:text-purple-300">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500" />
-                        {s.visitedName || s.category || 'Seva'}{fmtTimeRange(s.fromTime, s.toTime) ? ` · ${fmtTimeRange(s.fromTime, s.toTime)}` : ''}
-                      </p>
-                    ))}
+                    {sevaList.map((s) => {
+                      const isPlanned = String(s.planned || '') === '1';
+                      return (
+                        <p key={s.id} className={`flex items-center gap-1.5 truncate text-xs font-bold ${isPlanned ? 'text-amber-700 dark:text-amber-300' : 'text-purple-700 dark:text-purple-300'}`}>
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isPlanned ? 'bg-transparent ring-[1.5px] ring-amber-500' : 'bg-purple-500'}`} />
+                          {isPlanned ? 'Planned: ' : ''}{s.visitedName || s.category || 'Seva'}{fmtTimeRange(s.fromTime, s.toTime) ? ` · ${fmtTimeRange(s.fromTime, s.toTime)}` : ''}
+                        </p>
+                      );
+                    })}
                     {planned.map((p) => (
                       <p key={p.id} className="flex items-center gap-1.5 truncate text-xs font-semibold text-text-muted">
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-transparent ring-[1.5px] ring-purple-400" />
