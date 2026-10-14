@@ -198,6 +198,7 @@ export default function AdminPage({ user, onViewAs }) {
 
       {/* NOTIFICATIONS TAB */}
       {isAdmin && tab === 'notifications' && <NotificationsReport />}
+      {isAdmin && tab === 'notifications' && <PushLogPanel />}
 
       {/* SYSTEM TAB — email toggle */}
       {isAdmin && tab === 'system' && <MailToggle />}
@@ -252,9 +253,6 @@ export default function AdminPage({ user, onViewAs }) {
           )}
         </div>
       )}
-
-      {/* SYSTEM TAB — push notification log (who received / opened each push) */}
-      {isAdmin && tab === 'system' && <PushLogPanel />}
 
       {/* USERS TAB — Registered System Users */}
       {isAdmin && tab === 'users' && (
