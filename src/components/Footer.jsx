@@ -45,7 +45,6 @@ export default function Footer() {
             Swaminarayan Hariprabodham Foundation · Adajan, Surat
           </p>
         </div>
-        <p className="mt-4 text-center text-sm italic text-[#FFC79A]">Connecting Devotees with Divinity</p>
 
         {/* Section cards */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
