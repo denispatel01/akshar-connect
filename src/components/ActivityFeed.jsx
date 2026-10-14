@@ -44,13 +44,17 @@ function groupRows(rows) {
   return buckets;
 }
 
-const FIRST_BATCH = 15;
+// Lazy loading: fetch one small page at a time instead of hundreds of rows up
+// front. "Load more" grows the window by PAGE each tap.
+const PAGE = 20;
 // Last 10 digits of a mobile — used to match an actor to the signed-in user.
 const last10_ = (v) => String(v || '').replace(/\D/g, '').slice(-10);
-export default function ActivityFeed({ mine = false, limit = 300 }) {
+export default function ActivityFeed({ mine = false }) {
   const [rows, setRows] = useState([]);
+  const [limit, setLimit] = useState(PAGE);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [err, setErr] = useState('');
 
   // In "Everyone" mode, hide the viewer's OWN actions — those live under "My
@@ -71,30 +75,30 @@ export default function ActivityFeed({ mine = false, limit = 300 }) {
     });
   };
 
-  // Progressive load (#120): show the first few newest actions immediately, then
-  // fetch the rest in the background so the user isn't staring at a spinner.
-  const load = async () => {
-    setLoading(true); setErr('');
+  // Fetch the newest `reqLimit` actions. The backend returns the most-recent N, so
+  // growing the window and re-fetching shows the next page without loading the whole
+  // history at once.
+  const load = async (reqLimit, { more = false } = {}) => {
+    if (more) setLoadingMore(true); else setLoading(true);
+    setErr('');
     try {
-      const first = await dataService.getActivity({ mine, limit: FIRST_BATCH });
-      setRows(dropMine(first));
-      setLoading(false);
-      if (first.length >= FIRST_BATCH) {
-        setLoadingMore(true);
-        try {
-          const full = await dataService.getActivity({ mine, limit });
-          setRows(dropMine(full));
-        } finally { setLoadingMore(false); }
-      }
-    } catch (e) { setErr('Could not load activity. Pull to refresh.'); setLoading(false); }
+      const list = await dataService.getActivity({ mine, limit: reqLimit });
+      setHasMore(list.length >= reqLimit); // a full page back likely means more exist
+      setRows(dropMine(list));
+    } catch (e) { setErr('Could not load activity. Pull to refresh.'); }
+    finally { setLoading(false); setLoadingMore(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [mine]);
+  // Initial load / scope switch → back to the first page.
+  useEffect(() => { setLimit(PAGE); load(PAGE); /* eslint-disable-next-line */ }, [mine]);
+
+  const loadMore = () => { const next = limit + PAGE; setLimit(next); load(next, { more: true }); };
+  const refresh = () => { setLimit(PAGE); load(PAGE); };
 
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold text-text-muted">{loading ? 'Loading…' : `${rows.length}${loadingMore ? '+' : ''} ${mine ? 'of your actions' : 'recent actions'}${loadingMore ? ' · loading more…' : ''}`}</p>
-        <button onClick={load} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
+        <p className="text-xs font-semibold text-text-muted">{loading ? 'Loading…' : `${rows.length}${hasMore ? '+' : ''} ${mine ? 'of your actions' : 'recent actions'}`}</p>
+        <button onClick={refresh} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
@@ -140,6 +144,16 @@ export default function ActivityFeed({ mine = false, limit = 300 }) {
           </div>
         );
       })()}
+
+      {/* Lazy "load more" — fetches the next page only when asked. */}
+      {!loading && rows.length > 0 && hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button onClick={loadMore} disabled={loadingMore}
+            className="inline-flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-5 py-2.5 text-sm font-bold text-text-main hover:bg-bg-base disabled:opacity-60">
+            {loadingMore ? <><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</> : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
