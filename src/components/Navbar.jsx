@@ -32,6 +32,41 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
     return () => { document.body.style.overflow = prev; };
   }, [moreOpen]);
 
+  // Make the Menu easy to close: Esc, and the phone's Back button / gesture.
+  // Opening pushes a history entry so Back simply dismisses the Menu instead of
+  // leaving the app.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMoreOpen(false); };
+    const onPop = () => setMoreOpen(false);
+    window.addEventListener('keydown', onKey);
+    window.history.pushState({ acMenu: true }, '');
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
+      // If we're closing for a reason other than Back, remove the entry we pushed.
+      if (window.history.state && window.history.state.acMenu) window.history.back();
+    };
+  }, [moreOpen]);
+
+  // Swipe-down-to-dismiss. `drag` is how far the sheet has been pulled down (px).
+  const [drag, setDrag] = useState(0);
+  const dragStart = useRef(null);
+  const onDragStart = (e) => { dragStart.current = e.touches ? e.touches[0].clientY : e.clientY; };
+  const onDragMove = (e) => {
+    if (dragStart.current == null) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    setDrag(Math.max(0, y - dragStart.current));
+  };
+  const onDragEnd = () => {
+    if (dragStart.current == null) return;
+    const far = drag > 110;
+    dragStart.current = null;
+    setDrag(0);
+    if (far) setMoreOpen(false);
+  };
+
   const [hasNewFeed, clearNewFeed] = useNewFeed();
 
   const longPressTimer = useRef(null);
@@ -195,10 +230,24 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           behind a scroll. */}
       {moreOpen && (
         <div className="md:hidden fixed inset-0 z-[60] flex flex-col bg-bg-base"
-          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          style={{
+            paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+            transform: drag ? `translateY(${drag}px)` : undefined,
+            transition: dragStart.current == null ? 'transform 0.2s ease' : 'none',
+          }}>
+
+          {/* Grab handle + "swipe down / tap to close" — the whole top strip is a
+              big, easy close target (drag it down, or just tap it). */}
+          <div className="shrink-0 cursor-pointer select-none bg-primary pt-2"
+            onClick={() => setMoreOpen(false)}
+            onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+            onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-white/50" />
+            <p className="py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white/70">Swipe down or tap here to close</p>
+          </div>
 
           {/* Header: My Account + close */}
-          <div className="flex shrink-0 items-center gap-3 border-b border-border-light bg-primary px-4 py-3">
+          <div className="flex shrink-0 items-center gap-3 border-b border-border-light bg-primary px-4 pb-3 pt-1">
             <button onClick={() => { setMoreOpen(false); navigate('account'); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-bold text-white shadow-md">{user?.name?.[0] || 'U'}</div>
               <div className="min-w-0 flex-1">
@@ -246,6 +295,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               <LogOut className="h-4 w-4" /> Sign Out
             </button>
           </div>
+
+          {/* Big, thumb-reachable Close — no need to reach the top-right ✕. */}
+          <button onClick={() => setMoreOpen(false)}
+            className="mx-3 mb-3 flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-text-main/90 py-3.5 text-sm font-black text-bg-base active:scale-[0.99]">
+            <X className="h-4 w-4" /> Close menu
+          </button>
         </div>
       )}
       </>,
