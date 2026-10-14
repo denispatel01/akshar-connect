@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 devotees-cannot-login.csv
+
+# Local exception-log snapshots pulled from the backend
+logs/

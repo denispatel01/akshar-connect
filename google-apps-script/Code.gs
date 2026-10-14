@@ -20,6 +20,9 @@ var HEADERS = {
   Areas:      ['name','number','notes'],
   Activity:   ['ts','actor','actorMobile','action','target','detail','device'],
   Changes:    ['ts','action','collection','summary','emailed'],
+  // Runtime exception log — every error a user hits is stored here (as well as
+  // emailed) so it can be pulled into the codebase and fixed. status ∈ open|resolved.
+  ErrorLog:   ['id','time','user','mobile','message','page','stack','ua','status','resolvedBy','resolvedOn'],
   // ── Ghari Seva (fundraising ledger) ──────────────────────────────────────
   // Catalog of sellable items. `category` ∈ ghee|noghee|sf|bhusu. Prices are
   // editable (they change year to year), so each ORDER snapshots the unit price.
@@ -1741,7 +1744,18 @@ function handle_(p){
     if(action==='getGroupAttendance') return cachedJson_('groupAtt', 600, function(){ return JSON.parse(doGetGroupAttendance_().getContent()); });
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
-    if(action==='logError'){ sendErrorEmail_(p); return json_({ ok:true }); }
+    if(action==='logError'){ logErrorRow_(p); sendErrorEmail_(p); return json_({ ok:true }); }
+    // Pull recent errors (newest first). status = open (default) | resolved | all.
+    if(action==='getErrorLog'){
+      var _all = readAll_('ErrorLog');
+      var _st = (p && p.status) || 'open';
+      var _lim = Math.min(Number(p && p.limit) || 200, 1000);
+      var _rows = _all.filter(function(r){ return _st === 'all' ? true : String(r.status || 'open') === _st; });
+      _rows = _rows.slice(-_lim).reverse();
+      return json_({ ok:true, errors:_rows, total:_all.length, open:_all.filter(function(r){ return String(r.status||'open')==='open'; }).length });
+    }
+    // Mark error(s) resolved — p.id, p.ids[], or p.all === true.
+    if(action==='resolveError') return json_({ ok:true, result: resolveError_(p) });
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
 }
@@ -2200,6 +2214,46 @@ function sendErrorEmail_(p){
       +'UserAgent: '+(p && p.ua || '');
     MailApp.sendEmail({ to: email, subject: subject, body: body });
   }catch(e){}
+}
+
+// Store one error row in the ErrorLog sheet so it can be pulled into the codebase
+// and fixed (in addition to the email). Keeps the sheet bounded.
+function logErrorRow_(p){
+  try{
+    var row = {
+      id: 'ERR-' + Date.now().toString(36) + '-' + Math.floor(Math.random()*46656).toString(36),
+      time: (p && p.time) || new Date().toISOString(),
+      user: (p && p.user) || '',
+      mobile: (p && p.mobile) || '',
+      message: String(p && p.message || '').slice(0,500),
+      page: String(p && p.page || '').slice(0,300),
+      stack: String(p && p.stack || '').slice(0,4000),
+      ua: String(p && p.ua || '').slice(0,300),
+      status: 'open', resolvedBy: '', resolvedOn: ''
+    };
+    appendRows_('ErrorLog', [row]);
+    // Keep only the most recent ~800 rows so the sheet never grows without bound.
+    var sh = tab_('ErrorLog'); var over = sh.getLastRow() - 1 - 800;
+    if(over > 0) sh.deleteRows(2, over);
+  }catch(e){}
+}
+
+// Mark error(s) resolved. p.id (one), p.ids (array), or p.all === true.
+function resolveError_(p){
+  var sh = tab_('ErrorLog'); var H = HEADERS.ErrorLog; var last = sh.getLastRow();
+  if(last < 2) return { updated:0 };
+  var data = sh.getRange(2,1,last-1,H.length).getValues();
+  var idI = H.indexOf('id'), stI = H.indexOf('status'), rbI = H.indexOf('resolvedBy'), roI = H.indexOf('resolvedOn');
+  var want = {}; (p && p.ids ? p.ids : (p && p.id ? [p.id] : [])).forEach(function(x){ want[String(x)] = 1; });
+  var all = p && p.all === true;
+  var n = 0, now = new Date().toISOString(), by = (p && p.by) || 'claude';
+  for(var i=0;i<data.length;i++){
+    if((all || want[String(data[i][idI])]) && String(data[i][stI]) !== 'resolved'){
+      data[i][stI] = 'resolved'; data[i][rbI] = by; data[i][roI] = now; n++;
+    }
+  }
+  if(n > 0) sh.getRange(2,1,last-1,H.length).setValues(data);
+  return { updated:n };
 }
 
 // Set the full tags value for many devotees in ONE request/write. p.rows is
