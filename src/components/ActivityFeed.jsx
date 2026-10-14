@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { dataService } from '../services/dataService';
-import { RefreshCw, Activity as ActivityIcon, Smartphone, Clock } from 'lucide-react';
+import { RefreshCw, Activity as ActivityIcon, Smartphone, Clock, GitCommitHorizontal, LayoutList } from 'lucide-react';
 
 // Emoji per action kind for quick scanning.
 const ACTION_EMOJI = {
@@ -23,6 +23,32 @@ function fullTime(ts) {
   const d = new Date(ts);
   if (isNaN(d.getTime())) return ts || '';
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+// Just the clock time, for the timeline rows.
+function clockTime(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+// "Today" / "Yesterday" / "Mon, 12 Oct 2025" — the timeline's day headers.
+function dayLabel(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return 'Earlier';
+  const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOf(new Date()) - startOf(d)) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+// Split rows (already newest-first) into day sections, keeping order.
+function groupByDay(rows) {
+  const out = []; const idx = {};
+  rows.forEach((r) => {
+    const key = dayLabel(r.ts);
+    if (idx[key] === undefined) { idx[key] = out.length; out.push({ key, items: [] }); }
+    out[idx[key]].items.push(r);
+  });
+  return out;
 }
 // "Digesh Patel (99…)" -> "Digesh Patel"
 const actorName = (a) => String(a || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || 'Someone';
@@ -56,6 +82,12 @@ export default function ActivityFeed({ mine = false }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [err, setErr] = useState('');
+  // Timeline (chronological, grouped by day) vs grouped-by-kind. Remembered per
+  // device. Timeline is the default.
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('ac-activity-view') || 'timeline'; } catch { return 'timeline'; }
+  });
+  const setViewPersist = (v) => { setView(v); try { localStorage.setItem('ac-activity-view', v); } catch { /* ignore */ } };
 
   // In "Everyone" mode, hide the viewer's OWN actions — those live under "My
   // activity". Match on the real signed-in mobile (not a view-as identity); fall
@@ -96,11 +128,24 @@ export default function ActivityFeed({ mine = false }) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-text-muted">{loading ? 'Loading…' : `${rows.length}${hasMore ? '+' : ''} ${mine ? 'of your actions' : 'recent actions'}`}</p>
-        <button onClick={refresh} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Timeline / Grouped toggle */}
+          <div className="inline-flex rounded-xl border border-border-light bg-bg-base p-0.5 text-[11px] font-bold">
+            <button onClick={() => setViewPersist('timeline')} title="Timeline view"
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition-colors ${view === 'timeline' ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
+              <GitCommitHorizontal className="h-3.5 w-3.5" /> Timeline
+            </button>
+            <button onClick={() => setViewPersist('grouped')} title="Grouped view"
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition-colors ${view === 'grouped' ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
+              <LayoutList className="h-3.5 w-3.5" /> Grouped
+            </button>
+          </div>
+          <button onClick={refresh} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       {err && <p className="text-xs font-bold text-red-500 mb-2">{err}</p>}
@@ -112,7 +157,40 @@ export default function ActivityFeed({ mine = false }) {
         </div>
       )}
 
-      {(() => {
+      {/* ── Timeline view — chronological, grouped by day with a connecting line. ── */}
+      {view === 'timeline' && rows.length > 0 && (
+        <div className="space-y-5">
+          {groupByDay(rows).map((day) => (
+            <section key={day.key}>
+              <h3 className="mb-2.5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {day.key}
+                <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-muted">{day.items.length}</span>
+              </h3>
+              <ol className="relative ml-[9px] space-y-3 border-l-2 border-border-light pl-5">
+                {day.items.map((r, i) => (
+                  <li key={i} className="relative">
+                    {/* dot on the line */}
+                    <span className="absolute -left-[26px] grid h-5 w-5 place-items-center rounded-full border-2 border-surface bg-primary/10 text-[11px]" title={r.action}>
+                      {ACTION_EMOJI[r.action] || '•'}
+                    </span>
+                    <p className="text-sm font-semibold text-text-main break-words">
+                      {!mine && <span className="font-black">{actorName(r.actor)} </span>}
+                      {r.detail || r.action}
+                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-text-muted">
+                      <span className="inline-flex items-center gap-1" title={fullTime(r.ts)}><Clock className="h-3 w-3" /> {clockTime(r.ts)} · {timeAgo(r.ts)}</span>
+                      {r.device && <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> {r.device}</span>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {/* ── Grouped view — by action kind. ── */}
+      {view === 'grouped' && (() => {
         const buckets = groupRows(rows);
         return (
           <div className="space-y-6">
