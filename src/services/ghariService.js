@@ -446,6 +446,31 @@ function init() {
 
 // ── Devotee lookup for autocomplete (reuse the cached directory) ─────────────
 function norm_(s) { return String(s || '').toLowerCase().trim(); }
+// Names (customers + karyakartas) that were typed on PAST orders but aren't in the
+// devotee list — e.g. an out-of-town customer. Once a name is used on an order it
+// is suggested the next time you type, so you never have to re-type a long name
+// like "Vineet Bhai Desai" in full. The most recent order wins its mobile number.
+function historyNameMatches_(query, excludeKeys, limit) {
+  const q = norm_(query);
+  if (!q || limit <= 0) return [];
+  const seen = new Set(excludeKeys);
+  const out = [];
+  const add = (name, mobile) => {
+    const nm = String(name || '').trim();
+    const key = norm_(nm);
+    if (!key || seen.has(key) || !key.includes(q)) return;
+    seen.add(key);
+    out.push({ id: '', name: nm, area: '', mobile: mobile ? String(mobile) : '', _history: true });
+  };
+  const recent = orders_().slice().sort((a, b) => String(b.createdOn).localeCompare(String(a.createdOn)));
+  for (const o of recent) {
+    if (out.length >= limit) break;
+    add(o.customerName, o.customerMobile);
+    add(o.karyakarta, '');
+  }
+  return out.slice(0, limit);
+}
+
 function searchDevotees(query, limit = 8) {
   const q = norm_(query);
   if (!q) return [];
@@ -453,12 +478,16 @@ function searchDevotees(query, limit = 8) {
   // Use the app-wide tokenized matcher (one source of truth) so a devotee is
   // found by ANY combination of their name parts — first + last even when a
   // middle name sits between them — plus mobile / DOB. Highest score first.
-  return list
+  const devs = list
     .map(d => ({ d, s: scoreMatch(devoteeSearchText(d), d.name || '', query) }))
     .filter(x => x.s >= 0)
     .sort((a, b) => b.s - a.s)
     .slice(0, limit)
     .map(x => x.d);
+  if (devs.length >= limit) return devs;
+  // Fill the rest with remembered names from previous orders.
+  const exclude = devs.map(d => norm_(d.name || ''));
+  return devs.concat(historyNameMatches_(query, exclude, limit - devs.length));
 }
 
 // ===========================================================================
@@ -566,8 +595,11 @@ export const ghariService = {
     const season = input.season || meta_().season;
     const id = input.id || `GHO-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     // A new order gets the next permanent number for its season; an edit keeps the
-    // number it was given at creation.
-    const orderNo = prev?.orderNo || input.orderNo || (isNew ? nextOrderNo_(season) : '');
+    // number it was given at creation — UNLESS the user explicitly typed a new
+    // order number (admins can correct/renumber an order).
+    const typedNo = (input.orderNo !== undefined && input.orderNo !== null && String(input.orderNo).trim() !== '')
+      ? input.orderNo : null;
+    const orderNo = typedNo != null ? typedNo : (prev?.orderNo || (isNew ? nextOrderNo_(season) : ''));
     const items = (input.items || []).filter(i => num_(i.qty) > 0).map(i => ({
       sku: i.sku, name: i.name, size: i.size, category: i.category,
       qty: num_(i.qty), unitPrice: num_(i.unitPrice),

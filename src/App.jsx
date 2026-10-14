@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import GlobalInputClear from './components/GlobalInputClear';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -267,6 +268,7 @@ export default function App() {
         </div>
       )}
       <NotificationsPopup user={effectiveUser} />
+      <GlobalInputClear />
       <Navbar
         activePage={activePage}
         setActivePage={navigate}

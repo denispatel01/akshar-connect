@@ -84,13 +84,13 @@ function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, 
       {open && results.length > 0 && (
         <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-2xl border border-border-light bg-surface shadow-xl">
           {results.map((d) => (
-            <button key={d.id} type="button" onMouseDown={(e) => e.preventDefault()}
+            <button key={d.id || `h:${d.name}`} type="button" onMouseDown={(e) => e.preventDefault()}
               onClick={() => pick(d)}
               className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 hover:bg-bg-base">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: accent === 'orange' ? '#FF9D52' : '#0D9488' }}>{d.name?.[0] || '?'}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold text-text-main">{d.name}</span>
-                <span className="block truncate text-[11px] text-text-muted">{[d.area, d.mobile].filter(Boolean).join(' · ')}</span>
+                <span className="block truncate text-[11px] text-text-muted">{d._history ? '↩︎ Previous order' : [d.area, d.mobile].filter(Boolean).join(' · ')}</span>
               </span>
             </button>
           ))}
@@ -112,39 +112,39 @@ function ProductCard({ product, qty, onChange }) {
   // Picking a product adds one and focuses the quantity so you can type the count.
   const pick = () => { onChange(qty + 1); setTimeout(() => { try { qtyRef.current?.focus(); qtyRef.current?.select(); } catch { /* ignore */ } }, 0); };
   return (
-    <div className="relative overflow-hidden rounded-2xl border-2 p-3 transition-all"
+    <div className="relative overflow-hidden rounded-xl border-2 p-2 transition-all"
       style={{
         background: active ? (cat?.bgActive || tint(color, 0.22)) : (cat?.bg || tint(color, 0.11)),
         borderColor: active ? color : tint(color, 0.5),
-        boxShadow: active ? `0 4px 14px ${tint(color, 0.3)}` : 'none',
+        boxShadow: active ? `0 3px 10px ${tint(color, 0.3)}` : 'none',
       }}>
-      <div className="absolute right-0 top-0 h-full w-1.5" style={{ background: color }} />
+      <div className="absolute right-0 top-0 h-full w-1" style={{ background: color }} />
       <button onClick={pick} className="block w-full text-left">
         <div className="flex items-start justify-between gap-1">
-          <span className="text-[13px] font-extrabold leading-tight text-text-main">{product.name}</span>
-          {active && <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-black text-white">{qty}</span>}
+          <span className="text-[12px] font-extrabold leading-tight text-text-main">{product.name}</span>
+          {active && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-black text-white">{qty}</span>}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5">
-          <span className="rounded-md bg-bg-base px-1.5 py-0.5 text-[10px] font-bold text-text-muted">{product.size}</span>
-          <span className="text-[11px] font-bold" style={{ color: cat?.color }}>{rupee(product.unitPrice)}</span>
+          <span className="rounded bg-bg-base px-1 py-0.5 text-[9px] font-bold text-text-muted">{product.size}</span>
+          <span className="text-[10px] font-bold" style={{ color: cat?.color }}>{rupee(product.unitPrice)}</span>
         </div>
       </button>
-      <div className="mt-2.5 flex items-center justify-between gap-2">
+      <div className="mt-1.5 flex items-center justify-between gap-1.5">
         <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
           <Minus className="h-4 w-4" />
         </button>
-        <input ref={qtyRef} inputMode="numeric" value={qty || 0}
+        <input ref={qtyRef} inputMode="numeric" value={qty || 0} data-no-clear="true"
           onFocus={(e) => e.target.select()}
           onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
-          className={`min-w-0 w-12 rounded-lg bg-white/60 py-1 text-center text-lg font-black outline-none ${active ? 'text-primary' : 'text-text-main'}`} />
+          className={`min-w-0 w-10 rounded-lg bg-white/60 py-0.5 text-center text-base font-black outline-none ${active ? 'text-primary' : 'text-text-main'}`} />
         <button onClick={pick}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
           <Plus className="h-4 w-4" />
         </button>
       </div>
-      <div className="mt-1.5 flex gap-1">
-        {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-lg bg-white/50 py-1 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
+      <div className="mt-1 flex gap-1">
+        {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-md bg-white/50 py-0.5 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
       </div>
     </div>
   );
@@ -164,6 +164,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [cart, setCart] = useState(() => {
     const c = {}; (initialOrder?.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + it.qty; }); return c;
   });
+  const [orderNo, setOrderNo] = useState(initialOrder?.orderNo || '');
   const [customerName, setCustomerName] = useState(initialOrder?.customerName || '');
   const [customerMobile, setCustomerMobile] = useState(initialOrder?.customerMobile || '');
   const [devoteeId, setDevoteeId] = useState(initialOrder?.devoteeId || '');
@@ -196,7 +197,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
-  const reset = () => { setCart({}); setCustomerName(''); setCustomerMobile(''); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
   // Review-before-save: validate, then show a preview so the user can confirm the
   // exact order (items hard to re-check by scrolling up past many product cards).
@@ -212,6 +213,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
     setReview(null);
     const order = ghariService.saveOrder({
       id: initialOrder?.id, season: initialOrder?.season,
+      orderNo: String(orderNo || '').replace(/\D/g, ''),
       // Names are always stored in proper case, however they were typed.
       customerName: properName(customerName), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
       karyakarta: properName(karyakarta), karyakartaId,
@@ -230,7 +232,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   };
 
   return (
-    <fieldset disabled={readOnly} className="space-y-4 m-0 min-w-0 border-0 p-0">
+    <fieldset disabled={readOnly} className="space-y-2.5 m-0 min-w-0 border-0 p-0">
       {readOnly && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
           👁️ View only — Sevaks can see orders but cannot edit or delete.
@@ -239,7 +241,16 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       {/* People */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Customer</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="text-[11px] font-black uppercase tracking-wide text-text-muted">Customer</label>
+            <div className="flex items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-0.5" title="Order number — editable">
+              <span className="text-[10px] font-black text-text-muted">#</span>
+              <input inputMode="numeric" value={orderNo} data-no-clear="true"
+                onChange={(e) => setOrderNo(e.target.value.replace(/\D/g, ''))}
+                placeholder="Auto"
+                className="w-12 bg-transparent text-xs font-black text-primary outline-none placeholder:font-semibold placeholder:text-text-muted" />
+            </div>
+          </div>
           <DevoteePicker value={customerName} placeholder="Search devotee or type name"
             inputRef={customerRef} onCommit={() => karyakartaRef.current?.focus()}
             onText={(t) => { setCustomerName(t); setDevoteeId(''); }}
@@ -272,7 +283,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
             <button onClick={() => (onManageItems ? onManageItems() : ghariService.restoreDefaults())} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white">Add items in Settings</button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
             {products.map(p => <ProductCard key={p.sku} product={p} qty={cart[p.sku] || 0} onChange={(q) => setQty(p.sku, q)} />)}
           </div>
         )}

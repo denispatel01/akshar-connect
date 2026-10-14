@@ -51,9 +51,16 @@ export default function GlobalSearch({ open, onClose, onOpenDevotee, user }) {
         <div className="flex items-center gap-2 border-b border-border-light px-4 py-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <Search className="h-5 w-5 shrink-0 text-text-muted" />
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
+            autoFocus data-no-clear="true"
             placeholder="Search devotees, karyakartas, area, family…"
             className="w-full bg-transparent text-base text-text-main outline-none placeholder:text-text-muted" />
-          <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-text-muted hover:bg-bg-base">
+          {q && (
+            <button onClick={() => { setQ(''); inputRef.current?.focus(); }} title="Clear"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-text-muted hover:bg-bg-base">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          <button onClick={onClose} title="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-text-muted hover:bg-bg-base">
             <X className="h-5 w-5" />
           </button>
         </div>

@@ -182,6 +182,7 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   });
   const [savedMsg, setSavedMsg] = useState('');
   const [saving, setSaving] = useState(false);
+  const [mobileErr, setMobileErr] = useState(false);
   const fileRef = useRef(null);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -268,11 +269,15 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
     reader.readAsDataURL(file);
   };
 
-  // Mobile is optional for female devotees (#114); for others it must be 10 digits.
-  // A partial number (1–9 digits) is always invalid.
-  const mobileOk = form.gender === 'Female'
-    ? (form.mobile.length === 0 || form.mobile.length === 10)
-    : form.mobile.length === 10;
+  // A family member (someone attached to a family head) is NOT required to have
+  // their own mobile — only the family head / self is. Females are also exempt
+  // (#114). A partial number (1–9 digits) is always invalid.
+  const isFamilyMember = form.type === 'Family' && form.relation !== 'Self';
+  const needMobile = form.gender !== 'Female' && !isFamilyMember;
+  // The step gate never blocks on a missing mobile (a new member only picks their
+  // head in a later step); it only rejects a partial number. The "head needs a
+  // mobile" rule is enforced once more at final Save below.
+  const mobileOk = form.mobile.length === 0 || form.mobile.length === 10;
   const step0Valid = !!form.firstName.trim() && mobileOk;
   const canNext = step === 0 ? step0Valid : true;
 
@@ -295,6 +300,12 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
   const save = async (addAnother) => {
     if (!step0Valid) { setStep(0); return; }
+    // A family head / self must have a 10-digit mobile; members may be saved
+    // without one.
+    if (needMobile && form.mobile.length !== 10) {
+      setStep(0); setMobileErr(true);
+      return;
+    }
     setSaving(true);
     try {
       if (isEdit) {
@@ -417,7 +428,10 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                 <div><Label>Middle Name</Label><input value={form.middleName} onChange={setCap('middleName')} placeholder="Enter middle name" className={inputCls} /></div>
                 <div><Label>Last Name</Label><input value={form.lastName} onChange={setCap('lastName')} placeholder="Enter surname" className={inputCls} /></div>
                 <div><Label>Date of Birth</Label><DobField value={form.dob} onChange={(v) => set({ dob: v })} /></div>
-                <div><Label req={form.gender !== 'Female'}>Mobile Number {form.gender === 'Female' && <span className="font-semibold text-text-muted">(optional)</span>}</Label><input required={form.gender !== 'Female'} inputMode="numeric" value={form.mobile} onChange={(e) => set({ mobile: last10(e.target.value) })} placeholder="10-digit mobile number" className={inputCls} /></div>
+                <div><Label req={needMobile}>Mobile Number {!needMobile && <span className="font-semibold text-text-muted">(optional)</span>}</Label>
+                  <input required={needMobile} inputMode="numeric" value={form.mobile} onChange={(e) => { set({ mobile: last10(e.target.value) }); setMobileErr(false); }} placeholder="10-digit mobile number" className={inputCls} />
+                  {mobileErr && <p className="mt-1 text-[11px] font-bold text-rose-600">A family head needs a 10-digit mobile. (Family members can be saved without one.)</p>}
+                </div>
                 <div><Label>Gender</Label>
                   <select value={form.gender} onChange={(e) => set({ gender: e.target.value })} className={inputCls}>
                     <option value="">— Select —</option>{GENDERS.map((o) => <option key={o}>{o}</option>)}</select></div>
