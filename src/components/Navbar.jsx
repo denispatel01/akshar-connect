@@ -143,11 +143,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </button>
           </div>
 
-          {/* Centre: prominent circular logo badge → Home */}
-          <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-surface ring-2 ring-primary/40 shadow-[0_4px_16px_rgba(229,111,24,0.35)] transition-transform active:scale-95 sm:h-[72px] sm:w-[72px]">
-            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect" className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16" />
-          </button>
+          {/* Centre: devotional Gujarati slogan */}
+          <span className="pointer-events-none absolute left-1/2 top-1/2 max-w-[60%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-center text-lg font-bold text-[#FFC79A] sm:text-2xl"
+            style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
+            બસ! એક, તું રાજી થા
+          </span>
 
           {/* Right: notifications + theme + user badge/logout (desktop). */}
           <div className="flex items-center gap-1.5 sm:gap-2">
