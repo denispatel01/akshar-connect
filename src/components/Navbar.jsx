@@ -109,7 +109,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   return (
     <>
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
+      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#022c54] text-white shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
 
@@ -130,15 +130,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {/* Desktop-only: collapse / expand the sidebar */}
             <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
               {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </button>
             <button onClick={onBack} disabled={!canBack} title="Back"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed">
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed">
               <ArrowLeft className="h-4 w-4" />
             </button>
             <button onClick={() => setSearchOpen(true)} title="Search"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
               <Search className="h-4 w-4" />
             </button>
           </div>
@@ -152,27 +152,27 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           {/* Right: notifications + theme + user badge/logout (desktop). */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button onClick={() => window.dispatchEvent(new Event('ac-open-notifications'))} title="Notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
               <Bell className="h-4 w-4" />
-              {hasNotifs && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-bg-base" />}
+              {hasNotifs && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[#022c54]" />}
             </button>
             <button onClick={toggleDarkMode} title="Toggle theme"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
               {isDarkModeOn ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <div className="hidden sm:flex items-center gap-2">
               <button onClick={() => setActivePage('account')} title="My Account"
-                className="flex items-center gap-2.5 rounded-2xl border border-border-light bg-bg-base px-3.5 py-1.5 hover:border-primary transition-colors">
+                className="flex items-center gap-2.5 rounded-2xl border border-white/15 bg-white/10 px-3.5 py-1.5 hover:border-primary transition-colors">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                   {user?.name?.[0] || 'U'}
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-text-main leading-tight">{user?.name || 'User'}</p>
-                  <span className={`inline-block text-[10px] font-bold ${isAdmin ? 'text-red-500' : isSevak ? 'text-amber-600' : 'text-indigo-500'}`}>{user?.role || 'Devotee'}</span>
+                  <p className="text-xs font-bold text-white leading-tight">{user?.name || 'User'}</p>
+                  <span className={`inline-block text-[10px] font-bold ${isAdmin ? 'text-red-300' : isSevak ? 'text-amber-300' : 'text-indigo-300'}`}>{user?.role || 'Devotee'}</span>
                 </div>
               </button>
               <button onClick={onLogout} title="Logout"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition-colors dark:bg-red-950 dark:border-red-900">
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-colors">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
