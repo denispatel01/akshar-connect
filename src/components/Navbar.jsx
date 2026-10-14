@@ -82,7 +82,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           </div>
 
           {/* Left: sidebar toggle (desktop) + back + refresh + search + brand */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {/* Desktop-only: collapse / expand the sidebar */}
             <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
@@ -105,11 +105,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               <Search className="h-4 w-4" />
             </button>
 
-            <div className="flex items-center gap-3 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
+            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" onClick={() => setActivePage('dashboard')}>
               <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
-                className="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-2xl shadow-md ring-1 ring-border-light" />
+                className="h-9 w-9 sm:h-12 sm:w-12 shrink-0 rounded-xl sm:rounded-2xl shadow-md ring-1 ring-border-light" />
               <div className="min-w-0 leading-tight">
-                <span className="block font-display text-lg sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FF9D52] bg-clip-text text-transparent">
+                <span className="block font-display text-base sm:text-2xl font-extrabold tracking-tight whitespace-nowrap bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FF9D52] bg-clip-text text-transparent">
                   Akshar Connect
                 </span>
                 <p className="hidden sm:block text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">Connecting Devotees with Divinity</p>
