@@ -632,6 +632,17 @@ export const dataService = {
     try { const r = await api('getPushStatus', {}); return (r && r.status) || []; } catch { return []; }
   },
 
+  // Push delivery log — each notification sent (what it was about + totals).
+  getPushLog: async (limit = 50) => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getPushLog', { limit }); return (r && r.log) || []; } catch { return []; }
+  },
+  // The devotees one notification reached — each with received + clicked status.
+  getPushRecipients: async (nid) => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getPushRecipients', { nid }); return (r && r.recipients) || []; } catch { return []; }
+  },
+
   // ---- Vato (daily Gujarati/English teachings) ----
   getCachedVato: () => { try { return JSON.parse(localStorage.getItem('ac-vato') || '[]'); } catch { return []; } },
   getVato: async () => {

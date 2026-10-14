@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Activity, Mail, GripVertical, Megaphone, Bell, Eye } from 'lucide-react';
+import { Settings, Shield, KeyRound, Database, RefreshCw, CheckCircle, Info, UserPlus, Users, Pencil, Trash2, MapPin, Plus, Save, X, Mail, GripVertical, Megaphone, Bell, Eye, ChevronDown, MousePointerClick, Send } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { confirmDialog } from '../utils/sweetAlert';
-import ActivityFeed from '../components/ActivityFeed';
 
 export default function AdminPage({ user, onViewAs }) {
   const [users, setUsers] = useState([]);
@@ -254,17 +253,8 @@ export default function AdminPage({ user, onViewAs }) {
         </div>
       )}
 
-      {/* SYSTEM TAB — activity log */}
-      {isAdmin && tab === 'system' && (
-        <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
-          <div className="mb-4 flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-            <Activity className="h-4 w-4 text-[#FF862A]" /> 📜 Activity Log
-          </div>
-          <div className="max-h-[32rem] overflow-y-auto pr-1">
-            <ActivityFeed limit={400} />
-          </div>
-        </div>
-      )}
+      {/* SYSTEM TAB — push notification log (who received / opened each push) */}
+      {isAdmin && tab === 'system' && <PushLogPanel />}
 
       {/* USERS TAB — Registered System Users */}
       {isAdmin && tab === 'users' && (
@@ -481,6 +471,98 @@ function AnnouncementManager() {
             ))}
           </div>
         )}
+    </div>
+  );
+}
+
+// Push notification log — every push sent, who received it and who opened it.
+// Replaces the old Activity Log here (that lives in "My Activity" already).
+function PushLogPanel() {
+  const [log, setLog] = React.useState(null);
+  const [openId, setOpenId] = React.useState('');
+  const [recips, setRecips] = React.useState({}); // nid → recipients[]
+  const [loadingR, setLoadingR] = React.useState('');
+
+  const load = React.useCallback(() => { setLog(null); dataService.getPushLog(50).then((r) => setLog(r || [])); }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
+  const audLabel = (a) => ({ all: 'Everyone', staff: 'Karyakartas', devotees: 'Devotees' }[a] || a || 'Everyone');
+
+  const toggle = async (nid) => {
+    if (openId === nid) { setOpenId(''); return; }
+    setOpenId(nid);
+    if (!recips[nid]) {
+      setLoadingR(nid);
+      const r = await dataService.getPushRecipients(nid);
+      setRecips((m) => ({ ...m, [nid]: r || [] }));
+      setLoadingR('');
+    }
+  };
+
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+          <Bell className="h-4 w-4 text-[#FF862A]" /> 🔔 Push Notification Log
+        </div>
+        <button onClick={load} className="rounded-lg border border-border-light bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted hover:text-text-main"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      <p className="mb-3 text-[11px] text-text-muted">Every push sent — what it was about, who it reached, and who tapped it.</p>
+
+      {log === null && <p className="py-8 text-center text-sm text-text-muted">Loading…</p>}
+      {log && log.length === 0 && <p className="py-8 text-center text-sm text-text-muted">No notifications sent yet.</p>}
+
+      <div className="space-y-2">
+        {(log || []).map((n) => {
+          const sent = Number(n.sentCount || 0), clicks = Number(n.clickCount || 0);
+          const isOpen = openId === n.id;
+          const list = recips[n.id] || [];
+          return (
+            <div key={n.id} className="overflow-hidden rounded-2xl border border-border-light bg-bg-base">
+              <button onClick={() => toggle(n.id)} className="flex w-full items-start gap-3 p-3 text-left">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-text-main">{n.title || '(no title)'}</p>
+                  {n.body && <p className="mt-0.5 line-clamp-2 text-[12px] text-text-muted">{n.body}</p>}
+                  <p className="mt-1 text-[10px] font-semibold text-text-muted">{fmt(n.createdOn)} · {audLabel(n.audience)}{n.createdBy ? ' · by ' + String(n.createdBy).replace(/\s*\(.*\)$/, '') : ''}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary"><Send className="h-3 w-3" />{sent}</span>
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><MousePointerClick className="h-3 w-3" />{clicks}</span>
+                  <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {isOpen && (
+                <div className="border-t border-border-light px-3 py-2">
+                  {loadingR === n.id && <p className="py-3 text-center text-[12px] text-text-muted">Loading recipients…</p>}
+                  {loadingR !== n.id && list.length === 0 && <p className="py-3 text-center text-[12px] text-text-muted">No recipient details recorded.</p>}
+                  {list.length > 0 && (
+                    <>
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">{list.length} received · {list.filter((r) => String(r.clicked) === 'yes').length} opened</p>
+                      <div className="max-h-72 space-y-1 overflow-y-auto">
+                        {list.slice().sort((a, b) => (String(b.clicked) === 'yes') - (String(a.clicked) === 'yes')).map((r, i) => {
+                          const opened = String(r.clicked) === 'yes';
+                          return (
+                            <div key={i} className="flex items-center gap-2 rounded-lg bg-surface px-2.5 py-1.5">
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[12px] font-bold text-text-main">{r.name || r.mobile || r.devoteeId || 'Unknown'}</span>
+                                {r.mobile && <span className="block truncate text-[10px] text-text-muted">{r.mobile}{r.platform ? ' · ' + r.platform : ''}</span>}
+                              </span>
+                              {opened
+                                ? <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Opened</span>
+                                : <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300">Received</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

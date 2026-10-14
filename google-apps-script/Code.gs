@@ -23,6 +23,11 @@ var HEADERS = {
   // Runtime exception log — every error a user hits is stored here (as well as
   // emailed) so it can be pulled into the codebase and fixed. status ∈ open|resolved.
   ErrorLog:   ['id','time','user','mobile','message','page','stack','ua','status','resolvedBy','resolvedOn'],
+  // Push-notification delivery log. One PushLog row per notification sent (what it
+  // was about + totals); one PushRecipients row per device it reached, flipped to
+  // clicked='yes' when that person taps it.
+  PushLog:        ['id','title','body','audience','type','sentCount','clickCount','createdBy','createdOn'],
+  PushRecipients: ['notifId','devoteeId','name','mobile','platform','sentOn','clicked','clickedOn'],
   // ── Ghari Seva (fundraising ledger) ──────────────────────────────────────
   // Catalog of sellable items. `category` ∈ ghee|noghee|sf|bhusu. Prices are
   // editable (they change year to year), so each ORDER snapshots the unit price.
@@ -874,7 +879,7 @@ function doCreateAnnouncement_(p){
     sentCount: 0
   };
   var sent = 0;
-  try { sent = sendPush_(rec.title, rec.body, rec.audience, { announcementId: id }); } catch(e) { /* save even if push fails */ }
+  try { sent = sendPush_(rec.title, rec.body, rec.audience, { announcementId: id, by: rec.createdBy }); } catch(e) { /* save even if push fails */ }
   rec.sentCount = sent;
   appendRows_('Announcements', [rec]);
   return json_({ ok:true, id:id, sent:sent });
@@ -923,15 +928,22 @@ function sendPush_(title, body, audience, data){
   targets = dedupeTokens_(targets);
   if(!targets.length) return 0;
 
+  // Every push campaign gets an id (nid) so we can log who it reached and who
+  // tapped it. Each device also carries a recipient id (rid = devoteeId or mobile)
+  // in the payload, which the service worker echoes back on click.
+  var nid = (data && data.nid) || ('PN-' + Date.now().toString(36) + '-' + Math.floor(Math.random()*46656).toString(36));
   var msgData = { type: 'announcement' };
   if(data) for(var k in data) msgData[k] = String(data[k]);
+  msgData.nid = nid;
   var link = pushLink_(msgData.type);
 
-  var sent = 0, toDelete = [];
+  var sent = 0, toDelete = [], recipientRows = [], nowIso = new Date().toISOString();
   // UrlFetchApp.fetchAll batches the HTTP calls so hundreds of devices stay fast.
   for(var i=0;i<targets.length;i+=100){
     var chunk = targets.slice(i, i+100);
     var reqs = chunk.map(function(r){
+      var pd = mergeData_(msgData, title, body, link);
+      pd.rid = String(r.devoteeId || normMob_(r.mobile) || r.token || '');
       return {
         url: url, method: 'post', contentType: 'application/json',
         headers: { Authorization: 'Bearer ' + token },
@@ -940,7 +952,7 @@ function sendPush_(title, body, audience, data){
           token: r.token,
           // DATA-ONLY (no notification block) so the browser doesn't show a second
           // notification on top of the one our service worker shows.
-          data: mergeData_(msgData, title, body, link),
+          data: pd,
           android: { priority: 'high' },
           webpush: { fcm_options: { link: link } }
         }})
@@ -949,7 +961,15 @@ function sendPush_(title, body, audience, data){
     var resps = UrlFetchApp.fetchAll(reqs);
     for(var j=0;j<resps.length;j++){
       var code = resps[j].getResponseCode();
-      if(code === 200) sent++;
+      if(code === 200){
+        sent++;
+        var rr = chunk[j];
+        recipientRows.push({
+          notifId: nid, devoteeId: rr.devoteeId || '', name: rr.name || '',
+          mobile: rr.mobile || '', platform: rr.platform || '', sentOn: nowIso,
+          clicked: '', clickedOn: ''
+        });
+      }
       else if(code === 404 || code === 400){
         var txt = resps[j].getContentText();
         if(/UNREGISTERED|NOT_FOUND|INVALID_ARGUMENT/.test(txt)) toDelete.push(chunk[j].token);
@@ -958,9 +978,50 @@ function sendPush_(title, body, audience, data){
   }
   // Remove dead tokens so the list stays clean.
   toDelete.forEach(function(tok){ var rn = findRow_('PushTokens','token',tok); if(rn>0) try{ tab_('PushTokens').deleteRow(rn); }catch(e){} });
+
+  // Log the campaign + who it reached (best-effort — never fail a send over logging).
+  try{
+    if(recipientRows.length) appendRows_('PushRecipients', recipientRows);
+    appendRows_('PushLog', [{
+      id: nid, title: String(title||'').slice(0,160), body: String(body||'').slice(0,500),
+      audience: audience, type: msgData.type, sentCount: sent, clickCount: 0,
+      createdBy: (data && data.by) || '', createdOn: nowIso
+    }]);
+    // Keep the recipient sheet bounded (keeps ~last 4000 recipient rows).
+    var prSh = tab_('PushRecipients'); var prOver = prSh.getLastRow() - 1 - 4000;
+    if(prOver > 0) prSh.deleteRows(2, prOver);
+  }catch(e){}
   return sent;
 }
 function normMob_(m){ return String(m||'').replace(/\D/g,'').slice(-10); }
+
+// A device tapped a notification — mark that recipient clicked and bump the
+// campaign's click count. Called by the service worker (nid = campaign, rid =
+// devoteeId or mobile). Idempotent: a second tap won't double-count.
+function pushClicked_(p){
+  var nid = String(p && p.nid || ''), rid = String(p && p.rid || '');
+  if(!nid) return { ok:false, error:'no nid' };
+  var lock = LockService.getScriptLock(); try{ lock.waitLock(15000); }catch(e){ return { ok:false, error:'busy' }; }
+  try{
+    var sh = tab_('PushRecipients'); var H = HEADERS.PushRecipients; var last = sh.getLastRow();
+    var updated = 0;
+    if(last >= 2){
+      var data = sh.getRange(2,1,last-1,H.length).getValues();
+      var nI=H.indexOf('notifId'), dI=H.indexOf('devoteeId'), mI=H.indexOf('mobile'), cI=H.indexOf('clicked'), coI=H.indexOf('clickedOn');
+      for(var i=0;i<data.length;i++){
+        if(String(data[i][nI]) === nid && rid && (String(data[i][dI]) === rid || normMob_(data[i][mI]) === normMob_(rid))){
+          if(String(data[i][cI]) !== 'yes'){ data[i][cI] = 'yes'; data[i][coI] = new Date().toISOString(); updated++; }
+        }
+      }
+      if(updated > 0) sh.getRange(2,1,last-1,H.length).setValues(data);
+    }
+    if(updated > 0){
+      var lrow = findRow_('PushLog','id',nid);
+      if(lrow > 0){ var cc = HEADERS.PushLog.indexOf('clickCount')+1; var s2 = tab_('PushLog'); var cur = Number(s2.getRange(lrow,cc).getValue())||0; s2.getRange(lrow,cc).setValue(cur + updated); }
+    }
+    return { ok:true, updated:updated };
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
 
 // One-time repair for misaligned GhariOrders rows. An older write path left ~101
 // orders shifted by +7 columns: the real order block (season→balance) sits at raw
@@ -1703,11 +1764,22 @@ function handle_(p){
       var _aud = (['all','staff','devotees'].indexOf(p.audience) >= 0 ? p.audience : 'all');
       var _t = String(p.title || '').slice(0,120), _b = String(p.body || '').slice(0,2000);
       if(!_t) return json_({ ok:false, error:'Title required' });
-      var _sent = 0; try { _sent = sendPush_(_t, _b, _aud, { type:'announcement' }); } catch(e){ return json_({ ok:false, error:String(e) }); }
+      var _sent = 0; try { _sent = sendPush_(_t, _b, _aud, { type:'announcement', by:String(p.createdBy||p.by||'') }); } catch(e){ return json_({ ok:false, error:String(e) }); }
       return json_({ ok:true, sent:_sent });
     }
     if(action==='logPushStatus') return doLogPushStatus_(p);
     if(action==='getPushStatus') return doGetPushStatus_();
+    // Push delivery log — campaigns + per-recipient received/clicked.
+    if(action==='getPushLog'){
+      var _pl = readAll_('PushLog');
+      _pl.sort(function(a,b){ return String(b.createdOn).localeCompare(String(a.createdOn)); });
+      return json_({ ok:true, log: _pl.slice(0, Math.min(Number(p.limit)||50, 200)) });
+    }
+    if(action==='getPushRecipients'){
+      var _pr = readAll_('PushRecipients').filter(function(r){ return String(r.notifId) === String(p.nid); });
+      return json_({ ok:true, recipients: _pr });
+    }
+    if(action==='pushClicked') return json_(pushClicked_(p));
     if(action==='saveSwadhyay') return doSaveSwadhyay_(p);
     if(action==='getSwadhyay') return doGetSwadhyay_(p);
     if(action==='saveSeva') return doSaveSeva_(p);
