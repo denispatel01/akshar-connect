@@ -120,16 +120,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect" className="h-10 w-10 rounded-full object-cover" />
           </button>
 
-          {/* Right: refresh + theme + user badge/logout (desktop) */}
+          {/* Right: theme + user badge/logout (desktop). Refresh now lives in the Menu. */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              onClick={onRefresh}
-              onMouseDown={startLongPress} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
-              onTouchStart={startLongPress} onTouchEnd={cancelLongPress}
-              title="Refresh · Hold 1.5 s to hard-reload"
-              className={`flex h-9 w-9 items-center justify-center rounded-xl border bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface transition-colors ${updateAvailable ? 'border-amber-400 text-amber-500 animate-pulse' : 'border-border-light'}`}>
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
             <button onClick={toggleDarkMode} title="Toggle theme"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
               {isDarkModeOn ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -255,16 +247,22 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             })}
           </div>
 
-          {/* Footer: theme, hard refresh, sign out */}
+          {/* Footer: theme, refresh, sign out. Refresh = tap to refresh, hold 1.5s
+              to clear cache & hard-reload (this is where the header ⟳ moved to). */}
           <div className="flex shrink-0 items-center gap-2 border-t border-border-light bg-surface px-3 py-3">
             <button onClick={toggleDarkMode}
               className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border-light bg-bg-base px-3 py-3 text-sm font-semibold text-text-main hover:bg-border-light">
               {isDarkModeOn ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
               {isDarkModeOn ? 'Light' : 'Dark'}
             </button>
-            <button onClick={() => { setMoreOpen(false); onHardRefresh?.(); }} title="Clear cache & hard reload"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border-light bg-bg-base text-text-muted hover:bg-border-light">
-              <RefreshCw className={`h-4 w-4 ${updateAvailable ? 'text-amber-500' : ''}`} />
+            <button
+              onClick={() => { setMoreOpen(false); onRefresh?.(); }}
+              onMouseDown={startLongPress} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+              onTouchStart={startLongPress} onTouchEnd={cancelLongPress}
+              title="Refresh · Hold 1.5 s to clear cache & hard-reload"
+              className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border bg-bg-base px-3 py-3 text-sm font-semibold text-text-main hover:bg-border-light ${updateAvailable ? 'border-amber-400 text-amber-600 dark:text-amber-400' : 'border-border-light'}`}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''} ${updateAvailable ? 'text-amber-500' : ''}`} />
+              {updateAvailable ? 'Update' : 'Refresh'}
             </button>
             <button onClick={() => { setMoreOpen(false); onLogout(); }}
               className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 py-3 text-sm font-bold text-red-500 hover:bg-red-100 dark:border-red-900 dark:bg-red-950">
