@@ -1,50 +1,68 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-// A small floating up/down control for long pages. Both arrows are always present
-// and tappable whenever the page can scroll (no "appears only while scrolling"
-// timing), so a SINGLE tap jumps — the up arrow to the top, the down arrow to the
-// bottom. Each arrow hides on its own when you're already at that end.
+// A floating helper that appears ONLY while you're actively scrolling:
+//  • scrolling DOWN → a down arrow that jumps to the bottom of the page
+//  • scrolling UP   → an up arrow that jumps to the top
+// It auto-hides shortly after you stop, and never shows when the page is too short
+// to scroll, when you're already at the top (up) or bottom (down).
 export default function ScrollHelper() {
-  const [st, setSt] = useState({ show: false, atTop: true, atBottom: false });
+  const [dir, setDir] = useState(null); // 'down' | 'up' | null
+  const lastY = useRef(0);
+  const hideTimer = useRef(null);
 
   useEffect(() => {
-    const update = () => {
+    lastY.current = window.scrollY || 0;
+    const onScroll = () => {
       const y = window.scrollY || 0;
-      const maxY = (document.documentElement.scrollHeight || 0) - window.innerHeight;
-      setSt({
-        show: maxY >= 240,            // only when there's a meaningful amount to scroll
-        atTop: y <= 8,
-        atBottom: y >= maxY - 8,
-      });
+      const doc = document.documentElement;
+      const maxY = (doc.scrollHeight || 0) - window.innerHeight;
+      const delta = y - lastY.current;
+      lastY.current = y;
+
+      // Not enough page to scroll → never show.
+      if (maxY < 240) { setDir(null); return; }
+
+      if (Math.abs(delta) < 4) return; // ignore tiny jitter
+      if (delta > 0) {
+        // Scrolling down — offer "to bottom" unless already there.
+        setDir(y >= maxY - 8 ? null : 'down');
+      } else {
+        // Scrolling up — offer "to top" unless already there.
+        setDir(y <= 8 ? null : 'up');
+      }
+
+      // Auto-hide after a short idle.
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      hideTimer.current = setTimeout(() => setDir(null), 1600);
     };
-    update();
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    // Content height can change after data loads; re-measure for a short while.
-    const t = setInterval(update, 1000);
-    const stop = setTimeout(() => clearInterval(t), 6000);
-    return () => {
-      window.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-      clearInterval(t); clearTimeout(stop);
-    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, []);
 
-  const scrollTo = (top) => { try { window.scrollTo({ top, behavior: 'smooth' }); } catch { window.scrollTo(0, top); } };
+  // Jump in the given direction. Take the direction as an argument (not from state)
+  // so this still does the right thing when fired from pointerdown.
+  const go = (d) => {
+    const to = d === 'down' ? (document.documentElement.scrollHeight || 0) : 0;
+    try { window.scrollTo({ top: to, behavior: 'smooth' }); } catch { window.scrollTo(0, to); }
+    setDir(null);
+  };
 
-  if (!st.show || (st.atTop && st.atBottom)) return null;
-
-  const btn = 'grid h-11 w-11 place-items-center text-text-main transition-colors hover:text-primary active:scale-95 disabled:opacity-25 disabled:pointer-events-none';
+  if (!dir) return null;
+  const Icon = dir === 'down' ? ChevronDown : ChevronUp;
+  // Act on pointerdown, not click: while the page still has momentum, the first
+  // touch is consumed to stop the scroll and the click never fires — so we'd need a
+  // second tap. Firing on pointerdown makes that first touch both stop the scroll
+  // AND jump, so a single tap works. preventDefault suppresses the stray click.
   return (
-    <div className="fixed right-4 z-40 flex flex-col overflow-hidden rounded-full border border-border-light bg-surface/95 shadow-lg backdrop-blur animate-fade-in bottom-[calc(84px+env(safe-area-inset-bottom))] md:bottom-6">
-      <button onClick={() => scrollTo(0)} disabled={st.atTop} aria-label="Scroll to top" className={btn}>
-        <ChevronUp className="h-5 w-5" strokeWidth={2.5} />
-      </button>
-      <div className="mx-2 h-px bg-border-light" />
-      <button onClick={() => scrollTo(document.documentElement.scrollHeight || 0)} disabled={st.atBottom} aria-label="Scroll to bottom" className={btn}>
-        <ChevronDown className="h-5 w-5" strokeWidth={2.5} />
-      </button>
-    </div>
+    <button
+      onPointerDown={(e) => { e.preventDefault(); go(dir); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(dir); } }}
+      aria-label={dir === 'down' ? 'Scroll to bottom' : 'Scroll to top'}
+      // Sits above the mobile bottom bar; tucks to the corner on desktop (no bar).
+      className="fixed right-4 z-40 grid h-11 w-11 place-items-center rounded-full border border-border-light bg-surface/95 text-text-main shadow-lg backdrop-blur transition-all hover:border-primary hover:text-primary active:scale-95 animate-fade-in bottom-[calc(84px+env(safe-area-inset-bottom))] md:bottom-6"
+      style={{ touchAction: 'manipulation' }}>
+      <Icon className="h-5 w-5" strokeWidth={2.5} />
+    </button>
   );
 }
