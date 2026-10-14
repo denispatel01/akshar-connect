@@ -61,7 +61,10 @@ function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, 
     const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', onDoc); return () => document.removeEventListener('mousedown', onDoc);
   }, []);
-  const change = (text) => { setQ(text); onText?.(text); setResults(ghariService.searchDevotees(text)); setOpen(true); };
+  // Proper-case as you type — "anand uncle" → "Anand Uncle" — so names read
+  // correctly without anyone fixing capitals by hand. (Search is case-insensitive,
+  // so this never affects matching.)
+  const change = (raw) => { const text = toProperCase(raw); setQ(text); onText?.(text); setResults(ghariService.searchDevotees(text)); setOpen(true); };
   const pick = (d) => { setQ(d.name); onPick?.(d); setOpen(false); onCommit?.(); };
   const onKeyDown = (e) => {
     if (e.key === 'Enter') {
