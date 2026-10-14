@@ -38,9 +38,11 @@ export default function Footer() {
             the full width is used and the last group sits at the right edge. */}
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
           {/* Brand */}
-          <div className="max-w-sm">
-            <div className="inline-flex rounded-2xl bg-white/95 p-3 shadow-lg">
-              <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="h-16 w-auto object-contain sm:h-20" />
+          <div className="w-full lg:max-w-sm">
+            {/* Mobile: the logo card spans the full width with a big logo; desktop
+                keeps a compact shrink-to-fit card on the left. */}
+            <div className="flex w-full justify-center rounded-2xl bg-white/95 p-5 shadow-lg lg:inline-flex lg:w-auto lg:p-3">
+              <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="h-auto w-full object-contain lg:h-20 lg:w-auto" />
             </div>
             <p className="mt-4 text-base font-bold text-white">Adajan Satsang Mandal</p>
             <p className="mt-1 text-sm leading-relaxed text-white/60">
