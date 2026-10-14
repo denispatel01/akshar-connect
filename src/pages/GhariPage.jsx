@@ -179,6 +179,9 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [orderNo, setOrderNo] = useState(initialOrder?.orderNo || '');
   const [customerName, setCustomerName] = useState(initialOrder?.customerName || '');
   const [customerMobile, setCustomerMobile] = useState(initialOrder?.customerMobile || '');
+  // Mobile is hidden by default (most orders don't need it). It appears only when
+  // the admin chooses to add one, or when editing an order that already has one.
+  const [showMobile, setShowMobile] = useState(!!initialOrder?.customerMobile);
   const [devoteeId, setDevoteeId] = useState(initialOrder?.devoteeId || '');
   const [karyakarta, setKaryakarta] = useState(initialOrder?.karyakarta || '');
   const [karyakartaId, setKaryakartaId] = useState(initialOrder?.karyakartaId || '');
@@ -209,7 +212,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
-  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
   // Review-before-save: validate, then show a preview so the user can confirm the
   // exact order (items hard to re-check by scrolling up past many product cards).
@@ -266,15 +269,23 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
           <DevoteePicker value={customerName} placeholder="Search devotee or type name"
             inputRef={customerRef} onCommit={() => karyakartaRef.current?.focus()}
             onText={(t) => { setCustomerName(t); setDevoteeId(''); }}
-            onPick={(d) => { if (d) { setCustomerName(d.name); setDevoteeId(d.id); if (d.mobile) setCustomerMobile(String(d.mobile)); } else { setCustomerName(''); setDevoteeId(''); setCustomerMobile(''); } }} />
-          <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2 focus-within:border-primary">
-            <Phone className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-            <input ref={mobileRef} inputMode="numeric" value={customerMobile}
-              onChange={(e) => setCustomerMobile(e.target.value.replace(/[^\d]/g, ''))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
-              placeholder="Mobile (for WhatsApp follow-up)" maxLength={13}
-              className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
-          </div>
+            onPick={(d) => { if (d) { setCustomerName(d.name); setDevoteeId(d.id); if (d.mobile) { setCustomerMobile(String(d.mobile)); setShowMobile(true); } } else { setCustomerName(''); setDevoteeId(''); setCustomerMobile(''); } }} />
+          {showMobile ? (
+            <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2 focus-within:border-primary">
+              <Phone className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+              <input ref={mobileRef} inputMode="numeric" value={customerMobile}
+                onChange={(e) => setCustomerMobile(e.target.value.replace(/[^\d]/g, ''))}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
+                placeholder="Mobile (for WhatsApp follow-up)" maxLength={13}
+                className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+              <button type="button" onClick={() => { setCustomerMobile(''); setShowMobile(false); }} title="Remove mobile" className="shrink-0 text-text-muted hover:text-text-main"><X className="h-4 w-4" /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => { setShowMobile(true); setTimeout(() => { try { mobileRef.current?.focus(); } catch { /* ignore */ } }, 0); }}
+              className="mt-1.5 flex items-center gap-1.5 rounded-xl border border-dashed border-border-light bg-surface px-3 py-1.5 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">
+              <Phone className="h-3.5 w-3.5" /> Add mobile number
+            </button>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Karyakarta / Reference</label>
