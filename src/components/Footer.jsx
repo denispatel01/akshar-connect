@@ -34,49 +34,43 @@ export default function Footer() {
   return (
     <footer className="mt-8 bg-gradient-to-b from-[#022c54] to-[#001a33] text-white">
       <div className="w-full px-5 sm:px-8 lg:px-12 pt-12 pb-[calc(7rem_+_env(safe-area-inset-bottom))] md:pb-12">
-        {/* Brand on the left, the three link groups spread across to the right — so
-            the full width is used and the last group sits at the right edge. */}
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
-          {/* Brand */}
-          <div className="w-full lg:max-w-sm">
-            {/* Mobile: the logo card spans the full width with a big logo; desktop
-                keeps a compact shrink-to-fit card on the left. */}
-            <div className="flex w-full justify-center rounded-2xl bg-white/95 p-5 shadow-lg lg:inline-flex lg:w-auto lg:p-3">
-              <img src={`${BASE}images/logo.webp`} alt="Akshar Connect" className="h-auto w-full object-contain lg:h-20 lg:w-auto" />
-            </div>
-            <p className="mt-4 text-base font-bold text-white">Adajan Satsang Mandal</p>
-            <p className="mt-1 text-sm leading-relaxed text-white/60">
-              Swaminarayan Hariprabodham Foundation<br />Adajan, Surat
-            </p>
-            <p className="mt-3 text-sm italic text-[#FFC79A]">Connecting Devotees with Divinity</p>
-          </div>
+        {/* F5 — Card stack: a full-width white logo banner on top, then each link
+            group in its own soft card. */}
+        {/* Logo banner — the logo fills the full width of the banner. */}
+        <div className="rounded-2xl bg-white/95 p-5 text-center shadow-lg sm:p-6">
+          <img src={`${BASE}images/logo.webp`} alt="Akshar Connect"
+            className="mx-auto block h-auto w-full max-w-2xl object-contain" />
+          <p className="mt-4 text-base font-extrabold text-[#022c54]">Adajan Satsang Mandal</p>
+          <p className="mt-1 text-xs font-semibold leading-relaxed text-[#022c54]/60">
+            Swaminarayan Hariprabodham Foundation · Adajan, Surat
+          </p>
+        </div>
+        <p className="mt-4 text-center text-sm italic text-[#FFC79A]">Connecting Devotees with Divinity</p>
 
-          {/* Link columns — size to their content so full labels show (no truncation
-              that would make "… Vrund — Android" and "… — iPhone" look identical). */}
-          <div className="flex flex-col gap-10 sm:flex-row sm:gap-12 lg:gap-16">
-            {SECTIONS.map((sec) => (
-              <div key={sec.title}>
-                <h3 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-[#FFB27D]">{sec.title}</h3>
-                <ul className="space-y-2.5">
-                  {sec.links.map((l) => {
-                    const Icon = l.icon;
-                    return (
-                      <li key={l.label}>
-                        <a href={l.href} target="_blank" rel="noreferrer"
-                          className="group flex items-center gap-2.5 text-sm text-white/80 hover:text-white transition">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface/10 text-[#FFB27D] group-hover:bg-surface/20">
-                            <Icon className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="whitespace-nowrap">{l.label}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0 text-white/30 group-hover:text-white/60" />
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
+        {/* Section cards */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {SECTIONS.map((sec) => (
+            <div key={sec.title} className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+              <h3 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-[#FFB27D]">{sec.title}</h3>
+              <ul className="space-y-2.5">
+                {sec.links.map((l) => {
+                  const Icon = l.icon;
+                  return (
+                    <li key={l.label}>
+                      <a href={l.href} target="_blank" rel="noreferrer"
+                        className="group flex items-center gap-2.5 text-sm text-white/80 hover:text-white transition">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface/10 text-[#FFB27D] group-hover:bg-surface/20">
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{l.label}</span>
+                        <ExternalLink className="h-3 w-3 shrink-0 text-white/30 group-hover:text-white/60" />
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </div>
 
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10 pt-6">
