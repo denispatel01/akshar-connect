@@ -112,7 +112,18 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
-        {/* H10 — circular logo badge centred, with icon actions flanking it. Tall. */}
+
+        {/* Row 1 — navy Akshar Connect branding bar (H7 style). */}
+        <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
+          className="flex w-full items-center justify-center gap-2.5 bg-[#022c54] px-4 py-2.5">
+          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
+            className="h-8 w-8 shrink-0 rounded-lg ring-1 ring-white/15" />
+          <span className="font-display text-xl font-extrabold tracking-tight bg-gradient-to-r from-[#FF9D52] via-[#FF862A] to-[#FFC08A] bg-clip-text text-transparent">
+            Akshar Connect
+          </span>
+        </button>
+
+        {/* Row 2 — H10 circular logo badge centred, with icon actions flanking it. Tall. */}
         <div className="relative flex items-center justify-between px-4 py-7 sm:px-6 sm:py-9">
 
           {/* Left: sidebar toggle (desktop) + back + search */}
