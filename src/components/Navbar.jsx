@@ -12,10 +12,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Bell,
 } from 'lucide-react';
 import { getAllNavItems, getPrimaryMobile } from '../utils/navItems';
 import { useNewFeed } from '../utils/useNewFeed';
 import GlobalSearch from './GlobalSearch';
+import { dataService } from '../services/dataService';
+import { isBirthdayToday } from '../utils/birthdays';
 
 export default function Navbar({ activePage, setActivePage, user, onLogout, onBack, canBack, onRefresh, refreshing, isDarkMode, toggleDarkMode, updateAvailable, onHardRefresh, sidebarCollapsed, onToggleSidebar }) {
   const isAdmin = user?.role === 'Admin';
@@ -69,6 +72,21 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
 
   const [hasNewFeed, clearNewFeed] = useNewFeed();
 
+  // Lightweight "something to see" dot on the bell — announcements or a birthday today.
+  const [hasNotifs, setHasNotifs] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      try {
+        const anns = (dataService.getCachedAnnouncements?.() || []);
+        const bday = (dataService.getDevotees?.() || []).some((d) => isBirthdayToday(d.dob));
+        setHasNotifs(anns.length > 0 || bday);
+      } catch { /* ignore */ }
+    };
+    check();
+    window.addEventListener('ac-push-received', check);
+    return () => window.removeEventListener('ac-push-received', check);
+  }, []);
+
   const longPressTimer = useRef(null);
   const startLongPress = () => { longPressTimer.current = setTimeout(() => onHardRefresh?.(), 1500); };
   const cancelLongPress = () => { clearTimeout(longPressTimer.current); };
@@ -94,8 +112,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       <header className="sticky top-0 z-40 w-full border-b border-border-light bg-surface/80 backdrop-blur-xl shadow-sm">
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
-        {/* H10 — circular logo badge centred, with icon actions flanking it. */}
-        <div className="relative flex items-center justify-between px-4 py-2.5 sm:px-6">
+        {/* H10 — circular logo badge centred, with icon actions flanking it. Tall. */}
+        <div className="relative flex items-center justify-between px-4 py-7 sm:px-6 sm:py-9">
 
           {/* Left: sidebar toggle (desktop) + back + search */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -116,12 +134,17 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
 
           {/* Centre: prominent circular logo badge → Home */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-surface ring-2 ring-primary/40 shadow-[0_3px_12px_rgba(229,111,24,0.3)] transition-transform active:scale-95">
-            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect" className="h-10 w-10 rounded-full object-cover" />
+            className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-surface ring-2 ring-primary/40 shadow-[0_4px_16px_rgba(229,111,24,0.35)] transition-transform active:scale-95 sm:h-[72px] sm:w-[72px]">
+            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect" className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16" />
           </button>
 
-          {/* Right: theme + user badge/logout (desktop). Refresh now lives in the Menu. */}
+          {/* Right: notifications + theme + user badge/logout (desktop). */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <button onClick={() => window.dispatchEvent(new Event('ac-open-notifications'))} title="Notifications"
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
+              <Bell className="h-4 w-4" />
+              {hasNotifs && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-bg-base" />}
+            </button>
             <button onClick={toggleDarkMode} title="Toggle theme"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-light bg-bg-base text-text-main hover:bg-border-light dark:hover:bg-surface">
               {isDarkModeOn ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

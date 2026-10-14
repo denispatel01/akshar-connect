@@ -77,16 +77,23 @@ export default function NotificationsPopup({ user }) {
     if (!hasItems) return false;
     try { return localStorage.getItem(dayKey()) !== '1'; } catch (e) { return true; }
   });
+  // Opened from the header bell — show even when there's nothing pending (empty state).
+  const [forced, setForced] = useState(false);
+  useEffect(() => {
+    const onOpen = () => { setForced(true); setOpen(true); };
+    window.addEventListener('ac-open-notifications', onOpen);
+    return () => window.removeEventListener('ac-open-notifications', onOpen);
+  }, []);
 
   // Just close for now — it will pop up again next time the app is opened.
-  const close = () => setOpen(false);
+  const close = () => { setOpen(false); setForced(false); };
   // Suppress only for the rest of today; it returns tomorrow.
   const dismissToday = () => {
     try { localStorage.setItem(dayKey(), '1'); } catch (e) {}
     setOpen(false);
   };
 
-  if (!open || !hasItems) return null;
+  if (!open || (!hasItems && !forced)) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 backdrop-blur-[1px] p-4 pt-[8vh]"
@@ -101,6 +108,13 @@ export default function NotificationsPopup({ user }) {
         </div>
 
         <div className="overflow-y-auto p-4 space-y-4">
+          {!hasItems && (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-text-muted">
+              <Bell className="h-9 w-9 opacity-30" />
+              <p className="text-sm font-semibold">You're all caught up.</p>
+              <p className="text-[12px]">No new notifications right now.</p>
+            </div>
+          )}
           {announcements.length > 0 && (
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#FF862A]">
