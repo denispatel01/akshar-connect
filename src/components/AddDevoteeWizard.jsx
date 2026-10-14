@@ -186,8 +186,10 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
   const fileRef = useRef(null);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-  // Capitalize the first letter of every word (#89) — for name/text fields.
-  const capWords = (s) => String(s).replace(/(^|\s)([a-z])/g, (m, sp, c) => sp + c.toUpperCase());
+  // Proper-case as you type (#89) — capitalize the first letter of every word,
+  // matching the Ghari name fields. "anand uncle" → "Anand Uncle". Also handles
+  // words after a hyphen/dot (e.g. "k.patel" → "K.Patel").
+  const capWords = (s) => String(s).replace(/\b\w/g, (c) => c.toUpperCase());
   const setCap = (key) => (e) => set({ [key]: capWords(e.target.value) });
   // Distinct school names already in use — so new entries can reuse them for
   // consistency instead of re-typing "Radiant" five different ways (#111).
