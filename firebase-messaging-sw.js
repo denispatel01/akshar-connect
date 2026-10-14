@@ -17,6 +17,16 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 const APP_URL = 'https://denispatel01.github.io/akshar-connect/';
+// Backend endpoint — must match src/services/dataService.js API_URL. Used to report
+// a notification tap (which devotee opened which notification).
+const API_URL = 'https://script.google.com/macros/s/AKfycbw-LyYduU1mUaXwamTGPyh_TtP6pZkO3pTCPPGKMQOhUwJhFa_Z4wFzz83FYXnq9YqAnA/exec';
+
+// Tell the backend this device tapped the notification (best-effort).
+function reportClick(nid, rid) {
+  if (!nid) return Promise.resolve();
+  const url = API_URL + '?action=pushClicked&nid=' + encodeURIComponent(nid) + '&rid=' + encodeURIComponent(rid || '');
+  return fetch(url, { method: 'GET', keepalive: true, mode: 'no-cors' }).catch(() => {});
+}
 
 // Pull the deep-link page (?n=vato|feed|…) out of a link so we can both navigate
 // to it AND stash it for iOS (see below).
@@ -46,7 +56,8 @@ messaging.onBackgroundMessage((payload) => {
     body: d.body || '',
     icon: APP_URL + 'icons/icon-192.png',
     badge: APP_URL + 'icons/icon-192.png',
-    data: { link: d.link || APP_URL, type: d.type || '' },
+    // nid/rid let the click handler report who opened which notification.
+    data: { link: d.link || APP_URL, type: d.type || '', nid: d.nid || '', rid: d.rid || '' },
   });
 });
 
@@ -55,9 +66,11 @@ messaging.onBackgroundMessage((payload) => {
 // target URL is ignored, the stashed page (read by the app on boot) routes instead.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.link) || APP_URL;
+  const nd = event.notification.data || {};
+  const url = nd.link || APP_URL;
   const page = pageFromLink(url);
   event.waitUntil((async () => {
+    await reportClick(nd.nid, nd.rid);
     await stashPending(page);
     const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const w of wins) {
