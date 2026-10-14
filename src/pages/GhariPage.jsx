@@ -104,24 +104,31 @@ function DevoteePicker({ value, onPick, onText, placeholder, icon: Icon = User, 
 // Append an alpha byte to a #RRGGBB colour (a in 0..1) → a translucent tint.
 const tint = (hex, a) => `${hex}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
 
+// Compact, tap-to-add product tile. An UNSELECTED tile is tiny (just name + size +
+// price) so the whole catalog fits on one screen with no scrolling — tap it to add
+// the first box. Only tiles with a quantity expand to show the −/＋ stepper, a
+// type-in count and the +10/+50 bulk buttons. Built for fast, repeated entry.
 function ProductCard({ product, qty, onChange }) {
   const cat = GHARI_CATEGORIES[product.category];
   const color = cat?.color || '#E56F18';
   const active = qty > 0;
   const qtyRef = useRef(null);
+  // Shorter label — drop the "Ghari " prefix and any ( ) so names stay on one line.
+  const label = product.name.replace(/^Ghari\s+/i, '').replace(/[()]/g, '').trim();
   // Picking a product adds one and focuses the quantity so you can type the count.
   const pick = () => { onChange(qty + 1); setTimeout(() => { try { qtyRef.current?.focus(); qtyRef.current?.select(); } catch { /* ignore */ } }, 0); };
   return (
-    <div className="relative overflow-hidden rounded-xl border-2 p-2 transition-all"
+    <div className="relative overflow-hidden rounded-xl border-2 transition-all"
       style={{
         background: active ? (cat?.bgActive || tint(color, 0.22)) : (cat?.bg || tint(color, 0.11)),
         borderColor: active ? color : tint(color, 0.5),
         boxShadow: active ? `0 3px 10px ${tint(color, 0.3)}` : 'none',
       }}>
-      <div className="absolute right-0 top-0 h-full w-1" style={{ background: color }} />
-      <button onClick={pick} className="block w-full text-left">
+      <div className="absolute left-0 top-0 h-full w-1" style={{ background: color }} />
+      {/* The whole tile is one big tap target → add a box. */}
+      <button onClick={pick} className="block w-full px-2 py-1.5 pl-2.5 text-left">
         <div className="flex items-start justify-between gap-1">
-          <span className="text-[12px] font-extrabold leading-tight text-text-main">{product.name}</span>
+          <span className="text-[12px] font-extrabold leading-tight text-text-main">{label}</span>
           {active && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-black text-white">{qty}</span>}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5">
@@ -129,23 +136,28 @@ function ProductCard({ product, qty, onChange }) {
           <span className="text-[10px] font-bold" style={{ color: cat?.color }}>{rupee(product.unitPrice)}</span>
         </div>
       </button>
-      <div className="mt-1.5 flex items-center justify-between gap-1.5">
-        <button onClick={() => onChange(Math.max(0, qty - 1))} disabled={!qty}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-light bg-surface text-text-main disabled:opacity-30 active:scale-95">
-          <Minus className="h-4 w-4" />
-        </button>
-        <input ref={qtyRef} inputMode="numeric" value={qty || 0} data-no-clear="true"
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
-          className={`min-w-0 w-10 rounded-lg bg-white/60 py-0.5 text-center text-base font-black outline-none ${active ? 'text-primary' : 'text-text-main'}`} />
-        <button onClick={pick}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="mt-1 flex gap-1">
-        {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-md bg-white/50 py-0.5 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
-      </div>
+      {/* Stepper + bulk only once selected — keeps unselected tiles tiny. */}
+      {active && (
+        <div className="px-1.5 pb-1.5">
+          <div className="flex items-center justify-between gap-1">
+            <button onClick={() => onChange(Math.max(0, qty - 1))}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border-light bg-surface text-text-main active:scale-95">
+              <Minus className="h-4 w-4" />
+            </button>
+            <input ref={qtyRef} inputMode="numeric" value={qty || 0} data-no-clear="true"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => onChange(Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0))}
+              className="min-w-0 w-10 rounded-lg bg-white/70 py-0.5 text-center text-base font-black text-primary outline-none" />
+            <button onClick={pick}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow active:scale-95">
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-1 flex gap-1">
+            {[10, 50].map(n => <button key={n} onClick={() => onChange(qty + n)} className="flex-1 rounded-md bg-white/50 py-0.5 text-[10px] font-black text-text-muted active:scale-95">+{n}</button>)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
