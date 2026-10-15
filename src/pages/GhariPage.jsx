@@ -192,6 +192,10 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const karyakartaRef = useRef(null);
   const mobileRef = useRef(null);
   const [delivered, setDelivered] = useState(initialOrder?.delivered || false);
+  // Delivery date is hidden by default (most orders don't need one). It appears
+  // only when the admin chooses to add it, or when editing an order that has one.
+  const [deliveryDate, setDeliveryDate] = useState(initialOrder?.deliveryDate || '');
+  const [showDeliveryDate, setShowDeliveryDate] = useState(!!initialOrder?.deliveryDate);
   const [paymentType, setPaymentType] = useState(initialOrder?.paymentType || '');
   const [remarks, setRemarks] = useState(initialOrder?.remarks || '');
   const [payEdited, setPayEdited] = useState(isEdit);
@@ -215,7 +219,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
-  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setDeliveryDate(''); setShowDeliveryDate(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
   // Review-before-save: validate, then show a preview so the user can confirm the
   // exact order (items hard to re-check by scrolling up past many product cards).
@@ -235,7 +239,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       // Names are always stored in proper case, however they were typed.
       customerName: properName(customerName), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
       karyakarta: properName(karyakarta), karyakartaId,
-      items, delivered,
+      items, delivered, deliveryDate,
       paymentReceived: paid, paymentType: paymentType || (paid > 0 ? 'Cash' : 'Pending'),
       remarks: remarks.trim(), status: initialOrder?.status || 'active',
     });
@@ -345,6 +349,24 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
         </button>
       </div>
 
+      {/* Delivery date — hidden by default; added only when the admin wants it.
+          Two reminder emails (evening before + on the day, 8 PM) are sent for it. */}
+      {showDeliveryDate ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2 focus-within:border-primary">
+          <Calendar className="h-4 w-4 shrink-0 text-text-muted" />
+          <span className="shrink-0 text-[11px] font-black uppercase tracking-wide text-text-muted">Delivery date</span>
+          <input type="date" value={deliveryDate}
+            onChange={(e) => setDeliveryDate(e.target.value)}
+            className="w-full bg-transparent text-sm font-semibold text-text-main outline-none" />
+          <button type="button" onClick={() => { setDeliveryDate(''); setShowDeliveryDate(false); }} title="Remove delivery date" className="shrink-0 text-text-muted hover:text-text-main"><X className="h-4 w-4" /></button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setShowDeliveryDate(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-dashed border-border-light bg-surface px-3 py-1.5 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">
+          <Calendar className="h-3.5 w-3.5" /> Add delivery date
+        </button>
+      )}
+
       <AutoTextarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks (optional)" minRows={1}
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
 
@@ -409,6 +431,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>
                 {balance > 0 && <div className="flex justify-between"><span className="font-semibold text-rose-600">Balance due</span><span className="font-black text-rose-600">{rupee(balance)}</span></div>}
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery</span><span className="font-bold text-text-main">{delivered ? 'Delivered ✓' : 'Not yet'}</span></div>
+                {deliveryDate && <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery date</span><span className="font-bold text-text-main">{deliveryDate}</span></div>}
                 {remarks.trim() && <div className="pt-1 text-[12px] text-text-muted">📝 {remarks.trim()}</div>}
               </div>
             </div>
