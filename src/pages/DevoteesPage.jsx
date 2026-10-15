@@ -942,16 +942,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                  const rows = exportList.map((d, i) => `
                    <tr>
                      <td>${i + 1}</td>
-                     <td>${d.id || ''}</td>
                      <td class="name">${d.name || ''}</td>
+                     <td>${d.address || ''}</td>
+                     <td>${firstLastName(d.followupKaryakarta) || ''}</td>
                      <td>${mobileOf(d) || ''}</td>
-                     <td>${d.area || ''}</td>
-                     <td>${d.gender || ''}</td>
-                     <td>${d.dob ? d.dob.replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : ''}</td>
-                     <td>${d.bloodGroup || ''}</td>
-                     <td>${d.yuvakType || ''}</td>
-                     <td>${d.followupKaryakarta || ''}</td>
-                     <td>${Array.isArray(d.tags) && d.tags.length ? d.tags.map(k => tagLabel(k)).join(', ') : ''}</td>
                    </tr>`).join('');
                  const win = window.open('', '_blank');
                  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Akshar Connect – Devotee Directory</title><style>
@@ -971,7 +965,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                    td{padding:5px 5px;border-bottom:1px solid #e4eaf3;vertical-align:top}
                    td.name{font-weight:600;color:#003158}
                    .footer{margin-top:14px;border-top:1px solid #ddd;padding-top:8px;display:flex;justify-content:space-between;font-size:8px;color:#888}
-                   @page{margin:14mm 10mm;size:A4 landscape}
+                   @page{margin:14mm 12mm;size:A4 portrait}
                    @media print{body{padding:0}}
                  </style></head><body>
                    <div class="header">
@@ -984,8 +978,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                    <div class="meta"><span><strong>Filter:</strong> ${selectedIds.size > 0 ? 'Hand-picked selection' : filterDesc}</span><span><strong>Total:</strong> ${exportList.length} devotees</span></div>
                    <table>
                      <thead><tr>
-                       <th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th>Area</th>
-                       <th>Gender</th><th>DOB</th><th>Blood</th><th>Type</th><th>Karyakarta</th><th>Tags</th>
+                       <th>#</th><th>Full Name</th><th>Address</th><th>Karyakarta</th><th>Mobile No</th>
                      </tr></thead>
                      <tbody>${rows}</tbody>
                    </table>
