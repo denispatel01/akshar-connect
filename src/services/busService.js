@@ -18,11 +18,9 @@ import { scoreMatch, devoteeSearchText } from '../utils/search';
 
 // ── Seat types (the berth arrangement, mirrors the WhatsApp shorthand) ───────
 export const BUS_SEAT_TYPES = {
-  single_sofo:   { key: 'single_sofo',   label: 'Single sofo',    short: 'Single',          sofo: true,  color: '#2563EB' },
-  double_sofo:   { key: 'double_sofo',   label: 'Double sofo',    short: 'Double',          sofo: true,  color: '#16A34A' },
-  single_nosofo: { key: 'single_nosofo', label: 'Single no sofo', short: 'Single · no sofo', sofo: false, color: '#EA580C' },
-  double_nosofo: { key: 'double_nosofo', label: 'Double no sofo', short: 'Double · no sofo', sofo: false, color: '#9333EA' },
-  sharing_sofo:  { key: 'sharing_sofo',  label: 'Sharing sofo',   short: 'Sharing',         sofo: true,  color: '#0D9488' },
+  single_sofo:   { key: 'single_sofo',   label: 'Single sofo',  short: 'Single',  sofo: true, color: '#2563EB' },
+  double_sofo:   { key: 'double_sofo',   label: 'Double sofo',  short: 'Double',  sofo: true, color: '#16A34A' },
+  sharing_sofo:  { key: 'sharing_sofo',  label: 'Sharing sofo', short: 'Sharing', sofo: true, color: '#0D9488' },
 };
 export const DEFAULT_SEAT_TYPE = 'single_sofo';
 
