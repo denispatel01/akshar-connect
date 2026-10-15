@@ -1765,6 +1765,7 @@ function handle_(p){
       return json_({ ok:true, activity: out });
     }
     // ── App usage analytics (admin only) ────────────────────────────────────
+    if(action==='getUsageDump'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Admins only' }); return doGetUsageDump_(p); }
     if(action==='getUsageStats'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Admins only' }); return doGetUsageStats_(p); }
     if(action==='getUsageDetail'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Admins only' }); return doGetUsageDetail_(p); }
     if(action==='getUsers') return json_({ ok:true, users: readAll_('Users') });
@@ -1910,6 +1911,24 @@ function isAdminActor_(p){
     if(normMob_(users[i].mobile) === mob) return String(users[i].role||'').trim().toLowerCase() === 'admin';
   }
   return false;
+}
+
+// ONE fast read for the whole App Usage page: the most-recent `limit` activity
+// rows (newest first), read via readTail_ so a huge Activity sheet isn't scanned
+// in full. The client aggregates counts and does every drill-down from this in
+// memory — so clicking a module/member is instant and never hits the backend
+// again (the old per-click getUsageDetail re-read the entire sheet each time).
+function doGetUsageDump_(p){
+  var sh = tab_('Activity'); var last = sh.getLastRow();
+  var total = last > 1 ? (last - 1) : 0;
+  var n = Math.min(Number(p.limit) || 6000, 8000);
+  var rows = readTail_('Activity', n);        // oldest → newest
+  var out = [];
+  for(var i = rows.length - 1; i >= 0; i--){  // newest first
+    var r = rows[i];
+    out.push({ ts:r.ts, actor:r.actor, actorMobile:r.actorMobile, action:r.action, detail:r.detail, device:r.device });
+  }
+  return json_({ ok:true, rows: out, total: total, truncated: total > out.length });
 }
 
 // Aggregate the whole Activity log into usage stats: total events, distinct

@@ -26,6 +26,7 @@ const MODULES = [
 ];
 
 const cleanName = (actor) => String(actor || '').replace(/\s*\(.*\)$/, '').trim() || '—';
+const normMob = (m) => String(m || '').replace(/\D/g, '');
 const fmtDateTime = (iso) => {
   try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   catch { return String(iso || ''); }
@@ -40,14 +41,8 @@ const timeAgo = (iso) => {
   return `${Math.floor(d / 30)}mo ago`;
 };
 
-// ── Drill-down list of raw activity rows (who + when) ────────────────────────
-function DetailModal({ title, query, onClose }) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    dataService.getUsageDetail(query).then(r => { if (alive) setRows(r || []); });
-    return () => { alive = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+// ── Drill-down list of raw activity rows (who + when) — filtered IN MEMORY ────
+function DetailModal({ title, rows, onClose }) {
   return createPortal(
     <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
@@ -56,9 +51,9 @@ function DetailModal({ title, query, onClose }) {
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {rows === null && <p className="py-10 text-center text-sm text-text-muted">Loading…</p>}
-          {rows && rows.length === 0 && <p className="py-10 text-center text-sm text-text-muted">No activity recorded.</p>}
-          {rows && rows.length > 0 && (
+          {rows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-text-muted">No activity recorded for this yet.</p>
+          ) : (
             <>
               <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wide text-text-muted">{rows.length} entr{rows.length === 1 ? 'y' : 'ies'} · newest first</p>
               <div className="space-y-1.5">
@@ -69,9 +64,7 @@ function DetailModal({ title, query, onClose }) {
                         <p className="truncate text-sm font-bold text-text-main">{cleanName(r.actor)}</p>
                         {r.actorMobile && <p className="text-[11px] font-semibold text-text-muted">📱 {r.actorMobile}</p>}
                       </div>
-                      <span className="shrink-0 text-right text-[10px] font-semibold text-text-muted" title={fmtDateTime(r.ts)}>
-                        {fmtDateTime(r.ts)}
-                      </span>
+                      <span className="shrink-0 text-right text-[10px] font-semibold text-text-muted">{fmtDateTime(r.ts)}</span>
                     </div>
                     {r.detail && <p className="mt-0.5 text-[12px] text-text-main/90">{r.detail}</p>}
                     {r.device && <p className="mt-0.5 flex items-center gap-1 text-[10px] text-text-muted"><Smartphone className="h-3 w-3" /> {r.device}</p>}
@@ -89,27 +82,54 @@ function DetailModal({ title, query, onClose }) {
 
 export default function AppUsagePage({ user }) {
   const isAdmin = user?.role === 'Admin';
-  const [stats, setStats] = useState(null);
+  const [data, setData] = useState(null); // { ok, rows, total, truncated, error }
   const [busy, setBusy] = useState(false);
-  const [drill, setDrill] = useState(null); // { title, query }
+  const [drill, setDrill] = useState(null); // { title, rows }
   const [q, setQ] = useState('');
 
   const load = async () => {
     setBusy(true);
-    try { setStats(await dataService.getUsageStats()); }
+    try { setData(await dataService.getUsageDump({ limit: 6000 })); }
     finally { setBusy(false); }
   };
   useEffect(() => { if (isAdmin) load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const rows = data?.rows || [];
+
+  // Everything below is computed from the single fetched row set — no more calls.
+  const byAction = useMemo(() => {
+    const m = {}; rows.forEach(r => { const a = String(r.action || 'other'); m[a] = (m[a] || 0) + 1; }); return m;
+  }, [rows]);
+  const users = useMemo(() => {
+    const by = {};
+    rows.forEach(r => {
+      const mob = normMob(r.actorMobile);
+      const key = mob || ('name:' + cleanName(r.actor));
+      const u = by[key] || (by[key] = { key, name: cleanName(r.actor), mobile: mob, count: 0, lastTs: '' });
+      u.count++;
+      const ts = String(r.ts || ''); if (ts > u.lastTs) { u.lastTs = ts; u.name = cleanName(r.actor); }
+    });
+    return Object.values(by).sort((a, b) => b.count - a.count);
+  }, [rows]);
+
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const users = stats?.users || [];
   const activeThisWeek = useMemo(() => users.filter(u => Date.parse(u.lastTs || '') >= weekAgo).length, [users]); // eslint-disable-line react-hooks/exhaustive-deps
-  const moduleCount = (m) => (m.actions || []).reduce((s, a) => s + ((stats?.byAction || {})[a] || 0), 0);
+  const moduleCount = (m) => (m.actions || []).reduce((s, a) => s + (byAction[a] || 0), 0);
   const shownUsers = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const list = t ? users.filter(u => cleanName(u.name).toLowerCase().includes(t) || String(u.mobile || '').includes(t)) : users;
-    return list;
+    return t ? users.filter(u => u.name.toLowerCase().includes(t) || String(u.mobile || '').includes(t)) : users;
   }, [users, q]);
+
+  const drillActions = (title, actions) => {
+    const set = new Set(actions);
+    setDrill({ title, rows: rows.filter(r => set.has(String(r.action))) });
+  };
+  const drillMember = (u) => {
+    setDrill({
+      title: u.name,
+      rows: rows.filter(r => (u.mobile ? normMob(r.actorMobile) === u.mobile : cleanName(r.actor) === u.name)),
+    });
+  };
 
   if (!isAdmin) {
     return <div className="mx-auto max-w-md p-8 text-center text-sm font-semibold text-text-muted">This section is for admins only.</div>;
@@ -129,17 +149,20 @@ export default function AppUsagePage({ user }) {
         </button>
       </div>
 
-      {stats === null ? (
-        <p className="py-16 text-center text-sm text-text-muted">Loading usage…</p>
-      ) : stats.ok === false ? (
-        <p className="py-16 text-center text-sm text-rose-600">{stats.error || 'Could not load usage. (Is the backend deployed?)'}</p>
+      {data === null ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-text-muted">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <p className="text-sm font-semibold">Loading usage…</p>
+        </div>
+      ) : data.ok === false ? (
+        <p className="py-16 text-center text-sm text-rose-600">{data.error || 'Could not load usage. (Is the backend deployed?)'}</p>
       ) : (
         <>
           {/* Headline totals */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <div className="rounded-2xl border border-border-light bg-surface p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-text-muted"><Users className="h-3.5 w-3.5 text-[#2563EB]" /> Members</div>
-              <div className="mt-1 text-2xl font-black text-text-main">{stats.members}</div>
+              <div className="mt-1 text-2xl font-black text-text-main">{users.length}</div>
               <div className="text-[11px] font-semibold text-text-muted">used the app</div>
             </div>
             <div className="rounded-2xl border border-border-light bg-surface p-3">
@@ -147,18 +170,22 @@ export default function AppUsagePage({ user }) {
               <div className="mt-1 text-2xl font-black text-text-main">{activeThisWeek}</div>
               <div className="text-[11px] font-semibold text-text-muted">this week</div>
             </div>
-            <button onClick={() => setDrill({ title: 'Logins', query: { actions: 'login', limit: 1000 } })}
+            <button onClick={() => drillActions('Logins', ['login'])}
               className="rounded-2xl border border-border-light bg-surface p-3 text-left transition-all hover:border-primary/40 active:scale-[0.98]">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-text-muted"><LogIn className="h-3.5 w-3.5 text-[#2563EB]" /> Logins</div>
-              <div className="mt-1 text-2xl font-black text-text-main">{(stats.byAction || {}).login || 0}</div>
+              <div className="mt-1 text-2xl font-black text-text-main">{byAction.login || 0}</div>
               <div className="flex items-center gap-0.5 text-[11px] font-semibold text-primary">View who <ChevronRight className="h-3 w-3" /></div>
             </button>
             <div className="rounded-2xl border border-border-light bg-surface p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-text-muted"><Activity className="h-3.5 w-3.5 text-[#FF862A]" /> Events</div>
-              <div className="mt-1 text-2xl font-black text-text-main">{stats.total}</div>
-              <div className="text-[11px] font-semibold text-text-muted">total actions</div>
+              <div className="mt-1 text-2xl font-black text-text-main">{rows.length}</div>
+              <div className="text-[11px] font-semibold text-text-muted">{data.truncated ? `recent of ${data.total}` : 'total actions'}</div>
             </div>
           </div>
+
+          {data.truncated && (
+            <p className="mt-2 text-[11px] font-semibold text-text-muted">Showing the most recent {rows.length.toLocaleString('en-IN')} actions (of {data.total.toLocaleString('en-IN')} logged).</p>
+          )}
 
           {/* Usage by module — tap a count to see who + when */}
           <h2 className="mb-2 mt-6 text-sm font-black text-text-main">Usage by module</h2>
@@ -167,8 +194,7 @@ export default function AppUsagePage({ user }) {
               const count = moduleCount(m);
               const Icon = m.icon;
               return (
-                <button key={m.key} onClick={() => setDrill({ title: m.label, query: { actions: m.actions.join(','), limit: 1500 } })}
-                  disabled={count === 0}
+                <button key={m.key} onClick={() => drillActions(m.label, m.actions)} disabled={count === 0}
                   className="flex items-center gap-3 rounded-2xl border border-border-light bg-surface p-3 text-left transition-all hover:border-primary/40 active:scale-[0.98] disabled:opacity-50 disabled:hover:border-border-light">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: m.color }}><Icon className="h-5 w-5" /></span>
                   <div className="min-w-0 flex-1">
@@ -182,9 +208,7 @@ export default function AppUsagePage({ user }) {
           </div>
 
           {/* By member — tap a person to see everything they did */}
-          <div className="mb-2 mt-6 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-black text-text-main">By member · {users.length}</h2>
-          </div>
+          <h2 className="mb-2 mt-6 text-sm font-black text-text-main">By member · {users.length}</h2>
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-light bg-surface px-3 py-2">
             <Search className="h-4 w-4 text-text-muted" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a member…"
@@ -193,27 +217,26 @@ export default function AppUsagePage({ user }) {
           </div>
           <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
             {shownUsers.length === 0 && <p className="py-10 text-center text-sm text-text-muted">No members{q ? ' match your search' : ' yet'}.</p>}
-            {shownUsers.map((u, i) => (
-              <button key={(u.mobile || u.name) + i} onClick={() => setDrill({ title: cleanName(u.name), query: { actorMobile: u.mobile, limit: 1500 } })}
-                disabled={!u.mobile}
-                className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 hover:bg-bg-base disabled:cursor-default">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-black text-primary">{cleanName(u.name)[0] || '?'}</span>
+            {shownUsers.map((u) => (
+              <button key={u.key} onClick={() => drillMember(u)}
+                className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 hover:bg-bg-base">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-black text-primary">{u.name[0] || '?'}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-text-main">{cleanName(u.name)}</p>
+                  <p className="truncate text-sm font-bold text-text-main">{u.name}</p>
                   <p className="truncate text-[11px] font-semibold text-text-muted">{u.mobile ? `📱 ${u.mobile} · ` : ''}last active {timeAgo(u.lastTs)}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-black text-text-main">{u.count}</div>
                   <div className="text-[10px] font-semibold text-text-muted">actions</div>
                 </div>
-                {u.mobile && <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />}
+                <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
               </button>
             ))}
           </div>
         </>
       )}
 
-      {drill && <DetailModal title={drill.title} query={drill.query} onClose={() => setDrill(null)} />}
+      {drill && <DetailModal title={drill.title} rows={drill.rows} onClose={() => setDrill(null)} />}
     </div>
   );
 }

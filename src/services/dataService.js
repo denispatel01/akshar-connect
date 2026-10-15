@@ -512,6 +512,13 @@ export const dataService = {
   },
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
+  // Admin: one fast read of recent activity rows — the App Usage page aggregates
+  // counts and drills down from this in memory (no per-click backend calls).
+  getUsageDump: async ({ limit = 6000 } = {}) => {
+    if (!hasBackend()) return { ok: false, rows: [], total: 0 };
+    try { const r = await api('getUsageDump', { limit }); return r || { ok: false, rows: [] }; }
+    catch (e) { return { ok: false, error: e.message, rows: [] }; }
+  },
   // Admin: app-usage analytics aggregated from the Activity log.
   getUsageStats: async () => {
     if (!hasBackend()) return { ok: false, total: 0, members: 0, byAction: {}, users: [] };
