@@ -20,6 +20,7 @@ import {
   Quote,
   CalendarCheck,
   Bus,
+  Activity as ActivityIcon,
 } from 'lucide-react';
 
 // A role stored in the Users sheet can drift in case/whitespace ("admin",
@@ -119,6 +120,7 @@ export function getNavGroups(user) {
       label: 'Admin',
       items: isAdmin
         ? [
+            { id: 'app-usage', label: 'App Usage', icon: ActivityIcon, adminOnly: true },
             { id: 'family-tags', label: 'Family Tags', icon: Tags, adminOnly: true },
             { id: 'data', label: 'Data Quality', icon: Database, adminOnly: true },
             { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },

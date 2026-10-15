@@ -1742,6 +1742,9 @@ function handle_(p){
       var out = tail.slice(Math.max(0, tail.length-lim)).reverse(); // newest first
       return json_({ ok:true, activity: out });
     }
+    // ── App usage analytics (admin only) ────────────────────────────────────
+    if(action==='getUsageStats'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Admins only' }); return doGetUsageStats_(p); }
+    if(action==='getUsageDetail'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Admins only' }); return doGetUsageDetail_(p); }
     if(action==='getUsers') return json_({ ok:true, users: readAll_('Users') });
     if(action==='getMailEnabled') return json_({ ok:true, enabled: mailEnabled_() });
     if(action==='setMailEnabled'){
@@ -1874,6 +1877,60 @@ function handle_(p){
     if(action==='resolveError') return json_({ ok:true, result: resolveError_(p) });
     return json_({ ok:false, error:'unknown action: '+action });
   }catch(err){ return json_({ ok:false, error:String(err) }); }
+}
+
+// True only when the caller (actorMobile) is an Admin in the Users sheet.
+function isAdminActor_(p){
+  var mob = normMob_(p && p.actorMobile || '');
+  if(!mob) return false;
+  var users = readAll_('Users');
+  for(var i=0;i<users.length;i++){
+    if(normMob_(users[i].mobile) === mob) return String(users[i].role||'').trim().toLowerCase() === 'admin';
+  }
+  return false;
+}
+
+// Aggregate the whole Activity log into usage stats: total events, distinct
+// members, a per-action count, and a per-member summary (count + first/last seen).
+// All small — the heavy row list is fetched on demand by getUsageDetail.
+function doGetUsageStats_(p){
+  var rows = readAll_('Activity');
+  var byAction = {};
+  var usersByKey = {};
+  rows.forEach(function(r){
+    var act = String(r.action || 'other');
+    byAction[act] = (byAction[act] || 0) + 1;
+    var mob = normMob_(r.actorMobile || '');
+    var key = mob || ('name:' + String(r.actor || '?'));
+    var u = usersByKey[key] || (usersByKey[key] = { name:String(r.actor||''), mobile:mob, count:0, firstTs:'', lastTs:'', actions:{} });
+    u.count++;
+    u.actions[act] = (u.actions[act] || 0) + 1;
+    var ts = String(r.ts || '');
+    if(ts > u.lastTs){ u.lastTs = ts; if(r.actor) u.name = String(r.actor); }
+    if(!u.firstTs || ts < u.firstTs) u.firstTs = ts;
+  });
+  var users = Object.keys(usersByKey).map(function(k){ return usersByKey[k]; })
+    .sort(function(a,b){ return b.count - a.count; });
+  return json_({ ok:true, total: rows.length, members: users.length, byAction: byAction, users: users });
+}
+
+// Return the raw Activity rows (newest first) for a drill-down: filter by one
+// action, a comma-list of actions, and/or a member's mobile. Capped at `limit`.
+function doGetUsageDetail_(p){
+  var actions = {};
+  String(p.actions || p.action || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(a){ actions[a] = 1; });
+  var hasActionFilter = Object.keys(actions).length > 0;
+  var mob = normMob_(p.actorMobile || '');
+  var limit = Math.min(Number(p.limit) || 500, 3000);
+  var rows = readAll_('Activity');
+  var out = [];
+  for(var i = rows.length - 1; i >= 0 && out.length < limit; i--){
+    var r = rows[i];
+    if(hasActionFilter && !actions[String(r.action)]) continue;
+    if(mob && normMob_(r.actorMobile || '') !== mob) continue;
+    out.push({ ts:r.ts, actor:r.actor, actorMobile:r.actorMobile, action:r.action, target:r.target, detail:r.detail, device:r.device });
+  }
+  return json_({ ok:true, rows: out });
 }
 
 function doMark_(p){

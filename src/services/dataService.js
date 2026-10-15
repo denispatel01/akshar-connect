@@ -512,6 +512,19 @@ export const dataService = {
   },
   logActivity: (action, target, detail) => logActivity_(action, target, detail),
 
+  // Admin: app-usage analytics aggregated from the Activity log.
+  getUsageStats: async () => {
+    if (!hasBackend()) return { ok: false, total: 0, members: 0, byAction: {}, users: [] };
+    try { const r = await api('getUsageStats', {}); return r || { byAction: {}, users: [] }; }
+    catch (e) { return { ok: false, error: e.message, byAction: {}, users: [] }; }
+  },
+  // Admin: raw activity rows for a drill-down (by action(s) and/or member mobile).
+  getUsageDetail: async ({ actions = '', actorMobile = '', limit = 500 } = {}) => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getUsageDetail', { actions, actorMobile, limit }); return (r && r.rows) || []; }
+    catch { return []; }
+  },
+
   // Admin: make an on-demand Drive backup of the whole sheet now.
   backupNow: async () => {
     if (!hasBackend()) throw new Error('No backend configured.');
