@@ -17,6 +17,7 @@ import {
 import { getAllNavItems, getPrimaryMobile } from '../utils/navItems';
 import { useNewFeed } from '../utils/useNewFeed';
 import GlobalSearch from './GlobalSearch';
+import AksharLogo from './AksharLogo';
 import { dataService } from '../services/dataService';
 import { isBirthdayToday } from '../utils/birthdays';
 
@@ -113,12 +114,10 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
 
-        {/* Row 1 — full-width horizontal logo strip (the same logo as the footer,
-            which is designed for a light background, so the strip is white). */}
+        {/* Row 1 — Akshar Connect logo lockup (bespoke SVG: hamsa on a lotus + wordmark). */}
         <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-          className="flex w-full items-center justify-center bg-white px-4 py-2.5 sm:py-3">
-          <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
-            className="h-11 w-auto max-w-full object-contain sm:h-14" />
+          className="flex w-full items-center justify-center bg-[#022c54] px-4 py-3 sm:py-3.5">
+          <AksharLogo dark={false} size={52} />
         </button>
 
         {/* Row 2 — H10 circular logo badge centred, with icon actions flanking it. Tall. */}
