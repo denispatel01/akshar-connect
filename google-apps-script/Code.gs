@@ -1195,6 +1195,26 @@ function pushToMobile_(title, body, mobile, data){
   } catch(e){ return 0; }
 }
 
+// Send a push reminder to a specific list of mobile numbers (a follow-up drive's
+// devotees, or their karyakartas). Pushes to each number's registered devices;
+// numbers with no device are skipped. Returns how many people were reached and
+// the total device count.
+function doSendFollowupReminder_(p){
+  var title = String(p.title||'').slice(0,120);
+  var body = String(p.body||'').slice(0,500);
+  var mobiles = p.mobiles || [];
+  if(!title) return json_({ ok:false, error:'Title required' });
+  if(!mobiles.length) return json_({ ok:false, error:'No recipients' });
+  // De-dupe numbers so one person is never pushed twice.
+  var seen = {}, sent = 0, reached = 0;
+  mobiles.forEach(function(m){
+    var nm = normMob_(m); if(!nm || seen[nm]) return; seen[nm] = 1;
+    var n = 0; try { n = pushToMobile_(title, body, nm, { type:'followup' }); } catch(e){ n = 0; }
+    if(n > 0){ reached++; sent += n; }
+  });
+  return json_({ ok:true, sent:sent, reached:reached, recipients:Object.keys(seen).length });
+}
+
 // Editor helper: send yourself a test push to confirm the FCM setup works.
 function testPush(){ Logger.log('sent to ' + sendPush_('Test push', 'If you see this, FCM works 🎉', 'all', {})); }
 
@@ -1778,6 +1798,7 @@ function handle_(p){
       var _sent = 0; try { _sent = sendPush_(_t, _b, _aud, { type:'announcement', by:String(p.createdBy||p.by||'') }); } catch(e){ return json_({ ok:false, error:String(e) }); }
       return json_({ ok:true, sent:_sent });
     }
+    if(action==='sendFollowupReminder') return doSendFollowupReminder_(p);
     if(action==='logPushStatus') return doLogPushStatus_(p);
     if(action==='getPushStatus') return doGetPushStatus_();
     // Push delivery log — campaigns + per-recipient received/clicked.

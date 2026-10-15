@@ -113,12 +113,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
 
-        {/* Row 1 — navy Akshar Connect branding bar (H7 style). */}
+        {/* Row 1 — navy Akshar Connect branding bar. Full-width, prominent wordmark. */}
         <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-          className="flex w-full items-center justify-center gap-2.5 bg-[#022c54] px-4 py-2.5">
+          className="flex w-full items-center justify-center gap-3 bg-[#022c54] px-4 py-3 sm:py-3.5">
           <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
-            className="h-8 w-8 shrink-0 rounded-lg ring-1 ring-white/15" />
-          <span className="font-display text-xl font-extrabold tracking-tight bg-gradient-to-r from-[#FF9D52] via-[#FF862A] to-[#FFC08A] bg-clip-text text-transparent">
+            className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/15 sm:h-12 sm:w-12" />
+          <span className="font-display text-[clamp(1.6rem,8vw,2.75rem)] font-black leading-none tracking-tight bg-gradient-to-r from-[#FF9D52] via-[#FF862A] to-[#FFC08A] bg-clip-text text-transparent">
             Akshar Connect
           </span>
         </button>

@@ -9,7 +9,7 @@ import AutoTextarea from '../components/AutoTextarea';
 import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
-import { alertSuccess, confirmDialog } from '../utils/sweetAlert';
+import { alertSuccess, alertError, confirmDialog } from '../utils/sweetAlert';
 
 // Default outcome options for a normal (attendance) event. Each event can now
 // define its OWN set — e.g. a Ghari Seva drive uses order-focused outcomes.
@@ -56,6 +56,87 @@ function Tick({ on, onClick, icon: Icon, label }) {
   );
 }
 
+// Compose + send a push reminder to the devotees currently listed, or to their
+// karyakartas. Recipients are resolved to mobile numbers (the backend pushes to
+// each number's registered devices). Devotees without a logged-in device simply
+// don't receive it — the result tells you how many were reached.
+function ReminderModal({ event, who, audience, karyakartaMobileFor, onClose }) {
+  const recipients = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    if (who === 'devotees') {
+      audience.forEach(d => {
+        const m = String(d.mobile || '').replace(/\D/g, '');
+        if (!m || seen.has(m)) return; seen.add(m);
+        out.push({ name: d.name, mobile: m });
+      });
+    } else {
+      const names = new Set();
+      audience.forEach(d => { const k = (d.followupKaryakarta || '').trim(); if (k) names.add(k); });
+      [...names].sort().forEach(name => {
+        const m = String(karyakartaMobileFor(name) || '').replace(/\D/g, '');
+        if (!m || seen.has(m)) return; seen.add(m);
+        out.push({ name, mobile: m });
+      });
+    }
+    return out;
+  }, [who, audience, karyakartaMobileFor]);
+
+  const defaultBody = who === 'devotees'
+    ? `Jai Swaminarayan 🙏 Reminder: ${event?.title || 'Sabha'} on ${event?.date || ''}${event?.time ? ' at ' + event.time : ''}${event?.venue ? ', ' + event.venue : ''}. Please do attend.`
+    : `Jai Swaminarayan 🙏 Please complete your follow-up calls for ${event?.title || 'the sabha'} (${event?.date || ''}). Thank you for your seva.`;
+  const [title, setTitle] = useState(`${event?.title || 'Event'} — reminder`);
+  const [body, setBody] = useState(defaultBody);
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (!title.trim() || !body.trim()) { alertError('Message needed', 'Enter a title and message.'); return; }
+    if (!recipients.length) { alertError('No recipients', `No ${who} with a mobile number in this list.`); return; }
+    setBusy(true);
+    try {
+      const r = await dataService.sendFollowupReminder({ title: title.trim(), body: body.trim(), mobiles: recipients.map(x => x.mobile) });
+      onClose();
+      alertSuccess('Reminder sent', `Delivered to ${r.reached || 0} of ${recipients.length} ${who} (${r.sent || 0} device${r.sent === 1 ? '' : 's'}). People without the app installed aren't reached.`);
+    } catch (e) { alertError('Could not send', e.message || 'Try again.'); }
+    finally { setBusy(false); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><PhoneCall className="h-4 w-4 text-[#FF862A]" /> Push reminder to {who}</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+          <div>
+            <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Title</label>
+            <input value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Message</label>
+            <AutoTextarea value={body} onChange={e => setBody(e.target.value)} minRows={3}
+              className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          </div>
+          <div className="rounded-2xl border border-border-light bg-bg-base px-3 py-2">
+            <p className="text-[11px] font-black uppercase tracking-wide text-text-muted">{recipients.length} recipient{recipients.length === 1 ? '' : 's'}</p>
+            <p className="mt-1 text-[12px] text-text-main/90 line-clamp-3">{recipients.map(r => r.name).join(', ') || 'None with a mobile number'}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 border-t border-border-light p-3">
+          <button onClick={onClose} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text-muted">Cancel</button>
+          <button onClick={send} disabled={busy || !recipients.length}
+            className="flex-[1.4] rounded-xl bg-[#FF862A] py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-50">
+            {busy ? 'Sending…' : `Send to ${recipients.length}`}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function FollowupsPage({ user }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
   const [showEventModal, setShowEventModal] = useState(false);
@@ -72,6 +153,10 @@ export default function FollowupsPage({ user }) {
   const [showTagPanel, setShowTagPanel] = useState(false);
   const [viewFilter, setViewFilter] = useState('all'); // all | pending | contacted
   const [karyakarta, setKaryakarta] = useState('');
+  // When set, the roster is filtered to devotees with this exact outcome — set by
+  // tapping an outcome summary chip, so each count drills into its devotee list.
+  const [outcomeFilter, setOutcomeFilter] = useState('');
+  const [reminder, setReminder] = useState(null); // { who:'devotees'|'karyakartas' } while composing
 
   useEffect(() => {
     setEvents(dataService.getEvents());
@@ -198,9 +283,29 @@ export default function FollowupsPage({ user }) {
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
+      if (outcomeFilter && (fmap[d.id]?.outcome || '') !== outcomeFilter) return false;
       return true;
     }).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))); // A→Z
-  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta]);
+  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter]);
+
+  // Name → mobile for karyakartas (so a reminder can reach the karyakartas, not
+  // only the devotees). Matches the assigned/default karyakarta name to a devotee
+  // record; exact match, then unique first+last-words match.
+  const karyakartaMobileFor = useMemo(() => {
+    const exact = new Map();
+    devotees.forEach(d => { if (d.name && d.mobile) exact.set(d.name.trim().toLowerCase(), d.mobile); });
+    return (name) => {
+      const q = String(name || '').trim().toLowerCase();
+      if (!q) return '';
+      if (exact.has(q)) return exact.get(q);
+      const words = q.split(/\s+/).filter(Boolean);
+      const hits = devotees.filter(d => d.mobile && d.name && (() => {
+        const nw = String(d.name).toLowerCase().split(/\s+/).filter(Boolean);
+        return words.every(w => nw.includes(w));
+      })());
+      return hits.length === 1 ? hits[0].mobile : '';
+    };
+  }, [devotees]);
 
   // Summary over the current (search + tag) audience, ignoring the pendingOnly view filter
   const summary = useMemo(() => {
@@ -436,11 +541,18 @@ export default function FollowupsPage({ user }) {
   // ones red, the rest neutral — so the chip row reads at a glance for any outcome set.
   const outcomeChipCls = (o) => /coming|placed|yes|done|interested(?<!not interested)/i.test(o) && !/not /i.test(o)
     ? 'text-emerald-600' : /not |unable|no\b|refus/i.test(o) ? 'text-red-600' : 'text-amber-600';
+  // Each chip is a filter: tapping it shows exactly those devotees in the roster
+  // below (so a count is never a dead end — you can see WHO is coming, etc.).
+  const applyChip = (fn) => { fn(); try { requestAnimationFrame(() => window.scrollTo({ top: 400, behavior: 'smooth' })); } catch { /* ignore */ } };
   const chips = [
-    { label: 'Devotees', value: summary.total, cls: 'text-text-main' },
-    { label: 'Contacted', value: summary.contacted, cls: 'text-sky-600' },
-    ...eventOutcomes.map(o => ({ label: o, value: summary.byOutcome[o] || 0, cls: outcomeChipCls(o) })),
-    { label: 'Pending', value: summary.pending, cls: 'text-slate-500' },
+    { label: 'Devotees', value: summary.total, cls: 'text-text-main',
+      active: !outcomeFilter && viewFilter === 'all', apply: () => { setOutcomeFilter(''); setViewFilter('all'); } },
+    { label: 'Contacted', value: summary.contacted, cls: 'text-sky-600',
+      active: !outcomeFilter && viewFilter === 'contacted', apply: () => { setOutcomeFilter(''); setViewFilter('contacted'); } },
+    ...eventOutcomes.map(o => ({ label: o, value: summary.byOutcome[o] || 0, cls: outcomeChipCls(o),
+      active: outcomeFilter === o, apply: () => { setOutcomeFilter(o); setViewFilter('all'); } })),
+    { label: 'Pending', value: summary.pending, cls: 'text-slate-500',
+      active: !outcomeFilter && viewFilter === 'pending', apply: () => { setOutcomeFilter(''); setViewFilter('pending'); } },
   ];
 
   return (
@@ -457,15 +569,43 @@ export default function FollowupsPage({ user }) {
         <p className="text-sm font-medium text-text-muted break-words">{selectedEvent.date} • {selectedEvent.time} • {selectedEvent.venue}</p>
       </div>
 
-      {/* Summary chips */}
+      {/* Summary chips — tap one to list those devotees below. */}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {chips.map(c => (
-          <div key={c.label} className="rounded-2xl border border-border-light bg-surface px-3 py-2 text-center shadow-xs">
+          <button key={c.label} onClick={() => applyChip(c.apply)}
+            className={`rounded-2xl border px-3 py-2 text-center shadow-xs transition-all active:scale-95 ${c.active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border-light bg-surface hover:border-primary/40'}`}>
             <p className={`text-xl font-extrabold ${c.cls}`}>{c.value}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{c.label}</p>
-          </div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{c.label}</p>
+          </button>
         ))}
       </div>
+
+      {/* Reminder bar — send a push to the devotees currently listed, or to their
+          karyakartas, nudging them about this event. Staff only. */}
+      {canManage && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+          <span className="text-xs font-bold text-text-muted">
+            Send push reminder{outcomeFilter ? ` · ${outcomeFilter}` : viewFilter !== 'all' ? ` · ${viewFilter}` : ''}:
+          </span>
+          <button onClick={() => setReminder({ who: 'devotees' })}
+            className="flex items-center gap-1.5 rounded-xl bg-[#FF862A] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#e06f19] active:scale-95">
+            <PhoneCall className="h-3.5 w-3.5" /> To devotees ({audience.length})
+          </button>
+          <button onClick={() => setReminder({ who: 'karyakartas' })}
+            className="flex items-center gap-1.5 rounded-xl border border-primary bg-primary/5 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 active:scale-95">
+            <Users className="h-3.5 w-3.5" /> To karyakartas
+          </button>
+        </div>
+      )}
+      {reminder && (
+        <ReminderModal
+          event={selectedEvent}
+          who={reminder.who}
+          audience={audience}
+          karyakartaMobileFor={karyakartaMobileFor}
+          onClose={() => setReminder(null)}
+        />
+      )}
 
       {/* Controls */}
       <div className="space-y-3">

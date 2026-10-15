@@ -124,7 +124,10 @@ export default function SwadhyayPage({ user }) {
   // numbers fill in when the data arrives (no blocking "Loading…" screen).
   useEffect(() => {
     let alive = true;
-    dataService.getMySwadhyay(devoteeId).then((rows) => { if (alive) setHistory(rows || []); });
+    if (!devoteeId) { setHistory([]); return () => { alive = false; }; }
+    Promise.resolve(dataService.getMySwadhyay(devoteeId))
+      .then((rows) => { if (alive) setHistory(rows || []); })
+      .catch(() => { if (alive) setHistory([]); });
     return () => { alive = false; };
   }, [devoteeId]);
 
@@ -276,6 +279,11 @@ export default function SwadhyayPage({ user }) {
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 pb-28">
       {showGroup && <SwadhyayGroupReport onClose={() => setShowGroup(false)} />}
+      {!devoteeId && (
+        <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          Your login isn’t linked to a devotee record yet, so Swadhyay can’t load or save your Bhajan/Shravan/Vanchan. Please ask an admin to link your mobile number to your devotee profile.
+        </div>
+      )}
       {isAdmin && (
         <button onClick={() => setShowGroup(true)}
           className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">

@@ -606,6 +606,16 @@ export const dataService = {
     logActivity_('push', '', `sent a push notification "${title}" to ${r.sent} device${r.sent === 1 ? '' : 's'}`);
     return r;
   },
+  // Staff: send a push reminder to a specific list of mobile numbers (the devotees
+  // on a follow-up drive, or their karyakartas). Each number's registered devices
+  // get the push; numbers without a device are simply skipped.
+  sendFollowupReminder: async ({ title, body, mobiles = [] }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('sendFollowupReminder', { title, body, mobiles });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to send.');
+    logActivity_('push', '', `sent a follow-up reminder "${title}" to ${r.reached || 0} recipient${r.reached === 1 ? '' : 's'}`);
+    return r;
+  },
   // Admin: edit an announcement's text (does not re-push).
   updateAnnouncement: async (row) => {
     if (!hasBackend()) throw new Error('No backend configured.');

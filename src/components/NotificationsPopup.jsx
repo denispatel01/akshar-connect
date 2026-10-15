@@ -5,9 +5,16 @@ import { dataService } from '../services/dataService';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { isBirthdayToday, upcomingBirthdays, birthdayDate } from '../utils/birthdays';
 
-const fmtWhen = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } };
+const fmtWhen = (iso) => {
+  try {
+    const d = new Date(iso); const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    return sameDay
+      ? d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+      : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch { return ''; }
+};
 
-const dayKey = () => 'ac-notif-' + new Date().toISOString().slice(0, 10);
 const contactedF = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
 
 function waWish(d) {
@@ -21,11 +28,13 @@ function waWish(d) {
 // Shown once per day on app open when there is something worth surfacing.
 export default function NotificationsPopup({ user }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
-  const [announcements, setAnnouncements] = useState(() => (dataService.getCachedAnnouncements() || []).slice(0, 5));
+  // Push notifications = announcements, newest first (the backend already sorts
+  // desc and caps at 50). We show the FULL list — this is the notification feed.
+  const [announcements, setAnnouncements] = useState(() => (dataService.getCachedAnnouncements() || []));
   // Refresh announcements in the background (and when a push arrives while open).
   useEffect(() => {
     let alive = true;
-    const load = () => dataService.getAnnouncements().then(list => { if (alive) setAnnouncements((list || []).slice(0, 5)); }).catch(() => {});
+    const load = () => dataService.getAnnouncements().then(list => { if (alive) setAnnouncements(list || []); }).catch(() => {});
     load();
     const onPush = () => load();
     window.addEventListener('ac-push-received', onPush);
@@ -73,33 +82,25 @@ export default function NotificationsPopup({ user }) {
   }, [devotees, canManage]);
 
   const hasItems = announcements.length > 0 || today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
-  const [open, setOpen] = useState(() => {
-    if (!hasItems) return false;
-    try { return localStorage.getItem(dayKey()) !== '1'; } catch (e) { return true; }
-  });
-  // Opened from the header bell — show even when there's nothing pending (empty state).
-  const [forced, setForced] = useState(false);
+  // This is a notification CENTER, opened from the header bell — never an
+  // auto-popup. It slides in from the right (a real notification panel) and lists
+  // every push notification, newest first.
+  const [open, setOpen] = useState(false);
   useEffect(() => {
-    const onOpen = () => { setForced(true); setOpen(true); };
+    const onOpen = () => setOpen(true);
     window.addEventListener('ac-open-notifications', onOpen);
     return () => window.removeEventListener('ac-open-notifications', onOpen);
   }, []);
 
-  // Just close for now — it will pop up again next time the app is opened.
-  const close = () => { setOpen(false); setForced(false); };
-  // Suppress only for the rest of today; it returns tomorrow.
-  const dismissToday = () => {
-    try { localStorage.setItem(dayKey(), '1'); } catch (e) {}
-    setOpen(false);
-  };
+  const close = () => setOpen(false);
 
-  if (!open || (!hasItems && !forced)) return null;
+  if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 backdrop-blur-[1px] p-4 pt-[8vh]"
+    <div className="fixed inset-0 z-[70] flex items-stretch justify-end bg-black/40 backdrop-blur-[1px]"
       onClick={close} style={{ animation: 'ntfFade .2s ease-out' }}>
-      <div className="w-full max-w-md rounded-3xl bg-surface shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
-        onClick={e => e.stopPropagation()} style={{ animation: 'ntfPop .25s cubic-bezier(.22,1,.36,1)' }}>
+      <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-surface shadow-2xl sm:rounded-l-3xl"
+        onClick={e => e.stopPropagation()} style={{ animation: 'ntfSlide .25s cubic-bezier(.22,1,.36,1)' }}>
         <div className="flex items-center justify-between border-b border-border-light px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-bold text-text-main">
             <Bell className="h-5 w-5 text-[#FF862A]" /> Notifications
@@ -109,16 +110,16 @@ export default function NotificationsPopup({ user }) {
 
         <div className="overflow-y-auto p-4 space-y-4">
           {!hasItems && (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-text-muted">
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-text-muted">
               <Bell className="h-9 w-9 opacity-30" />
-              <p className="text-sm font-semibold">You're all caught up.</p>
-              <p className="text-[12px]">No new notifications right now.</p>
+              <p className="text-sm font-semibold">No notifications yet.</p>
+              <p className="text-[12px]">Push notifications will appear here, newest first.</p>
             </div>
           )}
           {announcements.length > 0 && (
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#FF862A]">
-                <Megaphone className="h-3.5 w-3.5" /> Announcements
+                <Megaphone className="h-3.5 w-3.5" /> Push notifications
               </p>
               <div className="space-y-2">
                 {announcements.map(a => (
@@ -213,19 +214,16 @@ export default function NotificationsPopup({ user }) {
           )}
         </div>
 
-        <div className="border-t border-border-light p-3 flex gap-2">
-          <button onClick={dismissToday} className="flex-1 rounded-2xl border border-border-light bg-bg-base py-2.5 text-sm font-bold text-text-muted hover:text-text-main">
-            Don't show today
-          </button>
-          <button onClick={close} className="flex-1 rounded-2xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
-            Got it
+        <div className="border-t border-border-light p-3">
+          <button onClick={close} className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-[#00223f]">
+            Close
           </button>
         </div>
       </div>
 
       <style>{`
         @keyframes ntfFade { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes ntfPop { from { transform: translateY(-12px) scale(.98); opacity: .6 } to { transform: translateY(0) scale(1); opacity: 1 } }
+        @keyframes ntfSlide { from { transform: translateX(100%); opacity: .4 } to { transform: translateX(0); opacity: 1 } }
       `}</style>
     </div>,
     document.body

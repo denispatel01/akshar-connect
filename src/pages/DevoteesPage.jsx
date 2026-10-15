@@ -9,7 +9,9 @@ import { tagsByCategory, tagLabel, tagChipStyle } from '../services/tagCatalog';
 import { isBirthdayToday, isBirthdayWithin } from '../utils/birthdays';
 import { scoreMatch, devoteeSearchText } from '../utils/search';
 import { focusNextOnEnter } from '../utils/formNav';
+import { telHref, waHref } from '../utils/contact';
 import EmptyState from '../components/EmptyState';
+import Timeline from '../components/Timeline';
 import { ListSkeleton } from '../components/SkeletonLoader';
 import {
   hasAnyTag, deriveAge, QUALIFICATIONS, formatFamilyRecordType, gradeDisplay
@@ -249,34 +251,34 @@ function SevaSection({ devotee, open, onToggle }) {
     return `${h}:${m[2]} ${ap}`;
   };
   const timeRange = (s) => [fmtTime(s.fromTime), fmtTime(s.toTime)].filter(Boolean).join(' – ');
-  const Row = ({ s, who, whoName }) => {
-    let comps = []; try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) {}
-    return (
-      <div className="rounded-xl border border-border-light bg-bg-base px-3 py-2">
-        <div className="flex items-start justify-between gap-2">
-          <span className="text-xs font-bold text-text-main">{who}: {whoName || '—'}</span>
-          {s.category && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">{s.category}</span>}
-        </div>
-        <p className="mt-0.5 text-[11px] font-semibold text-text-muted">{fmtDate(s.date)}{timeRange(s) ? ` · ${timeRange(s)}` : ''}</p>
-        {s.work && <p className="mt-0.5 text-[11px] text-text-main/90">{s.work}</p>}
-        {comps.length > 0 && <p className="mt-0.5 text-[11px] font-semibold text-purple-600">with {comps.map((x) => x.name).join(', ')}</p>}
-      </div>
-    );
-  };
+  // Merge both lists into one chronological timeline (newest first). "received" =
+  // seva done AT this devotee's home (teal); "done" = seva this karyakarta did
+  // elsewhere (orange), so the dot colour tells the two apart at a glance.
+  const timelineItems = useMemo(() => {
+    const mk = (s, kind) => {
+      let comps = []; try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) {}
+      const received = kind === 'received';
+      return {
+        id: s.id,
+        _date: String(s.date || ''),
+        color: received ? '#0D9488' : '#EA580C',
+        title: received ? `By: ${s.karyakartaName || '—'}` : `At: ${s.visitedName || '—'}`,
+        badge: s.category || null,
+        subtitle: `${fmtDate(s.date)}${timeRange(s) ? ` · ${timeRange(s)}` : ''}`,
+        body: (
+          <>
+            {s.work && <p>{s.work}</p>}
+            {comps.length > 0 && <p className="mt-0.5 font-semibold text-purple-600">with {comps.map((x) => x.name).join(', ')}</p>}
+          </>
+        ),
+      };
+    };
+    return [...received.map((s) => mk(s, 'received')), ...done.map((s) => mk(s, 'done'))]
+      .sort((a, b) => b._date.localeCompare(a._date));
+  }, [done, received]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Collapsible title={<span className="flex items-center gap-2">🤝 Seva <span className="font-bold text-text-muted">· {total}</span></span>} open={open} onToggle={onToggle}>
-      {received.length > 0 && (
-        <div className="mb-3">
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva received at home · {received.length}</p>
-          <div className="space-y-1.5">{received.map((s) => <Row key={s.id} s={s} who="By" whoName={s.karyakartaName} />)}</div>
-        </div>
-      )}
-      {done.length > 0 && (
-        <div>
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-text-muted">Seva done by this karyakarta · {done.length}</p>
-          <div className="space-y-1.5">{done.map((s) => <Row key={s.id} s={s} who="At" whoName={s.visitedName} />)}</div>
-        </div>
-      )}
+      <Timeline items={timelineItems} />
     </Collapsible>
   );
 }
@@ -431,13 +433,36 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     const tagged = devotees.filter(d => (d.tags || []).includes('karyakarta')).map(d => d.name).filter(Boolean);
     return [...new Set([...tagged, ...uniqueKaryakartas])].sort((a, b) => a.localeCompare(b));
   }, [devotees, uniqueKaryakartas]);
-  // Look up a karyakarta devotee by exact name → auto-fill their mobile from the Devotees tab.
+  // Look up a karyakarta devotee by name → auto-fill their mobile from the Devotees
+  // tab. The picker offers short/variant names (e.g. "Ankit Modi") that may not
+  // equal a devotee's stored full name ("Ankit R. Modi"), so exact match alone
+  // missed them. We now match in three steps: exact → all typed name-words are a
+  // subset of a devotee's name words (first+last ignoring a middle) → unique
+  // startsWith. A candidate only wins when it is UNAMBIGUOUS (one devotee), so we
+  // never guess the wrong person's number.
   const devoteeByName = useMemo(() => {
     const m = new Map();
     devotees.forEach(d => { if (d.name) m.set(d.name.trim().toLowerCase(), d); });
     return m;
   }, [devotees]);
-  const karyakartaMobileFor = (name) => devoteeByName.get((name || '').trim().toLowerCase())?.mobile || '';
+  const karyakartaMobileFor = (name) => {
+    const q = String(name || '').trim().toLowerCase();
+    if (!q) return '';
+    const exact = devoteeByName.get(q);
+    if (exact?.mobile) return exact.mobile;
+    const words = q.split(/\s+/).filter(Boolean);
+    const withMobile = devotees.filter(d => d.mobile && d.name);
+    // All typed words appear in the devotee's name (order-independent) — so
+    // "ankit modi" matches "Ankit R. Modi". Must be a single devotee to auto-fill.
+    let hits = withMobile.filter(d => {
+      const nameWords = String(d.name).toLowerCase().split(/\s+/).filter(Boolean);
+      return words.every(w => nameWords.includes(w));
+    });
+    if (hits.length === 1) return hits[0].mobile;
+    // Fall back to a unique prefix match ("ankit" → the only "Ankit …").
+    hits = withMobile.filter(d => String(d.name).trim().toLowerCase().startsWith(q));
+    return hits.length === 1 ? hits[0].mobile : '';
+  };
   // Normalize an area for de-duping: trim + collapse spaces + lowercase, so
   // "Rama ", "rama" and "Rama" collapse to one option (different names like
   // "Rama" vs "Rama Nakshatra" stay separate — merge those in the Area Master).
@@ -675,6 +700,14 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     ? (devotees.find((d) => d.familyId === familyFilter && d.type === 'Primary')?.name
         || devotees.find((d) => d.familyId === familyFilter)?.name || familyFilter)
     : '';
+
+  // What the Print/Excel export covers: when devotees have been hand-picked in
+  // "Select" mode, export ONLY those (so you can drop a few before exporting);
+  // otherwise export the whole filtered list as before.
+  const exportList = useMemo(
+    () => (selectedIds.size > 0 ? filteredDevotees.filter(d => selectedIds.has(d.id)) : filteredDevotees),
+    [filteredDevotees, selectedIds]
+  );
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -918,11 +951,17 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </select>
             
             <div className="flex gap-2">
+               <button onClick={() => { setSelectMode((v) => { if (v) setSelectedIds(new Set()); return !v; }); }}
+                 title={selectMode ? 'Exit selection' : 'Select devotees to export'}
+                 className={'flex items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-bold transition-colors ' +
+                   (selectMode ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
+                 <CheckSquare className="h-4 w-4" /> {selectMode ? (selectedIds.size ? `${selectedIds.size} selected` : 'Selecting') : 'Select'}
+               </button>
                <button onClick={() => {
                  const now = new Date();
                  const dateStr = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
                  const filterDesc = searchQuery ? `Search: "${searchQuery}"` : selectedTags.length ? `Tags: ${selectedTags.join(', ')}` : filterKaryakartas.length ? `Karyakarta: ${filterKaryakartas.join(', ')}` : familyFilter ? `Family: ${familyFilter}` : 'All Devotees';
-                 const rows = filteredDevotees.map((d, i) => `
+                 const rows = exportList.map((d, i) => `
                    <tr>
                      <td>${i + 1}</td>
                      <td>${d.id || ''}</td>
@@ -964,7 +1003,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                      </div>
                      <div class="header-right">Printed: ${dateStr}<br/>Jai Swaminarayan 🙏</div>
                    </div>
-                   <div class="meta"><span><strong>Filter:</strong> ${filterDesc}</span><span><strong>Total:</strong> ${filteredDevotees.length} devotees</span></div>
+                   <div class="meta"><span><strong>Filter:</strong> ${selectedIds.size > 0 ? 'Hand-picked selection' : filterDesc}</span><span><strong>Total:</strong> ${exportList.length} devotees</span></div>
                    <table>
                      <thead><tr>
                        <th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th>Area</th>
@@ -983,7 +1022,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   // Real .xlsx so it opens straight in Google Sheets / Excel (incl. mobile).
                   const XLSX = await import('xlsx');
                   const ddmmyyyy = (s) => s ? String(s).replace(/(\d{4})-(\d{2})-(\d{2})/, '$3-$2-$1') : '';
-                  const data = filteredDevotees.map((d, i) => {
+                  const data = exportList.map((d, i) => {
                     const age = deriveAge(d.dob);
                     return {
                       // Requested leading order:
@@ -1101,7 +1140,15 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             }} className="text-xs font-bold text-primary hover:underline">
               {selectedIds.size === filteredDevotees.length ? 'Deselect All' : 'Select All'}
             </button>
+            {selectedIds.size > 0 && (
+              <button onClick={() => setSelectedIds(new Set())} className="text-xs font-bold text-red-500 hover:underline">Clear</button>
+            )}
           </div>
+          <p className="text-[11px] font-semibold text-text-muted">
+            {selectedIds.size > 0
+              ? `Tap a devotee to add/remove · Print & Excel will export these ${selectedIds.size}.`
+              : 'Tap devotees to pick them, then use Print / Excel to export just those.'}
+          </p>
         </div>
       )}
 
@@ -1331,6 +1378,22 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {(() => {
+                    const tel = telHref(mobileOf(devotee));
+                    const wa = waHref(whatsappOf(devotee) || mobileOf(devotee), `Jai Swaminarayan ${devotee.firstName || devotee.name || ''} 🙏`);
+                    return (
+                      <>
+                        {tel && (
+                          <a href={tel} onClick={stop} title="Call" aria-label={`Call ${devotee.name}`}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100 dark:bg-sky-950 dark:hover:bg-sky-900 border border-transparent"><Phone className="h-4 w-4" /></a>
+                        )}
+                        {wa && (
+                          <a href={wa} onClick={stop} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label={`WhatsApp ${devotee.name}`}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 border border-transparent"><MessageCircle className="h-4 w-4" /></a>
+                        )}
+                      </>
+                    );
+                  })()}
                   <button onClick={(e) => { stop(e); setExpandedCard(expanded ? null : devotee.id); }} title={expanded ? 'Show less' : 'Quick details'}
                     className="flex h-8 w-8 items-center justify-center rounded-xl bg-bg-base text-text-main hover:bg-[#E4EBF3] dark:hover:bg-surface border border-transparent hover:border-border-light">
                     <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
