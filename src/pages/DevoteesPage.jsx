@@ -39,6 +39,9 @@ const TABS = {
 const SATSANG_ROLE_FIELDS = new Set(['familyId', 'relation']);
 // Order of sections in the single-scroll LinkedIn-style profile.
 const PROFILE_SECTION_ORDER = ['Personal', 'Contact', 'Satsang', 'Family', 'Education', 'Profession', 'Tags', 'System'];
+// Every collapsible section key in a devotee profile (the ordered field sections
+// plus the Seva and History cards) — used by Expand all / Collapse all.
+const ALL_PROFILE_SECS = [...PROFILE_SECTION_ORDER, 'Seva', 'History'];
 // Emoji per profile section — quick visual scanning of the single-scroll profile.
 const SECTION_EMOJI = {
   Personal: '👤', Contact: '📞', Satsang: '🙏', Family: '👨‍👩‍👧', Education: '🎓',
@@ -276,7 +279,20 @@ function SevaSection({ devotee, open, onToggle }) {
       .sort((a, b) => b._date.localeCompare(a._date));
   }, [done, received]);
 
-  if (!loaded || (done.length === 0 && received.length === 0)) return null;
+  // While the seva history is loading, still show the section (with a spinner) so a
+  // devotee in a hurry doesn't think it's missing. Only once loaded AND empty do we
+  // hide it entirely.
+  if (!loaded) {
+    return (
+      <Collapsible open={open} onToggle={onToggle}
+        title={<span className="flex items-center gap-2">🤝 Seva <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-border-light border-t-primary" /></span>}>
+        <div className="flex items-center justify-center gap-2 py-5 text-sm font-semibold text-text-muted">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-border-light border-t-primary" /> Loading seva history…
+        </div>
+      </Collapsible>
+    );
+  }
+  if (done.length === 0 && received.length === 0) return null;
   const total = done.length + received.length;
   return (
     <Collapsible title={<span className="flex items-center gap-2">🤝 Seva <span className="font-bold text-text-muted">· {total}</span></span>} open={open} onToggle={onToggle}>
@@ -1574,6 +1590,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
 
             {/* Body — section cards (continues the same scroll as the header) */}
               <div className="w-full p-3 sm:p-4 space-y-3" data-enter-nav onKeyDown={focusNextOnEnter}>
+                <div className="flex items-center justify-end gap-1.5">
+                  <button type="button" onClick={() => setOpenSec(Object.fromEntries(ALL_PROFILE_SECS.map((k) => [k, true])))}
+                    className="rounded-lg border border-border-light bg-surface px-2.5 py-1 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">Expand all</button>
+                  <button type="button" onClick={() => setOpenSec({})}
+                    className="rounded-lg border border-border-light bg-surface px-2.5 py-1 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">Collapse all</button>
+                </div>
                 {PROFILE_SECTION_ORDER.map((sec) => {
                   // ── Family members card ──
                   if (sec === 'Family') {

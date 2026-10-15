@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { dataService } from '../services/dataService';
-import { RefreshCw, Activity as ActivityIcon, Smartphone, Clock, GitCommitHorizontal, LayoutList } from 'lucide-react';
+import { RefreshCw, Activity as ActivityIcon, Smartphone, Clock, GitCommitHorizontal, LayoutList, ChevronDown } from 'lucide-react';
 
 // Emoji per action kind for quick scanning.
 const ACTION_EMOJI = {
@@ -88,6 +88,9 @@ export default function ActivityFeed({ mine = false }) {
     try { return localStorage.getItem('ac-activity-view') || 'timeline'; } catch { return 'timeline'; }
   });
   const setViewPersist = (v) => { setView(v); try { localStorage.setItem('ac-activity-view', v); } catch { /* ignore */ } };
+  // Which section headers are collapsed (day in timeline view, kind in grouped).
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const toggleSec = (k) => setCollapsed((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   // In "Everyone" mode, hide the viewer's OWN actions — those live under "My
   // activity". Match on the real signed-in mobile (not a view-as identity); fall
@@ -126,6 +129,16 @@ export default function ActivityFeed({ mine = false }) {
   const loadMore = () => { const next = limit + PAGE; setLimit(next); load(next, { more: true }); };
   const refresh = () => { setLimit(PAGE); load(PAGE); };
 
+  // Precompute the sections for the active view, so Expand/Collapse all knows the
+  // exact section keys on screen.
+  const dayGroups = view === 'timeline' ? groupByDay(rows) : [];
+  const buckets = view === 'grouped' ? groupRows(rows) : null;
+  const sectionKeys = view === 'timeline'
+    ? dayGroups.map((d) => d.key)
+    : (buckets ? GROUPS.filter((g) => buckets[g.key].length > 0).map((g) => g.key) : []);
+  const collapseAll = () => setCollapsed(new Set(sectionKeys));
+  const expandAll = () => setCollapsed(new Set());
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -142,6 +155,12 @@ export default function ActivityFeed({ mine = false }) {
               <LayoutList className="h-3.5 w-3.5" /> Grouped
             </button>
           </div>
+          {rows.length > 0 && (
+            <div className="inline-flex items-center gap-1.5">
+              <button onClick={expandAll} className="rounded-xl border border-border-light bg-surface px-2.5 py-1.5 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">Expand all</button>
+              <button onClick={collapseAll} className="rounded-xl border border-border-light bg-surface px-2.5 py-1.5 text-[11px] font-bold text-text-muted hover:border-primary hover:text-primary">Collapse all</button>
+            </div>
+          )}
           <button onClick={refresh} className="inline-flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-xs font-bold text-text-main hover:bg-bg-base">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
@@ -160,12 +179,17 @@ export default function ActivityFeed({ mine = false }) {
       {/* ── Timeline view — chronological, grouped by day with a connecting line. ── */}
       {view === 'timeline' && rows.length > 0 && (
         <div className="space-y-5">
-          {groupByDay(rows).map((day) => (
+          {dayGroups.map((day) => {
+            const isCollapsed = collapsed.has(day.key);
+            return (
             <section key={day.key}>
-              <h3 className="mb-2.5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+              <button onClick={() => toggleSec(day.key)}
+                className="mb-2.5 flex w-full items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {day.key}
                 <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-muted">{day.items.length}</span>
-              </h3>
+              </button>
+              {!isCollapsed && (
               <ol className="relative ml-[9px] space-y-3 border-l-2 border-border-light pl-5">
                 {day.items.map((r, i) => (
                   <li key={i} className="relative">
@@ -184,22 +208,27 @@ export default function ActivityFeed({ mine = false }) {
                   </li>
                 ))}
               </ol>
+              )}
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* ── Grouped view — by action kind. ── */}
-      {view === 'grouped' && (() => {
-        const buckets = groupRows(rows);
-        return (
+      {view === 'grouped' && buckets && (
           <div className="space-y-6">
-            {GROUPS.filter((g) => buckets[g.key].length > 0).map((g) => (
+            {GROUPS.filter((g) => buckets[g.key].length > 0).map((g) => {
+              const isCollapsed = collapsed.has(g.key);
+              return (
               <section key={g.key}>
-                <h3 className="mb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+                <button onClick={() => toggleSec(g.key)}
+                  className="mb-2 flex w-full items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                   {g.title}
                   <span className="rounded-full bg-bg-base px-2 py-0.5 text-[10px] font-bold text-text-muted">{buckets[g.key].length}</span>
-                </h3>
+                </button>
+                {!isCollapsed && (
                 <ol className="space-y-2">
                   {buckets[g.key].map((r, i) => (
                     <li key={i} className="flex items-start gap-3 rounded-2xl border border-border-light bg-surface px-3.5 py-3">
@@ -217,11 +246,12 @@ export default function ActivityFeed({ mine = false }) {
                     </li>
                   ))}
                 </ol>
+                )}
               </section>
-            ))}
+              );
+            })}
           </div>
-        );
-      })()}
+      )}
 
       {/* Lazy "load more" — fetches the next page only when asked. */}
       {!loading && rows.length > 0 && hasMore && (
