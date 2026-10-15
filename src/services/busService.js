@@ -41,6 +41,9 @@ function writeJSON_(key, val) {
 let MEM = { events: null, bookings: null };
 let flushing = false;
 let inited = false;
+// The last error that blocked a sync (e.g. the backend action isn't deployed yet,
+// or a permission rejection), so the UI can tell the user WHY nothing cleared.
+let lastFlushError = '';
 
 function nowISO_() { return new Date().toISOString(); }
 function norm_(s) { return String(s || '').toLowerCase().trim(); }
@@ -136,6 +139,7 @@ async function flush() {
       try { await backendApi(op.action, op.payload); succeeded.add(op.opId); }
       catch (e) {
         const msg = String((e && e.message) || e);
+        lastFlushError = msg;
         // A permission rejection never succeeds on retry — drop it so the local
         // edit's revert (on the next syncDown) is visible, not silently stuck.
         if (/not allowed/i.test(msg)) { succeeded.add(op.opId); emit_('ac-bus-error', { message: msg, action: op.action }); }
@@ -145,6 +149,7 @@ async function flush() {
     }
     const now = outbox_().filter(o => !succeeded.has(o.opId)).map(o => meta[o.opId] ? { ...o, ...meta[o.opId] } : o);
     setOutbox_(now);
+    if (!now.length) lastFlushError = ''; // everything synced — clear the error
   } finally {
     flushing = false;
     emit_('ac-bus-synced', { pending: outbox_().length });
@@ -254,6 +259,7 @@ export const busService = {
   },
 
   pendingCount: () => outbox_().length,
+  lastError: () => lastFlushError,
   isOnline: () => backendOnline() && (typeof navigator === 'undefined' || navigator.onLine !== false),
 
   searchDevotees,

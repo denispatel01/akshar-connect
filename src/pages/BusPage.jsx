@@ -27,7 +27,25 @@ function SyncStrip() {
     const t = setInterval(onSync, 4000);
     return () => { window.removeEventListener('ac-bus-synced', onSync); window.removeEventListener('ac-bus-changed', onSync); window.removeEventListener('online', onSync); window.removeEventListener('offline', onSync); clearInterval(t); };
   }, []);
-  const syncNow = async () => { setBusy(true); try { await busService.flush(); await busService.syncDown(); } finally { setBusy(false); setPending(busService.pendingCount()); } };
+  const syncNow = async () => {
+    setBusy(true);
+    try { await busService.flush(); await busService.syncDown(); }
+    finally {
+      setBusy(false);
+      const p = busService.pendingCount();
+      setPending(p);
+      if (p > 0) {
+        const err = busService.lastError();
+        const unknown = /unknown action|not a function|do\(get|does not know/i.test(err || '');
+        alertError(
+          `${p} change${p === 1 ? '' : 's'} couldn’t sync`,
+          unknown
+            ? 'The Bus Seva backend isn’t deployed yet. Ask the admin to push & redeploy Code.gs — your changes are saved on this device and will sync automatically once it’s live.'
+            : (err || 'Could not reach the server. Your changes are saved on this device and will retry automatically.')
+        );
+      }
+    }
+  };
   const synced = pending === 0;
   return (
     <button onClick={syncNow} disabled={busy}
