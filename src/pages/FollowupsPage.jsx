@@ -39,6 +39,11 @@ const parseOutcomes = (v) => {
   const out = arr.map(s => String(s).trim()).filter(Boolean);
   return out.length ? out : DEFAULT_OUTCOMES;
 };
+// Display a karyakarta full name as first + last only (drop middle name(s)).
+const firstLastName = (full) => {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length <= 2 ? parts.join(' ') : `${parts[0]} ${parts[parts.length - 1]}`;
+};
 const AUDIENCE_CAP = 250;
 const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani', 'Samaiyo', 'Karyakarta Sabha/Shibir'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -76,7 +81,7 @@ function ReminderModal({ event, who, audience, karyakartaMobileFor, onClose }) {
       [...names].sort().forEach(name => {
         const m = String(karyakartaMobileFor(name) || '').replace(/\D/g, '');
         if (!m || seen.has(m)) return; seen.add(m);
-        out.push({ name, mobile: m });
+        out.push({ name: firstLastName(name), mobile: m });
       });
     }
     return out;
@@ -627,7 +632,7 @@ export default function FollowupsPage({ user }) {
                 title="Filter to one karyakarta's devotees"
                 className={`col-span-2 sm:col-auto w-full sm:w-auto min-w-0 truncate rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ${karyakarta ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
                 <option value="">All karyakartas</option>
-                {karyakartaOptions.map(k => <option key={k} value={k}>{k}</option>)}
+                {karyakartaOptions.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
               </select>
             )}
             <button onClick={() => setShowTagPanel(v => !v)}
@@ -728,13 +733,13 @@ export default function FollowupsPage({ user }) {
                   {/* Assigned karyakarta + who actually did the follow-up (and when). */}
                   {assigned && (
                     <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-text-muted">
-                      <Users className="h-3 w-3" /> Assigned: <span className="text-text-main">{assigned}</span>
+                      <Users className="h-3 w-3" /> Assigned: <span className="text-text-main" title={assigned}>{firstLastName(assigned)}</span>
                     </p>
                   )}
                   {contacted(f) && doneBy && (
                     <p className={`mt-0.5 flex items-center gap-1 text-[11px] font-semibold ${coveredBy ? 'text-amber-600' : 'text-emerald-600'}`}>
                       <UserRound className="h-3 w-3" />
-                      {coveredBy ? <>Done by {doneBy} <span className="font-normal">(covered for {assigned})</span></> : <>by {doneBy}</>}
+                      {coveredBy ? <>Done by {firstLastName(doneBy)} <span className="font-normal">(covered for {firstLastName(assigned)})</span></> : <>by {firstLastName(doneBy)}</>}
                       {f.contactedOn ? <span className="font-normal text-text-muted"> · {new Date(f.contactedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span> : null}
                     </p>
                   )}

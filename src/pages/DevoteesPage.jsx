@@ -427,42 +427,20 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   };
 
   const uniqueKaryakartas = useMemo(() => [...new Set(devotees.map(d => d.followupKaryakarta).filter(Boolean))].sort(), [devotees]);
-  // Karyakarta picker: real devotees tagged 'karyakarta' (exact names), merged with any
-  // names already used as a follow-up karyakarta — so the name always matches the Devotees tab.
-  const karyakartaOptions = useMemo(() => {
-    const tagged = devotees.filter(d => (d.tags || []).includes('karyakarta')).map(d => d.name).filter(Boolean);
-    return [...new Set([...tagged, ...uniqueKaryakartas])].sort((a, b) => a.localeCompare(b));
-  }, [devotees, uniqueKaryakartas]);
-  // Look up a karyakarta devotee by name → auto-fill their mobile from the Devotees
-  // tab. The picker offers short/variant names (e.g. "Ankit Modi") that may not
-  // equal a devotee's stored full name ("Ankit R. Modi"), so exact match alone
-  // missed them. We now match in three steps: exact → all typed name-words are a
-  // subset of a devotee's name words (first+last ignoring a middle) → unique
-  // startsWith. A candidate only wins when it is UNAMBIGUOUS (one devotee), so we
-  // never guess the wrong person's number.
+  // Karyakarta / Reference picker: ONLY real devotees' full names (no free-typed
+  // short names like "Ankit Modi"). Because the value picked is always an exact
+  // devotee full name, the mobile auto-fill below is a simple, reliable exact
+  // match — the earlier fuzzy guessing (which worked inconsistently) is gone.
+  const allDevoteeNames = useMemo(
+    () => [...new Set(devotees.map(d => d.name).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [devotees]);
+  const karyakartaOptions = allDevoteeNames;
   const devoteeByName = useMemo(() => {
     const m = new Map();
     devotees.forEach(d => { if (d.name) m.set(d.name.trim().toLowerCase(), d); });
     return m;
   }, [devotees]);
-  const karyakartaMobileFor = (name) => {
-    const q = String(name || '').trim().toLowerCase();
-    if (!q) return '';
-    const exact = devoteeByName.get(q);
-    if (exact?.mobile) return exact.mobile;
-    const words = q.split(/\s+/).filter(Boolean);
-    const withMobile = devotees.filter(d => d.mobile && d.name);
-    // All typed words appear in the devotee's name (order-independent) — so
-    // "ankit modi" matches "Ankit R. Modi". Must be a single devotee to auto-fill.
-    let hits = withMobile.filter(d => {
-      const nameWords = String(d.name).toLowerCase().split(/\s+/).filter(Boolean);
-      return words.every(w => nameWords.includes(w));
-    });
-    if (hits.length === 1) return hits[0].mobile;
-    // Fall back to a unique prefix match ("ankit" → the only "Ankit …").
-    hits = withMobile.filter(d => String(d.name).trim().toLowerCase().startsWith(q));
-    return hits.length === 1 ? hits[0].mobile : '';
-  };
+  const karyakartaMobileFor = (name) => devoteeByName.get(String(name || '').trim().toLowerCase())?.mobile || '';
   // Normalize an area for de-duping: trim + collapse spaces + lowercase, so
   // "Rama ", "rama" and "Rama" collapse to one option (different names like
   // "Rama" vs "Rama Nakshatra" stay separate — merge those in the Area Master).
@@ -501,10 +479,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
       .filter(n => !seen.has(n.toLowerCase())).sort((a, b) => a.localeCompare(b));
     return [...master, ...extra];
   }, [devotees]);
-  // Reference picker: existing reference values first, then every devotee name, + free typing.
-  const referenceOptions = useMemo(
-    () => [...new Set([...uniqueReferences, ...devotees.map(d => d.name).filter(Boolean)])],
-    [uniqueReferences, devotees]);
+  // Reference picker: ONLY real devotees' full names (no free-typed short names).
+  const referenceOptions = allDevoteeNames;
   const uniqueWings = useMemo(() => [...new Set(devotees.map(d => d.wing).filter(Boolean))].sort(), [devotees]);
 
   const toggleFilterTag = (key) => setSelectedTags((prev) =>
@@ -1083,7 +1059,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <MultiSelect label="All Areas" options={uniqueAreas} selected={filterAreas} onChange={setFilterAreas} />
             <MultiSelect label="All Karyakartas" options={uniqueKaryakartas.map(k => ({ value: k, label: firstLastName(k) }))} selected={filterKaryakartas} onChange={setFilterKaryakartas} />
-            <MultiSelect label="All References" options={uniqueReferences} selected={filterReferences} onChange={setFilterReferences} />
+            <MultiSelect label="All References" options={uniqueReferences.map(r => ({ value: r, label: firstLastName(r) }))} selected={filterReferences} onChange={setFilterReferences} />
             <MultiSelect label="All Qualifications" options={QUALIFICATIONS} selected={filterQualifications} onChange={setFilterQualifications} />
           </div>
 
@@ -1321,7 +1297,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     <Row icon={Phone} color="bg-sky-50 text-sky-600" text={val(mobileOf(devotee))} />
                     {devotee.address && <Row icon={Home} color="bg-slate-100 text-slate-500" text={devotee.address} clamp />}
                     {devotee.dob && <Row icon={Calendar} color="bg-purple-50 text-purple-600" text={dobShort(devotee.dob)} title={`DOB: ${dobShort(devotee.dob)}`} />}
-                    {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={devotee.followupKaryakarta} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
+                    {devotee.followupKaryakarta && <Row icon={User} color="bg-blue-50 text-blue-600" text={firstLastName(devotee.followupKaryakarta)} title={`Follow-up Karyakarta: ${devotee.followupKaryakarta}`} />}
                   </div>
 
                   {Array.isArray(devotee.tags) && devotee.tags.length > 0 && (() => {
@@ -1361,7 +1337,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                     {devotee.bloodGroup && <Row icon={Droplet} color="bg-red-50 text-red-400" text={devotee.bloodGroup} />}
                     {devotee.yuvakType && <Row icon={GraduationCap} color="bg-emerald-50 text-emerald-500" text={devotee.yuvakType} />}
                     {devotee.followupKaryakartaMobile && <Row icon={Phone} color="bg-blue-50 text-blue-500" text={`Karyakarta: ${devotee.followupKaryakartaMobile}`} />}
-                    {devotee.reference && <Row icon={Users} color="bg-slate-100 text-slate-500" text={`Ref: ${devotee.reference}`} />}
+                    {devotee.reference && <Row icon={Users} color="bg-slate-100 text-slate-500" text={`Ref: ${firstLastName(devotee.reference)}`} title={`Reference: ${devotee.reference}`} />}
                   </div>
                 </div>
               )}
@@ -1575,12 +1551,12 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                   )}
                   {selectedDevotee.followupKaryakarta && (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-text-muted">
-                      <User className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words"><span className="text-text-muted/70">Karyakarta:</span> {selectedDevotee.followupKaryakarta}</span>
+                      <User className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words" title={selectedDevotee.followupKaryakarta}><span className="text-text-muted/70">Karyakarta:</span> {firstLastName(selectedDevotee.followupKaryakarta)}</span>
                     </div>
                   )}
                   {selectedDevotee.reference && (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-text-muted">
-                      <UserCheck className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words"><span className="text-text-muted/70">Reference:</span> {selectedDevotee.reference}</span>
+                      <UserCheck className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words" title={selectedDevotee.reference}><span className="text-text-muted/70">Reference:</span> {firstLastName(selectedDevotee.reference)}</span>
                     </div>
                   )}
                 </div>

@@ -113,14 +113,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
 
-        {/* Row 1 — navy Akshar Connect branding bar. Full-width, prominent wordmark. */}
+        {/* Row 1 — full-width horizontal logo strip (the same logo as the footer,
+            which is designed for a light background, so the strip is white). */}
         <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-          className="flex w-full items-center justify-center gap-3 bg-[#022c54] px-4 py-3 sm:py-3.5">
-          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
-            className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/15 sm:h-12 sm:w-12" />
-          <span className="font-display text-[clamp(1.6rem,8vw,2.75rem)] font-black leading-none tracking-tight bg-gradient-to-r from-[#FF9D52] via-[#FF862A] to-[#FFC08A] bg-clip-text text-transparent">
-            Akshar Connect
-          </span>
+          className="flex w-full items-center justify-center bg-white px-4 py-2.5 sm:py-3">
+          <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
+            className="h-11 w-auto max-w-full object-contain sm:h-14" />
         </button>
 
         {/* Row 2 — H10 circular logo badge centred, with icon actions flanking it. Tall. */}
