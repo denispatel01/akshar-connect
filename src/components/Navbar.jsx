@@ -108,63 +108,56 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
 
   return (
     <>
-      {/* ── Top Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#022c54] text-white shadow-sm">
-        {/* Thin saffron→primary accent line for a premium feel */}
-        <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
+      {/* ── Top Header — single row ────────────────────────────────────────────
+          Light theme: deep navy band (Option 2) with a saffron bottom accent.
+          Dark theme: minimal flat dark surface (Option 1), no accent band. */}
+      <header className="sticky top-0 z-40 w-full text-white shadow-sm bg-[#0A2E52] dark:bg-[#0B1322] dark:border-b dark:border-white/10">
+        <div className="flex items-center gap-2 px-3 py-2.5 sm:px-5 sm:py-3">
+          {/* Left: sidebar toggle (desktop) + back */}
+          <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 hover:text-white">
+            {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          </button>
+          <button onClick={onBack} disabled={!canBack} title="Back"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/90 hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
 
-        {/* Row 1 — the existing Akshar Connect logo on a light strip (it's designed
-            for a light background), with the Gujarati tagline below it. */}
-        <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-          className="flex w-full flex-col items-center justify-center gap-0.5 bg-white px-4 py-2 sm:py-2.5">
-          <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
-            className="h-10 w-auto max-w-full object-contain sm:h-12" />
-          <span className="text-[11px] font-bold text-[#C2541E] sm:text-xs"
-            style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
-            હું તો નિમિત્ત માત્ર છું
-          </span>
-        </button>
+          {/* Brand lockup — emblem + wordmark + tagline (tap → Home) */}
+          <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
+            className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
+              className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-white/15 sm:h-11 sm:w-11" />
+            <span className="min-w-0 leading-none text-left">
+              <span className="block whitespace-nowrap font-display text-[18px] font-extrabold tracking-tight sm:text-[26px]">
+                <span className="text-white">Akshar</span> <span className="text-[#FF8A3D]">Connect</span>
+              </span>
+              <span className="mt-0.5 block truncate text-[10px] font-semibold text-[#FFC79A]/85 sm:text-[12px]">
+                Connecting Devotees with Divinity
+              </span>
+            </span>
+          </button>
 
-        {/* Row 2 — H10 circular logo badge centred, with icon actions flanking it. Tall. */}
-        <div className="relative flex items-center justify-between px-4 py-7 sm:px-6 sm:py-9">
-
-          {/* Left: sidebar toggle (desktop) + back + search */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {/* Desktop-only: collapse / expand the sidebar */}
-            <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
-              {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </button>
-            <button onClick={onBack} disabled={!canBack} title="Back"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed">
-              <ArrowLeft className="h-4 w-4" />
-            </button>
+          {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
             <button onClick={() => setSearchOpen(true)} title="Search"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
-              <Search className="h-4 w-4" />
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-white/90 hover:bg-white/10">
+              <Search className="h-5 w-5" />
             </button>
-          </div>
-
-          {/* Centre: devotional Gujarati slogan */}
-          <span className="pointer-events-none absolute left-1/2 top-1/2 max-w-[60%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-center text-lg font-bold text-[#FFC79A] sm:text-2xl"
-            style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
-            બસ! એક, તું રાજી થા
-          </span>
-
-          {/* Right: notifications + theme + user badge/logout (desktop). */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
             <button onClick={() => window.dispatchEvent(new Event('ac-open-notifications'))} title="Notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
-              <Bell className="h-4 w-4" />
-              {hasNotifs && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[#022c54]" />}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl text-white/90 hover:bg-white/10">
+              <Bell className="h-5 w-5" />
+              {hasNotifs && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#FF5A3D] ring-2 ring-[#0A2E52] dark:ring-[#0B1322]" />}
             </button>
+            {/* Sun | Moon pill toggle (matches the reference) */}
             <button onClick={toggleDarkMode} title="Toggle theme"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20">
-              {isDarkModeOn ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              className="flex items-center gap-0.5 rounded-full border border-white/15 bg-white/5 p-0.5">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${!isDarkModeOn ? 'bg-[#FF862A] text-white' : 'text-white/50'}`}><Sun className="h-3.5 w-3.5" /></span>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${isDarkModeOn ? 'bg-white/20 text-white' : 'text-white/50'}`}><Moon className="h-3.5 w-3.5" /></span>
             </button>
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5">
               <button onClick={() => setActivePage('account')} title="My Account"
-                className="flex items-center gap-2.5 rounded-2xl border border-white/15 bg-white/10 px-3.5 py-1.5 hover:border-primary transition-colors">
+                className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-3 py-1.5 hover:border-primary transition-colors">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                   {user?.name?.[0] || 'U'}
                 </div>
@@ -180,6 +173,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             </div>
           </div>
         </div>
+        {/* Saffron accent — only in light theme (Option 2) */}
+        <div className="h-[3px] w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A] dark:hidden" />
       </header>
 
       {/* Updates apply automatically (the app reloads itself) — a thin bar just
