@@ -242,27 +242,26 @@ function SevaSection({ devotee, open, onToggle }) {
     return () => { alive = false; };
   }, [devotee?.id]);
 
-  if (!loaded || (done.length === 0 && received.length === 0)) return null;
-  const total = done.length + received.length;
-  const fmtDate = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return d; } };
-  const fmtTime = (t) => {
-    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || '';
-    let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-    return `${h}:${m[2]} ${ap}`;
-  };
-  const timeRange = (s) => [fmtTime(s.fromTime), fmtTime(s.toTime)].filter(Boolean).join(' – ');
-  // Merge both lists into one chronological timeline (newest first). "received" =
-  // seva done AT this devotee's home (teal); "done" = seva this karyakarta did
-  // elsewhere (orange), so the dot colour tells the two apart at a glance.
+  // Build the timeline BEFORE any early return — hooks must run on every render,
+  // or React throws "rendered fewer hooks than expected" (#310) when this section
+  // has no seva and bails out. "received" = seva done AT this devotee's home
+  // (teal); "done" = seva this karyakarta did elsewhere (orange).
   const timelineItems = useMemo(() => {
+    const fmtDate = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return d; } };
+    const fmtTime = (t) => {
+      const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || '';
+      let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      return `${h}:${m[2]} ${ap}`;
+    };
+    const timeRange = (s) => [fmtTime(s.fromTime), fmtTime(s.toTime)].filter(Boolean).join(' – ');
     const mk = (s, kind) => {
       let comps = []; try { comps = JSON.parse(s.companionsJson || '[]'); } catch (e) {}
-      const received = kind === 'received';
+      const isReceived = kind === 'received';
       return {
         id: s.id,
         _date: String(s.date || ''),
-        color: received ? '#0D9488' : '#EA580C',
-        title: received ? `By: ${s.karyakartaName || '—'}` : `At: ${s.visitedName || '—'}`,
+        color: isReceived ? '#0D9488' : '#EA580C',
+        title: isReceived ? `By: ${s.karyakartaName || '—'}` : `At: ${s.visitedName || '—'}`,
         badge: s.category || null,
         subtitle: `${fmtDate(s.date)}${timeRange(s) ? ` · ${timeRange(s)}` : ''}`,
         body: (
@@ -275,7 +274,10 @@ function SevaSection({ devotee, open, onToggle }) {
     };
     return [...received.map((s) => mk(s, 'received')), ...done.map((s) => mk(s, 'done'))]
       .sort((a, b) => b._date.localeCompare(a._date));
-  }, [done, received]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [done, received]);
+
+  if (!loaded || (done.length === 0 && received.length === 0)) return null;
+  const total = done.length + received.length;
   return (
     <Collapsible title={<span className="flex items-center gap-2">🤝 Seva <span className="font-bold text-text-muted">· {total}</span></span>} open={open} onToggle={onToggle}>
       <Timeline items={timelineItems} />
