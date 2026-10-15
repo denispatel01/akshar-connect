@@ -109,26 +109,26 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   return (
     <>
       {/* ── Top Header — single row ────────────────────────────────────────────
-          Light theme: deep navy band (Option 2) with a saffron bottom accent.
-          Dark theme: minimal flat dark surface (Option 1), no accent band. */}
-      <header className="sticky top-0 z-40 w-full text-white shadow-sm bg-[#0A2E52] dark:bg-[#0B1322] dark:border-b dark:border-white/10">
+          Light theme: white header, the logo sits directly (no chip), dark icons.
+          Dark theme: flat dark surface; the light-background logo goes on a white
+          chip so it stays readable. A saffron accent line runs along the bottom. */}
+      <header className="sticky top-0 z-40 w-full bg-white text-[#0A2E52] shadow-sm border-b border-black/5 dark:bg-[#0B1322] dark:text-white dark:border-white/10">
         <div className="flex items-center gap-2 px-3 py-2.5 sm:px-5 sm:py-3">
           {/* Left: sidebar toggle (desktop) + back */}
           <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 hover:text-white">
+            className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/70 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10">
             {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
           </button>
           <button onClick={onBack} disabled={!canBack} title="Back"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/90 hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
 
-          {/* Brand — the official Akshar Connect logo (tap → Home). It's designed for
-              a light background, so it sits on a clean white chip that reads on both
-              the navy (light) and dark headers. */}
+          {/* Brand — the official Akshar Connect logo (tap → Home). Direct on the
+              white light-theme header; on a white chip in dark theme so it stays legible. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="flex min-w-0 items-center">
-            <span className="flex items-center rounded-xl bg-white px-2.5 py-1 shadow-sm ring-1 ring-black/5 sm:px-3 sm:py-1.5">
+            <span className="flex items-center rounded-xl dark:bg-white dark:px-2.5 dark:py-1 dark:shadow-sm dark:ring-1 dark:ring-black/5">
               <img src={`${import.meta.env.BASE_URL}images/logo-wordmark.webp`} alt="Akshar Connect"
                 className="h-7 w-auto max-w-[62vw] object-contain sm:h-9" />
             </span>
@@ -137,40 +137,40 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
             <button onClick={() => setSearchOpen(true)} title="Search"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-white/90 hover:bg-white/10">
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10">
               <Search className="h-5 w-5" />
             </button>
             <button onClick={() => window.dispatchEvent(new Event('ac-open-notifications'))} title="Notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl text-white/90 hover:bg-white/10">
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10">
               <Bell className="h-5 w-5" />
-              {hasNotifs && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#FF5A3D] ring-2 ring-[#0A2E52] dark:ring-[#0B1322]" />}
+              {hasNotifs && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#FF5A3D] ring-2 ring-white dark:ring-[#0B1322]" />}
             </button>
-            {/* Sun | Moon pill toggle (matches the reference) */}
+            {/* Sun | Moon pill toggle */}
             <button onClick={toggleDarkMode} title="Toggle theme"
-              className="flex items-center gap-0.5 rounded-full border border-white/15 bg-white/5 p-0.5">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${!isDarkModeOn ? 'bg-[#FF862A] text-white' : 'text-white/50'}`}><Sun className="h-3.5 w-3.5" /></span>
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${isDarkModeOn ? 'bg-white/20 text-white' : 'text-white/50'}`}><Moon className="h-3.5 w-3.5" /></span>
+              className="flex items-center gap-0.5 rounded-full border border-black/10 bg-black/[0.04] p-0.5 dark:border-white/15 dark:bg-white/5">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${!isDarkModeOn ? 'bg-[#FF862A] text-white' : 'text-[#0A2E52]/40 dark:text-white/50'}`}><Sun className="h-3.5 w-3.5" /></span>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${isDarkModeOn ? 'bg-white/20 text-white' : 'text-[#0A2E52]/40 dark:text-white/50'}`}><Moon className="h-3.5 w-3.5" /></span>
             </button>
             <div className="hidden sm:flex items-center gap-1.5">
               <button onClick={() => setActivePage('account')} title="My Account"
-                className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-3 py-1.5 hover:border-primary transition-colors">
+                className="flex items-center gap-2 rounded-2xl border border-black/10 bg-black/[0.04] px-3 py-1.5 hover:border-primary transition-colors dark:border-white/15 dark:bg-white/5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                   {user?.name?.[0] || 'U'}
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-white leading-tight">{user?.name || 'User'}</p>
-                  <span className={`inline-block text-[10px] font-bold ${isAdmin ? 'text-red-300' : isSevak ? 'text-amber-300' : 'text-indigo-300'}`}>{user?.role || 'Devotee'}</span>
+                  <p className="text-xs font-bold text-[#0A2E52] leading-tight dark:text-white">{user?.name || 'User'}</p>
+                  <span className={`inline-block text-[10px] font-bold ${isAdmin ? 'text-red-600 dark:text-red-300' : isSevak ? 'text-amber-600 dark:text-amber-300' : 'text-indigo-600 dark:text-indigo-300'}`}>{user?.role || 'Devotee'}</span>
                 </div>
               </button>
               <button onClick={onLogout} title="Logout"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-colors">
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-300/60 bg-red-50 text-red-600 hover:bg-red-100 transition-colors dark:border-red-400/30 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
-        {/* Saffron accent — only in light theme (Option 2) */}
-        <div className="h-[3px] w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A] dark:hidden" />
+        {/* Saffron accent line along the bottom */}
+        <div className="h-[3px] w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
       </header>
 
       {/* Updates apply automatically (the app reloads itself) — a thin bar just
