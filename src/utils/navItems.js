@@ -50,7 +50,9 @@ export function getNavGroups(user) {
   // Admins get full access; all Sevaks see Ghari read-only (GhariPage gates
   // add/edit/delete to Admins). `ghari` module grant still works for any other role.
   const canGhari = isAdmin || isSevak || hasModule(user, 'ghari');
-  const canBus = isAdmin || isSevak || hasModule(user, 'bus');
+  // Bus Seva is visible to EVERYONE (read-only for non-staff; BusPage gates
+  // add/edit/delete to Admins/Sevaks/`bus`-module users).
+  const canBus = true;
 
   if (isDevotee) {
     return [
@@ -62,6 +64,7 @@ export function getNavGroups(user) {
           { id: 'feed', label: 'Feed', icon: Sparkles },
           { id: 'swadhyay', label: 'Swadhyay', icon: BookOpen },
           { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+          { id: 'bus', label: 'Bus Seva', icon: Bus },
         ],
       },
       {
