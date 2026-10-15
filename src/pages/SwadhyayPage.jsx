@@ -1,8 +1,65 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight, BarChart3, X, Trophy } from 'lucide-react';
+import { Music, Headphones, BookOpen, Check, Flame, Minus, Plus, Sparkles, ChevronLeft, ChevronRight, BarChart3, X, Trophy, Bell } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { alertError } from '../utils/sweetAlert';
+import { alertError, alertSuccess } from '../utils/sweetAlert';
+
+// Admin composer — send a Swadhyay reminder as a push notification now. It goes
+// out via createAnnouncement, so it also appears in everyone's notification centre.
+function SwadhyayPushModal({ onClose }) {
+  const [title, setTitle] = useState('🙏 Swadhyay reminder');
+  const [body, setBody] = useState('Jai Swaminarayan 🙏 Have you done your Bhajan, Shravan & Vachan today? Tap to log it — it takes 10 seconds.');
+  const [audience, setAudience] = useState('all');
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    if (!title.trim() || !body.trim()) { alertError('Message needed', 'Enter a title and message.'); return; }
+    setBusy(true);
+    try {
+      const r = await dataService.createAnnouncement({ title: title.trim(), body: body.trim(), audience });
+      onClose();
+      alertSuccess('Reminder sent', `Pushed to ${r.sent || 0} device${r.sent === 1 ? '' : 's'} and added to notifications.`);
+    } catch (e) { alertError('Could not send', e.message || 'Try again.'); }
+    finally { setBusy(false); }
+  };
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><Bell className="h-4 w-4 text-[#FF862A]" /> Send Swadhyay reminder</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+          <div>
+            <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Title</label>
+            <input value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Message</label>
+            <textarea value={body} onChange={e => setBody(e.target.value)} rows={3}
+              className="w-full resize-y rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Send to</label>
+            <select value={audience} onChange={e => setAudience(e.target.value)}
+              className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary">
+              <option value="all">Everyone</option>
+              <option value="devotees">Devotees</option>
+              <option value="staff">Staff (Admin/Sevak)</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 border-t border-border-light p-3">
+          <button onClick={onClose} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text-muted">Cancel</button>
+          <button onClick={send} disabled={busy} className="flex-[1.4] rounded-xl bg-gradient-to-r from-[#E56F18] to-[#FF862A] py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-60">
+            {busy ? 'Sending…' : 'Send push'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 const todayISO = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local
 const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
@@ -111,6 +168,7 @@ export default function SwadhyayPage({ user }) {
   const myMobile = me?.mobile || user?.mobile || '';
   const isAdmin = user?.role === 'Admin';
   const [showGroup, setShowGroup] = useState(false);
+  const [showPush, setShowPush] = useState(false);
 
   const [date, setDate] = useState(todayISO());
   const [form, setForm] = useState({ bhajanMin: 0, bhajanTime: '', listenMin: 0, readMin: 0 });
@@ -279,16 +337,23 @@ export default function SwadhyayPage({ user }) {
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 pb-28">
       {showGroup && <SwadhyayGroupReport onClose={() => setShowGroup(false)} />}
+      {showPush && <SwadhyayPushModal onClose={() => setShowPush(false)} />}
       {!devoteeId && (
         <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           Your login isn’t linked to a devotee record yet, so Swadhyay can’t load or save your Bhajan/Shravan/Vanchan. Please ask an admin to link your mobile number to your devotee profile.
         </div>
       )}
       {isAdmin && (
-        <button onClick={() => setShowGroup(true)}
-          className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">
-          <BarChart3 className="h-4 w-4 text-[#FF862A]" /> Group report &amp; leaderboard
-        </button>
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button onClick={() => setShowGroup(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">
+            <BarChart3 className="h-4 w-4 text-[#FF862A]" /> Group report &amp; leaderboard
+          </button>
+          <button onClick={() => setShowPush(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border-light bg-surface py-2.5 text-sm font-bold text-text-main shadow-xs hover:border-primary">
+            <Bell className="h-4 w-4 text-[#FF862A]" /> Send Swadhyay reminder
+          </button>
+        </div>
       )}
       {/* Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#001F3D] via-[#06325c] to-[#0a4a7a] p-6 text-white shadow-lg">

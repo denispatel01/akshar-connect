@@ -120,6 +120,9 @@ var ATTENDANCE_GROUP_KARYAKARTA = 'digesh'; // normalized substring match
 
 // Where all notification mail goes. Change here only.
 var MAIL_TO = 'aksharconnect01@gmail.com';
+// Extra recipients for the Ghari delivery reminder emails (comma-separated, added
+// to MAIL_TO). Requested by the admin so a second person also gets the reminders.
+var GHARI_REMINDER_TO = 'aksharconnect01@gmail.com,adpatel2807@gmail.com';
 // Send AS this address, shown with this display name. `from` only works once it
 // is a verified "Send mail as" alias on the script owner's Gmail (see DEPLOY.md).
 var MAIL_FROM = 'aksharconnect01@gmail.com';
@@ -760,8 +763,24 @@ function doDeleteEmailTemplate_(p){
 
 // Daily 8 PM reminder (Asia/Kolkata). Run installSwadhyayReminder() ONCE in the
 // editor to schedule it; it pushes to every device that enabled notifications.
+// Record an auto-sent push as an Announcement row so it shows in the in-app
+// notification centre (which lists announcements newest-first). De-duped per
+// (title, day) so a re-fired trigger never doubles the entry.
+function logNotification_(title, body){
+  try{
+    var day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    var id = 'AUTO-' + day + '-' + String(title||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
+    if(findRow_('Announcements','id',id) > 0) return;
+    appendRows_('Announcements', [{ id:id, title:String(title||''), body:String(body||''), audience:'all', createdBy:'Akshar Connect', createdOn:new Date().toISOString(), sentCount:'' }]);
+  }catch(e){}
+}
+
 function swadhyayReminder_(){
-  try { sendPush_('🙏 Swadhyay time', 'How much Bhajan, Shravan & Vachan did you do today? Tap to add — it takes 10 seconds.', 'all', { type:'swadhyay' }); }
+  try {
+    var t = '🙏 Swadhyay time', b = 'How much Bhajan, Shravan & Vachan did you do today? Tap to add — it takes 10 seconds.';
+    sendPush_(t, b, 'all', { type:'swadhyay' });
+    logNotification_(t, b);
+  }
   catch(e){ Logger.log('swadhyay reminder failed: ' + e); }
 }
 // The hour (0–23, Asia/Kolkata) the daily reminder fires. Stored in Script
@@ -803,7 +822,9 @@ function vatoReminder_(){
     var guj = String(v.Gujarati||'').split('\n')[0].trim().slice(0,110);
     var eng = String(v.English||'').split('\n')[0].trim().slice(0,150);
     var body = [guj, eng].filter(Boolean).join('\n').slice(0,240);
-    sendPush_('🌸 આજની વાત · Today’s Vato', body || 'Open to read today’s teaching 🙏', 'all', { type:'vato' });
+    var t = '🌸 આજની વાત · Today’s Vato', b = body || 'Open to read today’s teaching 🙏';
+    sendPush_(t, b, 'all', { type:'vato' });
+    logNotification_(t, b);
   }catch(e){ Logger.log('vato reminder failed: '+e); }
 }
 function installVatoReminder(){
@@ -832,6 +853,7 @@ function birthdayReminder_(){
       ? ('Wish ' + names[0] + ' a very happy birthday today! 🎉🙏')
       : ('Birthdays today: ' + names.slice(0,8).join(', ') + (names.length>8 ? (' +' + (names.length-8) + ' more') : '') + ' 🎉');
     sendPush_('🎂 Happy Birthday!', body.slice(0,240), 'all', { type:'birthday' });
+    logNotification_('🎂 Happy Birthday!', body.slice(0,240));
   }catch(e){ Logger.log('birthday reminder failed: '+e); }
 }
 function installBirthdayReminder(){
@@ -2293,7 +2315,7 @@ function sendGhariDeliveryMail_(row, when){
     + '<div style="color:#9b9183;font-size:11px;text-align:center;margin-top:12px">Sent automatically by Akshar Connect</div>'
     + '</div>';
   sendMail_('Ghari Seva: '+heading+' — '+(row.customerName||'')+' ('+(row.deliveryDate||'')+')',
-    heading+': '+(row.customerName||'')+' on '+(row.deliveryDate||''), null, html);
+    heading+': '+(row.customerName||'')+' on '+(row.deliveryDate||''), GHARI_REMINDER_TO, html);
 }
 
 // ── Bus Seva write authorization + idempotent upsert/delete ──────────────────
