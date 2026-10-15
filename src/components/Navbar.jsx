@@ -123,18 +123,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             <ArrowLeft className="h-5 w-5" />
           </button>
 
-          {/* Brand lockup — emblem + wordmark + tagline (tap → Home) */}
+          {/* Brand — the official Akshar Connect logo (tap → Home). It's designed for
+              a light background, so it sits on a clean white chip that reads on both
+              the navy (light) and dark headers. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="Akshar Connect"
-              className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-white/15 sm:h-11 sm:w-11" />
-            <span className="min-w-0 leading-none text-left">
-              <span className="block whitespace-nowrap font-display text-[18px] font-extrabold tracking-tight sm:text-[26px]">
-                <span className="text-white">Akshar</span> <span className="text-[#FF8A3D]">Connect</span>
-              </span>
-              <span className="mt-0.5 block truncate text-[10px] font-semibold text-[#FFC79A]/85 sm:text-[12px]">
-                Connecting Devotees with Divinity
-              </span>
+            className="flex min-w-0 items-center">
+            <span className="flex items-center rounded-xl bg-white px-2.5 py-1 shadow-sm ring-1 ring-black/5 sm:px-3 sm:py-1.5">
+              <img src={`${import.meta.env.BASE_URL}images/logo-wordmark.webp`} alt="Akshar Connect"
+                className="h-7 w-auto max-w-[62vw] object-contain sm:h-9" />
             </span>
           </button>
 
