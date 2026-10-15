@@ -17,7 +17,6 @@ import {
 import { getAllNavItems, getPrimaryMobile } from '../utils/navItems';
 import { useNewFeed } from '../utils/useNewFeed';
 import GlobalSearch from './GlobalSearch';
-import AksharLogo from './AksharLogo';
 import { dataService } from '../services/dataService';
 import { isBirthdayToday } from '../utils/birthdays';
 
@@ -114,10 +113,16 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         {/* Thin saffron→primary accent line for a premium feel */}
         <div className="h-0.5 w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
 
-        {/* Row 1 — Akshar Connect logo lockup (bespoke SVG: hamsa on a lotus + wordmark). */}
+        {/* Row 1 — the existing Akshar Connect logo on a light strip (it's designed
+            for a light background), with the Gujarati tagline below it. */}
         <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-          className="flex w-full items-center justify-center bg-[#022c54] px-4 py-3 sm:py-3.5">
-          <AksharLogo dark={false} size={52} />
+          className="flex w-full flex-col items-center justify-center gap-0.5 bg-white px-4 py-2 sm:py-2.5">
+          <img src={`${import.meta.env.BASE_URL}images/logo.webp`} alt="Akshar Connect"
+            className="h-10 w-auto max-w-full object-contain sm:h-12" />
+          <span className="text-[11px] font-bold text-[#C2541E] sm:text-xs"
+            style={{ fontFamily: '"Noto Sans Gujarati","Shruti","Gujarati Sangam MN",sans-serif' }}>
+            હું તો નિમિત્ત માત્ર છું
+          </span>
         </button>
 
         {/* Row 2 — H10 circular logo badge centred, with icon actions flanking it. Tall. */}
