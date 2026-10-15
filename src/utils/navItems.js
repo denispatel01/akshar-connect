@@ -19,6 +19,7 @@ import {
   Database,
   Quote,
   CalendarCheck,
+  Bus,
 } from 'lucide-react';
 
 // A role stored in the Users sheet can drift in case/whitespace ("admin",
@@ -49,6 +50,7 @@ export function getNavGroups(user) {
   // Admins get full access; all Sevaks see Ghari read-only (GhariPage gates
   // add/edit/delete to Admins). `ghari` module grant still works for any other role.
   const canGhari = isAdmin || isSevak || hasModule(user, 'ghari');
+  const canBus = isAdmin || isSevak || hasModule(user, 'bus');
 
   if (isDevotee) {
     return [
@@ -107,6 +109,7 @@ export function getNavGroups(user) {
             ]
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),
+        ...(canBus ? [{ id: 'bus', label: 'Bus Seva', icon: Bus }] : []),
       ],
     },
     {

@@ -11,6 +11,7 @@ import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
 import GhariPage from './pages/GhariPage';
+import BusPage from './pages/BusPage';
 import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
 import SwadhyayPage from './pages/SwadhyayPage';
@@ -325,6 +326,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={effectiveUser} />}
         {activePage === 'family-tags' && <FamilyTagPage user={effectiveUser} />}
         {activePage === 'ghari' && <GhariPage user={effectiveUser} />}
+        {activePage === 'bus' && <BusPage user={effectiveUser} />}
         {activePage === 'swadhyay' && <SwadhyayPage user={effectiveUser} />}
         {/* Seva is merged into the Calendar — keep the route as a redirect for any
             existing links/bookmarks so nothing breaks. */}

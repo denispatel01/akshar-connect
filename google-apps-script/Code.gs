@@ -78,6 +78,17 @@ var HEADERS = {
   // changesJson = [{field,before,after}]; beforeJson/afterJson = full row snapshots
   // (beforeJson lets an admin revert to the prior state).
   GhariLog: ['id','ts','entity','entityId','action','actor','changesJson','beforeJson','afterJson'],
+  // ── Bus Seva (bus bookings for a trip/occasion, e.g. Sharad Purnima) ────────
+  // One row per bus trip/occasion. Bookings reference it by eventId. status ∈
+  // active|void (soft delete — an event is never hard-deleted so its bookings
+  // are recoverable).
+  BusEvents: ['id','title','date','destination','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // One booking within an event. A booking can seat several people together, so
+  // `passengersJson` = JSON array of { name, devoteeId }. `seatType` describes the
+  // berth (single_sofo|double_sofo|single_nosofo|double_nosofo|sharing_sofo).
+  // Display seat numbers are a running per-event sequence, computed on the client.
+  // status ∈ active|void.
+  BusBookings: ['id','eventId','passengersJson','passengerCount','seatType','mobile','karyakarta','karyakartaId','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   // ── Vato (daily Gujarati/English teachings, maintained by hand in the sheet) ─
   Vato: ['SN','Gujarati','English'],
   // ── Devotee edit audit (old↔new on every add/edit/delete, revertible) ───────
@@ -85,7 +96,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-15-ghari-delivery-date';
+var SCHEMA_VERSION = '2026-10-15-bus-seva';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1412,7 +1423,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1811,6 +1822,18 @@ function handle_(p){
       return json_({ ok:true, logs: gl.slice(0, Number(p.limit)||300) });
     }
     if(action==='ghariRevert') return doGhariRevert_(p);
+    // ── Bus Seva ───────────────────────────────────────────────────────────────
+    // Idempotent upserts keyed by client-generated ids, so the offline outbox can
+    // replay a lost op without ever duplicating a row. Reads are open; writes are
+    // gated to Admins / Sevaks / users granted the `bus` module (busCanWrite_).
+    if(BUS_WRITE_ACTIONS_[action] && !busCanWrite_(p))
+      return json_({ ok:false, error:'Not allowed — Bus Seva is view-only for your account.' });
+    if(action==='busBootstrap')
+      return json_({ ok:true, events: readAll_('BusEvents'), bookings: readAll_('BusBookings') });
+    if(action==='busUpsertEvent')   return busUpsert_('BusEvents', p.row || {});
+    if(action==='busDeleteEvent')   return busDelete_('BusEvents', p.id);
+    if(action==='busUpsertBooking') return busUpsert_('BusBookings', p.row || {});
+    if(action==='busDeleteBooking') return busDelete_('BusBookings', p.id);
     if(action==='getVato') return cachedJson_('vato', 1800, function(){ return JSON.parse(doGetVato_().getContent()); });
     if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||30) });
     if(action==='getGroupAttendance') return cachedJson_('groupAtt', 600, function(){ return JSON.parse(doGetGroupAttendance_().getContent()); });
@@ -2193,6 +2216,49 @@ function sendGhariDeliveryMail_(row, when){
     + '</div>';
   sendMail_('Ghari Seva: '+heading+' — '+(row.customerName||'')+' ('+(row.deliveryDate||'')+')',
     heading+': '+(row.customerName||'')+' on '+(row.deliveryDate||''), null, html);
+}
+
+// ── Bus Seva write authorization + idempotent upsert/delete ──────────────────
+// Writes are allowed for Admins, Sevaks, and users whose `modules` column grants
+// `bus`; reads (busBootstrap) are open. Mirrors the client nav gate in navItems.js.
+var BUS_WRITE_ACTIONS_ = {
+  busUpsertEvent: 1, busDeleteEvent: 1, busUpsertBooking: 1, busDeleteBooking: 1,
+};
+function busCanWrite_(p){
+  var mob = normMob_(p && p.actorMobile || '');
+  if(!mob) return false;
+  var users = readAll_('Users');
+  for(var i=0;i<users.length;i++){
+    if(normMob_(users[i].mobile) !== mob) continue;
+    var role = String(users[i].role||'').trim().toLowerCase();
+    if(role === 'admin' || role === 'sevak') return true;
+    var mods = String(users[i].modules||'').toLowerCase().split(/[,|]/);
+    for(var j=0;j<mods.length;j++) if(mods[j].trim() === 'bus') return true;
+    return false;
+  }
+  return false;
+}
+// Idempotent upsert keyed by id: overwrite the row if present, else append. A
+// LockService guard serializes concurrent writes so a replayed offline op is a
+// no-op update rather than a duplicate.
+function busUpsert_(collection, row){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(!row || !row.id) return json_({ ok:false, error:'missing id' });
+    var rn=findRow_(collection, 'id', row.id);
+    if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
+    else appendRows_(collection,[row]);
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+function busDelete_(collection, id){
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(id===undefined || id===null || id==='') return json_({ ok:false, error:'missing id' });
+    var rn=findRow_(collection, 'id', id);
+    if(rn>0) tab_(collection).deleteRow(rn);
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
 // Run ONCE from the Apps Script editor to schedule the daily 8 PM delivery-reminder
