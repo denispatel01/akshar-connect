@@ -264,12 +264,12 @@ function SevaSection({ devotee, open, onToggle }) {
         title: isReceived ? `By: ${s.karyakartaName || '—'}` : `At: ${s.visitedName || '—'}`,
         badge: s.category || null,
         subtitle: `${fmtDate(s.date)}${timeRange(s) ? ` · ${timeRange(s)}` : ''}`,
-        body: (
+        body: (s.work || comps.length > 0) ? (
           <>
             {s.work && <p>{s.work}</p>}
             {comps.length > 0 && <p className="mt-0.5 font-semibold text-purple-600">with {comps.map((x) => x.name).join(', ')}</p>}
           </>
-        ),
+        ) : null,
       };
     };
     return [...received.map((s) => mk(s, 'received')), ...done.map((s) => mk(s, 'done'))]
