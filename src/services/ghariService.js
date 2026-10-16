@@ -670,9 +670,9 @@ export const ghariService = {
 
   // ---- Audit log (money — full change history + revert) ----
   // Fetch change history for one entity (order/purchase) or all. Backend-only.
-  getLog: async ({ entityId = '', entity = '', limit = 300 } = {}) => {
+  getLog: async ({ entityId = '', entity = '', actor = '', limit = 300 } = {}) => {
     if (!backendOnline()) return [];
-    try { const r = await backendApi('getGhariLog', { entityId, entity, limit }); return (r && r.logs) || []; }
+    try { const r = await backendApi('getGhariLog', { entityId, entity, actor, limit }); return (r && r.logs) || []; }
     catch { return []; }
   },
   // Revert an order/purchase/product to the "before" snapshot of a log entry.

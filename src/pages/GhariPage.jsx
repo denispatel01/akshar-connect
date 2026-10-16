@@ -7,7 +7,7 @@ import {
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
 import { alertError, confirmDialog } from '../utils/sweetAlert';
-import { isAdminRole } from '../utils/navItems';
+import { isAdminRole, isSevakRole } from '../utils/navItems';
 import AutoTextarea from '../components/AutoTextarea';
 
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
@@ -1208,13 +1208,33 @@ function GhariHistoryModal({ entityId, title = 'Change history', onClose, onReve
 // Every Ghari change (orders, purchases, catalog) across all seasons in one list —
 // newest first, searchable by customer / karyakarta / supplier / who made it, with
 // the exact before→after of each change and a revert on past edits.
-function GhariLogView({ flash }) {
+// Which of the 3 log sections a log entry belongs to:
+//  • 'delivery' — delivery / payment quick marks (action 'delivery')
+//  • 'stock'    — advance-stock issues/edits
+//  • 'orders'   — order add/edit/delete (+ purchase/product catalog edits)
+function ghariLogSection_(log) {
+  if (log.action === 'delivery') return 'delivery';
+  if (log.entity === 'stock') return 'stock';
+  return 'orders';
+}
+const GHARI_LOG_SECTIONS = [
+  { id: 'orders', label: 'Add / edit', icon: Package },
+  { id: 'stock', label: 'Advance stock', icon: Boxes },
+  { id: 'delivery', label: 'Delivery / paid', icon: Truck },
+];
+
+// selfOnly: limit to the current user's OWN actions (Sevaks see only what they did,
+// not every devotee's changes). Admins (selfOnly=false) see everyone's.
+function GhariLogView({ flash, selfOnly = false }) {
   const [logs, setLogs] = useState(null);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState('');
+  const [section, setSection] = useState('orders');
   const actor = (dataService.getCurrentSession() || {}).name || '';
+  const myLabel = String(dataService.currentActor() || '').toLowerCase();
+  const myName = String(actor || '').toLowerCase();
 
-  const load = () => { setLogs(null); ghariService.getLog({ limit: 500 }).then((l) => setLogs(l || [])); };
+  const load = () => { setLogs(null); ghariService.getLog({ limit: 500, actor: selfOnly ? dataService.currentActor() : '' }).then((l) => setLogs(l || [])); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const parse_ = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
@@ -1222,21 +1242,34 @@ function GhariLogView({ flash }) {
     const row = parse_(log.afterJson) || {};
     const prev = parse_(log.beforeJson) || {};
     const r = Object.keys(row).length ? row : prev;
+    if (log.entity === 'stock') return { title: r.karyakarta || 'Advance stock', sub: r.itemsSummary ? '' : '', extra: r.season || '' };
     if (log.entity === 'purchase') return { title: r.supplier || 'Purchase', sub: r.date || '', extra: '' };
     if (log.entity === 'product') return { title: [r.name, r.size].filter(Boolean).join(' ') || 'Item', sub: '', extra: '' };
     return { title: r.customerName || 'Order', sub: r.karyakarta ? `via ${r.karyakarta}` : '', extra: r.season || '' };
   };
+  const isMine = (log) => {
+    const a = String(log.actor || '').toLowerCase();
+    return !!a && (a === myLabel || (!!myName && a.includes(myName)));
+  };
+
+  // Per-section counts (after the self-only filter) so the tabs show how many.
+  const visible = useMemo(() => (logs || []).filter((log) => (selfOnly ? isMine(log) : true)), [logs, selfOnly, myLabel, myName]);
+  const counts = useMemo(() => {
+    const c = { orders: 0, stock: 0, delivery: 0 };
+    visible.forEach((log) => { c[ghariLogSection_(log)]++; });
+    return c;
+  }, [visible]);
 
   const shown = useMemo(() => {
-    if (!logs) return [];
     const t = q.trim().toLowerCase();
-    if (!t) return logs;
-    return logs.filter((log) => {
+    return visible.filter((log) => {
+      if (ghariLogSection_(log) !== section) return false;
+      if (!t) return true;
       const m = metaOf(log);
       return [m.title, m.sub, log.actor, log.entity, log.action].join(' ').toLowerCase().includes(t);
     });
     // eslint-disable-next-line
-  }, [logs, q]);
+  }, [visible, q, section]);
 
   const revert = async (log) => {
     if (!(await confirmDialog({ title: 'Revert this change?', text: 'The current values will be replaced with the values BEFORE this change (and this revert is itself logged).', confirmText: 'Revert' }))) return;
@@ -1248,6 +1281,22 @@ function GhariLogView({ flash }) {
 
   return (
     <div className="space-y-3">
+      {selfOnly && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          👤 Showing only your own actions.
+        </div>
+      )}
+      {/* Three sections so an admin can read the log at a glance. */}
+      <div className="flex gap-1 rounded-2xl border border-border-light bg-surface p-1">
+        {GHARI_LOG_SECTIONS.map((sec) => (
+          <button key={sec.id} onClick={() => setSection(sec.id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-black transition-all ${section === sec.id ? 'bg-gradient-to-br from-[#FF9D52] to-[#E56F18] text-white shadow' : 'text-text-muted hover:bg-bg-base'}`}>
+            <sec.icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{sec.label}</span>
+            <span className={`rounded-full px-1.5 text-[10px] font-black ${section === sec.id ? 'bg-white/25' : 'bg-bg-base'}`}>{counts[sec.id]}</span>
+          </button>
+        ))}
+      </div>
       <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">
         <Search className="h-4 w-4 text-text-muted" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customer, karyakarta, supplier or who changed it"
@@ -1257,7 +1306,7 @@ function GhariLogView({ flash }) {
       </div>
 
       {logs === null && <p className="py-10 text-center text-sm text-text-muted">Loading history…</p>}
-      {logs && shown.length === 0 && <p className="py-10 text-center text-sm text-text-muted">{q ? `No changes match “${q}”.` : 'No Ghari changes recorded yet.'}</p>}
+      {logs && shown.length === 0 && <p className="py-10 text-center text-sm text-text-muted">{q ? `No changes match “${q}”.` : (selfOnly ? 'You have no actions in this section yet.' : 'Nothing recorded in this section yet.')}</p>}
 
       <div className="space-y-2">
         {shown.map((log) => {
@@ -1265,7 +1314,7 @@ function GhariLogView({ flash }) {
           changes = changes.filter((c) => c.field !== 'itemsJson');
           const st = ACTION_STYLE[log.action] || { label: log.action, cls: 'bg-slate-100 text-slate-700' };
           const m = metaOf(log);
-          const canRevert = log.action !== 'create' && !!log.beforeJson;
+          const canRevert = !selfOnly && log.action !== 'create' && !!log.beforeJson;
           return (
             <div key={log.id} className="rounded-2xl border border-border-light bg-surface p-3">
               <div className="flex items-center gap-2">
@@ -2011,6 +2060,9 @@ export default function GhariPage({ user }) {
   // delivered, even though they cannot change items or payment. The page is only
   // reachable by users with Ghari access, so every viewer here qualifies.
   const canDeliver = true;
+  // The Log is visible to Admins (everyone's actions) and Sevaks (their own only).
+  const isSevak = isSevakRole(user);
+  const canSeeLog = canEdit || isSevak;
   const [tab, setTab] = useState(canEdit ? 'entry' : 'orders');
   const [season, setSeasonState] = useState(ghariService.getSeason());
   const [tick, setTick] = useState(0);
@@ -2065,7 +2117,7 @@ export default function GhariPage({ user }) {
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
     ...(canEdit ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
-    ...(canEdit ? [{ id: 'log', label: 'Log', icon: History }] : []),
+    ...(canSeeLog ? [{ id: 'log', label: 'Log', icon: History }] : []),
     ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
     ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
   ];
@@ -2138,7 +2190,7 @@ export default function GhariPage({ user }) {
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
       {tab === 'stock' && canEdit && <StockView key={tick} season={season} />}
-      {tab === 'log' && canEdit && <GhariLogView key={tick} flash={flash} />}
+      {tab === 'log' && canSeeLog && <GhariLogView key={tick} flash={flash} selfOnly={!canEdit} />}
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
 

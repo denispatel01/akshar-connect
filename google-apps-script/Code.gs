@@ -1872,6 +1872,8 @@ function handle_(p){
       var gl = readAll_('GhariLog');
       if(p.entityId) gl = gl.filter(function(r){ return String(r.entityId) === String(p.entityId); });
       if(p.entity) gl = gl.filter(function(r){ return String(r.entity) === String(p.entity); });
+      // Self-only: non-admins (Sevaks) see just their OWN actions, not everyone's.
+      if(p.actor){ var _a=String(p.actor).trim().toLowerCase(); gl = gl.filter(function(r){ return String(r.actor||'').trim().toLowerCase() === _a; }); }
       gl.sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
       return json_({ ok:true, logs: gl.slice(0, Number(p.limit)||300) });
     }
