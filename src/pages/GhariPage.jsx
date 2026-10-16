@@ -1940,12 +1940,10 @@ function StockView({ season }) {
 
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
-  // Add/edit (write) rights: Admins, plus any user an Admin has granted the `ghari`
-  // module to (AdminPage → a user's "Ghari access" toggle). This mirrors the backend
-  // ghariCanWrite_ exactly, so an Admin can give full write access to ANY mobile
-  // number by turning on Ghari access for that user. Plain Sevaks/devotees without
-  // the grant stay view-only (they can still mark delivery — see canDeliver).
-  const canEdit = isAdminRole(user) || dataService.hasModule(user, 'ghari');
+  // Add/edit (create, edit, delete orders) is ADMIN-ONLY. Everyone else — Sevaks,
+  // devotees, karyakartas, even a user granted the `ghari` module for visibility —
+  // is view-only for the order itself and can ONLY mark delivery (see canDeliver).
+  const canEdit = isAdminRole(user);
   // Delivery is a lighter right than editing: anyone who can open Ghari Seva
   // (Karyakartas, Sevaks, devotees) may mark an order delivered or partially
   // delivered, even though they cannot change items or payment. The page is only

@@ -15,7 +15,7 @@ const iso = (d) => d.toLocaleDateString('en-CA');
 const todayISO = () => iso(new Date());
 
 // Seva categories (merged in from the Seva module).
-const SEVA_CATEGORIES = ['Yuva Pravrutti', 'Padhramani', 'Zoli Seva', 'Satsang Visit', 'Shravan Seva', 'Other'];
+const SEVA_CATEGORIES = ['Ghari Seva', 'Yuva Pravrutti', 'Padhramani', 'Zoli Seva', 'Satsang Visit', 'Shravan Seva', 'Other'];
 const fmtTimeRange = (f, t) => [f, t].filter(Boolean).join(' – ');
 
 // Activity types shown on the calendar.
@@ -436,7 +436,10 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
   const del = async (p) => { setBusy(true); try { await dataService.deletePlan(p.id); await onChanged(); } finally { setBusy(false); } };
 
   const saveSeva = async () => {
-    if (!sevaForm.visitedId) { alertError('Whose home?', 'Pick the devotee whose home you visited.'); return; }
+    // "Whose home" is only compulsory for home-visit sevas. Some sevas have no home
+    // visit at all (e.g. Ghari Seva) — for those, picking a category is enough, so the
+    // record is still meaningful without forcing an irrelevant devotee.
+    if (!sevaForm.visitedId && !sevaForm.category) { alertError('Whose home — or category?', 'Pick the devotee whose home you visited, or choose a seva category (e.g. Ghari Seva) if there was no home visit.'); return; }
     // A planned seva may not have a "what did you do" yet — only require it for a done log.
     if (!sevaForm.planned && !sevaForm.work.trim()) { alertError('What did you do?', 'Describe the seva you did.'); return; }
     setSevaSaving(true);
@@ -602,7 +605,7 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
                   </button>
 
                   <div>
-                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-text-muted">Whose home did you visit?</label>
+                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-text-muted">Whose home did you visit? <span className="font-semibold normal-case text-text-muted/70">(optional for Ghari Seva etc.)</span></label>
                     <DevoteePicker value={sevaForm.visitedId} name={sevaForm.visitedName} onPick={(d) => { setS('visitedId', d?.id || ''); setS('visitedName', d?.name || ''); }} />
                   </div>
 

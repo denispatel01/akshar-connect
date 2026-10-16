@@ -2064,10 +2064,12 @@ var GHARI_WRITE_ACTIONS_ = {
   ghariUpsertStock: 1, ghariDeleteStock: 1,
   ghariImportOrders: 1, ghariRevert: 1,
 };
-// True only for Admins and users whose `modules` column grants `ghari`. The
-// caller is identified by actorMobile (sent by the client on every request) and
-// looked up in the Users sheet — mirrors the client gate in src/utils/navItems.js
-// so Sevaks stay read-only even if they forge a request.
+// Add/edit/delete of the Ghari ledger (orders, products, purchases, stock) is
+// ADMIN-ONLY. The caller is identified by actorMobile (sent on every request) and
+// looked up in the Users sheet — mirrors the client gate (canEdit = isAdminRole) so
+// a Sevak/devotee/`ghari`-module user stays read-only even if they forge a request.
+// (Marking delivery is a separate, lighter right — see ghariKnownUser_ /
+// doGhariMarkDelivery_ — open to any known user.)
 function ghariCanWrite_(p){
   var mob = normMob_(p && p.actorMobile || '');
   if(!mob) return false;
@@ -2075,10 +2077,7 @@ function ghariCanWrite_(p){
   for(var i=0;i<users.length;i++){
     if(normMob_(users[i].mobile) !== mob) continue;
     // Case/space-insensitive so a role saved as "admin" or " Admin " still counts.
-    if(String(users[i].role||'').trim().toLowerCase() === 'admin') return true;
-    var mods = String(users[i].modules||'').toLowerCase().split(/[,|]/);
-    for(var j=0;j<mods.length;j++) if(mods[j].trim() === 'ghari') return true;
-    return false;
+    return String(users[i].role||'').trim().toLowerCase() === 'admin';
   }
   return false;
 }
