@@ -1364,6 +1364,53 @@ function DeliveryPanel({ order, canDeliver, onSaved }) {
   );
 }
 
+// ───────────────────────── Payment panel (quick mark paid) ──────────────────
+// Lets any viewer (Karyakarta / Sevak / devotee) record payment on an order —
+// full Cash or G-Pay, or reset to pending — without full edit rights. Payment-only
+// write (never items/customer), mirroring the Delivery panel.
+function PaymentPanel({ order, canDeliver }) {
+  const total = Number(order.total || 0);
+  const [paid, setPaid] = useState(Number(order.paymentReceived || 0));
+  const [ptype, setPtype] = useState(order.paymentType || '');
+  const balance = Math.max(0, total - paid);
+  const fullyPaid = total > 0 && paid >= total;
+  const commit = (type) => {
+    ghariService.markPaid(order.id, type);
+    if (type === 'Pending') { setPaid(0); setPtype('Pending'); }
+    else { setPaid(total); setPtype(type); }
+  };
+  return (
+    <div className={`mb-3 rounded-2xl border-2 p-3 ${fullyPaid ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40' : paid > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40' : 'border-border-light bg-surface'}`}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted">
+          <Wallet className="h-3.5 w-3.5" /> Payment
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${fullyPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : paid > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-bg-base text-text-muted'}`}>
+          {fullyPaid ? `Paid${ptype ? ' · ' + ptype : ''}` : paid > 0 ? `Due ${rupee(balance)}` : 'Unpaid'}
+        </span>
+      </div>
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-[11px] font-bold text-text-muted">Total {rupee(total)}</span>
+        <span className="text-[11px] font-bold text-text-muted">Received {rupee(paid)}</span>
+      </div>
+      {!canDeliver ? (
+        <p className="text-[12px] font-bold text-text-muted">{fullyPaid ? `Paid${ptype ? ' (' + ptype + ')' : ''}.` : `${rupee(balance)} due.`}</p>
+      ) : (
+        <div className="flex gap-1.5">
+          <button onClick={() => commit('Cash')}
+            className={`flex-1 rounded-xl border py-2 text-xs font-black ${fullyPaid && ptype === 'Cash' ? 'border-emerald-400 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>Paid · Cash</button>
+          <button onClick={() => commit('G-Pay')}
+            className={`flex-1 rounded-xl border py-2 text-xs font-black ${fullyPaid && ptype === 'G-Pay' ? 'border-blue-400 bg-blue-100 text-blue-700 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300'}`}>Paid · G-Pay</button>
+          {paid > 0 && (
+            <button onClick={() => commit('Pending')}
+              className="shrink-0 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-black text-text-muted">Pending</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditModal({ order, onClose, onSaved, canEdit = true, canDeliver = false }) {
   const [showHistory, setShowHistory] = useState(false);
   const [challanBusy, setChallanBusy] = useState(false);
@@ -1411,6 +1458,7 @@ function EditModal({ order, onClose, onSaved, canEdit = true, canDeliver = false
           </div>
         )}
         {canDeliver && <DeliveryPanel order={order} canDeliver={canDeliver} />}
+        {canDeliver && !canEdit && <PaymentPanel order={order} canDeliver={canDeliver} />}
         <OrderForm initialOrder={order} onCancel={onClose} onDelete={canEdit ? del : undefined} onSaved={() => onSaved?.()} readOnly={!canEdit} />
       </div>
     </div>,

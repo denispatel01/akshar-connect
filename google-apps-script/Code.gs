@@ -2094,31 +2094,44 @@ function ghariKnownUser_(p){
   return false;
 }
 
-// Delivery-only write. Updates just delivered / deliveredBoxes / deliveryDate on an
-// existing order — never items, totals or payment — so it is safe to allow for any
-// known user. The change is audit-logged (ghariLog_) exactly like an edit, so an
-// Admin sees who marked what, and how many boxes, in the order's History.
+// Delivery + payment quick write. Updates ONLY delivered / deliveredBoxes /
+// deliveryDate and paymentReceived / paymentType / balance on an existing order —
+// never items, customer or totals — so it is safe to allow for any known user
+// (Karyakartas/Sevaks/devotees mark delivery AND payment; Admins edit via the full
+// form). Audit-logged (ghariLog_) so an Admin sees who marked what in the History.
+// Each field group is applied only when the payload carries it, so a delivery mark
+// never clears payment and a payment mark never clears delivery.
 function doGhariMarkDelivery_(p){
   var row = p.row || {};
   if(!ghariKnownUser_(p))
-    return json_({ ok:false, error:'Not allowed — sign in to mark delivery. (actorMobile=' + normMob_(p && p.actorMobile || '') + ')' });
+    return json_({ ok:false, error:'Not allowed — sign in to mark delivery/payment. (actorMobile=' + normMob_(p && p.actorMobile || '') + ')' });
   var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
   try{
     if(!row.id) return json_({ ok:false, error:'missing id' });
     var rn=findRow_('GhariOrders','id',row.id);
     if(rn<0) return json_({ ok:false, error:'order not found' });
     var before = readRowObj_('GhariOrders', rn);
-    // Compute the order's total boxes from its stored items so a crafted request
-    // can never claim more boxes delivered than were ordered.
-    var totalBoxes = 0;
-    try{ (JSON.parse(before.itemsJson||'[]')||[]).forEach(function(it){ totalBoxes += Number(it.qty)||0; }); }catch(e){}
-    var n = Math.max(0, Math.min(totalBoxes, Math.round(Number(row.deliveredBoxes)||0)));
-    var delivered = totalBoxes > 0 ? (n >= totalBoxes) : (String(row.delivered)==='true' || row.delivered===true);
+    // Compute the order's total boxes + amount from its stored items so a crafted
+    // request can never claim more boxes delivered than ordered, and balance stays
+    // consistent with the (unchanged) items.
+    var totalBoxes = 0, total = 0;
+    try{ (JSON.parse(before.itemsJson||'[]')||[]).forEach(function(it){ var q=Number(it.qty)||0; totalBoxes += q; total += q*(Number(it.unitPrice)||0); }); }catch(e){}
     var after = {};
     HEADERS.GhariOrders.forEach(function(h){ after[h] = before[h]; });
-    after.delivered = delivered;
-    after.deliveredBoxes = n;
-    if(row.deliveryDate !== undefined && row.deliveryDate !== null && String(row.deliveryDate) !== '') after.deliveryDate = row.deliveryDate;
+    // Delivery fields (present on a delivery or a combined quick mark).
+    if(row.deliveredBoxes !== undefined || row.delivered !== undefined){
+      var n = Math.max(0, Math.min(totalBoxes, Math.round(Number(row.deliveredBoxes)||0)));
+      after.delivered = totalBoxes > 0 ? (n >= totalBoxes) : (String(row.delivered)==='true' || row.delivered===true);
+      after.deliveredBoxes = n;
+      if(row.deliveryDate !== undefined && row.deliveryDate !== null && String(row.deliveryDate) !== '') after.deliveryDate = row.deliveryDate;
+    }
+    // Payment fields (present on a payment or a combined quick mark).
+    if(row.paymentReceived !== undefined || row.paymentType !== undefined){
+      var paid = Math.max(0, Number(row.paymentReceived)||0);
+      after.paymentReceived = paid;
+      if(row.paymentType !== undefined) after.paymentType = String(row.paymentType||'');
+      after.balance = total - paid;
+    }
     after.updatedBy = row.updatedBy || '';
     after.updatedOn = row.updatedOn || new Date().toISOString();
     tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',after)]);

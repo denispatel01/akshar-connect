@@ -311,6 +311,21 @@ function toBackendRowStock_(st) {
   };
 }
 
+// Payload for the lightweight `ghariMarkDelivery` action (delivery + payment only —
+// never items/customer). It always carries the order's CURRENT delivery AND payment
+// state, so when the outbox collapses several quick marks on one order into the
+// latest op, no field is ever lost (a "mark paid" never wipes a pending delivery
+// mark, and vice-versa). Authorized for any known user; admins edit via the full form.
+function quickUpdatePayload_(order, actor, now) {
+  const received = num_(order.paymentReceived);
+  return {
+    id: order.id, season: order.season,
+    delivered: !!order.delivered, deliveredBoxes: num_(order.deliveredBoxes), deliveryDate: order.deliveryDate || '',
+    paymentReceived: received, paymentType: order.paymentType || '', balance: num_(order.total) - received,
+    updatedBy: actor, updatedOn: now,
+  };
+}
+
 // Parse a product size label ("500 gm", "1 kg", "250gm") into kilograms.
 function sizeToKg_(size) {
   const m = String(size || '').toLowerCase().match(/([\d.]+)\s*(kg|gm|g\b|gram)?/);
@@ -789,19 +804,31 @@ export const ghariService = {
     const now = nowISO_();
     const order = normalizeOrder_({ ...prev, delivered, deliveredBoxes: n, updatedBy: actor, updatedOn: now });
     MEM.orders[idx] = order; saveOrdersLocal_();
-    enqueueUpsert_('ghariMarkDelivery', 'id', {
-      id: order.id, season: order.season, delivered: order.delivered,
-      deliveredBoxes: order.deliveredBoxes, deliveryDate: order.deliveryDate,
-      updatedBy: actor, updatedOn: now,
-    });
+    enqueueUpsert_('ghariMarkDelivery', 'id', quickUpdatePayload_(order, actor, now));
     emit_('ac-ghari-changed');
     flush();
     try { dataService.logActivity('ghari-delivery', order.customerName, `marked ${n}/${totalBoxes} box${totalBoxes === 1 ? '' : 'es'} delivered for ${order.customerName}`); } catch { /* ignore */ }
     return order;
   },
+  // Mark an order's payment — a PAYMENT-ONLY write (never items/customer), so it is
+  // allowed for Karyakartas/Sevaks/devotees like marking delivery. `paymentType` is
+  // 'Cash' / 'G-Pay' (records the full amount received) or 'Pending' (resets to 0).
+  // Syncs via the same lightweight `ghariMarkDelivery` action (any known user).
   markPaid: (id, paymentType) => {
-    const o = ghariService.getOrderById(id); if (!o) return null;
-    return ghariService.saveOrder({ ...o, paymentReceived: o.total, paymentType: paymentType || o.paymentType || 'Cash' });
+    const idx = orders_().findIndex(o => o.id === id); if (idx < 0) return null;
+    const prev = MEM.orders[idx];
+    const pending = paymentType === 'Pending';
+    const paymentReceived = pending ? 0 : num_(prev.total);
+    const pType = paymentType || 'Cash';
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const order = normalizeOrder_({ ...prev, paymentReceived, paymentType: pType, updatedBy: actor, updatedOn: now });
+    MEM.orders[idx] = order; saveOrdersLocal_();
+    enqueueUpsert_('ghariMarkDelivery', 'id', quickUpdatePayload_(order, actor, now));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-payment', order.customerName, `${pending ? 'marked payment pending' : `marked paid (${pType}) ₹${paymentReceived}`} for ${order.customerName}`); } catch { /* ignore */ }
+    return order;
   },
 
   // ---- Purchases (procurement / the "buy" side) ----
