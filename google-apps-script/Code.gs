@@ -2184,37 +2184,50 @@ function doRepairGhariShift_(p){
     var vals=sh.getRange(1,1,last,H.length).getValues();
     var idx={}; H.forEach(function(h,i){ idx[h]=i; });
     var fixed=0, skippedCorrect=0, noSource=[], samples=[];
+    var metaFixed=0;
     for(var rr=1; rr<vals.length; rr++){
       var row=vals[rr]; var id=String(row[idx.id]||''); if(!id) continue;
       var totalCell=String(row[idx.total]==null?'':row[idx.total]).trim();
-      if(totalCell!==''){ skippedCorrect++; continue; }      // correct row — leave it
+      var dd=String(row[idx.deliveryDate]==null?'':row[idx.deliveryDate]).trim().toLowerCase();
+      var ddCorrupt=(dd==='true'||dd==='false'); // a delivered bool leaked into deliveryDate
+      if(totalCell!=='' && !ddCorrupt){ skippedCorrect++; continue; } // genuinely correct — leave it
       var clean = bakById[id] || logById[id];
       if(!clean){ noSource.push(id); continue; }
-      var itemsJson = String(row[idx.itemsJson]||'');        // items are intact (cols 0-9)
-      var t = ghariComputeFromItems_(itemsJson);
-      var delivered = (String(clean.delivered)==='true' || clean.delivered===true);
-      var pay = Number(clean.paymentReceived)||0;
-      var newRow = row.slice();                              // keep id..itemsSummary + subOrdersJson as-is
-      newRow[idx.total]=t.total; newRow[idx.withGheeAmt]=t.ghee; newRow[idx.withoutGheeAmt]=t.noghee;
-      newRow[idx.sugarFreeAmt]=t.sf; newRow[idx.bhusuAmt]=t.bhusu;
-      newRow[idx.delivered]=delivered; newRow[idx.deliveredBoxes]=delivered? t.boxes : 0;
-      newRow[idx.deliveryDate]=clean.deliveryDate||'';
-      newRow[idx.paymentReceived]=pay; newRow[idx.balance]=t.total - pay;
-      newRow[idx.paymentType]=clean.paymentType||''; newRow[idx.status]=clean.status||'active';
-      newRow[idx.remarks]=clean.remarks||'';
-      if(idx.subOrdersJson!==undefined && (clean.subOrdersJson)) newRow[idx.subOrdersJson]=clean.subOrdersJson;
-      newRow[idx.createdBy]=clean.createdBy||''; newRow[idx.createdOn]=clean.createdOn||'';
-      newRow[idx.updatedBy]=clean.updatedBy||''; newRow[idx.updatedOn]=clean.updatedOn||'';
+      var newRow = row.slice();
+      if(totalCell===''){
+        // Fully shifted: rebuild money from items + metadata from the clean snapshot.
+        var t = ghariComputeFromItems_(String(row[idx.itemsJson]||''));
+        var delivered = (String(clean.delivered)==='true' || clean.delivered===true);
+        var pay = Number(clean.paymentReceived)||0;
+        newRow[idx.total]=t.total; newRow[idx.withGheeAmt]=t.ghee; newRow[idx.withoutGheeAmt]=t.noghee;
+        newRow[idx.sugarFreeAmt]=t.sf; newRow[idx.bhusuAmt]=t.bhusu;
+        newRow[idx.delivered]=delivered; newRow[idx.deliveredBoxes]=delivered? t.boxes : 0;
+        newRow[idx.deliveryDate]=clean.deliveryDate||'';
+        newRow[idx.paymentReceived]=pay; newRow[idx.balance]=t.total - pay;
+        newRow[idx.paymentType]=clean.paymentType||''; newRow[idx.status]=clean.status||'active';
+        newRow[idx.remarks]=clean.remarks||'';
+        if(idx.subOrdersJson!==undefined && (clean.subOrdersJson)) newRow[idx.subOrdersJson]=clean.subOrdersJson;
+        newRow[idx.createdBy]=clean.createdBy||''; newRow[idx.createdOn]=clean.createdOn||'';
+        newRow[idx.updatedBy]=clean.updatedBy||''; newRow[idx.updatedOn]=clean.updatedOn||'';
+        fixed++;
+        if(samples.length<4) samples.push({ id:id, src: bakById[id]?'bak':'log', total:t.total, pay:pay, ptype:newRow[idx.paymentType], status:newRow[idx.status], delivered:delivered, remarks:newRow[idx.remarks] });
+      } else {
+        // Partially shifted (money already correct): fix ONLY the garbage metadata
+        // fields from the clean snapshot; never touch total/payment/amounts.
+        newRow[idx.deliveryDate]=clean.deliveryDate||'';
+        newRow[idx.remarks]=clean.remarks||'';
+        if(clean.createdBy) newRow[idx.createdBy]=clean.createdBy;
+        metaFixed++;
+        if(samples.length<4) samples.push({ id:id, src:'meta', keptTotal:row[idx.total], keptPay:row[idx.paymentReceived], newDDate:newRow[idx.deliveryDate], newRemarks:newRow[idx.remarks], newCreatedBy:newRow[idx.createdBy] });
+      }
       if(doWrite) vals[rr]=newRow;
-      fixed++;
-      if(samples.length<4) samples.push({ id:id, src: bakById[id]?'bak':'log', total:t.total, pay:pay, ptype:newRow[idx.paymentType], status:newRow[idx.status], delivered:delivered, remarks:newRow[idx.remarks] });
     }
-    if(doWrite && fixed>0){
+    if(doWrite && (fixed>0 || metaFixed>0)){
       // Save a safety backup of the live sheet first, then write the corrected block.
       try{ sh.copyTo(ss).setName('GhariOrders_prefix_'+Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); }catch(e){}
       sh.getRange(1,1,vals.length,H.length).setValues(vals);
     }
-    return json_({ ok:true, mode: doWrite?'WRITE':'DRY-RUN', fixed:fixed, skippedCorrect:skippedCorrect, noSource:noSource, samples:samples });
+    return json_({ ok:true, mode: doWrite?'WRITE':'DRY-RUN', fixed:fixed, metaFixed:metaFixed, skippedCorrect:skippedCorrect, noSource:noSource, samples:samples });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
