@@ -228,18 +228,15 @@ function SevaSection({ devotee, open, onToggle }) {
   React.useEffect(() => {
     let alive = true;
     if (!devotee?.id) return;
-    setLoaded(false);
-    Promise.all([
-      dataService.getSeva({ karyakartaId: devotee.id }),
-      dataService.getSeva({ visitedId: devotee.id }),
-    ]).then(([d, r]) => {
+    // One cached request for both sides (done + received). A cache hit resolves
+    // synchronously-fast, so re-opening a profile shows seva history instantly.
+    const cached = dataService.peekSevaForDevotee?.(devotee.id);
+    if (cached) { setDone(cached.done); setReceived(cached.received); setLoaded(true); }
+    else setLoaded(false);
+    dataService.getSevaForDevotee(devotee.id).then(({ done: d, received: r }) => {
       if (!alive) return;
-      const doneList = d || [];
-      const doneIds = new Set(doneList.map((s) => s.id));
-      // A "self" seva (visited === karyakarta === this devotee) comes back in both
-      // lists — keep it only under "done" so it isn't shown twice.
-      setDone(doneList);
-      setReceived((r || []).filter((s) => !doneIds.has(s.id)));
+      setDone(d || []);
+      setReceived(r || []);
       setLoaded(true);
     });
     return () => { alive = false; };

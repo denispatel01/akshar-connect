@@ -7,6 +7,9 @@ const API_URL = "https://script.google.com/macros/s/AKfycbw-LyYduU1mUaXwamTGPyh_
 const hasBackend = () => typeof API_URL === 'string' && API_URL.indexOf('http') === 0;
 
 const SESSION_KEY = 'ac_session_v1';
+// Per-devotee seva history cache (id -> { done, received, ts }) so a profile's Seva
+// section opens instantly and re-opens hit no network. Cleared on any seva write.
+const _sevaByDevotee = new Map();
 // Small in-memory trail of recent user actions, attached to any error report so
 // an opaque "Script error." still says what the user was doing when it hit.
 let breadcrumbs_ = [];
@@ -830,16 +833,47 @@ export const dataService = {
     const r = await api('saveSeva', { ...seva, createdBy: actorLabel() });
     if (!(r && r.ok)) throw new Error((r && r.error) || 'Failed to save.');
     try { logActivity_('seva', seva.visitedName || '', `logged seva${seva.visitedName ? ' at ' + seva.visitedName + "'s home" : ''}`); } catch (e) {}
+    _sevaByDevotee.clear(); // a new/edited seva can change any profile's history
     return r.row;
   },
   deleteSeva: async (id) => {
     if (!hasBackend()) throw new Error('No backend configured.');
+    _sevaByDevotee.clear();
     return api('deleteSeva', { id });
   },
   // Seva done BY a karyakarta, or RECEIVED by a visited devotee (pass one id).
   getSeva: async ({ karyakartaId = '', visitedId = '', limit = 300 } = {}) => {
     if (!hasBackend() || (!karyakartaId && !visitedId)) return [];
     try { const r = await api('getSeva', { karyakartaId, visitedId, limit }); return (r && r.entries) || []; } catch { return []; }
+  },
+  // A devotee's full seva history (done + received) in ONE request, cached — so a
+  // profile's Seva section opens instantly. The old path made two separate Apps
+  // Script round-trips (each scanning the whole Seva sheet) on every profile open;
+  // this fetches both sides at once (the backend already ORs karyakartaId/visitedId),
+  // splits them client-side, and serves re-opens from a short-lived in-memory cache.
+  // Synchronous cache peek — returns the cached { done, received } for a devotee if
+  // present (any age), else null. Lets the profile paint seva history instantly on a
+  // re-open while a fresh copy loads in the background.
+  peekSevaForDevotee: (devoteeId) => {
+    const c = _sevaByDevotee.get(String(devoteeId || ''));
+    return c ? { done: c.done, received: c.received } : null;
+  },
+  getSevaForDevotee: async (devoteeId, { force = false } = {}) => {
+    const id = String(devoteeId || '');
+    if (!hasBackend() || !id) return { done: [], received: [] };
+    const cached = _sevaByDevotee.get(id);
+    if (!force && cached && (Date.now() - cached.ts) < 120000) return cached;
+    try {
+      const r = await api('getSeva', { karyakartaId: id, visitedId: id, limit: 300 });
+      const all = (r && r.entries) || [];
+      const inComp = (s) => String(s.companionsJson || '').indexOf('"' + id + '"') >= 0;
+      const done = all.filter((s) => String(s.karyakartaId) === id || inComp(s));
+      const doneIds = new Set(done.map((s) => s.id));
+      const received = all.filter((s) => String(s.visitedId) === id && !doneIds.has(s.id));
+      const out = { done, received, ts: Date.now() };
+      _sevaByDevotee.set(id, out);
+      return out;
+    } catch { return cached || { done: [], received: [] }; }
   },
 
   // ---- Calendar plans (planned/done activities) ----
