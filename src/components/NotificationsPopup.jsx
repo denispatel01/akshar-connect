@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus, Megaphone } from 'lucide-react';
+import { Bell, X, Cake, MessageSquare, CalendarClock, PhoneCall, UserPlus, Megaphone, Check } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { hasAnyTag } from '../services/devoteeSchema';
 import { isBirthdayToday, upcomingBirthdays, birthdayDate } from '../utils/birthdays';
@@ -31,6 +31,13 @@ export default function NotificationsPopup({ user }) {
   // Push notifications = announcements, newest first (the backend already sorts
   // desc and caps at 50). We show the FULL list — this is the notification feed.
   const [announcements, setAnnouncements] = useState(() => (dataService.getCachedAnnouncements() || []));
+  // Per-device "read" set — a notification the user marked as read is hidden now and
+  // on every future open (so ~3 pushes/day don't pile up endlessly).
+  const [readIds, setReadIds] = useState(() => dataService.getReadNotifIds());
+  const markRead = (a) => {
+    dataService.markNotificationRead(a);
+    setReadIds(new Set([...readIds, String(a.id)]));
+  };
   // Refresh announcements in the background (and when a push arrives while open).
   useEffect(() => {
     let alive = true;
@@ -40,6 +47,8 @@ export default function NotificationsPopup({ user }) {
     window.addEventListener('ac-push-received', onPush);
     return () => { alive = false; window.removeEventListener('ac-push-received', onPush); };
   }, []);
+  // Only show push notifications the user hasn't marked as read.
+  const unreadAnnouncements = useMemo(() => (announcements || []).filter(a => !readIds.has(String(a.id))), [announcements, readIds]);
   const devotees = useMemo(() => dataService.getDevotees(), []);
   const today = useMemo(() => devotees.filter(d => isBirthdayToday(d.dob)), [devotees]);
   const soon = useMemo(
@@ -81,7 +90,7 @@ export default function NotificationsPopup({ user }) {
       .sort((a, b) => Date.parse(b.createdOn) - Date.parse(a.createdOn));
   }, [devotees, canManage]);
 
-  const hasItems = announcements.length > 0 || today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
+  const hasItems = unreadAnnouncements.length > 0 || today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
   // This is a notification CENTER, opened from the header bell — never an
   // auto-popup. It slides in from the right (a real notification panel) and lists
   // every push notification, newest first.
@@ -116,19 +125,25 @@ export default function NotificationsPopup({ user }) {
               <p className="text-[12px]">Push notifications will appear here, newest first.</p>
             </div>
           )}
-          {announcements.length > 0 && (
+          {unreadAnnouncements.length > 0 && (
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#FF862A]">
                 <Megaphone className="h-3.5 w-3.5" /> Push notifications
               </p>
               <div className="space-y-2">
-                {announcements.map(a => (
+                {unreadAnnouncements.map(a => (
                   <div key={a.id} className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-bold text-text-main">{a.title}</p>
                       <span className="shrink-0 text-[10px] font-bold text-text-muted">{fmtWhen(a.createdOn)}</span>
                     </div>
                     {a.body && <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-text-main/90">{a.body}</p>}
+                    <div className="mt-2 flex justify-end">
+                      <button onClick={() => markRead(a)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white/70 px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-white dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                        <Check className="h-3.5 w-3.5" /> Mark as read
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

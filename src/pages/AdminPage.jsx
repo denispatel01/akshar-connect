@@ -199,6 +199,7 @@ export default function AdminPage({ user, onViewAs }) {
       {/* NOTIFICATIONS TAB */}
       {isAdmin && tab === 'notifications' && <NotificationsReport />}
       {isAdmin && tab === 'notifications' && <PushLogPanel />}
+      {isAdmin && tab === 'notifications' && <NotifReadsPanel />}
 
       {/* SYSTEM TAB — email toggle */}
       {isAdmin && tab === 'system' && <MailToggle />}
@@ -560,6 +561,38 @@ function PushLogPanel() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Notification "read receipts" — who marked which push notification as read.
+function NotifReadsPanel() {
+  const [reads, setReads] = React.useState(null);
+  const load = React.useCallback(() => { setReads(null); dataService.getNotifReads(100).then((r) => setReads(r || [])); }, []);
+  React.useEffect(() => { load(); }, [load]);
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
+  return (
+    <div className="rounded-3xl border border-border-light bg-surface p-6 shadow-xs">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
+          <Bell className="h-4 w-4 text-[#FF862A]" /> ✅ Marked as Read
+        </div>
+        <button onClick={load} className="rounded-lg border border-border-light bg-bg-base px-2.5 py-1 text-[11px] font-bold text-text-muted hover:text-text-main"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      <p className="mb-3 text-[11px] text-text-muted">Who dismissed which notification from their list, and when.</p>
+      {reads === null && <p className="py-8 text-center text-sm text-text-muted">Loading…</p>}
+      {reads && reads.length === 0 && <p className="py-8 text-center text-sm text-text-muted">No one has marked a notification as read yet.</p>}
+      <div className="max-h-96 space-y-1.5 overflow-y-auto">
+        {(reads || []).map((r) => (
+          <div key={r.id} className="flex items-center gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] font-bold text-text-main">{String(r.name || '').replace(/\s*\(.*\)$/, '') || r.mobile || 'Unknown'}</p>
+              <p className="truncate text-[11px] text-text-muted">{r.title || '(notification)'}</p>
+            </div>
+            <span className="shrink-0 text-[10px] font-semibold text-text-muted">{fmt(r.readOn)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

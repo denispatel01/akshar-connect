@@ -612,6 +612,34 @@ export const dataService = {
     try { const r = await api('getAnnouncements', {}); if (r && r.announcements) { DB.announcements = r.announcements; saveCache(); } return DB.announcements || []; } catch { return DB.announcements || []; }
   },
   getCachedAnnouncements: () => DB.announcements || [],
+  // ── Per-user "mark as read" for push notifications ─────────────────────────
+  // Read state is kept on the device (localStorage) so a read notification is
+  // hidden instantly and stays hidden on future opens — important because ~3 pushes
+  // a day would otherwise pile up. The action is ALSO logged to the backend (best
+  // effort) so admins can see who read what in the notification logs.
+  getReadNotifIds: () => {
+    try { return new Set(JSON.parse(localStorage.getItem('ac_notif_read_v1') || '[]')); } catch { return new Set(); }
+  },
+  isNotifRead: (id) => { try { return dataService.getReadNotifIds().has(String(id)); } catch { return false; } },
+  markNotificationRead: (a) => {
+    const id = String((a && a.id) || a || '');
+    if (!id) return;
+    try {
+      const set = dataService.getReadNotifIds(); set.add(id);
+      localStorage.setItem('ac_notif_read_v1', JSON.stringify([...set]));
+    } catch { /* ignore */ }
+    // Log the action to the backend (fire-and-forget; works offline → just skipped).
+    if (hasBackend()) {
+      try { api('logNotifRead', { announcementId: id, title: (a && a.title) || '', name: actorLabel(), by: actorLabel() }).catch(() => {}); } catch { /* ignore */ }
+    }
+    try { logActivity_('notif-read', '', `marked notification read${a && a.title ? ` — "${a.title}"` : ''}`); } catch { /* ignore */ }
+    try { window.dispatchEvent(new CustomEvent('ac-notif-read', { detail: { id } })); } catch { /* ignore */ }
+  },
+  // Admin: who marked which notifications as read (notification logs).
+  getNotifReads: async (limit = 100) => {
+    if (!hasBackend()) return [];
+    try { const r = await api('getNotifReads', { limit }); return (r && r.reads) || []; } catch { return []; }
+  },
   // Admin: post an announcement (saved + pushed to matching devices).
   createAnnouncement: async ({ title, body, audience = 'all' }) => {
     if (!hasBackend()) throw new Error('No backend configured.');

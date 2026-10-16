@@ -48,6 +48,7 @@ var HEADERS = {
   // Admin-posted announcements, shown in-app and sent as a push notification.
   // audience ∈ all | staff | devotees (who it targets).
   Announcements: ['id','title','body','audience','createdBy','createdOn','sentCount'],
+  NotifReads: ['id','announcementId','title','mobile','name','readOn'],
   // Each person's notification-permission response (so admins can see who allowed /
   // rejected). Keyed by devoteeId (or mobile). status ∈ granted|denied|default|unsupported.
   PushStatus: ['key','devoteeId','mobile','name','status','platform','updatedOn'],
@@ -1466,7 +1467,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1824,6 +1825,21 @@ function handle_(p){
     if(action==='registerPushToken') return doRegisterPushToken_(p);
     if(action==='getAnnouncements') return doGetAnnouncements_();
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
+    if(action==='logNotifRead'){
+      // A user marked a push notification as read. Append one audit row, de-duped
+      // per (mobile, announcementId) so re-marking never doubles the log.
+      var _mob = normMob_(p && p.actorMobile || '');
+      var _aid = String(p.announcementId||''); if(!_aid) return json_({ ok:false, error:'missing announcementId' });
+      var _existing = readAll_('NotifReads');
+      for(var _i=0;_i<_existing.length;_i++){ if(String(_existing[_i].announcementId)===_aid && normMob_(_existing[_i].mobile)===_mob){ return json_({ ok:true, deduped:true }); } }
+      appendRows_('NotifReads', [{ id:'NR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), announcementId:_aid, title:String(p.title||''), mobile:_mob, name:String(p.name||p.by||''), readOn:new Date().toISOString() }]);
+      return json_({ ok:true });
+    }
+    if(action==='getNotifReads'){
+      var _nr = readAll_('NotifReads');
+      _nr.sort(function(a,b){ return String(b.readOn).localeCompare(String(a.readOn)); });
+      return json_({ ok:true, reads: _nr.slice(0, Math.min(Number(p.limit)||100, 500)) });
+    }
     if(action==='sendPush'){
       // Manual admin push WITHOUT saving an announcement (not shown in the 🔔 list).
       var _aud = (['all','staff','devotees'].indexOf(p.audience) >= 0 ? p.audience : 'all');
