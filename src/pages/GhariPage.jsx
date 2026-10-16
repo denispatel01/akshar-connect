@@ -2051,10 +2051,12 @@ function StockView({ season }) {
 
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
-  // Add/edit (create, edit, delete orders) is ADMIN-ONLY. Everyone else — Sevaks,
-  // devotees, karyakartas, even a user granted the `ghari` module for visibility —
-  // is view-only for the order itself and can ONLY mark delivery (see canDeliver).
-  const canEdit = isAdminRole(user);
+  // Add/edit (create, edit, delete orders) = Admins, PLUS any specific user an Admin
+  // has granted Ghari edit access to (the `ghari` module, toggled per-user in
+  // Admin → Users). Everyone else — Sevaks/devotees/karyakartas without the grant —
+  // is view-only for the order and can ONLY mark delivery/payment (see canDeliver).
+  // Mirrors the backend ghariCanWrite_.
+  const canEdit = isAdminRole(user) || dataService.hasModule(user, 'ghari');
   // Delivery is a lighter right than editing: anyone who can open Ghari Seva
   // (Karyakartas, Sevaks, devotees) may mark an order delivered or partially
   // delivered, even though they cannot change items or payment. The page is only

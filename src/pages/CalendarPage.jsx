@@ -31,6 +31,10 @@ const TYPE_KEYS = ['seva'];
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 // ── Searchable devotee picker (whose home was visited) — merged from Seva ──────
+// Pick a devotee from the directory, OR type any name / place freely (e.g. a
+// mandir, a hall, or someone not in the database) — the typed text is kept as the
+// visited name with no devotee id. So "whose home / where" is never blocked by the
+// directory.
 function DevoteePicker({ value, name, onPick }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -42,11 +46,15 @@ function DevoteePicker({ value, name, onPick }) {
     // with a middle name between), mobile or DOB. Consistent across the app.
     return devotees.filter((d) => devoteeMatches(d, q)).slice(0, 8);
   }, [q, devotees]);
+  const typed = q.trim();
+  const showAddFree = typed.length > 0 && !results.some((d) => String(d.name || '').trim().toLowerCase() === typed.toLowerCase());
+  const addFree = () => { if (!typed) return; onPick({ id: '', name: typed }); setQ(''); setOpen(false); };
 
-  if (value && name) {
+  // Show the chip whenever a name is set — a free-typed place/name has no id.
+  if (name) {
     return (
       <div className="flex items-center justify-between gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-3.5 py-2.5">
-        <span className="flex items-center gap-2 text-sm font-bold text-text-main"><User className="h-4 w-4 text-primary" /> {name}</span>
+        <span className="flex items-center gap-2 text-sm font-bold text-text-main"><User className="h-4 w-4 text-primary" /> {name}{!value && <span className="rounded-full bg-bg-base px-1.5 py-0.5 text-[10px] font-bold text-text-muted">typed</span>}</span>
         <button onClick={() => onPick(null)} className="rounded-lg p-1 text-text-muted hover:text-red-500"><X className="h-4 w-4" /></button>
       </div>
     );
@@ -55,9 +63,10 @@ function DevoteePicker({ value, name, onPick }) {
     <div className="relative">
       <Search className="absolute left-3 top-3 h-4 w-4 text-text-muted" />
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        placeholder="Search devotee by name or mobile"
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (results.length) { onPick(results[0]); setQ(''); setOpen(false); } else addFree(); } }}
+        placeholder="Search a devotee, or type any name / place"
         className="w-full rounded-2xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-[#FF862A]" />
-      {open && results.length > 0 && (
+      {open && (results.length > 0 || showAddFree) && (
         <div className="mt-1 w-full max-h-56 overflow-y-auto rounded-2xl border border-border-light bg-surface shadow-lg">
           {results.map((d) => (
             <button key={d.id} onClick={() => { onPick(d); setQ(''); setOpen(false); }}
@@ -67,6 +76,13 @@ function DevoteePicker({ value, name, onPick }) {
               {d.area ? <span className="text-xs text-text-muted"> · {d.area}</span> : null}
             </button>
           ))}
+          {showAddFree && (
+            <button onClick={addFree} className="flex w-full items-center gap-2 border-t border-border-light px-3.5 py-2.5 text-left text-sm hover:bg-bg-base">
+              <Plus className="h-4 w-4 text-primary" />
+              <span className="font-bold text-text-main">Use “{typed}”</span>
+              <span className="text-[11px] text-text-muted">name / place</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -439,7 +455,7 @@ function DaySheet({ date, data, devoteeId, isStaff, karyakartaName, karyakartaMo
     // "Whose home" is only compulsory for home-visit sevas. Some sevas have no home
     // visit at all (e.g. Ghari Seva) — for those, picking a category is enough, so the
     // record is still meaningful without forcing an irrelevant devotee.
-    if (!sevaForm.visitedId && !sevaForm.category) { alertError('Whose home — or category?', 'Pick the devotee whose home you visited, or choose a seva category (e.g. Ghari Seva) if there was no home visit.'); return; }
+    if (!sevaForm.visitedId && !String(sevaForm.visitedName || '').trim() && !sevaForm.category) { alertError('Whose home — or category?', 'Pick/type the devotee or place you visited, or choose a seva category (e.g. Ghari Seva) if there was no home visit.'); return; }
     // A planned seva may not have a "what did you do" yet — only require it for a done log.
     if (!sevaForm.planned && !sevaForm.work.trim()) { alertError('What did you do?', 'Describe the seva you did.'); return; }
     setSevaSaving(true);
