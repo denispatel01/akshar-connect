@@ -1988,6 +1988,7 @@ function StockView({ season }) {
                   <div className="text-[10px] font-semibold text-text-muted">{st.date ? new Date(st.date).toLocaleDateString('en-IN') : ''}{st.remarks ? ` · ${st.remarks}` : ''}{st.createdBy ? ` · by ${String(st.createdBy).replace(/\s*\(.*\)$/, '')}` : ''}</div>
                 </div>
                 <span className="shrink-0 text-sm font-black text-text-main">{st.boxes}</span>
+                <button onClick={async () => { try { await ghariService.stockChallanPdf(st, { share: true }); } catch (e) { alertError('Challan failed', e?.message || ''); } }} title="Stock challan (PDF)" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Download className="h-3.5 w-3.5" /></button>
                 <button onClick={() => { setAdding(false); setEditing(st); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ } }} title="Edit issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>
                 <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>

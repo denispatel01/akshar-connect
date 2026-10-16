@@ -1360,6 +1360,92 @@ export const ghariService = {
     return { shared: false, filename };
   },
 
+  // ---- Advance-stock challan (one issue) → PDF, shareable on WhatsApp ----
+  // A handover note for stock issued to a Karyakarta in advance: recipient, each
+  // item's boxes + kg, and the Ghari/Bhusu kg totals (e.g. 10 kg Ghari, 4 kg Bhusu),
+  // with a signature line. No money — this is a stock handover, not a sale. Shares to
+  // WhatsApp where supported, else downloads. Mirrors orderChallanPdf.
+  stockChallanPdf: async (stock, { share = false } = {}) => {
+    const st = normalizeStock_(stock);
+    const s = st.season || meta_().season;
+    let jsPDF, autoTableMod;
+    try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+    catch (e) {
+      try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+      throw new Error('The app was updated in the background. Reloading — please tap again.');
+    }
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    const ORANGE = [229, 111, 24], DARK = [38, 48, 59], MUTE = [120, 130, 145], STRIPE = [252, 241, 231];
+    const kg1 = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const when = (st.date ? new Date(st.date) : new Date()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Header band
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 92, 'F');
+    doc.setFillColor(255, 157, 82); doc.rect(0, 92, pageW, 4, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9); doc.text('AKSHAR CONNECT', 40, 32);
+    doc.setFontSize(18); doc.text('Ghari Seva — Stock Challan', 40, 58);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(255, 235, 220);
+    doc.text(`Season ${s}  ·  Advance stock issued`, 40, 78);
+    doc.setFontSize(9); doc.text(`Date: ${when}`, pageW - 40, 32, { align: 'right' });
+
+    // Recipient
+    doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text('Issued to', 40, 122);
+    doc.setFontSize(13); doc.text(st.karyakarta || '—', 40, 140);
+
+    // Items — boxes + kg
+    let ghariKg = 0, bhusuKg = 0, totBoxes = 0;
+    const body = (st.items || []).map(it => {
+      const kg = num_(it.qty) * sizeToKg_(it.size); totBoxes += num_(it.qty);
+      if (it.category === 'bhusu') bhusuKg += kg; else ghariKg += kg;
+      return [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), kg1(kg)];
+    });
+    autoTable(doc, {
+      startY: 158,
+      head: [['Item', 'Boxes', 'Kg']],
+      body,
+      theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+      headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 0: { cellWidth: 320 }, 1: { halign: 'center', cellWidth: 90 }, 2: { halign: 'right', cellWidth: 105 } },
+      margin: { left: 40, right: 40 },
+    });
+
+    let y = doc.lastAutoTable.finalY + 18;
+    const line = (label, val, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? DARK : MUTE)); doc.setFontSize(11); doc.text(label, pageW - 240, y); doc.setTextColor(...DARK); doc.text(val, pageW - 40, y, { align: 'right' }); y += 18; };
+    line('Total boxes', String(totBoxes), true);
+    if (ghariKg > 0) line('Ghari', `${kg1(ghariKg)} kg`, true);
+    if (bhusuKg > 0) line('Bhusu', `${kg1(bhusuKg)} kg`, true);
+
+    if (st.remarks) { doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTE); doc.text(`Remarks: ${st.remarks}`, 40, y + 4); y += 18; }
+
+    const sigY = y + 48;
+    doc.setDrawColor(190, 190, 190); doc.line(40, sigY, 200, sigY); doc.line(pageW - 200, sigY, pageW - 40, sigY);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTE);
+    doc.text('Received by (sign)', 40, sigY + 14); doc.text('For Adajan Satsang Mandal', pageW - 40, sigY + 14, { align: 'right' });
+
+    const h = doc.internal.pageSize.getHeight();
+    doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+    doc.text('Adajan Satsang Mandal · Akshar Connect · Jai Swaminarayan 🙏', 40, h - 20);
+
+    const filename = `StockChallan_${s}_${(st.karyakarta || 'karyakarta').replace(/[^\w]+/g, '_')}.pdf`;
+    if (share) {
+      try {
+        const blob = doc.output('blob');
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Ghari Seva — Stock Challan', text: `Ghari Seva ${s} advance stock challan for ${st.karyakarta || ''}`.trim() });
+          return { shared: true, filename };
+        }
+      } catch (e) { if (String(e && e.name) === 'AbortError') return { shared: false, cancelled: true, filename }; }
+    }
+    doc.save(filename);
+    return { shared: false, filename };
+  },
+
   // ---- Printable BLANK order sheet (take orders on paper, key in later) ----
   // A landscape A4 grid: one column per catalog item, many empty rows. The admin
   // prints it, writes the devotee's name and the box counts by hand (2 under "Ghee
