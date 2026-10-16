@@ -1807,6 +1807,7 @@ function handle_(p){
       }
       return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, stocks: _gStock, season: _gSeason, seasons: _seasons });
     }
+    if(action==='repairGhariShift')   return doRepairGhariShift_(p);
     if(action==='ghariMarkDelivery')  return doGhariMarkDelivery_(p);
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
@@ -2143,6 +2144,77 @@ function doGhariMarkDelivery_(p){
     tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',after)]);
     ghariLog_('order', 'delivery', after.updatedBy, before, after);
     return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
+}
+
+// ── One-time repair: fix the GhariOrders column-shift corruption ─────────────
+// Only touches rows whose `total` cell is BLANK (the shifted ones). Rows with a
+// total value are correct and left untouched. Clean values come from the Oct-15
+// backup tab (by id) or, for rows created after it, the order's GhariLog `create`
+// snapshot. Money (total + category amounts + balance + deliveredBoxes) is RECOMPUTED
+// from itemsJson; metadata (delivered/deliveryDate/payment/status/remarks/author)
+// comes from the clean snapshot. NEVER touches "Copy of GhariOrders". Dry-run by
+// default (reports, no write); pass confirm:"WRITE" to actually write.
+function ghariComputeFromItems_(itemsJson){
+  var items=[]; try{ items=JSON.parse(itemsJson||'[]')||[]; }catch(e){}
+  var cat={ghee:0,noghee:0,sf:0,bhusu:0}, total=0, boxes=0;
+  items.forEach(function(it){ var line=(Number(it.qty)||0)*(Number(it.unitPrice)||0); total+=line; boxes+=Number(it.qty)||0; if(cat[it.category]===undefined)cat[it.category]=0; cat[it.category]+=line; });
+  return { total:total, boxes:boxes, ghee:cat.ghee, noghee:cat.noghee, sf:cat.sf, bhusu:cat.bhusu };
+}
+function doRepairGhariShift_(p){
+  // Writing requires BOTH confirm:"WRITE" and the one-time token, so the repair can
+  // never run by accident. Dry-run (read-only reporting) needs neither.
+  var doWrite = (String(p && p.confirm) === 'WRITE') && (String(p && p.token) === 'FIXSHIFT-2026-10-17');
+  var BAK = 'GhariOrders_bak_20261015_183220';
+  var ss = ss_();
+  var sh = ss.getSheetByName('GhariOrders'); if(!sh) return json_({ ok:false, error:'no GhariOrders' });
+  var H = HEADERS.GhariOrders;
+  // Clean source A: the Oct-15 backup, keyed by id.
+  var bak = ss.getSheetByName(BAK); var bakById={};
+  if(bak){ var bv=bak.getRange(1,1,bak.getLastRow(),bak.getLastColumn()).getValues(); var bH=bv[0];
+    for(var r=1;r<bv.length;r++){ var o={}; bH.forEach(function(h,i){ o[h]=bv[r][i]; }); if(o.id) bakById[String(o.id)]=o; } }
+  // Clean source B: each order's GhariLog `create` snapshot (afterJson), keyed by id.
+  var logById={}; readAll_('GhariLog').forEach(function(e){
+    if(String(e.entity)!=='order' || String(e.action)!=='create' || !e.afterJson) return;
+    try{ logById[String(e.entityId)] = JSON.parse(e.afterJson); }catch(err){}
+  });
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(30000); }catch(e){}
+  try{
+    var last=sh.getLastRow(); if(last<2) return json_({ ok:true, note:'empty' });
+    var vals=sh.getRange(1,1,last,H.length).getValues();
+    var idx={}; H.forEach(function(h,i){ idx[h]=i; });
+    var fixed=0, skippedCorrect=0, noSource=[], samples=[];
+    for(var rr=1; rr<vals.length; rr++){
+      var row=vals[rr]; var id=String(row[idx.id]||''); if(!id) continue;
+      var totalCell=String(row[idx.total]==null?'':row[idx.total]).trim();
+      if(totalCell!==''){ skippedCorrect++; continue; }      // correct row — leave it
+      var clean = bakById[id] || logById[id];
+      if(!clean){ noSource.push(id); continue; }
+      var itemsJson = String(row[idx.itemsJson]||'');        // items are intact (cols 0-9)
+      var t = ghariComputeFromItems_(itemsJson);
+      var delivered = (String(clean.delivered)==='true' || clean.delivered===true);
+      var pay = Number(clean.paymentReceived)||0;
+      var newRow = row.slice();                              // keep id..itemsSummary + subOrdersJson as-is
+      newRow[idx.total]=t.total; newRow[idx.withGheeAmt]=t.ghee; newRow[idx.withoutGheeAmt]=t.noghee;
+      newRow[idx.sugarFreeAmt]=t.sf; newRow[idx.bhusuAmt]=t.bhusu;
+      newRow[idx.delivered]=delivered; newRow[idx.deliveredBoxes]=delivered? t.boxes : 0;
+      newRow[idx.deliveryDate]=clean.deliveryDate||'';
+      newRow[idx.paymentReceived]=pay; newRow[idx.balance]=t.total - pay;
+      newRow[idx.paymentType]=clean.paymentType||''; newRow[idx.status]=clean.status||'active';
+      newRow[idx.remarks]=clean.remarks||'';
+      if(idx.subOrdersJson!==undefined && (clean.subOrdersJson)) newRow[idx.subOrdersJson]=clean.subOrdersJson;
+      newRow[idx.createdBy]=clean.createdBy||''; newRow[idx.createdOn]=clean.createdOn||'';
+      newRow[idx.updatedBy]=clean.updatedBy||''; newRow[idx.updatedOn]=clean.updatedOn||'';
+      if(doWrite) vals[rr]=newRow;
+      fixed++;
+      if(samples.length<4) samples.push({ id:id, src: bakById[id]?'bak':'log', total:t.total, pay:pay, ptype:newRow[idx.paymentType], status:newRow[idx.status], delivered:delivered, remarks:newRow[idx.remarks] });
+    }
+    if(doWrite && fixed>0){
+      // Save a safety backup of the live sheet first, then write the corrected block.
+      try{ sh.copyTo(ss).setName('GhariOrders_prefix_'+Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); }catch(e){}
+      sh.getRange(1,1,vals.length,H.length).setValues(vals);
+    }
+    return json_({ ok:true, mode: doWrite?'WRITE':'DRY-RUN', fixed:fixed, skippedCorrect:skippedCorrect, noSource:noSource, samples:samples });
   } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
