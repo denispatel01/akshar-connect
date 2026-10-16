@@ -50,7 +50,7 @@
     --border-light: #2e2318;
   }
 
-  html, body {
+  html {
     /* Stop unwanted horizontal scrolling and the left/right rubber-band bounce
        when content doesn't actually overflow (#109). Vertical scroll stays. */
     max-width: 100%;
@@ -64,7 +64,12 @@
     font-family: var(--font-sans);
     margin: 0;
     padding: 0;
+    max-width: 100%;
     -webkit-font-smoothing: antialiased;
+    /* NOTE: overflow-x is intentionally NOT set on <body>. Making <body> a scroll
+       container traps the portaled `position: fixed` mobile bottom bar so it scrolls
+       with the page on some phones. Horizontal overflow is clipped by <html> and
+       #root instead, which keeps the bottom bar truly fixed. */
   }
 
   #root {

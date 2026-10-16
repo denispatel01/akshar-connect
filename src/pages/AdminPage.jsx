@@ -166,8 +166,8 @@ export default function AdminPage({ user, onViewAs }) {
                 <label className="text-xs font-bold text-slate-500 block mb-1">🧩 Module Access</label>
                 <button type="button" onClick={() => setForm({ ...form, ghari: !form.ghari })}
                   className={`flex w-full items-center justify-between rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${form.ghari ? 'border-[#FF862A] bg-[#FF862A]/10 text-[#E56F18]' : 'border-border-light bg-bg-base text-text-muted'}`}>
-                  <span className="flex items-center gap-2">🪔 Ghari Seva</span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${form.ghari ? 'bg-[#FF862A] text-white' : 'bg-slate-200 text-slate-600'}`}>{form.ghari ? 'Allowed' : 'No access'}</span>
+                  <span className="flex items-center gap-2">🪔 Ghari Seva <span className="text-[10px] font-semibold opacity-70">— add &amp; edit orders</span></span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${form.ghari ? 'bg-[#FF862A] text-white' : 'bg-slate-200 text-slate-600'}`}>{form.ghari ? 'Can edit' : 'No access'}</span>
                 </button>
               </div>
             )}
