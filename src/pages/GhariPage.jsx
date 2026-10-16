@@ -202,6 +202,19 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [paymentReceived, setPaymentReceived] = useState(initialOrder?.paymentReceived ?? 0);
   const [review, setReview] = useState(null); // {addAnother} while showing the confirm-order preview
 
+  // Optional "split order" — one order holding several named recipients, each with
+  // their own items (e.g. Order #43 via Ashvinbhai → Ketanbhai 500g, Atulbhai 1kg,
+  // Nayanbhai 1kg). Default OFF: a plain single-customer order behaves exactly as
+  // before. Each recipient is { key, name, mobile, devoteeId, cart }.
+  const newRecipient = () => ({ key: Math.random().toString(36).slice(2, 9), name: '', mobile: '', devoteeId: '', cart: {} });
+  const [split, setSplit] = useState(() => (initialOrder?.subOrders?.length || 0) > 0);
+  const [recipients, setRecipients] = useState(() =>
+    (initialOrder?.subOrders || []).map(so => {
+      const c = {}; (so.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + it.qty; });
+      return { key: Math.random().toString(36).slice(2, 9), name: so.name || '', mobile: so.mobile || '', devoteeId: so.devoteeId || '', cart: c };
+    })
+  );
+
   // Snapshot of the order's original items, so editing an order whose product was
   // later deactivated/deleted (missing from the active catalog) never drops those
   // lines — which previously left `items` empty and made "Review & save" silently
@@ -210,35 +223,74 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
     const m = {}; (initialOrder?.items || []).forEach(it => { m[it.sku] = it; }); return m;
   }, [initialOrder]);
 
-  const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => {
+  const cartToItems = (c) => Object.entries(c).filter(([, q]) => q > 0).map(([sku, qty]) => {
     const p = bySku[sku] || origBySku[sku];
     return p ? { sku, name: p.name, size: p.size, category: p.category, qty, unitPrice: p.unitPrice } : null;
-  }).filter(Boolean), [cart, bySku, origBySku]);
+  }).filter(Boolean);
+  const mergeLines = (arr) => {
+    const by = {}; const order = [];
+    arr.forEach(it => { const k = it.sku + '|' + it.unitPrice; if (!by[k]) { by[k] = { ...it }; order.push(k); } else by[k].qty += it.qty; });
+    return order.map(k => by[k]);
+  };
+
+  // Recipients that actually have items, shaped for the service (name + items[]).
+  const subPayload = useMemo(() => recipients
+    .map(so => ({ name: properName(so.name), mobile: String(so.mobile || '').replace(/\D/g, ''), devoteeId: so.devoteeId || '', items: cartToItems(so.cart) }))
+    .filter(so => so.items.length > 0), [recipients, bySku, origBySku]);
+
+  // The flattened aggregate every total/packing/stock reader works on.
+  const items = useMemo(() => split ? mergeLines(subPayload.flatMap(s => s.items)) : cartToItems(cart),
+    [split, subPayload, cart, bySku, origBySku]);
   const totals = useMemo(() => ghariService.computeTotals(items), [items]);
   const paid = payEdited ? Number(paymentReceived || 0) : totals.total;
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
-  const reset = () => { setCart({}); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setDeliveryDate(''); setShowDeliveryDate(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const setRecipientQty = (key, sku, qty) => setRecipients(rs => rs.map(r => r.key === key ? { ...r, cart: { ...r.cart, [sku]: qty } } : r));
+  const patchRecipient = (key, patch) => setRecipients(rs => rs.map(r => r.key === key ? { ...r, ...patch } : r));
+  const addRecipient = () => setRecipients(rs => [...rs, newRecipient()]);
+  const removeRecipient = (key) => setRecipients(rs => rs.filter(r => r.key !== key));
+  // Turn splitting on: seed the first recipient from the current single cart (named
+  // after the customer, if any). Turn it off: flatten all recipients back into the
+  // single cart so nothing is lost.
+  const enableSplit = () => {
+    setRecipients(rs => rs.length ? rs : [{ ...newRecipient(), name: customerName || '', cart: { ...cart } }, newRecipient()]);
+    setSplit(true);
+  };
+  const disableSplit = () => {
+    const merged = {}; recipients.forEach(r => Object.entries(r.cart).forEach(([sku, q]) => { if (q > 0) merged[sku] = (merged[sku] || 0) + q; }));
+    if (Object.keys(merged).length) setCart(c => { const n = { ...c }; Object.entries(merged).forEach(([sku, q]) => { n[sku] = (n[sku] || 0) + q; }); return n; });
+    setSplit(false);
+  };
+  const reset = () => { setCart({}); setSplit(false); setRecipients([]); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setDeliveryDate(''); setShowDeliveryDate(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
 
   // Review-before-save: validate, then show a preview so the user can confirm the
   // exact order (items hard to re-check by scrolling up past many product cards).
-  const requestSave = (addAnother) => {
-    if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return; }
-    if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return; }
-    setReview({ addAnother });
+  const validate = () => {
+    if (split) {
+      if (!subPayload.length) { alertError('Add recipients', 'Please add at least one recipient with items.'); return false; }
+      if (recipients.some(r => cartToItems(r.cart).length > 0 && !r.name.trim())) { alertError('Recipient name needed', 'Please name every recipient that has items.'); return false; }
+      return true;
+    }
+    if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return false; }
+    if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return false; }
+    return true;
   };
+  const requestSave = (addAnother) => { if (validate()) setReview({ addAnother }); };
 
   const save = (addAnother) => {
-    if (!items.length) { alertError('Add items', 'Please add at least one item to the order.'); return; }
-    if (!customerName.trim()) { alertError('Customer name needed', 'Please enter or pick a customer name.'); return; }
+    if (!validate()) return;
     setReview(null);
+    // In split mode the top name is an optional group label / reference; fall back to
+    // the first recipient so the order is never nameless in lists and reports.
+    const topName = properName(customerName) || (split ? (subPayload[0]?.name || 'Multiple recipients') : '');
     const order = ghariService.saveOrder({
       id: initialOrder?.id, season: initialOrder?.season,
       orderNo: String(orderNo || '').replace(/\D/g, ''),
       // Names are always stored in proper case, however they were typed.
-      customerName: properName(customerName), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
+      customerName: topName, customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
       karyakarta: properName(karyakarta), karyakartaId,
+      subOrders: split ? subPayload : [],
       // The full editor's delivered toggle is all-or-nothing; keep the partial box
       // count in step with it (partial counts are set from the Delivery panel).
       items, delivered, deliveredBoxes: delivered ? totals.boxes : 0, deliveryDate,
@@ -266,7 +318,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="text-[11px] font-black uppercase tracking-wide text-text-muted">Customer</label>
+            <label className="text-[11px] font-black uppercase tracking-wide text-text-muted">{split ? 'Group / label (optional)' : 'Customer'}</label>
             <div className="flex items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-0.5" title="Order number — editable">
               <span className="text-[10px] font-black text-text-muted">#</span>
               <input inputMode="numeric" value={orderNo} data-no-clear="true"
@@ -275,7 +327,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                 className="w-12 bg-transparent text-xs font-black text-primary outline-none placeholder:font-semibold placeholder:text-text-muted" />
             </div>
           </div>
-          <DevoteePicker value={customerName} placeholder="Search devotee or type name"
+          <DevoteePicker value={customerName} placeholder={split ? 'e.g. a group / family label' : 'Search devotee or type name'}
             inputRef={customerRef} onCommit={() => karyakartaRef.current?.focus()}
             onText={(t) => { setCustomerName(t); setDevoteeId(''); }}
             onPick={(d) => { if (d) { setCustomerName(d.name); setDevoteeId(d.id); if (d.mobile) { setCustomerMobile(String(d.mobile)); setShowMobile(true); } } else { setCustomerName(''); setDevoteeId(''); setCustomerMobile(''); } }} />
@@ -307,12 +359,53 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
 
       {/* Products */}
       <div>
-        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-text-muted">Items — tap to add</label>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <label className="block text-[11px] font-black uppercase tracking-wide text-text-muted">{split ? 'Recipients — split order' : 'Items — tap to add'}</label>
+          {products.length > 0 && !readOnly && (
+            split ? (
+              <button type="button" onClick={disableSplit} className="flex items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-1 text-[11px] font-bold text-text-muted hover:text-primary">
+                <X className="h-3.5 w-3.5" /> Single customer
+              </button>
+            ) : (
+              <button type="button" onClick={enableSplit} className="flex items-center gap-1 rounded-lg border border-dashed border-primary/50 bg-surface px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/5">
+                <Users className="h-3.5 w-3.5" /> Split / add recipients
+              </button>
+            )
+          )}
+        </div>
         {products.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border-light bg-surface py-8 text-center">
             <Package className="mx-auto mb-2 h-9 w-9 text-text-muted" />
             <p className="text-sm font-bold text-text-muted">No items in the catalog</p>
             <button onClick={() => (onManageItems ? onManageItems() : ghariService.restoreDefaults())} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white">Add items in Settings</button>
+          </div>
+        ) : split ? (
+          <div className="space-y-2.5">
+            {recipients.map((r, idx) => {
+              const rTotals = ghariService.computeTotals(cartToItems(r.cart));
+              return (
+                <div key={r.key} className="rounded-2xl border border-border-light bg-surface p-2.5">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-black text-primary">{idx + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <DevoteePicker value={r.name} placeholder="Recipient name"
+                        onText={(t) => patchRecipient(r.key, { name: t, devoteeId: '' })}
+                        onPick={(d) => { if (d) patchRecipient(r.key, { name: d.name, devoteeId: d.id, mobile: d.mobile ? String(d.mobile) : r.mobile }); else patchRecipient(r.key, { name: '', devoteeId: '' }); }} />
+                    </div>
+                    <button type="button" onClick={() => removeRecipient(r.key)} title="Remove recipient" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-500 dark:bg-rose-950 dark:border-rose-900"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                    {products.map(p => <ProductCard key={p.sku} product={p} qty={r.cart[p.sku] || 0} onChange={(q) => setRecipientQty(r.key, p.sku, q)} />)}
+                  </div>
+                  {rTotals.boxes > 0 && (
+                    <div className="mt-2 text-right text-[12px] font-bold text-text-muted">{rTotals.boxes} box{rTotals.boxes === 1 ? '' : 'es'} · <span className="text-text-main">{rupee(rTotals.total)}</span></div>
+                  )}
+                </div>
+              );
+            })}
+            <button type="button" onClick={addRecipient} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-border-light bg-surface py-2.5 text-[12px] font-bold text-text-muted hover:border-primary hover:text-primary">
+              <Plus className="h-4 w-4" /> Add recipient
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
@@ -411,18 +504,41 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
               <div className="rounded-2xl bg-bg-base px-3 py-2">
-                <p className="text-sm font-black text-text-main">{customerName || '(no name)'}</p>
+                <p className="text-sm font-black text-text-main">{customerName || (split ? `${subPayload.length} recipients` : '(no name)')}</p>
                 <p className="text-[11px] font-semibold text-text-muted">{[customerMobile && `📱 ${customerMobile}`, karyakarta && `via ${karyakarta}`].filter(Boolean).join(' · ') || 'No mobile / karyakarta'}</p>
               </div>
-              <div className="overflow-hidden rounded-2xl border border-border-light">
-                {items.map(it => (
-                  <div key={it.sku} className="flex items-center justify-between gap-2 border-b border-border-light px-3 py-2 last:border-0">
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
-                    <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
-                    <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
-                  </div>
-                ))}
-              </div>
+              {split ? (
+                <div className="space-y-2">
+                  {subPayload.map((so, i) => {
+                    const st = ghariService.computeTotals(so.items);
+                    return (
+                      <div key={i} className="overflow-hidden rounded-2xl border border-border-light">
+                        <div className="flex items-center justify-between gap-2 bg-bg-base px-3 py-1.5">
+                          <span className="truncate text-[12px] font-black text-text-main">{i + 1}. {so.name}</span>
+                          <span className="shrink-0 text-[11px] font-bold text-text-muted">{st.boxes} box{st.boxes === 1 ? '' : 'es'} · {rupee(st.total)}</span>
+                        </div>
+                        {so.items.map(it => (
+                          <div key={it.sku} className="flex items-center justify-between gap-2 border-t border-border-light px-3 py-2">
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
+                            <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                            <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-border-light">
+                  {items.map(it => (
+                    <div key={it.sku} className="flex items-center justify-between gap-2 border-b border-border-light px-3 py-2 last:border-0">
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
+                      <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                      <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 {Object.values(GHARI_CATEGORIES).map(c => totals.byCategory[c.key] > 0 && (
                   <span key={c.key} className="rounded-full px-2.5 py-1 text-[11px] font-bold text-white" style={{ background: c.color }}>{c.short}: {rupee(totals.byCategory[c.key])}</span>
@@ -464,6 +580,9 @@ function OrderRow({ order, onOpen }) {
               <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-black text-primary">#{order.orderNo}</span>
             )}
             <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
+            {order.subOrders?.length > 0 && (
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-black text-primary"><Users className="h-2.5 w-2.5" />{order.subOrders.length}</span>
+            )}
             {order.delivered ? (
               <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
             ) : Number(order.deliveredBoxes || 0) > 0 && (

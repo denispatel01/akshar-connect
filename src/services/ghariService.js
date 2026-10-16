@@ -167,13 +167,42 @@ function backfillOrderNosLocal_() {
   if (changed) saveOrdersLocal_();
 }
 
-function normalizeOrder_(o) {
-  let items = o.items;
-  if (!items) { try { items = JSON.parse(o.itemsJson || '[]'); } catch { items = []; } }
-  items = (items || []).map(it => ({
+// Coerce a raw item list (or an itemsJson string) into typed, qty>0 lines.
+function normOrderItems_(raw, jsonStr) {
+  let items = raw;
+  if (!items) { try { items = JSON.parse(jsonStr || '[]'); } catch { items = []; } }
+  return (items || []).map(it => ({
     sku: String(it.sku || ''), name: String(it.name || ''), size: String(it.size || ''),
     category: it.category || 'ghee', qty: num_(it.qty), unitPrice: num_(it.unitPrice),
   })).filter(it => it.qty > 0);
+}
+// Merge identical (sku + unitPrice) lines, summing qty — so the flattened aggregate
+// of several sub-orders reads like an ordinary single order's item list.
+function mergeItems_(items) {
+  const by = {}; const order = [];
+  (items || []).forEach(it => {
+    const k = it.sku + '|' + it.unitPrice;
+    if (!by[k]) { by[k] = { ...it }; order.push(k); } else by[k].qty += num_(it.qty);
+  });
+  return order.map(k => by[k]);
+}
+
+function normalizeOrder_(o) {
+  // Optional named recipients (sub-orders). When present, the order's top-level
+  // `items` is the FLATTENED aggregate of all sub-order items, so every existing
+  // reader (totals, packing, stock, delivery, report rollups) keeps working on a
+  // plain items[] exactly as before. A plain order has no sub-orders and is untouched.
+  let subOrders = o.subOrders;
+  if (!subOrders && o.subOrdersJson != null) { try { subOrders = JSON.parse(o.subOrdersJson || '[]'); } catch { subOrders = []; } }
+  subOrders = (subOrders || []).map(so => ({
+    name: String(so.name || '').trim(),
+    mobile: String(so.mobile || '').replace(/\D/g, ''),
+    devoteeId: String(so.devoteeId || ''),
+    items: normOrderItems_(so.items, so.itemsJson),
+  })).filter(so => so.items.length > 0);
+  let items;
+  if (subOrders.length) items = mergeItems_(subOrders.flatMap(so => so.items));
+  else items = normOrderItems_(o.items, o.itemsJson);
   const totals = computeTotals(items);
   // Partial delivery: how many of the order's boxes have actually been handed over.
   // `delivered` stays the simple "fully delivered?" flag the rest of the app reads;
@@ -196,6 +225,7 @@ function normalizeOrder_(o) {
     karyakarta: String(o.karyakarta || '').trim(),
     karyakartaId: String(o.karyakartaId || ''),
     items,
+    subOrders,
     total: totals.total,
     totalBoxes,
     delivered,
@@ -346,6 +376,7 @@ function toBackendRow_(o) {
     id: o.id, orderNo: o.orderNo || '', season: o.season, customerName: o.customerName, customerMobile: o.customerMobile || '',
     devoteeId: o.devoteeId, karyakarta: o.karyakarta, karyakartaId: o.karyakartaId,
     itemsJson: JSON.stringify(o.items || []), itemsSummary: itemsSummary_(o.items),
+    subOrdersJson: JSON.stringify(o.subOrders || []),
     total: t.total, withGheeAmt: t.byCategory.ghee, withoutGheeAmt: t.byCategory.noghee,
     sugarFreeAmt: t.byCategory.sf, bhusuAmt: t.byCategory.bhusu,
     delivered: !!o.delivered, deliveredBoxes: num_(o.deliveredBoxes), deliveryDate: o.deliveryDate || '', paymentReceived: num_(o.paymentReceived),
@@ -698,6 +729,9 @@ export const ghariService = {
       karyakarta: input.karyakarta ?? prev?.karyakarta ?? '',
       karyakartaId: input.karyakartaId ?? prev?.karyakartaId ?? '',
       items,
+      // Named recipients (optional). When provided, normalizeOrder_ flattens them
+      // into `items`; an empty array clears a previously-split order back to single.
+      subOrders: input.subOrders ?? prev?.subOrders ?? [],
       delivered: input.delivered ?? prev?.delivered ?? false,
       deliveredBoxes: input.deliveredBoxes ?? prev?.deliveredBoxes ?? (input.delivered ? undefined : 0),
       deliveryDate: input.deliveryDate ?? prev?.deliveryDate ?? '',
@@ -971,14 +1005,16 @@ export const ghariService = {
       else if (pt === 'g-pay' || pt === 'gpay') r.gpay += num_(o.paymentReceived);
       else if (pt === 'cash') r.cash += num_(o.paymentReceived);
       Object.keys(r.byCategory).forEach(k => { r.byCategory[k] += t.byCategory[k] || 0; });
+      // A split order attributes each line to its own named recipient; a plain
+      // order is a single segment under its customerName. Used for the per-recipient
+      // rollups (byCustomer, custBySku) below. Aggregates (bySku, byKaryakarta,
+      // totals) always run on the flattened o.items, so they are unaffected by splits.
+      const segments = (o.subOrders && o.subOrders.length)
+        ? o.subOrders.map(so => ({ name: (so.name || '').trim() || '—', items: so.items }))
+        : [{ name: (o.customerName || '').trim() || '—', items: o.items }];
       o.items.forEach(it => {
         if (!r.bySku[it.sku]) r.bySku[it.sku] = { name: it.name, size: it.size, qty: 0, amount: 0 };
         r.bySku[it.sku].qty += it.qty; r.bySku[it.sku].amount += it.qty * it.unitPrice;
-        // Per-item customer breakdown — who needs how many boxes of each sku
-        // (powers the "Boxes to prepare" drilldown). sku -> { customer -> qty }.
-        const custNm = (o.customerName || '').trim() || '—';
-        if (!r.custBySku[it.sku]) r.custBySku[it.sku] = {};
-        r.custBySku[it.sku][custNm] = (r.custBySku[it.sku][custNm] || 0) + it.qty;
         const kg = it.qty * sizeToKg_(it.size);
         if (r.kgByCategory[it.category] === undefined) r.kgByCategory[it.category] = 0;
         r.kgByCategory[it.category] += kg;
@@ -1003,17 +1039,28 @@ export const ghariService = {
         const kg = it.qty * sizeToKg_(it.size);
         if (it.category === 'bhusu') kr.bhusuKg += kg; else kr.ghariKg += kg;
       });
-      // Per-customer running totals (kg of Ghari vs Bhusu, till date) — a customer
-      // can have several orders, so we sum by name (+ karyakarta to disambiguate).
-      const cust = (o.customerName || '').trim() || '—';
-      const ckey = cust.toLowerCase() + '|' + String(o.karyakarta || '').toLowerCase();
-      if (!r.byCustomer[ckey]) r.byCustomer[ckey] = { name: cust, karyakarta: o.karyakarta || '', orders: 0, boxes: 0, amount: 0, received: 0, ghariKg: 0, bhusuKg: 0, byCatKg: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 } };
-      const cr = r.byCustomer[ckey];
-      cr.orders++; cr.boxes += t.boxes; cr.amount += t.total; cr.received += num_(o.paymentReceived);
-      o.items.forEach(it => {
-        const kg = it.qty * sizeToKg_(it.size);
-        cr.byCatKg[it.category] = (cr.byCatKg[it.category] || 0) + kg;
-        if (it.category === 'bhusu') cr.bhusuKg += kg; else cr.ghariKg += kg;
+      // Per-customer running totals, per named recipient (kg of Ghari vs Bhusu,
+      // boxes, amount). A split order credits each recipient with their own items;
+      // the order's payment is shared across recipients in proportion to their
+      // amount so per-devotee "received" still sums back to the order's payment.
+      const orderReceived = num_(o.paymentReceived);
+      segments.forEach(seg => {
+        const st = computeTotals(seg.items);
+        const cust = (seg.name || '').trim() || '—';
+        const ckey = cust.toLowerCase() + '|' + String(o.karyakarta || '').toLowerCase();
+        if (!r.byCustomer[ckey]) r.byCustomer[ckey] = { name: cust, karyakarta: o.karyakarta || '', orders: 0, boxes: 0, amount: 0, received: 0, ghariKg: 0, bhusuKg: 0, byCatKg: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 } };
+        const cr = r.byCustomer[ckey];
+        const share = t.total > 0 ? (st.total / t.total) : (segments.length ? 1 / segments.length : 1);
+        cr.orders++; cr.boxes += st.boxes; cr.amount += st.total; cr.received += orderReceived * share;
+        seg.items.forEach(it => {
+          // Per-item recipient breakdown — who needs how many boxes of each sku
+          // (powers the "Boxes to prepare" drilldown). sku -> { recipient -> qty }.
+          if (!r.custBySku[it.sku]) r.custBySku[it.sku] = {};
+          r.custBySku[it.sku][cust] = (r.custBySku[it.sku][cust] || 0) + it.qty;
+          const kg = it.qty * sizeToKg_(it.size);
+          cr.byCatKg[it.category] = (cr.byCatKg[it.category] || 0) + kg;
+          if (it.category === 'bhusu') cr.bhusuKg += kg; else cr.ghariKg += kg;
+        });
       });
     });
     // Procurement + stock reconciliation (bought vs sold, per item).
@@ -1203,26 +1250,49 @@ export const ghariService = {
     const sub = [o.customerMobile ? 'Mobile: ' + o.customerMobile : '', o.karyakarta ? 'Via: ' + o.karyakarta : ''].filter(Boolean).join('   ·   ');
     if (sub) doc.text(sub, 40, 156);
 
-    // Items table — ordered vs delivered per item
+    // Order-level delivery totals (always from the flattened items).
     const delMap = deliveredItemsOf_(o);
     let totKg = 0, delBoxes = 0, ordBoxes = 0;
-    const body = (o.items || []).map(it => {
-      const del = delMap[it.sku] || 0; ordBoxes += it.qty; delBoxes += del;
-      const kg = del * sizeToKg_(it.size); totKg += kg;
-      return [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), String(del), kg1(kg), rs(it.unitPrice), rs(del * it.unitPrice)];
-    });
+    (o.items || []).forEach(it => { const del = delMap[it.sku] || 0; ordBoxes += it.qty; delBoxes += del; totKg += del * sizeToKg_(it.size); });
     const delAmount = (o.items || []).reduce((sum, it) => sum + (delMap[it.sku] || 0) * it.unitPrice, 0);
-    autoTable(doc, {
-      startY: 172,
-      head: [['Item', 'Ordered', 'Delivered', 'Kg', 'Rate', 'Amount']],
-      body,
-      theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
-      headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
-      columnStyles: { 0: { cellWidth: 190 }, 1: { halign: 'center', cellWidth: 60 }, 2: { halign: 'center', cellWidth: 66 }, 3: { halign: 'right', cellWidth: 50 }, 4: { halign: 'right', cellWidth: 60 }, 5: { halign: 'right', cellWidth: 70 } },
-      margin: { left: 40, right: 40 },
-    });
 
-    let y = doc.lastAutoTable.finalY + 18;
+    const subs = o.subOrders || [];
+    if (subs.length) {
+      // Split order — one section per named recipient, listing what they ordered.
+      // Delivery is tracked at the order level (summary block below).
+      let y0 = 172;
+      subs.forEach((so, idx) => {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...DARK);
+        doc.text(`${idx + 1}. ${so.name || 'Recipient'}${so.mobile ? '  ·  ' + so.mobile : ''}`, 40, y0);
+        const sBody = (so.items || []).map(it => [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), rs(it.unitPrice), rs(it.qty * it.unitPrice)]);
+        autoTable(doc, {
+          startY: y0 + 6,
+          head: [['Item', 'Qty', 'Rate', 'Amount']], body: sBody,
+          theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+          headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+          columnStyles: { 0: { cellWidth: 250 }, 1: { halign: 'center', cellWidth: 60 }, 2: { halign: 'right', cellWidth: 95 }, 3: { halign: 'right', cellWidth: 110 } },
+          margin: { left: 40, right: 40 },
+        });
+        y0 = doc.lastAutoTable.finalY + 16;
+      });
+      var y = y0 + 2;
+    } else {
+      // Single recipient — ordered vs delivered per item.
+      const body = (o.items || []).map(it => {
+        const del = delMap[it.sku] || 0;
+        return [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), String(del), kg1(del * sizeToKg_(it.size)), rs(it.unitPrice), rs(del * it.unitPrice)];
+      });
+      autoTable(doc, {
+        startY: 172,
+        head: [['Item', 'Ordered', 'Delivered', 'Kg', 'Rate', 'Amount']],
+        body,
+        theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+        headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 0: { cellWidth: 190 }, 1: { halign: 'center', cellWidth: 60 }, 2: { halign: 'center', cellWidth: 66 }, 3: { halign: 'right', cellWidth: 50 }, 4: { halign: 'right', cellWidth: 60 }, 5: { halign: 'right', cellWidth: 70 } },
+        margin: { left: 40, right: 40 },
+      });
+      var y = doc.lastAutoTable.finalY + 18;
+    }
     const bal = o.total - num_(o.paymentReceived);
     const line = (label, val, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? DARK : MUTE)); doc.setFontSize(10); doc.text(label, pageW - 220, y); doc.setTextColor(...DARK); doc.text(val, pageW - 40, y, { align: 'right' }); y += 16; };
     line(`Boxes delivered`, `${delBoxes} of ${ordBoxes}`);

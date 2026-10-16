@@ -36,7 +36,7 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveredBoxes','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
+  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','subOrdersJson','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveredBoxes','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
   // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
@@ -97,7 +97,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-16-ghari-partial-delivery';
+var SCHEMA_VERSION = '2026-10-16-ghari-sub-orders';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
