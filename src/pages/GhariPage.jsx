@@ -1841,33 +1841,41 @@ function TrashView({ season, onRestored, flash }) {
 // Ghari handed to a Karyakarta IN ADVANCE. They deliver from it as orders come in,
 // without checking back. This view lets an Admin issue stock and see, per person,
 // what was issued vs delivered vs still in-hand — so holdings are always reconciled.
-function StockIssueForm({ season, onSaved, onCancel }) {
+function StockIssueForm({ season, initialStock, onSaved, onCancel }) {
+  const isEdit = !!initialStock;
   const products = useMemo(() => {
     const active = ghariService.getActiveProducts();
     return active.length ? active : ghariService.getProducts();
   }, []);
-  const [cart, setCart] = useState({});
-  const [karyakarta, setKaryakarta] = useState('');
-  const [karyakartaId, setKaryakartaId] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [remarks, setRemarks] = useState('');
+  // When editing, keep a snapshot of the issue's own items so a line whose product
+  // was later deactivated/removed from the catalog is still shown and editable.
+  const origBySku = useMemo(() => {
+    const m = {}; (initialStock?.items || []).forEach(it => { m[it.sku] = it; }); return m;
+  }, [initialStock]);
+  const [cart, setCart] = useState(() => {
+    const c = {}; (initialStock?.items || []).forEach(it => { c[it.sku] = (c[it.sku] || 0) + Number(it.qty || 0); }); return c;
+  });
+  const [karyakarta, setKaryakarta] = useState(initialStock?.karyakarta || '');
+  const [karyakartaId, setKaryakartaId] = useState(initialStock?.karyakartaId || '');
+  const [date, setDate] = useState(() => String(initialStock?.date || new Date().toISOString()).slice(0, 10));
+  const [remarks, setRemarks] = useState(initialStock?.remarks || '');
   const kkRef = useRef(null);
   const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => {
-    const p = products.find(x => x.sku === sku);
+    const p = products.find(x => x.sku === sku) || origBySku[sku];
     return p ? { sku, name: p.name, size: p.size, category: p.category, qty } : null;
-  }).filter(Boolean), [cart, products]);
+  }).filter(Boolean), [cart, products, origBySku]);
   const boxes = items.reduce((s, it) => s + it.qty, 0);
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
   const save = () => {
     if (!karyakarta.trim()) { alertError('Karyakarta needed', 'Pick or type who received the stock.'); return; }
     if (!items.length) { alertError('Add items', 'Add at least one item to issue.'); return; }
-    ghariService.saveStock({ season, karyakarta, karyakartaId, date, items, remarks });
+    ghariService.saveStock({ id: initialStock?.id, season: initialStock?.season || season, status: initialStock?.status, karyakarta, karyakartaId, date, items, remarks });
     onSaved?.();
   };
   return (
     <div className="space-y-2.5 rounded-2xl border border-border-light bg-surface p-3">
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-sm font-black text-text-main"><Boxes className="h-4 w-4 text-primary" /> Issue advance stock</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-black text-text-main"><Boxes className="h-4 w-4 text-primary" /> {isEdit ? 'Edit advance stock' : 'Issue advance stock'}</h3>
         {onCancel && <button onClick={onCancel} className="grid h-7 w-7 place-items-center rounded-lg text-text-muted hover:bg-bg-base"><X className="h-4 w-4" /></button>}
       </div>
       <div>
@@ -1891,7 +1899,7 @@ function StockIssueForm({ season, onSaved, onCancel }) {
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
       <div className="flex items-center gap-2">
         <div className="pl-1 text-[11px] font-black uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'}</div>
-        <button onClick={save} className="ml-auto rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">Issue stock</button>
+        <button onClick={save} className="ml-auto rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Save changes' : 'Issue stock'}</button>
       </div>
     </div>
   );
@@ -1939,6 +1947,7 @@ function StockBalanceCard({ bal }) {
 function StockView({ season }) {
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null); // the stock issue being edited
   const balances = useMemo(() => ghariService.buildStockBalances(season), [season, tick]);
   const issues = useMemo(() => ghariService.getStocks(season), [season, tick]);
   const refresh = () => setTick(t => t + 1);
@@ -1948,7 +1957,9 @@ function StockView({ season }) {
   };
   return (
     <div className="space-y-3">
-      {adding ? (
+      {editing ? (
+        <StockIssueForm season={season} initialStock={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />
+      ) : adding ? (
         <StockIssueForm season={season} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); refresh(); }} />
       ) : (
         <button onClick={() => setAdding(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Issue advance stock</button>
@@ -1977,6 +1988,7 @@ function StockView({ season }) {
                   <div className="text-[10px] font-semibold text-text-muted">{st.date ? new Date(st.date).toLocaleDateString('en-IN') : ''}{st.remarks ? ` · ${st.remarks}` : ''}{st.createdBy ? ` · by ${String(st.createdBy).replace(/\s*\(.*\)$/, '')}` : ''}</div>
                 </div>
                 <span className="shrink-0 text-sm font-black text-text-main">{st.boxes}</span>
+                <button onClick={() => { setAdding(false); setEditing(st); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ } }} title="Edit issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>
                 <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             ))}
