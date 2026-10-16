@@ -77,6 +77,19 @@ export default function AdminPage({ user, onViewAs }) {
   };
 
 
+  // Hard gate: only Admins may see the Admin area (tabs, user list, rights screen).
+  // This is in addition to the nav hiding the link — so even a persisted route or a
+  // "view as" session can never expose user management to a non-admin.
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20 text-center">
+        <Shield className="mx-auto mb-3 h-12 w-12 text-text-muted" />
+        <h2 className="text-lg font-black text-text-main">Admins only</h2>
+        <p className="mt-1 text-sm text-text-muted">This screen is restricted to administrators.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full mx-auto max-w-[1400px] px-4 py-6 sm:px-6 space-y-6">
       <div>

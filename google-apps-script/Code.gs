@@ -1697,8 +1697,10 @@ function handle_(p){
     if(action==='devoteeRevert') return doDevoteeRevert_(p);
     if(action==='markAttendance') { return doMark_(p); }
     if(action==='saveFollowup') return doSaveFollowup_(p);
-    if(action==='upsertUser') return doUpsertUser_(p);
-    if(action==='deleteUser') return doDeleteUser_(p);
+    // Managing users and their rights is ADMIN-ONLY — enforced server-side so a
+    // non-admin can't grant themselves (or anyone) a role/module via a crafted call.
+    if(action==='upsertUser'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Not allowed — only an Admin can add or change users.' }); return doUpsertUser_(p); }
+    if(action==='deleteUser'){ if(!isAdminActor_(p)) return json_({ ok:false, error:'Not allowed — only an Admin can delete users.' }); return doDeleteUser_(p); }
     if(action==='logActivity'){
       // Fire-and-forget app activity log. Never throws back to the client.
       try{
