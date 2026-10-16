@@ -41,6 +41,7 @@ var HEADERS = {
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
   GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  GhariStock: ['id','season','date','karyakarta','karyakartaId','itemsJson','itemsSummary','boxes','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   // One row per device registered for push. Keyed by the FCM token. A devotee /
   // staff member can have several devices (several rows).
   PushTokens: ['token','devoteeId','mobile','name','platform','updatedOn'],
@@ -1465,7 +1466,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1792,16 +1793,19 @@ function handle_(p){
       var _gSeason = (p && p.season) ? String(p.season) : '';
       var _gOrders = readAll_('GhariOrders');
       var _gPurch  = readAll_('GhariPurchases');
+      var _gStock  = readAll_('GhariStock');
       // Distinct list of years present (tiny) so the client's season switcher shows
       // every year even when the orders payload is scoped to just one.
       var _seasonSet = {}; _gOrders.forEach(function(o){ var s=String(o.season||''); if(s) _seasonSet[s]=1; });
       _gPurch.forEach(function(pu){ var s=String(pu.season||''); if(s) _seasonSet[s]=1; });
+      _gStock.forEach(function(st){ var s=String(st.season||''); if(s) _seasonSet[s]=1; });
       var _seasons = Object.keys(_seasonSet).sort(function(a,b){ return Number(b)-Number(a); });
       if(_gSeason){
         _gOrders = _gOrders.filter(function(o){ return String(o.season) === _gSeason; });
         _gPurch  = _gPurch.filter(function(pu){ return String(pu.season) === _gSeason; });
+        _gStock  = _gStock.filter(function(st){ return String(st.season) === _gSeason; });
       }
-      return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, season: _gSeason, seasons: _seasons });
+      return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, stocks: _gStock, season: _gSeason, seasons: _seasons });
     }
     if(action==='ghariMarkDelivery')  return doGhariMarkDelivery_(p);
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
@@ -1810,6 +1814,8 @@ function handle_(p){
     if(action==='ghariDeleteProduct') return doGhariDelete_('GhariProducts', p.sku, 'sku');
     if(action==='ghariUpsertPurchase') return doGhariUpsert_('GhariPurchases', p.row || {}, 'id');
     if(action==='ghariDeletePurchase') return doGhariDelete_('GhariPurchases', p.id, 'id');
+    if(action==='ghariUpsertStock')    return doGhariUpsert_('GhariStock', p.row || {}, 'id');
+    if(action==='ghariDeleteStock')    return doGhariDelete_('GhariStock', p.id, 'id');
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
@@ -2055,6 +2061,7 @@ function doDeleteUser_(p){
 var GHARI_WRITE_ACTIONS_ = {
   ghariUpsertOrder: 1, ghariUpsertProduct: 1, ghariUpsertPurchase: 1,
   ghariDeleteOrder: 1, ghariDeleteProduct: 1, ghariDeletePurchase: 1,
+  ghariUpsertStock: 1, ghariDeleteStock: 1,
   ghariImportOrders: 1, ghariRevert: 1,
 };
 // True only for Admins and users whose `modules` column grants `ghari`. The
@@ -2130,7 +2137,7 @@ function readRowObj_(collection, rn){
 // and keeps full snapshots so the change is both human-readable and revertible.
 function ghariLog_(entity, action, actor, beforeRow, afterRow){
   try{
-    var coll = entity==='order' ? 'GhariOrders' : (entity==='purchase' ? 'GhariPurchases' : 'GhariProducts');
+    var coll = entity==='order' ? 'GhariOrders' : (entity==='purchase' ? 'GhariPurchases' : (entity==='stock' ? 'GhariStock' : 'GhariProducts'));
     var H = HEADERS[coll];
     var skip = { updatedOn:1, createdOn:1, updatedBy:1, createdBy:1 };
     var changes = [];
@@ -2202,7 +2209,7 @@ function doGhariUpsert_(collection, row, keyField){
     var before = rn>0 ? readRowObj_(collection, rn) : null;
     if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
     else appendRows_(collection,[row]);
-    var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : 'order');
+    var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : 'order'));
     var act = !before ? 'create' : (String(row.status||'').toLowerCase()==='void' ? 'void' : 'update');
     ghariLog_(entity, act, row.updatedBy || row.createdBy || '', before, row);
     return json_({ ok:true });
@@ -2468,7 +2475,7 @@ function doGhariDelete_(collection, keyVal, keyField){
     if(rn>0){
       var before = readRowObj_(collection, rn);
       tab_(collection).deleteRow(rn);
-      var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : 'order');
+      var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : 'order'));
       ghariLog_(entity, 'delete', '', before, null);
     }
     return json_({ ok:true });

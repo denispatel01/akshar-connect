@@ -28,6 +28,7 @@ import { scoreMatch, devoteeSearchText } from '../utils/search';
 const ORDERS_KEY   = 'ac_ghari_orders_v1';
 const PRODUCTS_KEY  = 'ac_ghari_products_v1';
 const PURCHASES_KEY = 'ac_ghari_purchases_v1';
+const STOCK_KEY     = 'ac_ghari_stock_v1';
 const OUTBOX_KEY    = 'ac_ghari_outbox_v1';
 const META_KEY      = 'ac_ghari_meta_v1';
 
@@ -68,7 +69,7 @@ function writeJSON_(key, val) {
 }
 
 // ── In-memory cache (hydrated synchronously on first use) ────────────────────
-let MEM = { orders: null, products: null, purchases: null, meta: null };
+let MEM = { orders: null, products: null, purchases: null, stocks: null, meta: null };
 let flushing = false;
 let inited = false;
 
@@ -105,6 +106,11 @@ function purchases_() {
   return MEM.purchases;
 }
 function savePurchasesLocal_() { writeJSON_(PURCHASES_KEY, MEM.purchases); }
+function stocks_() {
+  if (!MEM.stocks) MEM.stocks = (readJSON_(STOCK_KEY, []) || []).map(normalizeStock_);
+  return MEM.stocks;
+}
+function saveStocksLocal_() { writeJSON_(STOCK_KEY, MEM.stocks); }
 function outbox_() { return readJSON_(OUTBOX_KEY, []) || []; }
 function setOutbox_(arr) { writeJSON_(OUTBOX_KEY, arr); }
 
@@ -238,6 +244,43 @@ function toBackendRowPurchase_(pu) {
   };
 }
 
+// A stock issue — Ghari handed to a Karyakarta IN ADVANCE, before any order. The
+// Karyakarta then delivers from this holding as orders come in (deducted via their
+// delivered orders — see deliveredItemsOf_/buildStockBalances). Positive qty = given
+// out; a correction/return is recorded as a separate issue with its own items.
+function normalizeStock_(st) {
+  let items = st.items;
+  if (!items) { try { items = JSON.parse(st.itemsJson || '[]'); } catch { items = []; } }
+  items = (items || []).map(it => ({
+    sku: String(it.sku || ''), name: String(it.name || ''), size: String(it.size || ''),
+    category: it.category || 'ghee', qty: num_(it.qty),
+  })).filter(it => it.qty !== 0);
+  const boxes = items.reduce((s, it) => s + it.qty, 0);
+  return {
+    id: String(st.id || ''),
+    season: String(st.season || defaultSeason_()),
+    date: String(st.date || ''),
+    karyakarta: String(st.karyakarta || '').trim(),
+    karyakartaId: String(st.karyakartaId || ''),
+    items, boxes,
+    remarks: String(st.remarks || '').trim(),
+    status: (String(st.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
+    createdBy: String(st.createdBy || ''), createdOn: String(st.createdOn || ''),
+    updatedBy: String(st.updatedBy || ''), updatedOn: String(st.updatedOn || ''),
+  };
+}
+function toBackendRowStock_(st) {
+  return {
+    id: st.id, season: st.season, date: st.date,
+    karyakarta: st.karyakarta, karyakartaId: st.karyakartaId,
+    itemsJson: JSON.stringify(st.items || []),
+    itemsSummary: (st.items || []).map(i => `${i.qty}× ${i.name} ${i.size}`).join(', '),
+    boxes: (st.items || []).reduce((s, i) => s + num_(i.qty), 0),
+    remarks: st.remarks || '', status: st.status || 'active',
+    createdBy: st.createdBy, createdOn: st.createdOn, updatedBy: st.updatedBy, updatedOn: st.updatedOn,
+  };
+}
+
 // Parse a product size label ("500 gm", "1 kg", "250gm") into kilograms.
 function sizeToKg_(size) {
   const m = String(size || '').toLowerCase().match(/([\d.]+)\s*(kg|gm|g\b|gram)?/);
@@ -260,6 +303,23 @@ function orderKg_(o) {
   let g = 0, b = 0;
   (o.items || []).forEach(it => { const kg = num_(it.qty) * sizeToKg_(it.size); if (it.category === 'bhusu') b += kg; else g += kg; });
   return { ghariKg: g, bhusuKg: b };
+}
+
+// How many boxes of each sku an order has actually been delivered. A fully-delivered
+// order contributes every item's qty. A partially-delivered order (deliveredBoxes = n
+// of total) allocates those n boxes across its items in item order — deterministic, so
+// stock reconciliation is stable. Used to deduct a Karyakarta's advance holding.
+function deliveredItemsOf_(o) {
+  const out = {};
+  const items = o.items || [];
+  if (o.delivered) { items.forEach(it => { out[it.sku] = (out[it.sku] || 0) + num_(it.qty); }); return out; }
+  let n = Math.max(0, Math.min(computeTotals(items).boxes, Math.round(num_(o.deliveredBoxes))));
+  for (const it of items) {
+    if (n <= 0) break;
+    const take = Math.min(num_(it.qty), n);
+    if (take > 0) { out[it.sku] = (out[it.sku] || 0) + take; n -= take; }
+  }
+  return out;
 }
 
 // ── Money math (the single source of truth for every total) ──────────────────
@@ -397,6 +457,7 @@ async function syncDown(season) {
   const serverProducts = (res.products || []).map(normalizeProduct_);
   const serverOrders = (res.orders || []).map(normalizeOrder_);
   const serverPurchases = (res.purchases || []).map(normalizePurchase_);
+  const serverStocks = (res.stocks || []).map(normalizeStock_);
 
   // Ids that still have pending local ops → KEEP the local copy (it's newer /
   // not yet on the server). Everything else takes the server's version.
@@ -404,6 +465,7 @@ async function syncDown(season) {
   const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder' || o.action === 'ghariDeleteOrder' || o.action === 'ghariMarkDelivery').map(o => o.payload?.row?.id ?? o.payload?.id));
   const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct' || o.action === 'ghariDeleteProduct').map(o => o.payload?.row?.sku ?? o.payload?.sku));
   const pendingPurchaseIds = new Set(box.filter(o => o.action === 'ghariUpsertPurchase' || o.action === 'ghariDeletePurchase').map(o => o.payload?.row?.id ?? o.payload?.id));
+  const pendingStockIds = new Set(box.filter(o => o.action === 'ghariUpsertStock' || o.action === 'ghariDeleteStock').map(o => o.payload?.row?.id ?? o.payload?.id));
 
   if (serverProducts.length) {
     const localBySku = {}; products_().forEach(p => { localBySku[p.sku] = p; });
@@ -435,6 +497,15 @@ async function syncDown(season) {
   });
   MEM.purchases = mergedPurchases.map(normalizePurchase_); savePurchasesLocal_();
 
+  const seenStockIds = new Set();
+  const mergedStocks = [];
+  serverStocks.forEach(st => { if (!pendingStockIds.has(st.id) && !seenStockIds.has(st.id)) { seenStockIds.add(st.id); mergedStocks.push(st); } });
+  stocks_().forEach(st => {
+    if (seenStockIds.has(st.id)) return;
+    if (String(st.season) !== scope || pendingStockIds.has(st.id)) { seenStockIds.add(st.id); mergedStocks.push(st); }
+  });
+  MEM.stocks = mergedStocks.map(normalizeStock_); saveStocksLocal_();
+
   // Remember the full list of seasons the server knows (small), so the season
   // switcher still shows every year even though we only cache the loaded ones.
   const seasonsList = Array.isArray(res.seasons) ? res.seasons.map(String).filter(Boolean) : (meta_().seasonsList || []);
@@ -447,7 +518,7 @@ async function syncDown(season) {
 function init() {
   if (inited) return;
   inited = true;
-  products_(); orders_(); purchases_(); meta_();   // hydrate synchronously
+  products_(); orders_(); purchases_(); stocks_(); meta_();   // hydrate synchronously
   backfillOrderNosLocal_();   // ensure every cached order already shows a number
   try {
     window.addEventListener('online', () => { flush().then(() => syncDown()); });
@@ -746,6 +817,91 @@ export const ghariService = {
   voidPurchase: (id) => {
     const p = ghariService.getPurchaseById(id); if (!p) return null;
     return ghariService.savePurchase({ ...p, status: 'void' });
+  },
+
+  // ---- Advance stock (Ghari issued to Karyakartas, deducted as they deliver) ----
+  getStocks: (season, { includeVoid = false } = {}) => {
+    const s = season || meta_().season;
+    return stocks_()
+      .filter(st => st.season === s && (includeVoid || st.status !== 'void'))
+      .sort((a, b) => String(b.date || b.createdOn).localeCompare(String(a.date || a.createdOn)));
+  },
+  getStockById: (id) => stocks_().find(st => st.id === id) || null,
+
+  // Record stock handed to a Karyakarta in advance. Admin-only write (mirrors the
+  // backend ghariUpsertStock guard). Saves instantly, syncs in the background.
+  saveStock: (input) => {
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const existingIdx = input.id ? stocks_().findIndex(st => st.id === input.id) : -1;
+    const prev = existingIdx >= 0 ? MEM.stocks[existingIdx] : null;
+    const season = input.season || meta_().season;
+    const id = input.id || `GHS-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const items = (input.items || []).filter(i => num_(i.qty) !== 0).map(i => ({ sku: i.sku, name: i.name, size: i.size, category: i.category, qty: num_(i.qty) }));
+    const stock = normalizeStock_({
+      ...(prev || {}), id, season,
+      date: input.date ?? prev?.date ?? now,
+      karyakarta: input.karyakarta ?? prev?.karyakarta ?? '',
+      karyakartaId: input.karyakartaId ?? prev?.karyakartaId ?? '',
+      items,
+      remarks: input.remarks ?? prev?.remarks ?? '',
+      status: input.status ?? prev?.status ?? 'active',
+      createdBy: prev?.createdBy || actor, createdOn: prev?.createdOn || now,
+      updatedBy: actor, updatedOn: now,
+    });
+    if (existingIdx >= 0) MEM.stocks[existingIdx] = stock; else MEM.stocks.unshift(stock);
+    saveStocksLocal_();
+    enqueueUpsert_('ghariUpsertStock', 'id', toBackendRowStock_(stock));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-stock', stock.karyakarta, `${prev ? 'updated' : 'issued'} ${stock.boxes} box${stock.boxes === 1 ? '' : 'es'} advance stock to ${stock.karyakarta || 'karyakarta'}`); } catch { /* ignore */ }
+    return stock;
+  },
+  voidStock: (id) => {
+    const st = ghariService.getStockById(id); if (!st) return null;
+    return ghariService.saveStock({ ...st, status: 'void' });
+  },
+
+  // Per-Karyakarta advance-stock balances for a season: issued vs delivered (to
+  // customers) vs in-hand, per sku and in kg. This is the reconciliation the admin
+  // reads to see what each Karyakarta is still holding. Negative in-hand means they
+  // delivered more than was issued (shortfall to reconcile).
+  buildStockBalances: (season) => {
+    const s = season || meta_().season;
+    const prods = ghariService.getProducts();
+    const bySku = {}; prods.forEach(p => { bySku[p.sku] = p; });
+    const rows = {}; // key -> { key, name, karyakartaId, issued:{}, delivered:{} }
+    const ensure = (key, name, kkId) => (rows[key] = rows[key] || { key, name: name || key, karyakartaId: kkId || '', issued: {}, delivered: {} });
+    // Issued
+    ghariService.getStocks(s).forEach(st => {
+      const key = orderKaryakartaKey_(st);
+      const row = ensure(key, st.karyakarta, st.karyakartaId);
+      (st.items || []).forEach(it => { row.issued[it.sku] = (row.issued[it.sku] || 0) + num_(it.qty); });
+    });
+    // Delivered (only counts orders whose karyakarta has been issued stock)
+    ghariService.getOrders(s).forEach(o => {
+      const key = orderKaryakartaKey_(o);
+      if (!rows[key]) return; // no advance stock issued to this karyakarta → skip
+      const row = rows[key];
+      const del = deliveredItemsOf_(o);
+      Object.entries(del).forEach(([sku, q]) => { row.delivered[sku] = (row.delivered[sku] || 0) + q; });
+    });
+    // Finalize: in-hand per sku + kg/box summaries
+    return Object.values(rows).map(row => {
+      const skus = new Set([...Object.keys(row.issued), ...Object.keys(row.delivered)]);
+      const lines = [];
+      let issuedBoxes = 0, deliveredBoxes = 0, inHandBoxes = 0, ghariKg = 0, bhusuKg = 0;
+      skus.forEach(sku => {
+        const p = bySku[sku] || { name: sku, size: '', category: 'ghee' };
+        const iss = row.issued[sku] || 0, del = row.delivered[sku] || 0, left = iss - del;
+        issuedBoxes += iss; deliveredBoxes += del; inHandBoxes += left;
+        const kg = left * sizeToKg_(p.size);
+        if (p.category === 'bhusu') bhusuKg += kg; else ghariKg += kg;
+        lines.push({ sku, name: p.name, size: p.size, category: p.category, issued: iss, delivered: del, inHand: left });
+      });
+      lines.sort((a, b) => (bySku[a.sku]?.sortOrder || 0) - (bySku[b.sku]?.sortOrder || 0));
+      return { key: row.key, name: row.name, karyakartaId: row.karyakartaId, lines, issuedBoxes, deliveredBoxes, inHandBoxes, ghariKg, bhusuKg };
+    }).sort((a, b) => b.inHandBoxes - a.inHandBoxes || a.name.localeCompare(b.name));
   },
 
   // ---- Catalog (add / edit prices / hide / delete) ----

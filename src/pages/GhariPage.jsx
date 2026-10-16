@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw, Boxes,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -1659,6 +1659,155 @@ function TrashView({ season, onRestored, flash }) {
   );
 }
 
+// ───────────────────────── Advance stock (consignment) ──────────────────────
+// Ghari handed to a Karyakarta IN ADVANCE. They deliver from it as orders come in,
+// without checking back. This view lets an Admin issue stock and see, per person,
+// what was issued vs delivered vs still in-hand — so holdings are always reconciled.
+function StockIssueForm({ season, onSaved, onCancel }) {
+  const products = useMemo(() => {
+    const active = ghariService.getActiveProducts();
+    return active.length ? active : ghariService.getProducts();
+  }, []);
+  const [cart, setCart] = useState({});
+  const [karyakarta, setKaryakarta] = useState('');
+  const [karyakartaId, setKaryakartaId] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [remarks, setRemarks] = useState('');
+  const kkRef = useRef(null);
+  const items = useMemo(() => Object.entries(cart).filter(([, q]) => q > 0).map(([sku, qty]) => {
+    const p = products.find(x => x.sku === sku);
+    return p ? { sku, name: p.name, size: p.size, category: p.category, qty } : null;
+  }).filter(Boolean), [cart, products]);
+  const boxes = items.reduce((s, it) => s + it.qty, 0);
+  const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
+  const save = () => {
+    if (!karyakarta.trim()) { alertError('Karyakarta needed', 'Pick or type who received the stock.'); return; }
+    if (!items.length) { alertError('Add items', 'Add at least one item to issue.'); return; }
+    ghariService.saveStock({ season, karyakarta, karyakartaId, date, items, remarks });
+    onSaved?.();
+  };
+  return (
+    <div className="space-y-2.5 rounded-2xl border border-border-light bg-surface p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-sm font-black text-text-main"><Boxes className="h-4 w-4 text-primary" /> Issue advance stock</h3>
+        {onCancel && <button onClick={onCancel} className="grid h-7 w-7 place-items-center rounded-lg text-text-muted hover:bg-bg-base"><X className="h-4 w-4" /></button>}
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Karyakarta</label>
+        <DevoteePicker value={karyakarta} icon={Users} accent="teal" placeholder="Who is holding this stock" inputRef={kkRef}
+          onText={(t) => { setKaryakarta(t); setKaryakartaId(''); }}
+          onPick={(d) => { if (d) { setKaryakarta(d.name); setKaryakartaId(d.id); } else { setKaryakarta(''); setKaryakartaId(''); } }} />
+      </div>
+      <div>
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-text-muted">Items — tap to add</label>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+          {products.map(p => <ProductCard key={p.sku} product={p} qty={cart[p.sku] || 0} onChange={(q) => setQty(p.sku, q)} />)}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-bg-base px-3 py-2">
+        <Calendar className="h-4 w-4 shrink-0 text-text-muted" />
+        <span className="shrink-0 text-[11px] font-black uppercase tracking-wide text-text-muted">Date</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-transparent text-sm font-semibold text-text-main outline-none" />
+      </div>
+      <AutoTextarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks (optional)" minRows={1}
+        className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
+      <div className="flex items-center gap-2">
+        <div className="pl-1 text-[11px] font-black uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'}</div>
+        <button onClick={save} className="ml-auto rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">Issue stock</button>
+      </div>
+    </div>
+  );
+}
+
+// One Karyakarta's holding — issued vs delivered vs in-hand, per item, with a kg
+// summary. Negative in-hand (delivered more than issued) is flagged for reconciling.
+function StockBalanceCard({ bal }) {
+  const [open, setOpen] = useState(false);
+  const anyShort = bal.lines.some(l => l.inHand < 0);
+  return (
+    <div className="overflow-hidden rounded-xl border border-border-light bg-bg-base">
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 p-2.5 text-left">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-black text-text-main">{bal.name}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-semibold text-text-muted">
+            <span>Issued {bal.issuedBoxes}</span><span>·</span><span>Delivered {bal.deliveredBoxes}</span>
+            {(bal.ghariKg > 0 || bal.bhusuKg > 0) && <span className="rounded-full bg-surface px-1.5 py-0.5">{fmtKg(bal.ghariKg + bal.bhusuKg)} kg in hand</span>}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className={`text-lg font-black leading-none ${bal.inHandBoxes < 0 ? 'text-rose-600' : bal.inHandBoxes === 0 ? 'text-text-muted' : 'text-emerald-600'}`}>{bal.inHandBoxes}</div>
+          <div className="text-[9px] font-bold uppercase tracking-wide text-text-muted">in hand</div>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {anyShort && !open && <div className="border-t border-rose-100 bg-rose-50 px-2.5 py-1 text-[10px] font-black text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">Delivered more than issued — reconcile</div>}
+      {open && (
+        <div className="border-t border-border-light px-2.5 py-2">
+          {bal.lines.map(l => (
+            <div key={l.sku} className="flex items-center justify-between py-0.5 text-[11px]">
+              <span className="truncate font-bold text-text-main">{l.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="text-text-muted">{l.size}</span></span>
+              <span className="shrink-0 font-black text-text-muted">
+                <span className="text-emerald-600">{l.issued} in</span> · <span className="text-rose-600">{l.delivered} out</span> · <span className={l.inHand < 0 ? 'text-red-600' : l.inHand === 0 ? 'text-amber-600' : 'text-text-main'}>{l.inHand} left</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StockView({ season }) {
+  const [tick, setTick] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const balances = useMemo(() => ghariService.buildStockBalances(season), [season, tick]);
+  const issues = useMemo(() => ghariService.getStocks(season), [season, tick]);
+  const refresh = () => setTick(t => t + 1);
+  const voidIssue = async (st) => {
+    if (!(await confirmDialog({ title: 'Remove this issue?', text: `Remove the stock issued to ${st.karyakarta || 'this karyakarta'} (${st.boxes} boxes)? Their in-hand balance will adjust.`, confirmText: 'Remove', danger: true }))) return;
+    ghariService.voidStock(st.id); refresh();
+  };
+  return (
+    <div className="space-y-3">
+      {adding ? (
+        <StockIssueForm season={season} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); refresh(); }} />
+      ) : (
+        <button onClick={() => setAdding(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Issue advance stock</button>
+      )}
+
+      <div className="rounded-2xl border border-border-light bg-surface p-4">
+        <h3 className="mb-3 text-sm font-black text-text-main">Stock in hand — by Karyakarta</h3>
+        {balances.length === 0 ? (
+          <p className="py-6 text-center text-xs text-text-muted">No advance stock issued yet. Use “Issue advance stock” above.</p>
+        ) : (
+          <div className="space-y-2">
+            {balances.map(b => <StockBalanceCard key={b.key} bal={b} />)}
+          </div>
+        )}
+      </div>
+
+      {issues.length > 0 && (
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <h3 className="mb-3 text-sm font-black text-text-main">Recent issues</h3>
+          <div className="divide-y divide-border-light">
+            {issues.map(st => (
+              <div key={st.id} className="flex items-center gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-black text-text-main">{st.karyakarta || '—'}</div>
+                  <div className="truncate text-[11px] text-text-muted">{(st.items || []).map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ')}</div>
+                  <div className="text-[10px] font-semibold text-text-muted">{st.date ? new Date(st.date).toLocaleDateString('en-IN') : ''}{st.remarks ? ` · ${st.remarks}` : ''}{st.createdBy ? ` · by ${String(st.createdBy).replace(/\s*\(.*\)$/, '')}` : ''}</div>
+                </div>
+                <span className="shrink-0 text-sm font-black text-text-main">{st.boxes}</span>
+                <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
   const canEdit = isAdminRole(user); // Sevaks have view-only access (case/space-insensitive — mirrors backend ghariCanWrite_)
@@ -1720,6 +1869,7 @@ export default function GhariPage({ user }) {
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
+    ...(canEdit ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
     ...(canEdit ? [{ id: 'log', label: 'Log', icon: History }] : []),
     ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
     ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
@@ -1786,6 +1936,7 @@ export default function GhariPage({ user }) {
 
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
+      {tab === 'stock' && canEdit && <StockView key={tick} season={season} />}
       {tab === 'log' && canEdit && <GhariLogView key={tick} flash={flash} />}
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
