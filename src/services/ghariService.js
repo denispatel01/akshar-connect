@@ -169,6 +169,17 @@ function normalizeOrder_(o) {
     category: it.category || 'ghee', qty: num_(it.qty), unitPrice: num_(it.unitPrice),
   })).filter(it => it.qty > 0);
   const totals = computeTotals(items);
+  // Partial delivery: how many of the order's boxes have actually been handed over.
+  // `delivered` stays the simple "fully delivered?" flag the rest of the app reads;
+  // `deliveredBoxes` carries the partial count (e.g. 2 of 4). We reconcile the two so
+  // legacy rows (delivered=true, no count) and crafted rows can never disagree.
+  const totalBoxes = totals.boxes;
+  let deliveredBoxes = num_(o.deliveredBoxes);
+  let delivered = bool_(o.delivered);
+  if (delivered && !deliveredBoxes) deliveredBoxes = totalBoxes;       // legacy fully-delivered row
+  deliveredBoxes = Math.max(0, Math.min(totalBoxes, Math.round(deliveredBoxes)));
+  // The flag is always derived from the count when there are boxes to deliver.
+  if (totalBoxes > 0) delivered = deliveredBoxes >= totalBoxes;
   return {
     id: String(o.id || ''),
     orderNo: (o.orderNo === '' || o.orderNo == null) ? '' : (Number(o.orderNo) || ''),
@@ -180,7 +191,9 @@ function normalizeOrder_(o) {
     karyakartaId: String(o.karyakartaId || ''),
     items,
     total: totals.total,
-    delivered: bool_(o.delivered),
+    totalBoxes,
+    delivered,
+    deliveredBoxes,
     deliveryDate: String(o.deliveryDate || '').trim(),
     paymentReceived: o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived),
     paymentType: String(o.paymentType || '').trim(),
@@ -275,7 +288,7 @@ function toBackendRow_(o) {
     itemsJson: JSON.stringify(o.items || []), itemsSummary: itemsSummary_(o.items),
     total: t.total, withGheeAmt: t.byCategory.ghee, withoutGheeAmt: t.byCategory.noghee,
     sugarFreeAmt: t.byCategory.sf, bhusuAmt: t.byCategory.bhusu,
-    delivered: !!o.delivered, deliveryDate: o.deliveryDate || '', paymentReceived: num_(o.paymentReceived),
+    delivered: !!o.delivered, deliveredBoxes: num_(o.deliveredBoxes), deliveryDate: o.deliveryDate || '', paymentReceived: num_(o.paymentReceived),
     balance: t.total - num_(o.paymentReceived), paymentType: o.paymentType,
     status: o.status || 'active', remarks: o.remarks,
     createdBy: o.createdBy, createdOn: o.createdOn, updatedBy: o.updatedBy, updatedOn: o.updatedOn,
@@ -388,7 +401,7 @@ async function syncDown(season) {
   // Ids that still have pending local ops → KEEP the local copy (it's newer /
   // not yet on the server). Everything else takes the server's version.
   const box = outbox_();
-  const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder' || o.action === 'ghariDeleteOrder').map(o => o.payload?.row?.id ?? o.payload?.id));
+  const pendingOrderIds = new Set(box.filter(o => o.action === 'ghariUpsertOrder' || o.action === 'ghariDeleteOrder' || o.action === 'ghariMarkDelivery').map(o => o.payload?.row?.id ?? o.payload?.id));
   const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct' || o.action === 'ghariDeleteProduct').map(o => o.payload?.row?.sku ?? o.payload?.sku));
   const pendingPurchaseIds = new Set(box.filter(o => o.action === 'ghariUpsertPurchase' || o.action === 'ghariDeletePurchase').map(o => o.payload?.row?.id ?? o.payload?.id));
 
@@ -615,6 +628,7 @@ export const ghariService = {
       karyakartaId: input.karyakartaId ?? prev?.karyakartaId ?? '',
       items,
       delivered: input.delivered ?? prev?.delivered ?? false,
+      deliveredBoxes: input.deliveredBoxes ?? prev?.deliveredBoxes ?? (input.delivered ? undefined : 0),
       deliveryDate: input.deliveryDate ?? prev?.deliveryDate ?? '',
       paymentReceived: input.paymentReceived ?? prev?.paymentReceived ?? 0,
       paymentType: input.paymentType ?? prev?.paymentType ?? '',
@@ -652,7 +666,33 @@ export const ghariService = {
   // Quick field toggles used by the list (delivered / payment), still durable.
   setDelivered: (id, delivered) => {
     const o = ghariService.getOrderById(id); if (!o) return null;
-    return ghariService.saveOrder({ ...o, delivered: !!delivered });
+    return ghariService.markDelivery(id, delivered ? (o.totalBoxes ?? computeTotals(o.items).boxes) : 0);
+  },
+
+  // Mark how many of an order's boxes have been delivered (partial or full). This is
+  // a DELIVERY-ONLY write: it changes only the delivery fields, never items or money,
+  // so it is allowed for Karyakartas/Sevaks/devotees who can see Ghari but cannot edit
+  // orders. It syncs through the lightweight `ghariMarkDelivery` backend action, which
+  // authorizes any known app user (unlike `ghariUpsertOrder`, which is admin-only).
+  markDelivery: (id, deliveredBoxes) => {
+    const idx = orders_().findIndex(o => o.id === id); if (idx < 0) return null;
+    const prev = MEM.orders[idx];
+    const totalBoxes = prev.totalBoxes ?? computeTotals(prev.items).boxes;
+    const n = Math.max(0, Math.min(totalBoxes, Math.round(num_(deliveredBoxes))));
+    const delivered = totalBoxes > 0 ? n >= totalBoxes : !!prev.delivered;
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const order = normalizeOrder_({ ...prev, delivered, deliveredBoxes: n, updatedBy: actor, updatedOn: now });
+    MEM.orders[idx] = order; saveOrdersLocal_();
+    enqueueUpsert_('ghariMarkDelivery', 'id', {
+      id: order.id, season: order.season, delivered: order.delivered,
+      deliveredBoxes: order.deliveredBoxes, deliveryDate: order.deliveryDate,
+      updatedBy: actor, updatedOn: now,
+    });
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-delivery', order.customerName, `marked ${n}/${totalBoxes} box${totalBoxes === 1 ? '' : 'es'} delivered for ${order.customerName}`); } catch { /* ignore */ }
+    return order;
   },
   markPaid: (id, paymentType) => {
     const o = ghariService.getOrderById(id); if (!o) return null;

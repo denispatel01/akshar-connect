@@ -36,7 +36,7 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
+  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveredBoxes','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
   // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
@@ -96,7 +96,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-15-bus-seva';
+var SCHEMA_VERSION = '2026-10-16-ghari-partial-delivery';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1803,6 +1803,7 @@ function handle_(p){
       }
       return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, season: _gSeason, seasons: _seasons });
     }
+    if(action==='ghariMarkDelivery')  return doGhariMarkDelivery_(p);
     if(action==='ghariUpsertOrder')   return doGhariUpsertOrder_(p);
     if(action==='ghariUpsertProduct') return doGhariUpsert_('GhariProducts', p.row || {}, 'sku');
     if(action==='ghariDeleteOrder')   return doGhariDelete_('GhariOrders', p.id, 'id');
@@ -2073,6 +2074,51 @@ function ghariCanWrite_(p){
     return false;
   }
   return false;
+}
+
+// True for ANY known app user (matched by actorMobile in the Users sheet), whatever
+// their role. Marking delivery is a lighter right than editing the ledger: every
+// Karyakarta / Sevak / devotee who can see Ghari may record what they delivered,
+// but the write is limited to delivery fields only (see doGhariMarkDelivery_).
+function ghariKnownUser_(p){
+  var mob = normMob_(p && p.actorMobile || '');
+  if(!mob) return false;
+  var users = readAll_('Users');
+  for(var i=0;i<users.length;i++){ if(normMob_(users[i].mobile) === mob) return true; }
+  return false;
+}
+
+// Delivery-only write. Updates just delivered / deliveredBoxes / deliveryDate on an
+// existing order — never items, totals or payment — so it is safe to allow for any
+// known user. The change is audit-logged (ghariLog_) exactly like an edit, so an
+// Admin sees who marked what, and how many boxes, in the order's History.
+function doGhariMarkDelivery_(p){
+  var row = p.row || {};
+  if(!ghariKnownUser_(p))
+    return json_({ ok:false, error:'Not allowed — sign in to mark delivery. (actorMobile=' + normMob_(p && p.actorMobile || '') + ')' });
+  var lock=LockService.getScriptLock(); try{ lock.waitLock(20000); }catch(e){}
+  try{
+    if(!row.id) return json_({ ok:false, error:'missing id' });
+    var rn=findRow_('GhariOrders','id',row.id);
+    if(rn<0) return json_({ ok:false, error:'order not found' });
+    var before = readRowObj_('GhariOrders', rn);
+    // Compute the order's total boxes from its stored items so a crafted request
+    // can never claim more boxes delivered than were ordered.
+    var totalBoxes = 0;
+    try{ (JSON.parse(before.itemsJson||'[]')||[]).forEach(function(it){ totalBoxes += Number(it.qty)||0; }); }catch(e){}
+    var n = Math.max(0, Math.min(totalBoxes, Math.round(Number(row.deliveredBoxes)||0)));
+    var delivered = totalBoxes > 0 ? (n >= totalBoxes) : (String(row.delivered)==='true' || row.delivered===true);
+    var after = {};
+    HEADERS.GhariOrders.forEach(function(h){ after[h] = before[h]; });
+    after.delivered = delivered;
+    after.deliveredBoxes = n;
+    if(row.deliveryDate !== undefined && row.deliveryDate !== null && String(row.deliveryDate) !== '') after.deliveryDate = row.deliveryDate;
+    after.updatedBy = row.updatedBy || '';
+    after.updatedOn = row.updatedOn || new Date().toISOString();
+    tab_('GhariOrders').getRange(rn,1,1,HEADERS.GhariOrders.length).setValues([rowFromObj_('GhariOrders',after)]);
+    ghariLog_('order', 'delivery', after.updatedBy, before, after);
+    return json_({ ok:true });
+  } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
 // Read one row (1-based sheet row number) as an object keyed by HEADERS.

@@ -239,7 +239,9 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       // Names are always stored in proper case, however they were typed.
       customerName: properName(customerName), customerMobile: String(customerMobile || '').replace(/\D/g, ''), devoteeId,
       karyakarta: properName(karyakarta), karyakartaId,
-      items, delivered, deliveryDate,
+      // The full editor's delivered toggle is all-or-nothing; keep the partial box
+      // count in step with it (partial counts are set from the Delivery panel).
+      items, delivered, deliveredBoxes: delivered ? totals.boxes : 0, deliveryDate,
       paymentReceived: paid, paymentType: paymentType || (paid > 0 ? 'Cash' : 'Pending'),
       remarks: remarks.trim(), status: initialOrder?.status || 'active',
     });
@@ -462,7 +464,13 @@ function OrderRow({ order, onOpen }) {
               <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-black text-primary">#{order.orderNo}</span>
             )}
             <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
-            {order.delivered && <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+            {order.delivered ? (
+              <Truck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            ) : Number(order.deliveredBoxes || 0) > 0 && (
+              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                {order.deliveredBoxes}/{order.totalBoxes ?? order.items.reduce((s, i) => s + Number(i.qty || 0), 0)}
+              </span>
+            )}
           </div>
           <div className="truncate text-[11px] text-text-muted">{summary}</div>
           <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
@@ -1178,7 +1186,66 @@ function GhariLogView({ flash }) {
 }
 
 // ───────────────────────── Edit modal ───────────────────────────────────────
-function EditModal({ order, onClose, onSaved, canEdit = true }) {
+// ───────────────────────── Delivery panel (partial / full) ──────────────────
+// Lets ANY viewer (Karyakarta / Sevak / devotee) record how many of an order's
+// boxes have actually been delivered — all, none, or a partial count (e.g. 2 of 4
+// delivered, 2 remaining). This is a delivery-only write; it never touches items
+// or payment, so it is offered even when the rest of the order is view-only.
+function DeliveryPanel({ order, canDeliver, onSaved }) {
+  const totalBoxes = order.totalBoxes ?? order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
+  const [count, setCount] = useState(Math.max(0, Math.min(totalBoxes, Number(order.deliveredBoxes || 0))));
+  const remaining = Math.max(0, totalBoxes - count);
+  const full = totalBoxes > 0 && count >= totalBoxes;
+  const commit = (n) => {
+    const v = Math.max(0, Math.min(totalBoxes, Math.round(n)));
+    setCount(v);
+    ghariService.markDelivery(order.id, v);
+    onSaved?.();
+  };
+  return (
+    <div className={`mb-3 rounded-2xl border-2 p-3 ${full ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40' : count > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40' : 'border-border-light bg-surface'}`}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted">
+          <Truck className="h-3.5 w-3.5" /> Delivery
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${full ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : count > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-bg-base text-text-muted'}`}>
+          {full ? 'Delivered ✓' : count > 0 ? `Partial · ${remaining} left` : 'Not delivered'}
+        </span>
+      </div>
+      {!canDeliver ? (
+        <p className="text-[12px] font-bold text-text-muted">{count}/{totalBoxes} box{totalBoxes === 1 ? '' : 'es'} delivered.</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => commit(count - 1)} disabled={count <= 0}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-light bg-surface text-text-main active:scale-95 disabled:opacity-40">
+              <Minus className="h-5 w-5" />
+            </button>
+            <div className="text-center">
+              <div className="text-2xl font-black leading-none text-text-main">{count}<span className="text-base font-bold text-text-muted"> / {totalBoxes}</span></div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-text-muted">boxes delivered</div>
+            </div>
+            <button onClick={() => commit(count + 1)} disabled={count >= totalBoxes}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#34D399] to-[#059669] text-white shadow active:scale-95 disabled:opacity-40">
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="mt-2 flex gap-1.5">
+            <button onClick={() => commit(0)}
+              className={`flex-1 rounded-xl border py-2 text-xs font-black ${count === 0 ? 'border-border-light bg-bg-base text-text-muted' : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300'}`}>None</button>
+            <button onClick={() => commit(totalBoxes)}
+              className={`flex-1 rounded-xl border py-2 text-xs font-black ${full ? 'border-emerald-400 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>All delivered</button>
+          </div>
+          {remaining > 0 && count > 0 && (
+            <p className="mt-2 text-center text-[11px] font-bold text-amber-700 dark:text-amber-300">{remaining} box{remaining === 1 ? '' : 'es'} still to deliver</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EditModal({ order, onClose, onSaved, canEdit = true, canDeliver = false }) {
   const [showHistory, setShowHistory] = useState(false);
   const wa = ghariService.whatsappLink(order);
   const del = async () => {
@@ -1213,6 +1280,7 @@ function EditModal({ order, onClose, onSaved, canEdit = true }) {
             {order.updatedBy && order.updatedBy !== order.createdBy && <span className="block">Last edited by <b className="text-text-main">{order.updatedBy}</b></span>}
           </div>
         )}
+        {canDeliver && <DeliveryPanel order={order} canDeliver={canDeliver} />}
         <OrderForm initialOrder={order} onCancel={onClose} onDelete={canEdit ? del : undefined} onSaved={() => onSaved?.()} readOnly={!canEdit} />
       </div>
     </div>,
@@ -1594,6 +1662,11 @@ function TrashView({ season, onRestored, flash }) {
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
   const canEdit = isAdminRole(user); // Sevaks have view-only access (case/space-insensitive — mirrors backend ghariCanWrite_)
+  // Delivery is a lighter right than editing: anyone who can open Ghari Seva
+  // (Karyakartas, Sevaks, devotees) may mark an order delivered or partially
+  // delivered, even though they cannot change items or payment. The page is only
+  // reachable by users with Ghari access, so every viewer here qualifies.
+  const canDeliver = true;
   const [tab, setTab] = useState(canEdit ? 'entry' : 'orders');
   const [season, setSeasonState] = useState(ghariService.getSeason());
   const [tick, setTick] = useState(0);
@@ -1717,7 +1790,7 @@ export default function GhariPage({ user }) {
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}
 
-      {editing && <EditModal order={editing} canEdit={canEdit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); flash(canEdit ? 'Order updated ✓' : ''); }} />}
+      {editing && <EditModal order={editing} canEdit={canEdit} canDeliver={canDeliver} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1); flash(canEdit ? 'Order updated ✓' : ''); }} />}
     </div>
   );
 }
