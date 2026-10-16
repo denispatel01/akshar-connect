@@ -1909,7 +1909,8 @@ function StockBalanceCard({ bal }) {
           <div className="truncate text-xs font-black text-text-main">{bal.name}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-semibold text-text-muted">
             <span>Issued {bal.issuedBoxes}</span><span>·</span><span>Delivered {bal.deliveredBoxes}</span>
-            {(bal.ghariKg > 0 || bal.bhusuKg > 0) && <span className="rounded-full bg-surface px-1.5 py-0.5">{fmtKg(bal.ghariKg + bal.bhusuKg)} kg in hand</span>}
+            {bal.ghariKg !== 0 && <span className="rounded-full px-1.5 py-0.5 font-bold text-white" style={{ background: '#EA580C' }}>Ghari {fmtKg(bal.ghariKg)} kg</span>}
+            {bal.bhusuKg !== 0 && <span className="rounded-full px-1.5 py-0.5 font-bold text-white" style={{ background: '#9333EA' }}>Bhusu {fmtKg(bal.bhusuKg)} kg</span>}
           </div>
         </div>
         <div className="shrink-0 text-right">
