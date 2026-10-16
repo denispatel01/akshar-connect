@@ -1160,6 +1160,109 @@ export const ghariService = {
     doc.save(`Ghari_${s}_${(label || 'karyakartas').replace(/[^\w]+/g, '_')}.pdf`);
   },
 
+  // ---- Digital delivery challan (one order) → PDF, shareable on WhatsApp ----
+  // Builds an A4 delivery note for a single order: who, what was ordered, how many
+  // boxes were delivered (per item), kg, amount and balance, with a signature line.
+  // When `share` is set and the device supports sharing files (the Android app and
+  // most phones do), it opens the native share sheet — WhatsApp included — so the
+  // admin can send the PDF straight to the devotee/karyakarta. Otherwise it downloads.
+  orderChallanPdf: async (order, { share = false } = {}) => {
+    const o = normalizeOrder_(order);
+    const s = o.season || meta_().season;
+    let jsPDF, autoTableMod;
+    try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+    catch (e) {
+      try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+      throw new Error('The app was updated in the background. Reloading — please tap again.');
+    }
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    const ORANGE = [229, 111, 24], DARK = [38, 48, 59], MUTE = [120, 130, 145], STRIPE = [252, 241, 231];
+    const rs = (n) => 'Rs ' + Number(n || 0).toLocaleString('en-IN');
+    const kg1 = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const now = new Date();
+    const when = (o.deliveryDate ? new Date(o.deliveryDate) : now).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Header band
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 92, 'F');
+    doc.setFillColor(255, 157, 82); doc.rect(0, 92, pageW, 4, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9); doc.text('AKSHAR CONNECT', 40, 32);
+    doc.setFontSize(18); doc.text('Ghari Seva — Delivery Challan', 40, 58);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(255, 235, 220);
+    doc.text(`Season ${s}${o.orderNo ? '  ·  Challan #' + o.orderNo : ''}`, 40, 78);
+    doc.setFontSize(9); doc.text(`Date: ${when}`, pageW - 40, 32, { align: 'right' });
+
+    // Party block
+    doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text('Delivered to', 40, 122);
+    doc.setFontSize(13); doc.text(o.customerName || '—', 40, 140);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTE);
+    const sub = [o.customerMobile ? 'Mobile: ' + o.customerMobile : '', o.karyakarta ? 'Via: ' + o.karyakarta : ''].filter(Boolean).join('   ·   ');
+    if (sub) doc.text(sub, 40, 156);
+
+    // Items table — ordered vs delivered per item
+    const delMap = deliveredItemsOf_(o);
+    let totKg = 0, delBoxes = 0, ordBoxes = 0;
+    const body = (o.items || []).map(it => {
+      const del = delMap[it.sku] || 0; ordBoxes += it.qty; delBoxes += del;
+      const kg = del * sizeToKg_(it.size); totKg += kg;
+      return [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), String(del), kg1(kg), rs(it.unitPrice), rs(del * it.unitPrice)];
+    });
+    const delAmount = (o.items || []).reduce((sum, it) => sum + (delMap[it.sku] || 0) * it.unitPrice, 0);
+    autoTable(doc, {
+      startY: 172,
+      head: [['Item', 'Ordered', 'Delivered', 'Kg', 'Rate', 'Amount']],
+      body,
+      theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+      headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 0: { cellWidth: 190 }, 1: { halign: 'center', cellWidth: 60 }, 2: { halign: 'center', cellWidth: 66 }, 3: { halign: 'right', cellWidth: 50 }, 4: { halign: 'right', cellWidth: 60 }, 5: { halign: 'right', cellWidth: 70 } },
+      margin: { left: 40, right: 40 },
+    });
+
+    let y = doc.lastAutoTable.finalY + 18;
+    const bal = o.total - num_(o.paymentReceived);
+    const line = (label, val, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? DARK : MUTE)); doc.setFontSize(10); doc.text(label, pageW - 220, y); doc.setTextColor(...DARK); doc.text(val, pageW - 40, y, { align: 'right' }); y += 16; };
+    line(`Boxes delivered`, `${delBoxes} of ${ordBoxes}`);
+    line(`Weight delivered`, `${kg1(totKg)} kg`);
+    line(`Delivered value`, rs(delAmount));
+    line(`Order total`, rs(o.total), true);
+    line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
+    if (bal > 0) line(`Balance due`, rs(bal), true);
+
+    // Status + signature
+    const fullyDel = delBoxes >= ordBoxes && ordBoxes > 0;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...(fullyDel ? [16, 122, 72] : [194, 120, 3]));
+    doc.text(fullyDel ? 'Status: Fully delivered' : `Status: Partial — ${ordBoxes - delBoxes} box(es) remaining`, 40, y + 6);
+    if (o.remarks) { doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTE); doc.text(`Remarks: ${o.remarks}`, 40, y + 22); }
+    const sigY = y + 56;
+    doc.setDrawColor(190, 190, 190); doc.line(40, sigY, 200, sigY); doc.line(pageW - 200, sigY, pageW - 40, sigY);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTE);
+    doc.text('Received by (sign)', 40, sigY + 14); doc.text('For Adajan Satsang Mandal', pageW - 40, sigY + 14, { align: 'right' });
+
+    // Footer
+    const h = doc.internal.pageSize.getHeight();
+    doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+    doc.text('Adajan Satsang Mandal · Akshar Connect · Jai Swaminarayan 🙏', 40, h - 20);
+
+    const filename = `Challan_${s}${o.orderNo ? '_' + o.orderNo : ''}_${(o.customerName || 'order').replace(/[^\w]+/g, '_')}.pdf`;
+
+    if (share) {
+      try {
+        const blob = doc.output('blob');
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Ghari Seva — Delivery Challan', text: `Ghari Seva ${s} delivery challan for ${o.customerName || ''}`.trim() });
+          return { shared: true, filename };
+        }
+      } catch (e) { if (String(e && e.name) === 'AbortError') return { shared: false, cancelled: true, filename }; /* else fall through to download */ }
+    }
+    doc.save(filename);
+    return { shared: false, filename };
+  },
+
   // ---- Export the season summary / dashboard as a styled PDF ----
   // Lazy-loads jsPDF + autotable (shared with the Reports page) so they never
   // weigh down first load. Uses "Rs" (the ₹ glyph isn't in the PDF core font).

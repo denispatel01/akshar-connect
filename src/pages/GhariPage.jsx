@@ -1247,7 +1247,15 @@ function DeliveryPanel({ order, canDeliver, onSaved }) {
 
 function EditModal({ order, onClose, onSaved, canEdit = true, canDeliver = false }) {
   const [showHistory, setShowHistory] = useState(false);
+  const [challanBusy, setChallanBusy] = useState(false);
   const wa = ghariService.whatsappLink(order);
+  const challan = async () => {
+    if (challanBusy) return;
+    setChallanBusy(true);
+    try { await ghariService.orderChallanPdf(order, { share: true }); }
+    catch (e) { alertError('Challan failed', e?.message || 'Could not generate the challan.'); }
+    finally { setChallanBusy(false); }
+  };
   const del = async () => {
     if (!(await confirmDialog({ title: 'Delete order?', text: `Delete this order for ${order.customerName || 'this customer'}? It will be removed from totals (recoverable by an admin if needed).`, confirmText: 'Delete', danger: true }))) return;
     ghariService.voidOrder(order.id); onSaved?.();
@@ -1263,6 +1271,9 @@ function EditModal({ order, onClose, onSaved, canEdit = true, canDeliver = false
           {order?.orderNo && <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-black text-primary">#{order.orderNo}</span>}
         </span>
         <div className="flex items-center gap-3">
+          <button onClick={challan} disabled={challanBusy} className="flex items-center gap-1 text-xs font-bold text-text-muted hover:text-primary disabled:opacity-50" title="Delivery challan (PDF)">
+            <Download className="h-4 w-4" /> {challanBusy ? '…' : 'Challan'}
+          </button>
           <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 text-xs font-bold text-text-muted hover:text-primary" title="Change history">
             <History className="h-4 w-4" /> History
           </button>
