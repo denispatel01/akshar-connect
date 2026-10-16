@@ -1929,7 +1929,13 @@ export default function GhariPage({ user }) {
             {[['all', 'All'], ['undelivered', 'Undelivered'], ['delivered', 'Delivered'], ['unpaid', 'Unpaid'], ['paid', 'Paid']].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${filter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
             ))}
-            <span className="ml-auto self-center text-[11px] font-bold text-text-muted">{orders.length} order{orders.length === 1 ? '' : 's'}</span>
+            {canEdit && (
+              <button onClick={async () => { try { await ghariService.printableOrderSheet(season); } catch (e) { alertError('Could not create sheet', e?.message || ''); } }}
+                className="ml-auto flex items-center gap-1 rounded-full border border-border-light bg-surface px-3 py-1.5 text-[11px] font-black text-text-muted hover:border-primary hover:text-primary" title="Printable blank order sheet (PDF)">
+                <Download className="h-3.5 w-3.5" /> Print sheet
+              </button>
+            )}
+            <span className={`${canEdit ? '' : 'ml-auto '}self-center text-[11px] font-bold text-text-muted`}>{orders.length} order{orders.length === 1 ? '' : 's'}</span>
           </div>
           {orders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">

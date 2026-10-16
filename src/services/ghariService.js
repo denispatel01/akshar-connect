@@ -1263,6 +1263,62 @@ export const ghariService = {
     return { shared: false, filename };
   },
 
+  // ---- Printable BLANK order sheet (take orders on paper, key in later) ----
+  // A landscape A4 grid: one column per catalog item, many empty rows. The admin
+  // prints it, writes the devotee's name and the box counts by hand (2 under "Ghee
+  // 500g", 1 under "Ghee 1kg", …), then keys the numbers in. Makes taking orders in
+  // person — where typing on the phone is slow — much faster.
+  printableOrderSheet: async (season, { rows = 24 } = {}) => {
+    const s = season || meta_().season;
+    const prods = ghariService.getActiveProducts();
+    let jsPDF, autoTableMod;
+    try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+    catch (e) {
+      try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+      throw new Error('The app was updated in the background. Reloading — please tap again.');
+    }
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    const ORANGE = [229, 111, 24], DARK = [38, 48, 59], MUTE = [120, 130, 145];
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 64, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9); doc.text('AKSHAR CONNECT', 36, 24);
+    doc.setFontSize(16); doc.text(`Ghari Seva ${s} — Order Sheet`, 36, 48);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(255, 235, 220);
+    doc.text('Karyakarta: ____________________    Date: __________', pageW - 36, 24, { align: 'right' });
+    doc.text('Write the number of boxes under each item.', pageW - 36, 44, { align: 'right' });
+
+    // One column per item. Header shows a short name + size + price so the person
+    // taking the order knows the rate without looking it up.
+    const shortName = (p) => `${p.name.replace('Ghari ', '').replace(/[()]/g, '').trim()}\n${p.size}\nRs${p.unitPrice}`;
+    const head = [['#', 'Devotee name', 'Mobile', ...prods.map(shortName), 'Remarks']];
+    const body = Array.from({ length: rows }, (_, i) => [String(i + 1), '', '', ...prods.map(() => ''), '']);
+
+    const itemColW = Math.max(30, Math.min(48, (pageW - 72 - 24 - 150 - 70 - 110) / Math.max(1, prods.length)));
+    const colStyles = { 0: { cellWidth: 24, halign: 'center' }, 1: { cellWidth: 150 }, 2: { cellWidth: 70 } };
+    prods.forEach((p, i) => { colStyles[3 + i] = { cellWidth: itemColW, halign: 'center' }; });
+    colStyles[3 + prods.length] = { cellWidth: 110 };
+
+    autoTable(doc, {
+      startY: 78,
+      head, body,
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 6, textColor: DARK, lineColor: [210, 200, 190], lineWidth: 0.5, minCellHeight: 22, valign: 'middle' },
+      headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', valign: 'middle' },
+      columnStyles: colStyles,
+      margin: { left: 36, right: 36, bottom: 30 },
+      didDrawPage: () => {
+        const h = doc.internal.pageSize.getHeight();
+        doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+        doc.text('Adajan Satsang Mandal · Akshar Connect', 36, h - 14);
+      },
+    });
+
+    doc.save(`Ghari_${s}_Order_Sheet.pdf`);
+  },
+
   // ---- Export the season summary / dashboard as a styled PDF ----
   // Lazy-loads jsPDF + autotable (shared with the Reports page) so they never
   // weigh down first load. Uses "Rs" (the ₹ glyph isn't in the PDF core font).
