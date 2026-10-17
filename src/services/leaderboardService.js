@@ -86,20 +86,44 @@ export const leaderboardService = {
     return (MEM.boards || []).find((b) => String(b.id) === String(boardId)) || null;
   },
 
-  /** Background refresh from the backend. Never throws. */
+  /**
+   * Background refresh from the backend. Never throws, and NEVER loses local data
+   * that hasn't synced yet: the server copy is merged with any local-only rows
+   * (boards/entries whose id the server doesn't have), and those unsynced rows are
+   * re-pushed. This is what prevents a freshly-created board from vanishing when the
+   * server reply is empty (e.g. the insert hadn't landed, or failed earlier).
+   */
   async refresh() {
     if (!backendOnline()) return this.getState();
-    try {
-      const r = await backendApi('getLeaderboards', {});
-      if (r && r.ok) {
-        MEM = {
-          leaders: r.leaders || [],
-          boards: (r.boards || []).map((b) => ({ ...b })),
-          entries: (r.entries || []).map((e) => ({ ...e, target: num_(e.target), done: num_(e.done) })),
-        };
-        persist_();
-      }
-    } catch { /* keep cache */ }
+    let r;
+    try { r = await backendApi('getLeaderboards', {}); } catch { return this.getState(); }
+    if (!r || !r.ok) return this.getState();
+
+    const beBoards = (r.boards || []).map((b) => ({ ...b }));
+    const beEntries = (r.entries || []).map((e) => ({ ...e, target: num_(e.target), done: num_(e.done) }));
+    const beBoardIds = new Set(beBoards.map((b) => String(b.id)));
+    const beEntryIds = new Set(beEntries.map((e) => String(e.id)));
+
+    // Local rows the server doesn't know about yet = unsynced. Keep them and retry.
+    const localOnlyBoards = (MEM.boards || []).filter((b) => !beBoardIds.has(String(b.id)));
+    const localOnlyEntries = (MEM.entries || []).filter((e) => !beEntryIds.has(String(e.id)));
+
+    MEM = {
+      leaders: r.leaders || MEM.leaders || [],
+      boards: [...localOnlyBoards, ...beBoards],
+      entries: [...beEntries, ...localOnlyEntries],
+    };
+    persist_();
+
+    // Re-push the unsynced rows (now that the backend has the collections). Failures
+    // are harmless — they simply stay local and get retried on the next refresh.
+    for (const b of localOnlyBoards) {
+      try { await backendApi('insert', { collection: 'LeaderBoards', row: b }); } catch { /* retry later */ }
+    }
+    for (const e of localOnlyEntries) {
+      try { await backendApi('insert', { collection: 'LeaderEntries', row: e }); } catch { /* retry later */ }
+    }
+    if (localOnlyBoards.length || localOnlyEntries.length) emitChanged_();
     return this.getState();
   },
 
@@ -126,13 +150,15 @@ export const leaderboardService = {
     persist_();
 
     if (backendOnline()) {
-      try {
-        await backendApi('insert', { collection: 'LeaderBoards', row: board });
-        // Entries one by one — small roster, keeps backend logic trivial.
-        for (const e of entries) {
-          await backendApi('insert', { collection: 'LeaderEntries', row: e });
-        }
-      } catch (err) { console.warn('createBoard sync failed:', err.message); }
+      // Each insert is independent: one failure must not skip the rest, and anything
+      // that doesn't land stays local and is retried by refresh(). Small roster, so
+      // sequential is fine and keeps the backend logic trivial.
+      try { await backendApi('insert', { collection: 'LeaderBoards', row: board }); }
+      catch (err) { console.warn('createBoard (board) sync failed:', err.message); }
+      for (const e of entries) {
+        try { await backendApi('insert', { collection: 'LeaderEntries', row: e }); }
+        catch (err) { console.warn('createBoard (entry) sync failed:', err.message); }
+      }
     }
     return board.id;
   },
