@@ -969,6 +969,9 @@ export const ghariService = {
   // "4 × 500 gm = 2 kg" style weight totals without re-parsing sizes itself.
   sizeKg: (size) => sizeToKg_(size),
 
+  // Kilograms of Ghari vs Bhusu in one order — for showing a per-order kg total.
+  orderKg: (o) => orderKg_(o),
+
   // Season-wide advance-stock summary for the admin: how much stock was bought
   // (purchased), how much has been DISTRIBUTED to karyakartas (issued), and how
   // much is still AT HOME (purchased − distributed). Boxes + kg, with a Ghari/Bhusu

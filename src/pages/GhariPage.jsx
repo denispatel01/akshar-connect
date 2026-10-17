@@ -576,6 +576,7 @@ function OrderRow({ order, onOpen }) {
   const bal = order.total - Number(order.paymentReceived || 0);
   const paidState = Number(order.paymentReceived || 0) <= 0 ? 'unpaid' : bal > 0 ? 'partial' : 'paid';
   const summary = order.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ');
+  const kg = ghariService.orderKg(order);
   const wa = ghariService.whatsappLink(order);
   return (
     <div className="flex items-center gap-2 border-b border-border-light px-3 py-3 last:border-0 hover:bg-bg-base">
@@ -598,6 +599,12 @@ function OrderRow({ order, onOpen }) {
             )}
           </div>
           <div className="truncate text-[11px] text-text-muted">{summary}</div>
+          {(kg.ghariKg > 0 || kg.bhusuKg > 0) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-black">
+              {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
+              {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(kg.bhusuKg)} kg Bhusu</span>}
+            </div>
+          )}
           <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
             {order.karyakarta && <span className="truncate text-teal-600">via {order.karyakarta}</span>}
             {order.createdBy && <span className="truncate text-text-muted">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
