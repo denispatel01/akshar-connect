@@ -520,7 +520,10 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                         {so.items.map(it => (
                           <div key={it.sku} className="flex items-center justify-between gap-2 border-t border-border-light px-3 py-2">
                             <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
-                            <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                            <span className="shrink-0 text-right">
+                              <span className="block text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                              {ghariService.sizeKg(it.size) > 0 && <span className="block text-[11px] font-bold text-primary">{fmtKg(it.qty * ghariService.sizeKg(it.size))} kg</span>}
+                            </span>
                             <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
                           </div>
                         ))}
@@ -533,7 +536,10 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                   {items.map(it => (
                     <div key={it.sku} className="flex items-center justify-between gap-2 border-b border-border-light px-3 py-2 last:border-0">
                       <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">{it.name.replace('Ghari ', '')} <span className="text-text-muted">{it.size}</span></span>
-                      <span className="shrink-0 text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                      <span className="shrink-0 text-right">
+                        <span className="block text-[12px] font-semibold text-text-muted">{it.qty} × {rupee(it.unitPrice)}</span>
+                        {ghariService.sizeKg(it.size) > 0 && <span className="block text-[11px] font-bold text-primary">{fmtKg(it.qty * ghariService.sizeKg(it.size))} kg</span>}
+                      </span>
                       <span className="shrink-0 w-20 text-right text-[13px] font-black text-text-main">{rupee(it.qty * it.unitPrice)}</span>
                     </div>
                   ))}
@@ -1993,12 +1999,13 @@ function StockBalanceCard({ bal }) {
   );
 }
 
-function StockView({ season }) {
+function StockView({ season, canEdit = true }) {
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null); // the stock issue being edited
   const balances = useMemo(() => ghariService.buildStockBalances(season), [season, tick]);
   const issues = useMemo(() => ghariService.getStocks(season), [season, tick]);
+  const summary = useMemo(() => ghariService.buildStockSummary(season), [season, tick]);
   const refresh = () => setTick(t => t + 1);
   const voidIssue = async (st) => {
     if (!(await confirmDialog({ title: 'Remove this issue?', text: `Remove the stock issued to ${st.karyakarta || 'this karyakarta'} (${st.boxes} boxes)? Their in-hand balance will adjust.`, confirmText: 'Remove', danger: true }))) return;
@@ -2006,13 +2013,29 @@ function StockView({ season }) {
   };
   return (
     <div className="space-y-3">
-      {editing ? (
+      {/* Distributed vs at-home summary — what I've handed to karyakartas, and what
+          I'm still holding (purchased − distributed). */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted"><Truck className="h-3.5 w-3.5 text-rose-500" /> Distributed</div>
+          <div className="mt-1 text-2xl font-black text-text-main">{summary.distributed.boxes}<span className="ml-1 text-xs font-bold text-text-muted">boxes</span></div>
+          <div className="text-[11px] font-bold text-text-muted">{fmtKg(summary.distributed.ghariKg)} kg Ghari · {fmtKg(summary.distributed.bhusuKg)} kg Bhusu</div>
+        </div>
+        <div className="rounded-2xl border border-border-light bg-surface p-4">
+          <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted"><Package className="h-3.5 w-3.5 text-emerald-500" /> At home</div>
+          <div className={`mt-1 text-2xl font-black ${summary.atHome.boxes < 0 ? 'text-red-600' : 'text-text-main'}`}>{summary.atHome.boxes}<span className="ml-1 text-xs font-bold text-text-muted">boxes</span></div>
+          <div className="text-[11px] font-bold text-text-muted">{fmtKg(summary.atHome.ghariKg)} kg Ghari · {fmtKg(summary.atHome.bhusuKg)} kg Bhusu</div>
+        </div>
+      </div>
+      <p className="px-1 text-[10px] font-semibold text-text-muted">At home = bought ({summary.purchased.boxes} boxes) − distributed ({summary.distributed.boxes} boxes).</p>
+
+      {canEdit && (editing ? (
         <StockIssueForm season={season} initialStock={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />
       ) : adding ? (
         <StockIssueForm season={season} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); refresh(); }} />
       ) : (
         <button onClick={() => setAdding(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Issue advance stock</button>
-      )}
+      ))}
 
       <div className="rounded-2xl border border-border-light bg-surface p-4">
         <h3 className="mb-3 text-sm font-black text-text-main">Stock in hand — by Karyakarta</h3>
@@ -2038,8 +2061,8 @@ function StockView({ season }) {
                 </div>
                 <span className="shrink-0 text-sm font-black text-text-main">{st.boxes}</span>
                 <button onClick={async () => { try { await ghariService.stockChallanPdf(st, { share: true }); } catch (e) { alertError('Challan failed', e?.message || ''); } }} title="Stock challan (PDF)" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Download className="h-3.5 w-3.5" /></button>
-                <button onClick={() => { setAdding(false); setEditing(st); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ } }} title="Edit issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>
-                <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>
+                {canEdit && <button onClick={() => { setAdding(false); setEditing(st); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ } }} title="Edit issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>}
+                {canEdit && <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>}
               </div>
             ))}
           </div>
@@ -2056,7 +2079,14 @@ export default function GhariPage({ user }) {
   // Admin → Users). Everyone else — Sevaks/devotees/karyakartas without the grant —
   // is view-only for the order and can ONLY mark delivery/payment (see canDeliver).
   // Mirrors the backend ghariCanWrite_.
-  const canEdit = isAdminRole(user) || dataService.hasModule(user, 'ghari');
+  // Mirror the backend ghariCanWrite_ EXACTLY: write = Admin role, OR the literal
+  // 'ghari' grant in the user's `modules`. We must NOT use dataService.hasModule here
+  // — it treats every Sevak as having 'ghari' (so they can VIEW the module), which
+  // would wrongly show Sevaks the edit UI even though the backend rejects their
+  // writes. Sevaks are view-only (they still get stock view + challan below).
+  const ghariModuleGranted = String(user?.modules || '')
+    .split(/[,|]/).map(s => s.trim().toLowerCase()).includes('ghari');
+  const canEdit = isAdminRole(user) || ghariModuleGranted;
   // Delivery is a lighter right than editing: anyone who can open Ghari Seva
   // (Karyakartas, Sevaks, devotees) may mark an order delivered or partially
   // delivered, even though they cannot change items or payment. The page is only
@@ -2065,6 +2095,10 @@ export default function GhariPage({ user }) {
   // The Log is visible to Admins (everyone's actions) and Sevaks (their own only).
   const isSevak = isSevakRole(user);
   const canSeeLog = canEdit || isSevak;
+  // Sevaks may VIEW the advance-stock screen (what's issued, what's at home) and
+  // download challans, but cannot issue / edit / remove stock. Admins/ghari-module
+  // users get full write access. (Write is still enforced server-side.)
+  const canSeeStock = canEdit || isSevak;
   const [tab, setTab] = useState(canEdit ? 'entry' : 'orders');
   const [season, setSeasonState] = useState(ghariService.getSeason());
   const [tick, setTick] = useState(0);
@@ -2118,7 +2152,7 @@ export default function GhariPage({ user }) {
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Report', icon: Wallet },
-    ...(canEdit ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
+    ...(canSeeStock ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
     ...(canSeeLog ? [{ id: 'log', label: 'Log', icon: History }] : []),
     ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
     ...(canEdit ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
@@ -2191,7 +2225,7 @@ export default function GhariPage({ user }) {
 
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
-      {tab === 'stock' && canEdit && <StockView key={tick} season={season} />}
+      {tab === 'stock' && canSeeStock && <StockView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'log' && canSeeLog && <GhariLogView key={tick} flash={flash} selfOnly={!canEdit} />}
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}
       {tab === 'settings' && canEdit && <SettingsView season={season} onSeason={setSeason} />}

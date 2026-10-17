@@ -965,6 +965,37 @@ export const ghariService = {
     }).sort((a, b) => b.inHandBoxes - a.inHandBoxes || a.name.localeCompare(b.name));
   },
 
+  // Convert a pack size ("500 gm", "1 kg") to kilograms. Exposed so the UI can show
+  // "4 × 500 gm = 2 kg" style weight totals without re-parsing sizes itself.
+  sizeKg: (size) => sizeToKg_(size),
+
+  // Season-wide advance-stock summary for the admin: how much stock was bought
+  // (purchased), how much has been DISTRIBUTED to karyakartas (issued), and how
+  // much is still AT HOME (purchased − distributed). Boxes + kg, with a Ghari/Bhusu
+  // kg split. "At home" is what the admin is still holding before handing it out.
+  buildStockSummary: (season) => {
+    const s = season || meta_().season;
+    const prods = ghariService.getProducts();
+    const bySku = {}; prods.forEach(p => { bySku[p.sku] = p; });
+    const blank = () => ({ boxes: 0, kg: 0, ghariKg: 0, bhusuKg: 0 });
+    const add = (agg, sku, qty) => {
+      const p = bySku[sku] || { size: '', category: 'ghee' };
+      const kg = num_(qty) * sizeToKg_(p.size);
+      agg.boxes += num_(qty); agg.kg += kg;
+      if (p.category === 'bhusu') agg.bhusuKg += kg; else agg.ghariKg += kg;
+    };
+    const purchased = blank(), distributed = blank();
+    ghariService.getPurchases(s).forEach(pu => (pu.items || []).forEach(it => add(purchased, it.sku, it.qty)));
+    ghariService.getStocks(s).forEach(st => (st.items || []).forEach(it => add(distributed, it.sku, it.qty)));
+    const atHome = {
+      boxes: purchased.boxes - distributed.boxes,
+      kg: purchased.kg - distributed.kg,
+      ghariKg: purchased.ghariKg - distributed.ghariKg,
+      bhusuKg: purchased.bhusuKg - distributed.bhusuKg,
+    };
+    return { purchased, distributed, atHome };
+  },
+
   // ---- Catalog (add / edit prices / hide / delete) ----
   // Create a new item (no sku) or update an existing one. A new item gets a
   // stable generated sku and is placed at the end of the list.

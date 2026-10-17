@@ -270,7 +270,7 @@ export default function App() {
           <button onClick={exitViewAs} className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-black hover:bg-white/30">Exit</button>
         </div>
       )}
-      <NotificationsPopup user={effectiveUser} />
+      <NotificationsPopup user={effectiveUser} onNavigate={navigate} />
       <GlobalInputClear />
       <Navbar
         activePage={activePage}

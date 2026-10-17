@@ -17,6 +17,21 @@ const fmtWhen = (iso) => {
 
 const contactedF = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
 
+// Announcements are free text (no stored route), so infer where a tap should land
+// from the title + body. Returns { page, options } or null (no obvious target).
+function routeForAnnouncement(a) {
+  const s = `${a?.title || ''} ${a?.body || ''}`.toLowerCase();
+  const has = (...words) => words.some((w) => s.includes(w));
+  if (has('vato', 'વાત')) return { page: 'vato' };
+  if (has('swadhyay', 'સ્વાધ્યાય')) return { page: 'swadhyay' };
+  if (has('birthday', 'janmadin', 'જન્મદિવસ', 'bday')) return { page: 'devotees', options: { devoteesPreset: 'birthdays' } };
+  if (has('bus seva', 'bus')) return { page: 'bus' };
+  if (has('follow-up', 'followup', 'follow up')) return { page: 'followups' };
+  if (has('feed')) return { page: 'feed' };
+  if (has('calendar', 'purnima', 'sabha', 'event', 'seva', 'utsav', 'festival')) return { page: 'calendar' };
+  return null;
+}
+
 function waWish(d) {
   const num = String(d.whatsapp || d.mobile || '').replace(/\D/g, '');
   if (!num) return '';
@@ -26,7 +41,7 @@ function waWish(d) {
 }
 
 // Shown once per day on app open when there is something worth surfacing.
-export default function NotificationsPopup({ user }) {
+export default function NotificationsPopup({ user, onNavigate }) {
   const canManage = user?.role === 'Admin' || user?.role === 'Sevak';
   // Push notifications = announcements, newest first (the backend already sorts
   // desc and caps at 50). We show the FULL list — this is the notification feed.
@@ -102,6 +117,8 @@ export default function NotificationsPopup({ user }) {
   }, []);
 
   const close = () => setOpen(false);
+  // Tap a notification → close the panel and jump to the relevant module.
+  const go = (page, options) => { if (!onNavigate) return; setOpen(false); onNavigate(page, options); };
 
   if (!open) return null;
 
@@ -131,21 +148,28 @@ export default function NotificationsPopup({ user }) {
                 <Megaphone className="h-3.5 w-3.5" /> Push notifications
               </p>
               <div className="space-y-2">
-                {unreadAnnouncements.map(a => (
-                  <div key={a.id} className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2.5">
+                {unreadAnnouncements.map(a => {
+                  const route = routeForAnnouncement(a);
+                  return (
+                  <div key={a.id}
+                    onClick={route ? () => go(route.page, route.options) : undefined}
+                    role={route ? 'button' : undefined} tabIndex={route ? 0 : undefined}
+                    className={`rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2.5 ${route ? 'cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20' : ''}`}>
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-bold text-text-main">{a.title}</p>
                       <span className="shrink-0 text-[10px] font-bold text-text-muted">{fmtWhen(a.createdOn)}</span>
                     </div>
                     {a.body && <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-text-main/90">{a.body}</p>}
-                    <div className="mt-2 flex justify-end">
-                      <button onClick={() => markRead(a)}
+                    <div className="mt-2 flex items-center justify-between">
+                      {route ? <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">Tap to open →</span> : <span />}
+                      <button onClick={(e) => { e.stopPropagation(); markRead(a); }}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white/70 px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-white dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
                         <Check className="h-3.5 w-3.5" /> Mark as read
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -159,10 +183,12 @@ export default function NotificationsPopup({ user }) {
                 {today.map(d => {
                   const wa = waWish(d);
                   return (
-                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10 px-3 py-2.5">
+                    <div key={d.id} role="button" tabIndex={0}
+                      onClick={() => go('devotees', { openDevoteeId: d.id })}
+                      className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10 px-3 py-2.5 transition-colors hover:bg-rose-100 dark:hover:bg-rose-500/20">
                       <span className="text-sm font-bold text-text-main truncate">{d.name}</span>
                       {wa && (
-                        <a href={wa} target="_blank" rel="noreferrer"
+                        <a href={wa} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                           className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600">
                           <MessageSquare className="h-3.5 w-3.5" /> Wish
                         </a>
@@ -181,7 +207,9 @@ export default function NotificationsPopup({ user }) {
               </p>
               <div className="space-y-1.5">
                 {soon.map(({ devotee, info }) => (
-                  <div key={devotee.id} className="flex items-center justify-between gap-3 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+                  <div key={devotee.id} role="button" tabIndex={0}
+                    onClick={() => go('devotees', { devoteesPreset: 'upcomingBirthdays', openDevoteeId: devotee.id })}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border-light bg-bg-base px-3 py-2 transition-colors hover:bg-surface">
                     <span className="text-sm font-semibold text-text-main truncate">{devotee.name}</span>
                     <span className="text-[11px] font-bold text-text-muted shrink-0">{birthdayDate(info)}</span>
                   </div>
@@ -197,7 +225,9 @@ export default function NotificationsPopup({ user }) {
               </p>
               <div className="space-y-1.5">
                 {pendingEvents.map(({ ev, pending }) => (
-                  <div key={ev.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2">
+                  <div key={ev.id} role="button" tabIndex={0}
+                    onClick={() => go('followups')}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-text-main truncate">{ev.title}</p>
                       <p className="text-[11px] text-text-muted">{ev.date}</p>
@@ -216,7 +246,9 @@ export default function NotificationsPopup({ user }) {
               </p>
               <div className="space-y-1.5">
                 {newDevotees.slice(0, 8).map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 px-3 py-2">
+                  <div key={d.id} role="button" tabIndex={0}
+                    onClick={() => go('devotees', { openDevoteeId: d.id })}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 px-3 py-2 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-500/20">
                     <span className="text-sm font-semibold text-text-main truncate">{d.name}</span>
                     <span className="text-[11px] font-bold text-text-muted shrink-0">{String(d.createdOn || '').slice(0, 10)}</span>
                   </div>
