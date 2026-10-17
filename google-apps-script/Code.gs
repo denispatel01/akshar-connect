@@ -1700,7 +1700,7 @@ function sendLeaderboardEmail_(board, entries, mode, p){
   var verb = mode === 'insert' ? 'created' : 'updated';
   var who = board.updatedBy || board.createdBy || '';
   var subject = 'Akshar Connect: Leaderboard ' + verb + ' — ' + (board.title || '');
-  var rowsHtml = entries.slice().sort(function(a,b){ return (Number(a.sortOrder)||0)-(Number(b.sortOrder)||0); }).map(function(e,i){
+  var rowsHtml = entries.slice().sort(function(a,b){ return String(a.leaderName||'').localeCompare(String(b.leaderName||'')); }).map(function(e,i){
     var t = Number(e.target)||0, d = Number(e.done)||0;
     var pp = t > 0 ? ((d/t)*100).toFixed(1) : '0.0';
     return '<tr><td style="padding:4px 8px">'+(i+1)+'</td><td style="padding:4px 8px">'+(e.leaderName||'')+'</td><td align="right" style="padding:4px 8px">'+d+' / '+t+'</td><td align="right" style="padding:4px 8px">'+pp+'%</td></tr>';
