@@ -285,8 +285,11 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
   useEffect(() => {
     const on = () => rerender();
     window.addEventListener('ac-leaderboard-changed', on);
-    return () => window.removeEventListener('ac-leaderboard-changed', on);
+    // Flush any pending debounced save when the board unmounts (user navigates away).
+    return () => { window.removeEventListener('ac-leaderboard-changed', on); leaderboardService.flushSaves(); };
   }, []);
+
+  const backWithFlush = () => { leaderboardService.flushSaves(); onBack?.(); };
 
   const board = leaderboardService.board(boardId);
   const entries = leaderboardService.entriesFor(boardId);
@@ -326,7 +329,7 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
   return (
     <div className="mx-auto max-w-3xl px-3 py-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
+        <button onClick={backWithFlush} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
         <div className="flex items-center gap-2">
           <button onClick={share} disabled={sharing}
             className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-2 text-xs font-black text-white disabled:opacity-60">

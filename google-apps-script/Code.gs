@@ -1653,6 +1653,70 @@ function doGetLeaderboards_(p){
   return json_({ ok:true, leaders: leaders, boards: boards, entries: entries });
 }
 
+// Upsert a single row by id. Returns 'insert' or 'update'.
+function leaderUpsert_(collection, row){
+  if(!row || !row.id) return null;
+  var rn = findRow_(collection, 'id', row.id);
+  if(rn > 0){ tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]); return 'update'; }
+  appendRows_(collection, [row]); return 'insert';
+}
+
+// Save a whole board + all its entries in ONE call (fast — no 18 round-trips), then
+// email the admin a summary. Used for both create and data-entry saves.
+function doSaveLeaderboard_(p){
+  var board = p.board || {};
+  var entries = p.entries || [];
+  if(!board.id) return json_({ ok:false, error:'missing board id' });
+  var mode = leaderUpsert_('LeaderBoards', board);
+  entries.forEach(function(e){ leaderUpsert_('LeaderEntries', e); });
+  logChange_(mode==='insert'?'INSERT':'UPDATE', 'LeaderBoards', { name: board.title, updatedBy: board.updatedBy||board.createdBy }, mailFlag_(p));
+  try{ sendLeaderboardEmail_(board, entries, mode, p); }catch(err){}
+  return json_({ ok:true, mode: mode });
+}
+
+// Delete a board + all its entries server-side in one call.
+function doDeleteLeaderboard_(p){
+  var boardId = p.boardId;
+  if(!boardId) return json_({ ok:false, error:'missing boardId' });
+  // Remove entries first (iterate a snapshot of row numbers, delete bottom-up).
+  var esh = tab_('LeaderEntries');
+  var evals = esh.getDataRange().getValues();
+  var eHead = evals[0]; var bCol = eHead.indexOf('boardId');
+  for(var i=evals.length-1; i>=1; i--){ if(String(evals[i][bCol]) === String(boardId)) esh.deleteRow(i+1); }
+  var brn = findRow_('LeaderBoards', 'id', boardId);
+  if(brn > 0) tab_('LeaderBoards').deleteRow(brn);
+  logChange_('DELETE', 'LeaderBoards', { name: p.title || boardId, actor: p.actor }, mailFlag_(p));
+  return json_({ ok:true });
+}
+
+function sendLeaderboardEmail_(board, entries, mode, p){
+  var mf = mailFlag_(p);
+  if(mf === false) return;                         // client said mail was OFF
+  if(mf !== true && !mailEnabled_()) return;       // else honour global flag
+  var unit = board.unit || 'Kg';
+  var target = 0, done = 0;
+  entries.forEach(function(e){ target += Number(e.target)||0; done += Number(e.done)||0; });
+  var pct = target > 0 ? (done/target*100).toFixed(2) : '0.00';
+  var verb = mode === 'insert' ? 'created' : 'updated';
+  var who = board.updatedBy || board.createdBy || '';
+  var subject = 'Akshar Connect: Leaderboard ' + verb + ' — ' + (board.title || '');
+  var rowsHtml = entries.slice().sort(function(a,b){ return (Number(a.sortOrder)||0)-(Number(b.sortOrder)||0); }).map(function(e,i){
+    var t = Number(e.target)||0, d = Number(e.done)||0;
+    var pp = t > 0 ? ((d/t)*100).toFixed(1) : '0.0';
+    return '<tr><td style="padding:4px 8px">'+(i+1)+'</td><td style="padding:4px 8px">'+(e.leaderName||'')+'</td><td align="right" style="padding:4px 8px">'+d+' / '+t+'</td><td align="right" style="padding:4px 8px">'+pp+'%</td></tr>';
+  }).join('');
+  var html = '<div style="font-family:Arial,sans-serif;color:#222">'
+    + '<h2 style="margin:0 0 4px">🌸 ' + (board.title || '') + '</h2>'
+    + (board.subtitle ? '<p style="margin:0 0 8px;color:#666">'+board.subtitle+'</p>' : '')
+    + '<p>Leaderboard <b>'+verb+'</b>'+(who?(' by '+who):'')+'.</p>'
+    + '<p style="font-size:16px"><b>Total:</b> '+done+' / '+target+' '+unit+' ('+pct+'%)</p>'
+    + '<table cellspacing="0" style="border-collapse:collapse;border:1px solid #ddd">'
+    + '<tr style="background:#1B5E20;color:#fff"><th style="padding:4px 8px">SN</th><th style="padding:4px 8px" align="left">Katyakarta</th><th style="padding:4px 8px">Done / Target</th><th style="padding:4px 8px">%</th></tr>'
+    + rowsHtml + '</table></div>';
+  var plain = (board.title || '') + ' ' + verb + '. Total ' + done + ' / ' + target + ' ' + unit + ' (' + pct + '%).';
+  sendMail_(subject, plain, null, html);
+}
+
 function doGet(e){ return handle_(e && e.parameter ? e.parameter : {}); }
 function doPost(e){
   var p={};
@@ -1686,6 +1750,8 @@ function handle_(p){
     if(action==='backfillGhariOrderNos') return json_({ ok:true, result: backfillGhariOrderNos_() });
     if(action==='getLeaderboards') return doGetLeaderboards_(p);
     if(action==='seedMandalLeaders') return json_({ ok:true, leaders: seedMandalLeaders_(p && p.force === true) });
+    if(action==='saveLeaderboard') return doSaveLeaderboard_(p);
+    if(action==='deleteLeaderboard') return doDeleteLeaderboard_(p);
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),

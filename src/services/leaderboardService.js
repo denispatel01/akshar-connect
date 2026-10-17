@@ -53,6 +53,29 @@ function emitChanged_() { try { window.dispatchEvent(new CustomEvent('ac-leaderb
 
 function persist_() { writeCache_(MEM); emitChanged_(); }
 
+// ── Debounced per-board save ─────────────────────────────────────────────────
+// Inline Target/Done edits update local state instantly; the backend save (which
+// also emails the admin) is coalesced so a burst of edits produces ONE call + ONE
+// email, not one per cell. Flushed on demand when the user leaves the board.
+const dirtyBoards_ = new Set();
+let saveTimer_ = null;
+const SAVE_DEBOUNCE_MS = 3000;
+
+async function saveBoardToBackend_(boardId) {
+  if (!backendOnline()) return;
+  const board = (MEM.boards || []).find((b) => String(b.id) === String(boardId));
+  if (!board) return;
+  const entries = (MEM.entries || []).filter((e) => String(e.boardId) === String(boardId));
+  try { await backendApi('saveLeaderboard', { board, entries }); }
+  catch (err) { console.warn('saveLeaderboard failed:', err.message); }
+}
+
+function scheduleSave_(boardId) {
+  dirtyBoards_.add(boardId);
+  if (saveTimer_) clearTimeout(saveTimer_);
+  saveTimer_ = setTimeout(() => { leaderboardService.flushSaves(); }, SAVE_DEBOUNCE_MS);
+}
+
 // Default leaders if the backend hasn't returned any yet.
 function fallbackLeaders_() {
   return DEFAULT_MANDAL_LEADERS.map((name, i) => ({
@@ -149,16 +172,11 @@ export const leaderboardService = {
     MEM.entries = [...(MEM.entries || []), ...entries];
     persist_();
 
+    // ONE backend call saves the board + all entries and emails the admin — far
+    // faster than inserting 18 rows one at a time.
     if (backendOnline()) {
-      // Each insert is independent: one failure must not skip the rest, and anything
-      // that doesn't land stays local and is retried by refresh(). Small roster, so
-      // sequential is fine and keeps the backend logic trivial.
-      try { await backendApi('insert', { collection: 'LeaderBoards', row: board }); }
-      catch (err) { console.warn('createBoard (board) sync failed:', err.message); }
-      for (const e of entries) {
-        try { await backendApi('insert', { collection: 'LeaderEntries', row: e }); }
-        catch (err) { console.warn('createBoard (entry) sync failed:', err.message); }
-      }
+      try { await backendApi('saveLeaderboard', { board, entries }); }
+      catch (err) { console.warn('createBoard sync failed:', err.message); }
     }
     return board.id;
   },
@@ -169,44 +187,46 @@ export const leaderboardService = {
     const next = { ...b, ...patch, updatedBy, updatedOn: nowISO_() };
     MEM.boards = (MEM.boards || []).map((x) => (String(x.id) === String(boardId) ? next : x));
     persist_();
-    if (backendOnline()) {
-      try { await backendApi('update', { collection: 'LeaderBoards', keyField: 'id', key: boardId, row: next }); }
-      catch (err) { console.warn('updateBoard sync failed:', err.message); }
-    }
+    // Save board + entries in one call (also emails the admin).
+    await saveBoardToBackend_(boardId);
   },
 
   async deleteBoard(boardId) {
-    const entries = this.entriesFor(boardId);
+    const board = this.board(boardId);
+    dirtyBoards_.delete(boardId);
     MEM.boards = (MEM.boards || []).filter((b) => String(b.id) !== String(boardId));
     MEM.entries = (MEM.entries || []).filter((e) => String(e.boardId) !== String(boardId));
     persist_();
+    // One backend call removes the board + all its entries.
     if (backendOnline()) {
-      try {
-        for (const e of entries) {
-          await backendApi('remove', { collection: 'LeaderEntries', keyField: 'id', key: e.id });
-        }
-        await backendApi('remove', { collection: 'LeaderBoards', keyField: 'id', key: boardId });
-      } catch (err) { console.warn('deleteBoard sync failed:', err.message); }
+      try { await backendApi('deleteLeaderboard', { boardId, title: board?.title || '' }); }
+      catch (err) { console.warn('deleteBoard sync failed:', err.message); }
     }
   },
 
   // ── Entries (the data entry) ────────────────────────────────────────────────
-  async updateEntry(entryId, { target, done }) {
-    let changed = null;
+  // Updates local state instantly; the backend save is debounced + coalesced per
+  // board (one call + one email per burst of edits), flushed when leaving the board.
+  updateEntry(entryId, { target, done }) {
+    let boardId = null;
     MEM.entries = (MEM.entries || []).map((e) => {
       if (String(e.id) !== String(entryId)) return e;
-      changed = {
+      boardId = e.boardId;
+      return {
         ...e,
         target: target === undefined ? num_(e.target) : num_(target),
         done: done === undefined ? num_(e.done) : num_(done),
       };
-      return changed;
     });
     persist_();
-    if (changed && backendOnline()) {
-      try { await backendApi('update', { collection: 'LeaderEntries', keyField: 'id', key: entryId, row: changed }); }
-      catch (err) { console.warn('updateEntry sync failed:', err.message); }
-    }
+    if (boardId) scheduleSave_(boardId);
+  },
+
+  /** Flush any pending debounced board saves now (e.g. when leaving a board). */
+  async flushSaves() {
+    if (saveTimer_) { clearTimeout(saveTimer_); saveTimer_ = null; }
+    const ids = [...dirtyBoards_]; dirtyBoards_.clear();
+    for (const id of ids) { await saveBoardToBackend_(id); }
   },
 
   // ── Leader roster (add/edit/delete the fixed 17) ────────────────────────────
