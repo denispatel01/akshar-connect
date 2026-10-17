@@ -11,6 +11,7 @@ import ReportsPage from './pages/ReportsPage';
 import BulkTagPage from './pages/BulkTagPage';
 import FamilyTagPage from './pages/FamilyTagPage';
 import GhariPage from './pages/GhariPage';
+import LeaderboardPage from './pages/LeaderboardPage';
 import BusPage from './pages/BusPage';
 import AppUsagePage from './pages/AppUsagePage';
 import AccountPage from './pages/AccountPage';
@@ -327,6 +328,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={effectiveUser} />}
         {activePage === 'family-tags' && <FamilyTagPage user={effectiveUser} />}
         {activePage === 'ghari' && <GhariPage user={effectiveUser} />}
+        {activePage === 'leaderboard' && <LeaderboardPage user={effectiveUser} />}
         {activePage === 'bus' && <BusPage user={effectiveUser} />}
         {activePage === 'app-usage' && <AppUsagePage user={effectiveUser} />}
         {activePage === 'swadhyay' && <SwadhyayPage user={effectiveUser} />}

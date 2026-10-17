@@ -20,6 +20,7 @@ import {
   Quote,
   CalendarCheck,
   Bus,
+  Trophy,
   Activity as ActivityIcon,
 } from 'lucide-react';
 
@@ -114,6 +115,7 @@ export function getNavGroups(user) {
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),
         ...(canBus ? [{ id: 'bus', label: 'Bus Seva', icon: Bus }] : []),
+        ...(isAdmin ? [{ id: 'leaderboard', label: 'Leaderboard', icon: Trophy, adminOnly: true }] : []),
       ],
     },
     {

@@ -42,6 +42,18 @@ var HEADERS = {
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
   GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   GhariStock: ['id','season','date','karyakarta','karyakartaId','itemsJson','itemsSummary','boxes','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // ── Adajan Mandal Leaderboard ────────────────────────────────────────────
+  // A reusable progress board for any seva (Ghari now, more later). The mandal's
+  // leaders are fixed, so they are seeded ONCE here and every new board prefills
+  // from them — the user only does the Target/Done data entry.
+  // `MandalLeaders` = the fixed roster (id is stable; editable via add/edit/delete).
+  MandalLeaders: ['id','name','sortOrder','active'],
+  // One row per board/seva (e.g. "Chandi Padvo - Ghari Seva"). `unit` is the
+  // measure (Kg, ₹, count…). status ∈ active|archived.
+  LeaderBoards:  ['id','title','subtitle','unit','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // One row per leader PER board (its target + done). Decoupled from MandalLeaders
+  // so a leader can be renamed/removed later without touching past boards.
+  LeaderEntries: ['id','boardId','leaderId','leaderName','target','done','sortOrder'],
   // One row per device registered for push. Keyed by the FCM token. A devotee /
   // staff member can have several devices (several rows).
   PushTokens: ['token','devoteeId','mobile','name','platform','updatedOn'],
@@ -1467,7 +1479,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1612,6 +1624,35 @@ function findRow_(name, keyField, keyVal){
   return -1;
 }
 
+// ── Adajan Mandal Leaderboard ───────────────────────────────────────────────
+// The fixed mandal leaders, seeded ONCE. Editing the roster later (add/edit/
+// delete) happens through the normal insert/update/remove on `MandalLeaders`.
+var DEFAULT_MANDAL_LEADERS = [
+  'Pankajbhai','Smitbhai/Krunalbhai','Bhavikbhai','Pavitrabhai','Bittubhai',
+  'Rameshbhai Modi','Chachubhai','Krunalbhai Vasani','Umeshbhai','Mayurbhai Tailor',
+  'Dr. Jigneshbhai','Mohitbhai','Pushpakbhai','Nirdoshbhai','Prerakbhai',
+  'Ankitbhai Modi','Ravibhai'
+];
+
+function seedMandalLeaders_(force){
+  var existing = readAll_('MandalLeaders');
+  if(existing.length && !force) return existing;
+  if(!existing.length){
+    var rows = DEFAULT_MANDAL_LEADERS.map(function(name, i){
+      return { id: 'LDR-' + (i+1), name: name, sortOrder: i+1, active: true };
+    });
+    appendRows_('MandalLeaders', rows);
+  }
+  return readAll_('MandalLeaders');
+}
+
+function doGetLeaderboards_(p){
+  var leaders = seedMandalLeaders_(false);
+  var boards  = readAll_('LeaderBoards');
+  var entries = readAll_('LeaderEntries');
+  return json_({ ok:true, leaders: leaders, boards: boards, entries: entries });
+}
+
 function doGet(e){ return handle_(e && e.parameter ? e.parameter : {}); }
 function doPost(e){
   var p={};
@@ -1643,6 +1684,8 @@ function handle_(p){
     if(action==='ghariRawDump'){ var _sh=ss_().getSheetByName(p.tab||'GhariOrders'); if(!_sh) return json_({ok:false,error:'no tab'}); var _lc=_sh.getLastColumn(), _lr=_sh.getLastRow(); return json_({ ok:true, rows: _sh.getRange(1,1,_lr,_lc).getValues() }); }
     if(action==='realignGhariOrders') return json_({ ok:true, result: realignGhariOrders_(p && p.apply === true) });
     if(action==='backfillGhariOrderNos') return json_({ ok:true, result: backfillGhariOrderNos_() });
+    if(action==='getLeaderboards') return doGetLeaderboards_(p);
+    if(action==='seedMandalLeaders') return json_({ ok:true, leaders: seedMandalLeaders_(p && p.force === true) });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
