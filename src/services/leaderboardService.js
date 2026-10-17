@@ -41,8 +41,13 @@ function writeCache_(state) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(state)); } catch { /* quota */ }
 }
 
-// In-memory state, hydrated synchronously on first use.
-let MEM = readCache_() || { leaders: null, boards: [], entries: [] };
+// In-memory state, hydrated synchronously on first use. `pending` holds the ids of
+// boards created/edited locally but NOT yet confirmed saved to the backend. Only
+// these are protected from (and re-pushed by) refresh — a board that's gone from the
+// server and ISN'T pending was deleted elsewhere, so it must drop locally too
+// (otherwise a deleted board keeps resurrecting from this device's cache).
+let MEM = readCache_() || { leaders: null, boards: [], entries: [], pending: [] };
+if (!Array.isArray(MEM.pending)) MEM.pending = [];
 
 function num_(v) { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; }
 function bool_(v) { return v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1'; }
@@ -52,6 +57,15 @@ function nowISO_() { return new Date().toISOString(); }
 function emitChanged_() { try { window.dispatchEvent(new CustomEvent('ac-leaderboard-changed')); } catch { /* SSR */ } }
 
 function persist_() { writeCache_(MEM); emitChanged_(); }
+
+// ── Pending (unsynced) board tracking ────────────────────────────────────────
+function markPending_(boardId) {
+  const id = String(boardId);
+  if (!(MEM.pending || []).includes(id)) MEM.pending = [...(MEM.pending || []), id];
+}
+function clearPending_(boardId) {
+  MEM.pending = (MEM.pending || []).filter((id) => id !== String(boardId));
+}
 
 // ── Debounced per-board save ─────────────────────────────────────────────────
 // Inline Target/Done edits update local state instantly; the backend save (which
@@ -66,8 +80,11 @@ async function saveBoardToBackend_(boardId) {
   const board = (MEM.boards || []).find((b) => String(b.id) === String(boardId));
   if (!board) return;
   const entries = (MEM.entries || []).filter((e) => String(e.boardId) === String(boardId));
-  try { await backendApi('saveLeaderboard', { board, entries }); }
-  catch (err) { console.warn('saveLeaderboard failed:', err.message); }
+  try {
+    await backendApi('saveLeaderboard', { board, entries });
+    clearPending_(boardId); // confirmed on the server
+    persist_();
+  } catch (err) { console.warn('saveLeaderboard failed:', err.message); } // stays pending, retried
 }
 
 function scheduleSave_(boardId) {
@@ -124,29 +141,30 @@ export const leaderboardService = {
 
     const beBoards = (r.boards || []).map((b) => ({ ...b }));
     const beEntries = (r.entries || []).map((e) => ({ ...e, target: num_(e.target), done: num_(e.done) }));
-    const beBoardIds = new Set(beBoards.map((b) => String(b.id)));
-    const beEntryIds = new Set(beEntries.map((e) => String(e.id)));
+    const pendingIds = new Set((MEM.pending || []).map(String));
 
-    // Local rows the server doesn't know about yet = unsynced. Keep them and retry.
-    const localOnlyBoards = (MEM.boards || []).filter((b) => !beBoardIds.has(String(b.id)));
-    const localOnlyEntries = (MEM.entries || []).filter((e) => !beEntryIds.has(String(e.id)));
+    // Pending boards: the LOCAL copy wins (don't let the server overwrite unsynced
+    // edits, and don't let an empty server wipe a just-created board). Everything
+    // else: the SERVER is the source of truth — so a board deleted on the server and
+    // not pending simply drops here instead of resurrecting from this cache.
+    const localPendingBoards = (MEM.boards || []).filter((b) => pendingIds.has(String(b.id)));
+    const localPendingIds = new Set(localPendingBoards.map((b) => String(b.id)));
+    const localPendingEntries = (MEM.entries || []).filter((e) => localPendingIds.has(String(e.boardId)));
+
+    const serverBoards = beBoards.filter((b) => !pendingIds.has(String(b.id)));
+    const serverBoardIds = new Set(serverBoards.map((b) => String(b.id)));
+    const serverEntries = beEntries.filter((e) => serverBoardIds.has(String(e.boardId)));
 
     MEM = {
       leaders: r.leaders || MEM.leaders || [],
-      boards: [...localOnlyBoards, ...beBoards],
-      entries: [...beEntries, ...localOnlyEntries],
+      boards: [...localPendingBoards, ...serverBoards],
+      entries: [...serverEntries, ...localPendingEntries],
+      pending: MEM.pending || [],
     };
     persist_();
 
-    // Re-push the unsynced rows (now that the backend has the collections). Failures
-    // are harmless — they simply stay local and get retried on the next refresh.
-    for (const b of localOnlyBoards) {
-      try { await backendApi('insert', { collection: 'LeaderBoards', row: b }); } catch { /* retry later */ }
-    }
-    for (const e of localOnlyEntries) {
-      try { await backendApi('insert', { collection: 'LeaderEntries', row: e }); } catch { /* retry later */ }
-    }
-    if (localOnlyBoards.length || localOnlyEntries.length) emitChanged_();
+    // Re-push still-pending boards (clears their pending flag on success).
+    for (const b of localPendingBoards) { await saveBoardToBackend_(b.id); }
     return this.getState();
   },
 
@@ -167,17 +185,16 @@ export const leaderboardService = {
       target: 0, done: 0, sortOrder: num_(l.sortOrder) || i + 1,
     }));
 
-    // Optimistic local write first (instant UI, survives offline).
+    // Optimistic local write first (instant UI, survives offline). Pending until the
+    // single saveLeaderboard call confirms.
     MEM.boards = [board, ...(MEM.boards || [])];
     MEM.entries = [...(MEM.entries || []), ...entries];
+    markPending_(board.id);
     persist_();
 
     // ONE backend call saves the board + all entries and emails the admin — far
-    // faster than inserting 18 rows one at a time.
-    if (backendOnline()) {
-      try { await backendApi('saveLeaderboard', { board, entries }); }
-      catch (err) { console.warn('createBoard sync failed:', err.message); }
-    }
+    // faster than inserting 18 rows one at a time (clears pending on success).
+    await saveBoardToBackend_(board.id);
     return board.id;
   },
 
@@ -186,14 +203,16 @@ export const leaderboardService = {
     if (!b) return;
     const next = { ...b, ...patch, updatedBy, updatedOn: nowISO_() };
     MEM.boards = (MEM.boards || []).map((x) => (String(x.id) === String(boardId) ? next : x));
+    markPending_(boardId);
     persist_();
-    // Save board + entries in one call (also emails the admin).
+    // Save board + entries in one call (also emails the admin; clears pending).
     await saveBoardToBackend_(boardId);
   },
 
   async deleteBoard(boardId) {
     const board = this.board(boardId);
     dirtyBoards_.delete(boardId);
+    clearPending_(boardId);
     MEM.boards = (MEM.boards || []).filter((b) => String(b.id) !== String(boardId));
     MEM.entries = (MEM.entries || []).filter((e) => String(e.boardId) !== String(boardId));
     persist_();
@@ -218,8 +237,8 @@ export const leaderboardService = {
         done: done === undefined ? num_(e.done) : num_(done),
       };
     });
+    if (boardId) { markPending_(boardId); scheduleSave_(boardId); }
     persist_();
-    if (boardId) scheduleSave_(boardId);
   },
 
   /** Flush any pending debounced board saves now (e.g. when leaving a board). */
@@ -255,11 +274,10 @@ export const leaderboardService = {
       target: 0, done: 0, sortOrder: num_(leader.sortOrder) || 999,
     };
     MEM.entries = [...(MEM.entries || []), entry];
+    markPending_(boardId);
     persist_();
-    if (backendOnline()) {
-      try { await backendApi('insert', { collection: 'LeaderEntries', row: entry }); }
-      catch (err) { console.warn('addLeaderToBoard sync failed:', err.message); }
-    }
+    // Save the whole board so the new row persists (clears pending on success).
+    await saveBoardToBackend_(boardId);
     return entry;
   },
 
