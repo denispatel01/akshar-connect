@@ -91,18 +91,18 @@ export const leaderboardService = {
     const leaders = (MEM.leaders && MEM.leaders.length) ? MEM.leaders : fallbackLeaders_();
     return {
       leaders: leaders.filter((l) => bool_(l.active) || l.active === undefined)
-        .slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base', numeric: true })),
+        .slice().sort((a, b) => num_(a.sortOrder) - num_(b.sortOrder)),
       boards: (MEM.boards || []).slice()
         .sort((a, b) => String(b.createdOn || '').localeCompare(String(a.createdOn || ''))),
       entries: (MEM.entries || []).slice(),
     };
   },
 
-  /** Entries for one board, sorted alphabetically (A→Z) by leader name. */
+  /** Entries for one board, in roster order. */
   entriesFor(boardId) {
     return (MEM.entries || [])
       .filter((e) => String(e.boardId) === String(boardId))
-      .sort((a, b) => String(a.leaderName || '').localeCompare(String(b.leaderName || ''), undefined, { sensitivity: 'base', numeric: true }));
+      .sort((a, b) => num_(a.sortOrder) - num_(b.sortOrder));
   },
 
   board(boardId) {
