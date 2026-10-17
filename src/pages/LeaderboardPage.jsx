@@ -191,23 +191,40 @@ async function renderBoardImage(board, entries) {
   return await new Promise((res) => canvas.toBlob((b) => res(b), 'image/png', 0.95));
 }
 
-async function shareBoard(board, entries) {
-  const blob = await renderBoardImage(board, entries);
-  if (!blob) { alertError('Could not create image', 'Please try again.'); return; }
-  const safe = String(board.title || 'leaderboard').replace(/[^\w-]+/g, '_').slice(0, 40);
-  const file = new File([blob], `${safe}.png`, { type: 'image/png' });
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: board.title, text: board.title });
-      return;
-    }
-  } catch { /* user cancelled or share failed — fall through to download */ }
-  // Fallback: download
+function downloadBlob_(blob, safe) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `${safe}.png`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+// Native share sheet (phones). Returns false if sharing a file isn't supported
+// here (e.g. most desktop browsers) so the caller can fall back to a download.
+async function shareBoard(board, entries) {
+  const blob = await renderBoardImage(board, entries);
+  if (!blob) { alertError('Could not create image', 'Please try again.'); return false; }
+  const safe = String(board.title || 'leaderboard').replace(/[^\w-]+/g, '_').slice(0, 40);
+  const file = new File([blob], `${safe}.png`, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: board.title, text: board.title });
+      return true;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return true; // user cancelled — don't also download
+      // otherwise fall through to download
+    }
+  }
+  downloadBlob_(blob, safe);
+  return true;
+}
+
+// Always downloads the PNG (used by the explicit Download button — handy on PC).
+async function downloadBoard(board, entries) {
+  const blob = await renderBoardImage(board, entries);
+  if (!blob) { alertError('Could not create image', 'Please try again.'); return; }
+  const safe = String(board.title || 'leaderboard').replace(/[^\w-]+/g, '_').slice(0, 40);
+  downloadBlob_(blob, safe);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -281,6 +298,7 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
   const [addingLeader, setAddingLeader] = useState(false);
   const [newLeader, setNewLeader] = useState('');
   const [sharing, setSharing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const on = () => rerender();
@@ -325,6 +343,10 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
     setSharing(true);
     try { await shareBoard(board, entries); } finally { setSharing(false); }
   };
+  const download = async () => {
+    setDownloading(true);
+    try { await downloadBoard(board, entries); } finally { setDownloading(false); }
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4">
@@ -333,7 +355,11 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
         <div className="flex items-center gap-2">
           <button onClick={share} disabled={sharing}
             className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-2 text-xs font-black text-white disabled:opacity-60">
-            {sharing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />} Share picture
+            {sharing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />} Share
+          </button>
+          <button onClick={download} disabled={downloading}
+            className="flex items-center gap-1.5 rounded-full border border-emerald-600 bg-surface px-3.5 py-2 text-xs font-black text-emerald-700 disabled:opacity-60">
+            {downloading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download
           </button>
           {canEdit && (
             <>
