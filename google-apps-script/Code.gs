@@ -1172,7 +1172,7 @@ function mergeData_(msgData, title, body, link){
 }
 function pushLink_(type){
   var t = String(type || '').toLowerCase();
-  var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard', seva:'calendar', calendar:'calendar' })[t];
+  var page = ({ vato:'vato', feed:'feed', swadhyay:'swadhyay', birthday:'dashboard', announcement:'dashboard', activity:'dashboard', seva:'calendar', calendar:'calendar', bus:'bus', followup:'followups', followups:'followups' })[t];
   return page ? (APP_URL + '?n=' + page) : APP_URL;
 }
 

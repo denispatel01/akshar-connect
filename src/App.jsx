@@ -49,7 +49,7 @@ export default function App() {
   const initialPage = (() => {
     try {
       const n = new URLSearchParams(window.location.search).get('n');
-      const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard'];
+      const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard', 'bus', 'followups'];
       if (n && allowed.includes(n)) {
         // Clean the URL so a later refresh doesn't re-trigger it.
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
@@ -70,7 +70,7 @@ export default function App() {
   // old tap can't hijack a normal open.
   useEffect(() => {
     let cancelled = false;
-    const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard'];
+    const allowed = ['vato', 'feed', 'swadhyay', 'calendar', 'devotees', 'dashboard', 'bus', 'followups'];
     const tryRead = async () => {
       try {
         if (!('caches' in window)) return true; // nothing to read, stop
