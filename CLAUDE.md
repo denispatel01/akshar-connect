@@ -28,12 +28,29 @@ Then diagnose from the stack/route, fix the source, and mark it resolved. The
 backend endpoints are `getErrorLog` / `resolveError` in `Code.gs`; the fetch URL is
 read from `src/services/dataService.js` (`API_URL`).
 
-## Deploying the backend (human-only)
+## Deploying the backend (Claude does this via clasp)
 
 Backend changes to `Code.gs` do not take effect until it is pushed and the existing
-deployment is redeployed (`clasp push` + redeploy the deploymentId). Drive/clasp
-auth is human-only — **do not attempt to deploy; ask the user to do it.** New
-`ErrorLog` features (`npm run errors`) only work after that redeploy.
+deployment is redeployed. The user wants **Claude to do this with clasp** — never ask
+them to paste code into the web editor. clasp auth is already set up on this machine.
+
+**Run clasp from inside `google-apps-script/`** (that's where `.clasp.json` lives;
+running from the repo root fails with "Project settings not found"):
+
+```bash
+cd google-apps-script
+clasp push -f
+clasp deploy -i AKfycbw-LyYduU1mUaXwamTGPyh_TtP6pZkO3pTCPPGKMQOhUwJhFa_Z4wFzz83FYXnq9YqAnA -d "note"
+```
+
+`clasp deploy -i <deploymentId>` redeploys the **existing** web-app deployment in one
+step, so the `/exec` URL in `src/services/dataService.js` (`API_URL`) never changes.
+`clasp push` uploads only script code — it never touches the Google Sheet data.
+New `ErrorLog` features (`npm run errors`) only work after that redeploy.
+
+The one thing still human-only: running editor functions that need an interactive
+Google consent (e.g. `installDailyBackup`, `authorizeDrive`) — ask the user to run
+those in the Apps Script editor.
 
 ## Commit & push
 
