@@ -156,11 +156,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               <Bell className="h-5 w-5" />
               {hasNotifs && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-[#FF5A3D] ring-2 ring-white dark:ring-[#0B1322]" />}
             </button>
-            {/* Sun | Moon pill toggle */}
-            <button onClick={toggleDarkMode} title="Toggle theme"
-              className="flex items-center gap-0.5 rounded-full border border-black/10 bg-black/[0.04] p-0.5 dark:border-white/15 dark:bg-white/5">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${!isDarkModeOn ? 'bg-[#FF862A] text-white' : 'text-[#0A2E52]/40 dark:text-white/50'}`}><Sun className="h-3.5 w-3.5" /></span>
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${isDarkModeOn ? 'bg-white/20 text-white' : 'text-[#0A2E52]/40 dark:text-white/50'}`}><Moon className="h-3.5 w-3.5" /></span>
+            {/* Single theme toggle — shows the icon of the theme you'd switch TO
+                (moon in light mode, sun in dark mode). */}
+            <button onClick={toggleDarkMode} title={isDarkModeOn ? 'Switch to light theme' : 'Switch to dark theme'}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10">
+              {isDarkModeOn ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
             <div className="hidden sm:flex items-center gap-1.5">
               <button onClick={() => setActivePage('account')} title="My Account"
