@@ -123,19 +123,20 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          {/* Brand wordmark text on the LEFT (tap → Home) — matches the footer logo:
-              navy "Akshar" + orange "Connect" on a single horizontal line. */}
+          {/* Brand wordmark on the LEFT (tap → Home) — the SAME artwork as the footer
+              logo (wordmark-only crop), so the branding matches exactly. In dark mode
+              it sits on a subtle white chip so the navy "Akshar" stays readable. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="z-10 flex min-w-0 shrink items-center leading-none">
-            <span className="whitespace-nowrap text-xl font-black tracking-tight sm:text-3xl">
-              <span className="text-[#0A2E52] dark:text-white">Akshar</span>
-              <span className="text-[#E56F18]"> Connect</span>
-            </span>
+            className="z-10 flex min-w-0 shrink items-center leading-none dark:rounded-lg dark:bg-white/95 dark:px-2 dark:py-1">
+            <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
+              className="h-[18px] w-auto object-contain sm:h-9" />
           </button>
 
-          {/* Center: the big temple logo, absolutely centered (tap → Home). */}
+          {/* Center: the big temple logo, absolutely centered (tap → Home). Hidden on
+              phones, where it would collide with the left wordmark — there the wordmark
+              alone carries the brand (as it does in the footer). */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+            className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center justify-center sm:flex">
             <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt="Akshar Connect"
               className="pointer-events-auto h-12 w-12 rounded-2xl object-contain shadow-sm ring-1 ring-black/5 sm:h-20 sm:w-20 dark:ring-white/10" />
           </button>
