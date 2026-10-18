@@ -64,7 +64,15 @@ export default function NotificationsPopup({ user, onNavigate }) {
   }, []);
   // Only show push notifications the user hasn't marked as read.
   const unreadAnnouncements = useMemo(() => (announcements || []).filter(a => !readIds.has(String(a.id))), [announcements, readIds]);
-  const devotees = useMemo(() => dataService.getDevotees(), []);
+  // Read devotees now (from cache) and again when the background bootstrap lands
+  // (`ac-data-refreshed`) — a cold start with an empty cache would otherwise have
+  // nothing to show at the moment we decide whether to auto-open.
+  const [devotees, setDevotees] = useState(() => dataService.getDevotees());
+  useEffect(() => {
+    const onRefresh = () => setDevotees(dataService.getDevotees());
+    window.addEventListener('ac-data-refreshed', onRefresh);
+    return () => window.removeEventListener('ac-data-refreshed', onRefresh);
+  }, []);
   const today = useMemo(() => devotees.filter(d => isBirthdayToday(d.dob)), [devotees]);
   const soon = useMemo(
     () => upcomingBirthdays(devotees, 7).filter(x => !x.info?.isToday).slice(0, 12),
@@ -106,15 +114,31 @@ export default function NotificationsPopup({ user, onNavigate }) {
   }, [devotees, canManage]);
 
   const hasItems = unreadAnnouncements.length > 0 || today.length > 0 || soon.length > 0 || pendingEvents.length > 0 || newDevotees.length > 0;
-  // This is a notification CENTER, opened from the header bell — never an
-  // auto-popup. It slides in from the right (a real notification panel) and lists
-  // every push notification, newest first.
+  // A notification panel that slides in from the right. It opens two ways:
+  // 1. The header bell (`ac-open-notifications`) — any time, on demand.
+  // 2. Automatically on app open, once per day, when there is something worth
+  //    surfacing (birthdays, pending follow-ups, unread pushes, new devotees).
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const onOpen = () => setOpen(true);
     window.addEventListener('ac-open-notifications', onOpen);
     return () => window.removeEventListener('ac-open-notifications', onOpen);
   }, []);
+
+  // Auto-open once per day. Gated on `hasItems` so we never pop an empty panel;
+  // a per-day date stamp in localStorage means it shows at most once each day,
+  // however many times the app is opened. Runs after `hasItems` flips true (which
+  // may be after the background bootstrap populates devotees/announcements).
+  useEffect(() => {
+    if (!hasItems) return;
+    const KEY = 'ac_notif_autoshown';
+    const todayStr = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(KEY) === todayStr) return;
+      localStorage.setItem(KEY, todayStr);
+    } catch { /* private mode — just show it */ }
+    setOpen(true);
+  }, [hasItems]);
 
   const close = () => setOpen(false);
   // Tap a notification → close the panel and jump to the relevant module.
