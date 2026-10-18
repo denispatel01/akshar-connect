@@ -656,10 +656,25 @@ function StatTile({ label, value, sub, color = '#E56F18', icon: Icon }) {
   );
 }
 // Compact, scannable karyakarta row (works even with dozens of people); tap to
-// expand the exact per-item breakdown.
-function KaryakartaCard({ name, d, bySku }) {
+// expand the FULL order list (every customer + what they ordered + ₹/balance),
+// and export just this karyakarta to PDF / Excel.
+function KaryakartaCard({ name, d, season, cardKey }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState('');
   const due = d.amount - d.received;
+  // Load this karyakarta's actual orders only when expanded (newest first).
+  const orders = useMemo(
+    () => (open ? ghariService.ordersByKaryakarta(season, [cardKey]).slice().sort((a, b) => (Number(b.orderNo) || 0) - (Number(a.orderNo) || 0)) : []),
+    [open, season, cardKey]
+  );
+  const exportOne = async (kind) => {
+    setBusy(kind);
+    try {
+      if (kind === 'pdf') await ghariService.exportKaryakartaPdf(season, [cardKey], name);
+      else await ghariService.exportKaryakartaXlsx(season, [cardKey], name);
+    } catch (e) { alertError('Export failed', e.message); }
+    finally { setBusy(''); }
+  };
   return (
     <div className="overflow-hidden rounded-xl border border-border-light bg-bg-base">
       <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 p-2.5 text-left">
@@ -679,13 +694,41 @@ function KaryakartaCard({ name, d, bySku }) {
       </button>
       {open && (
         <div className="border-t border-border-light px-2.5 py-2">
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(d.skus).map(([sku, qty]) => {
-              const m = bySku[sku]; if (!m) return null;
-              return <span key={sku} className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-text-muted">{m.name.replace('Ghari ', '').replace(/[()]/g, '')} {m.size} ×{qty}</span>;
+          {/* Every order for this karyakarta — customer name + items + ₹ + balance. */}
+          <div className="divide-y divide-border-light">
+            {orders.map(o => {
+              const bal = Number(o.total || 0) - Number(o.paymentReceived || 0);
+              const items = (o.items || []).map(i => `${i.qty}× ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
+              return (
+                <div key={o.id} className="flex items-start gap-2 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {o.orderNo && <span className="shrink-0 rounded bg-surface px-1 font-mono text-[9px] font-black text-text-muted">#{o.orderNo}</span>}
+                      <span className="truncate text-[12px] font-bold text-text-main">{o.customerName || '(no name)'}</span>
+                      {o.delivered && <Truck className="h-3 w-3 shrink-0 text-emerald-500" />}
+                    </div>
+                    <div className="truncate text-[10px] text-text-muted">{items}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[12px] font-black text-text-main">{rupee(o.total)}</div>
+                    {bal > 0 && <div className="text-[9px] font-bold text-rose-600">{rupee(bal)} due</div>}
+                  </div>
+                </div>
+              );
             })}
+            {orders.length === 0 && <p className="py-2 text-[11px] text-text-muted">No orders.</p>}
           </div>
-          <div className="mt-1.5 text-[10px] font-semibold text-text-muted">Received {rupee(d.received)} of {rupee(d.amount)}</div>
+          <div className="mt-2 flex items-center gap-2 border-t border-border-light pt-2">
+            <span className="flex-1 text-[10px] font-semibold text-text-muted">Received {rupee(d.received)} of {rupee(d.amount)}</span>
+            <button onClick={() => exportOne('pdf')} disabled={!!busy}
+              className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-2.5 py-1 text-[10px] font-black text-white shadow-sm disabled:opacity-50">
+              <Download className="h-3 w-3" /> {busy === 'pdf' ? '…' : 'PDF'}
+            </button>
+            <button onClick={() => exportOne('xlsx')} disabled={!!busy}
+              className="flex items-center gap-1 rounded-lg border-2 border-primary bg-primary/5 px-2.5 py-1 text-[10px] font-black text-primary disabled:opacity-50">
+              <Download className="h-3 w-3" /> {busy === 'xlsx' ? '…' : 'Excel'}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -920,9 +963,9 @@ function ReportView({ season }) {
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
-          <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see the exact items.</p>
+          <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see every order with names, and export that person to PDF / Excel. Use the button below for several or all karyakartas at once.</p>
           <div className="space-y-2">
-            {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} bySku={r.bySku} />)}
+            {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} season={season} cardKey={key} />)}
           </div>
         </div>
       )}
