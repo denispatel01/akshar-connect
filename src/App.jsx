@@ -1,29 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import GlobalInputClear from './components/GlobalInputClear';
 import Sidebar from './components/Sidebar';
+// Eager: the first screens a user sees on open (login + home) and the tiny
+// "coming soon" placeholder — loading these instantly keeps startup fast.
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import DevoteesPage from './pages/DevoteesPage';
-import FollowupsPage from './pages/FollowupsPage';
-import AdminPage from './pages/AdminPage';
-import ReportsPage from './pages/ReportsPage';
-import BulkTagPage from './pages/BulkTagPage';
-import FamilyTagPage from './pages/FamilyTagPage';
-import GhariPage from './pages/GhariPage';
-import LeaderboardPage from './pages/LeaderboardPage';
-import BusPage from './pages/BusPage';
-import AppUsagePage from './pages/AppUsagePage';
-import AccountPage from './pages/AccountPage';
-import ActivityPage from './pages/ActivityPage';
-import SwadhyayPage from './pages/SwadhyayPage';
-import CalendarPage from './pages/CalendarPage';
-import DataQualityPage from './pages/DataQualityPage';
-import FeedPage from './pages/FeedPage';
-import EmailPage from './pages/EmailPage';
-import VatoPage from './pages/VatoPage';
-import AttendancePage from './pages/AttendancePage';
 import ComingSoonPage from './pages/ComingSoonPage';
+// Lazy: every other page is code-split into its own chunk and fetched only when
+// the user opens it, so the initial bundle (and app-open time) stays small.
+const DevoteesPage = lazy(() => import('./pages/DevoteesPage'));
+const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const BulkTagPage = lazy(() => import('./pages/BulkTagPage'));
+const FamilyTagPage = lazy(() => import('./pages/FamilyTagPage'));
+const GhariPage = lazy(() => import('./pages/GhariPage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const BusPage = lazy(() => import('./pages/BusPage'));
+const AppUsagePage = lazy(() => import('./pages/AppUsagePage'));
+const AccountPage = lazy(() => import('./pages/AccountPage'));
+const ActivityPage = lazy(() => import('./pages/ActivityPage'));
+const SwadhyayPage = lazy(() => import('./pages/SwadhyayPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const DataQualityPage = lazy(() => import('./pages/DataQualityPage'));
+const FeedPage = lazy(() => import('./pages/FeedPage'));
+const EmailPage = lazy(() => import('./pages/EmailPage'));
+const VatoPage = lazy(() => import('./pages/VatoPage'));
+const AttendancePage = lazy(() => import('./pages/AttendancePage'));
 import Footer from './components/Footer';
 import ScrollHelper from './components/ScrollHelper';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -31,6 +35,16 @@ import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
 import { initPush } from './services/pushService';
 import { installProperCase } from './utils/properCase';
+
+// Shown briefly while a lazily-loaded page's chunk is fetched (usually a flash on
+// first open of that page, then cached). Kept minimal so it never feels heavy.
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center py-24 text-text-muted">
+      <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-border-light border-t-[#FF862A]" />
+    </div>
+  );
+}
 
 export default function App() {
   // Restore the saved session synchronously so a returning user goes straight
@@ -305,6 +319,7 @@ export default function App() {
         <div className={`flex-1 flex flex-col min-w-0 transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
+        <Suspense fallback={<PageLoading />}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={effectiveUser} refreshing={refreshing} />}
         {(activePage === 'devotees' || activePage === 'family') && (
           <DevoteesPage
@@ -341,6 +356,7 @@ export default function App() {
         {activePage === 'data' && <DataQualityPage user={effectiveUser} setActivePage={navigate} />}
         {activePage === 'account' && <AccountPage user={effectiveUser} setActivePage={navigate} />}
         {activePage === 'activity' && <ActivityPage user={effectiveUser} />}
+        </Suspense>
         </ErrorBoundary>
       </main>
 
