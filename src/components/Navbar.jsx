@@ -123,13 +123,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          {/* Brand wordmark text on the LEFT (tap → Home) — navy "Akshar" + saffron
-              "Connect", matching the logo so it doesn't duplicate the temple emblem. */}
+          {/* Brand wordmark text on the LEFT (tap → Home) — matches the footer logo:
+              navy "Akshar" + orange "Connect" on a single horizontal line. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center leading-none">
-            <span className="flex flex-col text-lg font-black leading-[1.02] tracking-tight sm:text-3xl">
+            <span className="whitespace-nowrap text-xl font-black tracking-tight sm:text-3xl">
               <span className="text-[#0A2E52] dark:text-white">Akshar</span>
-              <span className="text-[#E56F18]">Connect</span>
+              <span className="text-[#E56F18]"> Connect</span>
             </span>
           </button>
 
