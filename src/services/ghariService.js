@@ -1313,8 +1313,12 @@ export const ghariService = {
 
     // Order-level delivery totals (always from the flattened items).
     const delMap = deliveredItemsOf_(o);
-    let totKg = 0, delBoxes = 0, ordBoxes = 0;
-    (o.items || []).forEach(it => { const del = delMap[it.sku] || 0; ordBoxes += it.qty; delBoxes += del; totKg += del * sizeToKg_(it.size); });
+    let delBoxes = 0, ordBoxes = 0, ghariKgDel = 0, bhusuKgDel = 0;
+    (o.items || []).forEach(it => {
+      const del = delMap[it.sku] || 0; ordBoxes += it.qty; delBoxes += del;
+      const kg = del * sizeToKg_(it.size);
+      if (it.category === 'bhusu') bhusuKgDel += kg; else ghariKgDel += kg;
+    });
     const delAmount = (o.items || []).reduce((sum, it) => sum + (delMap[it.sku] || 0) * it.unitPrice, 0);
 
     const subs = o.subOrders || [];
@@ -1357,7 +1361,9 @@ export const ghariService = {
     const bal = o.total - num_(o.paymentReceived);
     const line = (label, val, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? DARK : MUTE)); doc.setFontSize(10); doc.text(label, pageW - 220, y); doc.setTextColor(...DARK); doc.text(val, pageW - 40, y, { align: 'right' }); y += 16; };
     line(`Boxes delivered`, `${delBoxes} of ${ordBoxes}`);
-    line(`Weight delivered`, `${kg1(totKg)} kg`);
+    // Weight delivered split into its two kinds: Total Ghari and Total Bhusu.
+    line(`Total Ghari`, `${kg1(ghariKgDel)} kg`);
+    line(`Total Bhusu`, `${kg1(bhusuKgDel)} kg`);
     line(`Delivered value`, rs(delAmount));
     line(`Order total`, rs(o.total), true);
     line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
