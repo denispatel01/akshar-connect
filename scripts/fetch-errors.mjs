@@ -54,10 +54,22 @@ async function main() {
   // Resolve mode.
   const resolve = valAfter('--resolve');
   if (resolve) {
-    const params = resolve === 'all' ? { action: 'resolveError', all: 'true', by: 'claude' }
-                                     : { action: 'resolveError', id: resolve, by: 'claude' };
-    const r = await call(params);
-    line(`✓ Marked ${r?.result?.updated ?? 0} error(s) resolved.`);
+    if (resolve === 'all') {
+      // Params go over a GET query string, so a boolean `all` arrives as the string
+      // "true" and the backend's `p.all === true` check never matches. Resolving by
+      // id compares as strings and works, so fetch the open ids and resolve each.
+      const open = await call({ action: 'getErrorLog', status: 'open', limit: '1000' });
+      const ids = (open?.errors || []).map((e) => e.id).filter(Boolean);
+      let updated = 0;
+      for (const id of ids) {
+        const r = await call({ action: 'resolveError', id, by: 'claude' });
+        updated += r?.result?.updated ?? 0;
+      }
+      line(`✓ Marked ${updated} error(s) resolved.`);
+    } else {
+      const r = await call({ action: 'resolveError', id: resolve, by: 'claude' });
+      line(`✓ Marked ${r?.result?.updated ?? 0} error(s) resolved.`);
+    }
     return;
   }
 
