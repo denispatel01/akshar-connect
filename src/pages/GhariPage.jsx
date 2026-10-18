@@ -578,59 +578,58 @@ function OrderRow({ order, onOpen }) {
   const summary = order.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ');
   const kg = ghariService.orderKg(order);
   const wa = ghariService.whatsappLink(order);
-  // DARK status cards — chosen for colour-blind readability: a colour-blind-safe,
-  // non-alarming palette (amber / blue / teal — NO red), each with a bold glowing
-  // left accent bar + a clear text label, so the state never relies on hue alone.
+  // LIGHT status cards, colour-blind friendly: a soft tinted background + a BOLD
+  // saturated left accent bar + a clear text label, so the three states are easy to
+  // tell apart by the bar & label, not by a faint background hue — and never by red.
   //   not delivered        → amber  (still to deliver)
   //   delivered, not paid  → blue   (delivered, payment pending)
-  //   delivered & paid     → teal   (done)
-  // Fixed dark look in both app themes so it's always easy to tell apart.
+  //   delivered & paid     → green  (done)
   const status = !order.delivered ? 'pending' : paidState === 'paid' ? 'paid' : 'unpaid';
   const THEME = {
-    pending: { grad: 'linear-gradient(135deg,#2b2419,#3c3016)', accent: '#F59E0B' },
-    unpaid:  { grad: 'linear-gradient(135deg,#182530,#143046)', accent: '#38BDF8' },
-    paid:    { grad: 'linear-gradient(135deg,#162a26,#123a31)', accent: '#2DD4A7' },
+    pending: { bar: '#F59E0B', bg: 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20' },
+    unpaid:  { bar: '#0EA5E9', bg: 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20' },
+    paid:    { bar: '#10B981', bg: 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20' },
   }[status];
   return (
-    <div className="flex items-center gap-2 border-b border-white/5 px-3 py-3 text-white transition-all last:border-0 hover:brightness-125"
-      style={{ background: THEME.grad, borderLeft: `5px solid ${THEME.accent}`, boxShadow: `inset 10px 0 18px -14px ${THEME.accent}` }}>
+    <div className={`flex items-center gap-2 border-b border-border-light px-3 py-3 transition-colors last:border-0 ${THEME.bg}`}
+      style={{ borderLeft: `5px solid ${THEME.bar}` }}>
       <button onClick={() => onOpen(order)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {order.orderNo && (
-              <span className="shrink-0 rounded-md bg-white/15 px-1.5 py-0.5 font-mono text-[11px] font-black text-white">#{order.orderNo}</span>
+              <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-black text-primary">#{order.orderNo}</span>
             )}
-            <span className="truncate text-sm font-extrabold text-white">{order.customerName || '(no name)'}</span>
+            <span className="truncate text-sm font-extrabold text-text-main">{order.customerName || '(no name)'}</span>
             {order.subOrders?.length > 0 && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-white"><Users className="h-2.5 w-2.5" />{order.subOrders.length}</span>
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-black text-primary"><Users className="h-2.5 w-2.5" />{order.subOrders.length}</span>
             )}
             {order.delivered ? (
-              <Truck className="h-3.5 w-3.5 shrink-0" style={{ color: THEME.accent }} />
+              <Truck className="h-3.5 w-3.5 shrink-0" style={{ color: THEME.bar }} />
             ) : Number(order.deliveredBoxes || 0) > 0 && (
-              <span className="shrink-0 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200">
+              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                 {order.deliveredBoxes}/{order.totalBoxes ?? order.items.reduce((s, i) => s + Number(i.qty || 0), 0)}
               </span>
             )}
           </div>
-          <div className="truncate text-[11px] text-white/55">{summary}</div>
+          <div className="truncate text-[11px] text-text-muted">{summary}</div>
           {(kg.ghariKg > 0 || kg.bhusuKg > 0) && (
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-black">
-              {kg.ghariKg > 0 && <span className="rounded-full bg-orange-400/20 px-1.5 py-0.5 text-orange-200">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
-              {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-400/25 px-1.5 py-0.5 text-purple-200">{fmtKg(kg.bhusuKg)} kg Bhusu</span>}
+              {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
+              {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(kg.bhusuKg)} kg Bhusu</span>}
             </div>
           )}
           <div className="flex flex-wrap gap-x-2 text-[10px] font-semibold">
-            {order.karyakarta && <span className="truncate text-teal-300">via {order.karyakarta}</span>}
-            {order.createdBy && <span className="truncate text-white/45">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
+            {order.karyakarta && <span className="truncate text-teal-600">via {order.karyakarta}</span>}
+            {order.createdBy && <span className="truncate text-text-muted">· by {String(order.createdBy).replace(/\s*\(.*\)$/, '')}</span>}
           </div>
         </div>
       </button>
       <div className="shrink-0 text-right">
-        <div className="text-sm font-black text-white">{rupee(order.total)}</div>
+        <div className="text-sm font-black text-text-main">{rupee(order.total)}</div>
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${
-          paidState === 'paid' ? 'bg-emerald-400/20 text-emerald-200'
-          : paidState === 'partial' ? 'bg-amber-400/20 text-amber-200'
-          : 'bg-sky-400/20 text-sky-200'}`}>
+          paidState === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+          : paidState === 'partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+          : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'}`}>
           {paidState === 'paid' ? `Paid${order.paymentType ? ' · ' + order.paymentType : ''}` : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
       </div>
