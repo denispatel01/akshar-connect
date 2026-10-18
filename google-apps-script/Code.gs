@@ -904,12 +904,16 @@ function backupSpreadsheet_(keep){
   for(var i = keep; i < files.length; i++){ try{ files[i].setTrashed(true); pruned++; }catch(e){} }
   return { name: name, id: copy.getId(), kept: Math.min(files.length, keep), pruned: pruned };
 }
-function dailyBackup_(){ try{ backupSpreadsheet_(30); }catch(e){ Logger.log('daily backup failed: ' + e); } }
-// RUN ONCE in the editor to schedule a daily 1 AM backup (approve the trigger).
+// Keep 90 backups: at 3 per day that is ~30 days of history retained.
+function dailyBackup_(){ try{ backupSpreadsheet_(90); }catch(e){ Logger.log('backup failed: ' + e); } }
+// RUN ONCE in the editor to schedule backups 3× a day — 12 AM, 12 PM and 6 PM
+// (approve the trigger). Re-running first removes any old backup trigger(s) so it
+// never stacks duplicates. NOTE: Apps Script fires a time trigger within a ~15-min
+// window of the requested hour, so e.g. the noon backup may land 11:45 AM–12:15 PM.
 function installDailyBackup(){
   ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='dailyBackup_') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('dailyBackup_').timeBased().atHour(1).everyDays(1).create();
-  Logger.log('Daily backup installed at 01:00 (' + (Session.getScriptTimeZone()||'Asia/Kolkata') + ').');
+  [0, 12, 18].forEach(function(h){ ScriptApp.newTrigger('dailyBackup_').timeBased().atHour(h).everyDays(1).create(); });
+  Logger.log('Backups scheduled 3×/day at 12 AM, 12 PM & 6 PM (' + (Session.getScriptTimeZone()||'Asia/Kolkata') + ').');
 }
 
 function doGetAnnouncements_(){
@@ -2024,7 +2028,7 @@ function handle_(p){
     if(action==='busUpsertBooking') return busUpsert_('BusBookings', p.row || {});
     if(action==='busDeleteBooking') return busDelete_('BusBookings', p.id);
     if(action==='getVato') return cachedJson_('vato', 1800, function(){ return JSON.parse(doGetVato_().getContent()); });
-    if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||30) });
+    if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||90) });
     if(action==='getGroupAttendance') return cachedJson_('groupAtt', 600, function(){ return JSON.parse(doGetGroupAttendance_().getContent()); });
     if(action==='clearBase64Photos') return doClearBase64Photos_();
     if(action==='migrateBase64Photos') return doMigrateBase64Photos_();
