@@ -113,8 +113,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           Dark theme: flat dark surface; the light-background logo goes on a white
           chip so it stays readable. A saffron accent line runs along the bottom. */}
       <header className="sticky top-0 z-40 w-full bg-white text-[#0A2E52] shadow-sm border-b border-black/5 dark:bg-[#0B1322] dark:text-white dark:border-white/10">
-        <div className="flex items-center gap-2 px-3 py-2.5 sm:px-5 sm:py-3">
-          {/* Left: sidebar toggle (desktop) + back */}
+        <div className="relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5">
+          {/* Left: sidebar toggle (desktop) + back + "Akshar Connect" wordmark text */}
           <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/70 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10">
             {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
@@ -123,15 +123,21 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
-
-          {/* Brand — the official Akshar Connect logo (tap → Home). Direct on the
-              white light-theme header; on a white chip in dark theme so it stays legible. */}
+          {/* Brand wordmark text on the LEFT (tap → Home) — navy "Akshar" + saffron
+              "Connect", matching the logo so it doesn't duplicate the temple emblem. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="flex min-w-0 items-center">
-            <span className="flex items-center rounded-xl dark:bg-white dark:px-2.5 dark:py-1 dark:shadow-sm dark:ring-1 dark:ring-black/5">
-              <img src={`${import.meta.env.BASE_URL}images/logo-wordmark.webp`} alt="Akshar Connect"
-                className="h-14 w-auto max-w-[62vw] object-contain sm:h-[72px]" />
+            className="z-10 flex min-w-0 shrink items-center leading-none">
+            <span className="truncate text-xs font-black leading-tight tracking-tight sm:text-2xl">
+              <span className="text-[#0A2E52] dark:text-white">Akshar</span>
+              <span className="text-[#E56F18]"> Connect</span>
             </span>
+          </button>
+
+          {/* Center: the big temple logo, absolutely centered (tap → Home). */}
+          <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+            <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt="Akshar Connect"
+              className="pointer-events-auto h-11 w-11 rounded-2xl object-contain shadow-sm ring-1 ring-black/5 sm:h-16 sm:w-16 dark:ring-white/10" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
