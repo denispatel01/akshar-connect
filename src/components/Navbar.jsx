@@ -130,7 +130,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex min-w-0 items-center">
             <span className="flex items-center rounded-xl dark:bg-white dark:px-2.5 dark:py-1 dark:shadow-sm dark:ring-1 dark:ring-black/5">
               <img src={`${import.meta.env.BASE_URL}images/logo-wordmark.webp`} alt="Akshar Connect"
-                className="h-7 w-auto max-w-[62vw] object-contain sm:h-9" />
+                className="h-14 w-auto max-w-[62vw] object-contain sm:h-[72px]" />
             </span>
           </button>
 
