@@ -578,8 +578,17 @@ function OrderRow({ order, onOpen }) {
   const summary = order.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ');
   const kg = ghariService.orderKg(order);
   const wa = ghariService.whatsappLink(order);
+  // Status tint so the row's state is readable at a glance:
+  //   not delivered        → light red
+  //   delivered, not paid  → light blue
+  //   delivered & paid     → light green
+  const rowBg = !order.delivered
+    ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50'
+    : paidState === 'paid'
+      ? 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50'
+      : 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/30 dark:hover:bg-sky-950/50';
   return (
-    <div className="flex items-center gap-2 border-b border-border-light px-3 py-3 last:border-0 hover:bg-bg-base">
+    <div className={`flex items-center gap-2 border-b border-border-light px-3 py-3 transition-colors last:border-0 ${rowBg}`}>
       <button onClick={() => onOpen(order)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -2144,6 +2153,15 @@ export default function GhariPage({ user }) {
     return list;
   }, [season, search, filter, tick]);
 
+  // Total Ghari & Bhusu weight across the currently filtered/searched orders —
+  // shown next to the order count. Reuses the same per-order kg split used on each
+  // row (ghariService.orderKg), so it never diverges from the badges below.
+  const orderTotals = useMemo(() => {
+    let ghariKg = 0, bhusuKg = 0;
+    orders.forEach(o => { const k = ghariService.orderKg(o); ghariKg += k.ghariKg; bhusuKg += k.bhusuKg; });
+    return { ghariKg, bhusuKg };
+  }, [orders]);
+
   if (!dataService.hasModule(user, 'ghari')) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
@@ -2214,7 +2232,15 @@ export default function GhariPage({ user }) {
                 <Download className="h-3.5 w-3.5" /> Print sheet
               </button>
             )}
-            <span className={`${canEdit ? '' : 'ml-auto '}self-center text-[11px] font-bold text-text-muted`}>{orders.length} order{orders.length === 1 ? '' : 's'}</span>
+            <div className={`${canEdit ? '' : 'ml-auto '}flex flex-wrap items-center gap-1.5 self-center`}>
+              <span className="text-[11px] font-bold text-text-muted">{orders.length} order{orders.length === 1 ? '' : 's'}</span>
+              {orderTotals.ghariKg > 0 && (
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(orderTotals.ghariKg)} kg Ghari</span>
+              )}
+              {orderTotals.bhusuKg > 0 && (
+                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-black text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(orderTotals.bhusuKg)} kg Bhusu</span>
+              )}
+            </div>
           </div>
           {orders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
