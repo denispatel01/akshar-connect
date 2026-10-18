@@ -26,6 +26,14 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // The Home page's search bar (and any other entry point) opens global search by
+  // firing this event, so we don't have to thread a callback through the app.
+  useEffect(() => {
+    const open = () => setSearchOpen(true);
+    window.addEventListener('ac-open-search', open);
+    return () => window.removeEventListener('ac-open-search', open);
+  }, []);
+
   // Lock the page behind the Menu sheet so dragging inside the sheet scrolls the
   // sheet — not the background screen.
   useEffect(() => {
@@ -123,28 +131,24 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          {/* Brand wordmark on the LEFT (tap → Home) — the SAME artwork as the footer
-              logo (wordmark-only crop), so the branding matches exactly. In dark mode
-              it sits on a subtle white chip so the navy "Akshar" stays readable. */}
+          {/* Brand: the temple logo + "Akshar Connect" wordmark together on the LEFT
+              (tap → Home). The wordmark is the same artwork as the footer logo, so the
+              branding matches. In dark mode the pair sits on a white chip so the navy
+              wordmark stays readable (the temple icon already has a light background). */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="z-10 flex min-w-0 shrink items-center leading-none dark:rounded-lg dark:bg-white/95 dark:px-2 dark:py-1">
+            className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
+            <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt=""
+              className="h-8 w-8 shrink-0 rounded-lg object-contain sm:h-11 sm:w-11" />
             <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
-              className="h-[18px] w-auto object-contain sm:h-9" />
-          </button>
-
-          {/* Center: the big temple logo, absolutely centered (tap → Home). Hidden on
-              phones, where it would collide with the left wordmark — there the wordmark
-              alone carries the brand (as it does in the footer). */}
-          <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center justify-center sm:flex">
-            <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt="Akshar Connect"
-              className="pointer-events-auto h-12 w-12 rounded-2xl object-contain shadow-sm ring-1 ring-black/5 sm:h-20 sm:w-20 dark:ring-white/10" />
+              className="h-4 w-auto object-contain sm:h-7" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
+            {/* Search: on phones the Home page's search bar is the entry point, so the
+                header icon is desktop-only to give the brand room. */}
             <button onClick={() => setSearchOpen(true)} title="Search"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10">
+              className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10">
               <Search className="h-5 w-5" />
             </button>
             <button onClick={() => window.dispatchEvent(new Event('ac-open-notifications'))} title="Notifications"

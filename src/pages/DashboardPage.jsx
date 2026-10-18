@@ -24,6 +24,7 @@ import {
   Film,
   Plus,
   ArrowRight,
+  Search,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ghariService } from '../services/ghariService';
@@ -257,6 +258,16 @@ export default function DashboardPage({ setActivePage, user }) {
   // mobile looks exactly the same.
   return (
     <div className="w-full max-w-none 2xl:max-w-[1600px] 2xl:mx-auto px-4 py-6 sm:px-6 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+      {/* Search bar — a big, tappable field (like a store's search) that opens the
+          global search overlay. Sits at the very top, full width. */}
+      <button
+        onClick={() => window.dispatchEvent(new Event('ac-open-search'))}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border-light bg-surface px-4 py-3.5 text-left shadow-xs transition-colors hover:border-primary/40 lg:col-span-3 lg:order-0"
+      >
+        <Search className="h-5 w-5 shrink-0 text-text-muted" />
+        <span className="truncate text-sm text-text-muted">Search devotees, vato, events &amp; more…</span>
+      </button>
+
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-white shadow-lg sm:p-8 lg:col-span-3 lg:order-1">
         <div
