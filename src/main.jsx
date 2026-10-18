@@ -74,6 +74,11 @@ root.render(
   </StrictMode>,
 )
 
+// Tell the index.html failsafe the app mounted, so it never force-reloads a
+// working app (the failsafe only fires if this never runs — e.g. a stale cached
+// index.html pointed at a chunk that 404'd after a deploy).
+try { window.__acMounted = true; clearTimeout(window.__acRecover); } catch { /* ignore */ }
+
 // 3) Fade out the branded splash (declared in index.html) once we've mounted.
 function hideSplash() {
   try { clearTimeout(window.__acSplashTimer) } catch { /* ignore */ }

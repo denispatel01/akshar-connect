@@ -27,6 +27,12 @@ function stampServiceWorker() {
 // https://vite.dev/config/
 export default defineConfig({
   base: "/akshar-connect/",
+  // Stamp a real build version so error reports show which build a user is on
+  // (was always "dev" because __APP_VERSION__ was never defined) — makes a stale
+  // cached build obvious in the exception log.
+  define: {
+    __APP_VERSION__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')),
+  },
   plugins: [
     tailwindcss(),
     react(),

@@ -44,7 +44,22 @@
       </div>
     </div>
     <div id="root"></div>
-    <script>window.__acSplashTimer=setTimeout(function(){var e=document.getElementById('ac-splash');if(e)e.classList.add('ac-show');},1000);</script>
+    <script>
+      window.__acSplashTimer=setTimeout(function(){var e=document.getElementById('ac-splash');if(e)e.classList.add('ac-show');},1000);
+      // Self-heal a stuck/black screen. If the app has NOT mounted ~10s after load
+      // (e.g. a cached index.html points at a JS chunk that 404s after a deploy —
+      // main.jsx never runs, so its own recovery can't fire), drop the service
+      // worker + all caches and hard-reload ONCE so the user gets the fresh build.
+      window.__acRecover=setTimeout(function(){
+        var root=document.getElementById('root');
+        if(window.__acMounted||(root&&root.childElementCount>0))return; // app rendered — fine
+        try{ if(sessionStorage.getItem('ac-recovered')==='1')return; sessionStorage.setItem('ac-recovered','1'); }catch(e){}
+        var reload=function(){ try{ location.reload(); }catch(e){} };
+        var clearedCaches=('caches' in window)?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
+        var unregSW=(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister();}));}).catch(function(){}):Promise.resolve();
+        Promise.all([clearedCaches,unregSW]).then(reload,reload);
+      },10000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
