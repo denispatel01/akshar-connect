@@ -127,9 +127,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               "Connect", matching the logo so it doesn't duplicate the temple emblem. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center leading-none">
-            <span className="truncate text-xs font-black leading-tight tracking-tight sm:text-2xl">
+            <span className="flex flex-col text-lg font-black leading-[1.02] tracking-tight sm:text-3xl">
               <span className="text-[#0A2E52] dark:text-white">Akshar</span>
-              <span className="text-[#E56F18]"> Connect</span>
+              <span className="text-[#E56F18]">Connect</span>
             </span>
           </button>
 
@@ -137,7 +137,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
             <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt="Akshar Connect"
-              className="pointer-events-auto h-11 w-11 rounded-2xl object-contain shadow-sm ring-1 ring-black/5 sm:h-16 sm:w-16 dark:ring-white/10" />
+              className="pointer-events-auto h-12 w-12 rounded-2xl object-contain shadow-sm ring-1 ring-black/5 sm:h-20 sm:w-20 dark:ring-white/10" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
