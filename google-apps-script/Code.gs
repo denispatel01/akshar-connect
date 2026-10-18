@@ -123,6 +123,11 @@ var SEED_EMAIL_TEMPLATES = [
 
 // Columns stored/returned as booleans (coerced on read).
 var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
+// Exceptions: a column named like a bool column above but which is FREE TEXT in a
+// specific sheet, keyed as 'Sheet.column' — these must never be coerced to a
+// boolean. (ErrorLog.message is the error text, not a Followups-style
+// contacted-via-message flag; coercing it blanked every stored error message.)
+var BOOL_COL_EXCEPTIONS = { 'ErrorLog.message': true };
 
 // The installed app URL — tapping a push notification opens this (not the domain root).
 var APP_URL = 'https://denispatel01.github.io/akshar-connect/';
@@ -1532,7 +1537,7 @@ function readAll_(name){
     var o={}; var blank=true;
     for(var c=0;c<head.length;c++){ var val=v[i][c]; if(val!=='' && val!==null) blank=false; o[head[c]]= (val===null?'':val); }
     if(!blank){
-      for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } }
+      for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0 && !BOOL_COL_EXCEPTIONS[name+'.'+bc]){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } }
       out.push(o);
     }
   }
@@ -1548,7 +1553,7 @@ function readTail_(name, n){
   for(var i=0;i<v.length;i++){
     var o={}; var blank=true;
     for(var c=0;c<head.length;c++){ var val=v[i][c]; if(val!==''&&val!==null) blank=false; o[head[c]]=(val===null?'':val); }
-    if(!blank){ for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } } out.push(o); }
+    if(!blank){ for(var bc in BOOL_COLS){ if(head.indexOf(bc)>=0 && !BOOL_COL_EXCEPTIONS[name+'.'+bc]){ var bv=o[bc]; o[bc]=(bv===true||bv==='true'||bv==='TRUE'||bv==='1'); } } out.push(o); }
   }
   return out;
 }
