@@ -856,6 +856,9 @@ function KaryakartaExportModal({ season, onClose }) {
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const [exportKk, setExportKk] = useState(false);
+  // The two big lists collapse so the report isn't a long scroll (default open).
+  const [openKk, setOpenKk] = useState(true);
+  const [openCust, setOpenCust] = useState(true);
   const kkList = Object.entries(r.byKaryakarta).sort((a, b) => b[1].amount - a[1].amount);
   const custList = useMemo(() => Object.values(r.byCustomer || {}).sort((a, b) => b.amount - a.amount), [r]);
   const [custQ, setCustQ] = useState('');
@@ -962,18 +965,29 @@ function ReportView({ season }) {
 
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
-          <h3 className="mb-1 text-sm font-black text-text-main">By karyakarta</h3>
-          <p className="mb-3 text-[11px] text-text-muted">Collection per person — tap a row to see every order with names, and export that person to PDF / Excel. Use the button below for several or all karyakartas at once.</p>
-          <div className="space-y-2">
-            {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} season={season} cardKey={key} />)}
-          </div>
+          <button onClick={() => setOpenKk(o => !o)} className="flex w-full items-center gap-2 text-left">
+            <h3 className="flex-1 text-sm font-black text-text-main">By karyakarta <span className="font-bold text-text-muted">· {kkList.length}</span></h3>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${openKk ? 'rotate-180' : ''}`} />
+          </button>
+          {openKk && (
+            <>
+              <p className="mb-3 mt-1 text-[11px] text-text-muted">Collection per person — tap a row to see every order with names, and export that person to PDF / Excel. Use the button below for several or all karyakartas at once.</p>
+              <div className="space-y-2">
+                {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} season={season} cardKey={key} />)}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {custList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
-          <h3 className="mb-1 text-sm font-black text-text-main">By customer</h3>
-          <p className="mb-3 text-[11px] text-text-muted">Total Ghari &amp; Bhusu each person ordered this season (all their orders added up).</p>
+          <button onClick={() => setOpenCust(o => !o)} className="flex w-full items-center gap-2 text-left">
+            <h3 className="flex-1 text-sm font-black text-text-main">By customer <span className="font-bold text-text-muted">· {custList.length}</span></h3>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${openCust ? 'rotate-180' : ''}`} />
+          </button>
+          {openCust && (<>
+          <p className="mb-3 mt-1 text-[11px] text-text-muted">Total Ghari &amp; Bhusu each person ordered this season (all their orders added up).</p>
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
             <Search className="h-4 w-4 text-text-muted" />
             <input value={custQ} onChange={(e) => setCustQ(e.target.value)} placeholder="Search a customer…"
@@ -1003,6 +1017,7 @@ function ReportView({ season }) {
             })}
             {custShown.length === 0 && <p className="py-4 text-center text-xs text-text-muted">No customers match “{custQ}”.</p>}
           </div>
+          </>)}
         </div>
       )}
 
