@@ -1405,7 +1405,7 @@ export const ghariService = {
   // item's boxes + kg, and the Ghari/Bhusu kg totals (e.g. 10 kg Ghari, 4 kg Bhusu),
   // with a signature line. No money — this is a stock handover, not a sale. Shares to
   // WhatsApp where supported, else downloads. Mirrors orderChallanPdf.
-  stockChallanPdf: async (stock, { share = false } = {}) => {
+  stockChallanPdf: async (stock, { share = false, title = 'Ghari Seva — Stock Challan', subtitle = 'Advance stock issued', recipientLabel = 'Issued to' } = {}) => {
     const st = normalizeStock_(stock);
     const s = st.season || meta_().season;
     let jsPDF, autoTableMod;
@@ -1427,14 +1427,14 @@ export const ghariService = {
     doc.setFillColor(255, 157, 82); doc.rect(0, 92, pageW, 4, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
     doc.setFontSize(9); doc.text('AKSHAR CONNECT', 40, 32);
-    doc.setFontSize(18); doc.text('Ghari Seva — Stock Challan', 40, 58);
+    doc.setFontSize(18); doc.text(title, 40, 58);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(255, 235, 220);
-    doc.text(`Season ${s}  ·  Advance stock issued`, 40, 78);
+    doc.text(`Season ${s}  ·  ${subtitle}`, 40, 78);
     doc.setFontSize(9); doc.text(`Date: ${when}`, pageW - 40, 32, { align: 'right' });
 
     // Recipient
     doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    doc.text('Issued to', 40, 122);
+    doc.text(recipientLabel, 40, 122);
     doc.setFontSize(13); doc.text(st.karyakarta || '—', 40, 140);
 
     // Items — boxes + kg
