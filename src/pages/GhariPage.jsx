@@ -902,13 +902,14 @@ function StockReconCard({ r }) {
   if (!hasGhari && !hasBhusu) return null;
   const grand = { b: gT.b + bT.b, s: gT.s + bT.s };
 
+  const kgVal = (n) => <>{fmtKg(n)}<span className="text-[9px] font-semibold text-text-muted">kg</span></>;
   const cells = (b, s, strong) => {
     const left = b - s;
     return (
       <>
-        <span className={`w-14 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-emerald-600`}>{fmtKg(b)}</span>
-        <span className={`w-14 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-rose-600`}>{fmtKg(s)}</span>
-        <span className={`w-14 shrink-0 text-right font-black ${left < -0.05 ? 'text-red-600' : Math.abs(left) < 0.05 ? 'text-amber-600' : 'text-text-main'}`}>{fmtKg(left)}</span>
+        <span className={`w-16 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-emerald-600`}>{kgVal(b)}</span>
+        <span className={`w-16 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-rose-600`}>{kgVal(s)}</span>
+        <span className={`w-16 shrink-0 text-right font-black ${left < -0.05 ? 'text-red-600' : Math.abs(left) < 0.05 ? 'text-amber-600' : 'text-text-main'}`}>{kgVal(left)}</span>
       </>
     );
   };
@@ -941,9 +942,9 @@ function StockReconCard({ r }) {
       <h3 className="mb-2 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> Stock — bought vs sold <span className="font-bold text-text-muted">(kg)</span></h3>
       <div className="flex items-center gap-1 border-b border-border-light pb-1 pl-8 text-[9px] font-black uppercase tracking-wide text-text-muted">
         <span className="min-w-0 flex-1">Item</span>
-        <span className="w-14 shrink-0 text-right">Bought</span>
-        <span className="w-14 shrink-0 text-right">Sold</span>
-        <span className="w-14 shrink-0 text-right">Left</span>
+        <span className="w-16 shrink-0 text-right">Bought</span>
+        <span className="w-16 shrink-0 text-right">Sold</span>
+        <span className="w-16 shrink-0 text-right">Left</span>
       </div>
       <div className="mt-2 space-y-1.5">
         {hasGhari ? group('ghari', 'Ghari', gT, '#EA580C', ghariChildren, 'Ghari items') : null}
@@ -951,9 +952,9 @@ function StockReconCard({ r }) {
       </div>
       <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-white">
         <span className="min-w-0 flex-1 truncate font-black">TOTAL</span>
-        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.b)}</span>
-        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.s)}</span>
-        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.b - grand.s)}</span>
+        <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.b)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
+        <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.s)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
+        <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.b - grand.s)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
       </div>
       <p className="mt-2 text-[10px] font-semibold text-text-muted">All in kg · Bought = purchased · Sold = ordered · Left = bought − sold. Tap Ghari / Bhusu for the breakdown.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
     </div>
