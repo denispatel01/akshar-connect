@@ -892,8 +892,8 @@ function ReportView({ season }) {
           { l: 'Avg boxes/order', v: (r.boxes / r.orderCount).toFixed(1), s: `${r.boxes} boxes` },
           { l: 'Delivered', v: Math.round((r.delivered / r.orderCount) * 100) + '%', s: `${r.pending} pending` },
           ...(r.totalKg > 0 ? [
-            { l: 'Ghari share', v: Math.round((r.ghariKg / r.totalKg) * 100) + '%', s: `${kg1(r.ghariKg)} of ${kg1(r.totalKg)} kg` },
-            { l: 'Bhusu share', v: Math.round((r.bhusuKg / r.totalKg) * 100) + '%', s: `${kg1(r.bhusuKg)} kg` },
+            { l: 'Ghari share', v: Math.round((r.ghariKg / r.totalKg) * 100) + '%', s: '' },
+            { l: 'Bhusu share', v: Math.round((r.bhusuKg / r.totalKg) * 100) + '%', s: '' },
           ] : []),
           ...(r.purchaseCost > 0 ? [
             { l: 'Margin', v: rupee(r.revenue - r.purchaseCost), s: r.revenue > 0 ? Math.round(((r.revenue - r.purchaseCost) / r.revenue) * 100) + '% of revenue' : '' },
