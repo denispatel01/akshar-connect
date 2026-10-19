@@ -681,6 +681,25 @@ function groupByKaryakarta_(list) {
   });
 }
 
+// One karyakarta's orders within a delivery date — collapsed by default, tap to
+// expand its orders. Shows a Ghari-kg summary so the load is visible when closed.
+function KaryakartaSubGroup({ group, onOpen }) {
+  const [open, setOpen] = useState(false);
+  let gKg = 0; group.orders.forEach(o => { gKg += ghariService.orderKg(o).ghariKg; });
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-1.5 bg-bg-base px-3 py-2 text-left">
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
+        <Users className="h-3 w-3 shrink-0 text-teal-600" />
+        <span className="truncate text-[11px] font-black text-teal-700 dark:text-teal-300">{group.name}</span>
+        <span className="text-[10px] font-bold text-text-muted">· {group.orders.length} order{group.orders.length === 1 ? '' : 's'}</span>
+        {gKg > 0 && <span className="ml-auto shrink-0 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(gKg)} kg</span>}
+      </button>
+      {open && group.orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
 // Delivery-planning overview: a date-wise bar chart of how many undelivered orders
 // are due on each date (soonest first), plus a "No delivery date" bucket for orders
 // still unscheduled. Each bar expands to the orders due that day. Collapsible.
@@ -744,14 +763,7 @@ function DeliverySchedule({ season, orders, onOpen }) {
                   {expanded && (
                     <div className="border-t border-border-light">
                       {groupByKaryakarta_(g.orders).map(kk => (
-                        <div key={kk.key}>
-                          <div className="flex items-center gap-1.5 bg-bg-base px-3 py-1.5">
-                            <Users className="h-3 w-3 shrink-0 text-teal-600" />
-                            <span className="truncate text-[11px] font-black text-teal-700 dark:text-teal-300">{kk.name}</span>
-                            <span className="text-[10px] font-bold text-text-muted">· {kk.orders.length} order{kk.orders.length === 1 ? '' : 's'}</span>
-                          </div>
-                          {kk.orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
-                        </div>
+                        <KaryakartaSubGroup key={kk.key} group={kk} onOpen={onOpen} />
                       ))}
                     </div>
                   )}
