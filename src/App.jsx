@@ -319,8 +319,8 @@ export default function App() {
 
         {/* Content column reserves the fixed sidebar's width on desktop (so the
             sidebar stays put while the page scrolls). */}
-        <div className={`flex-1 flex flex-col min-w-0 min-h-0 transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
-      <main className="flex-1 min-h-0 md:overflow-y-auto pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
+        <div className={`flex-1 flex flex-col min-w-0 min-h-0 md:overflow-y-auto transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
+      <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
         <Suspense fallback={<PageLoading />}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={effectiveUser} refreshing={refreshing} />}
