@@ -831,6 +831,24 @@ export const ghariService = {
     try { dataService.logActivity('ghari-payment', order.customerName, `${pending ? 'marked payment pending' : `marked paid (${pType}) ₹${paymentReceived}`} for ${order.customerName}`); } catch { /* ignore */ }
     return order;
   },
+  // Set (or clear) an order's planned delivery date — a DELIVERY-ONLY write, so it
+  // is allowed for any known user like marking delivery/payment. `date` is a
+  // 'YYYY-MM-DD' string (or '' to clear). Syncs via the lightweight
+  // `ghariMarkDelivery` action. Carries the current deliveredBoxes so the backend
+  // delivery branch runs and persists the date.
+  setDeliveryDate: (id, date) => {
+    const idx = orders_().findIndex(o => o.id === id); if (idx < 0) return null;
+    const prev = MEM.orders[idx];
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const order = normalizeOrder_({ ...prev, deliveryDate: String(date || '').trim(), updatedBy: actor, updatedOn: now });
+    MEM.orders[idx] = order; saveOrdersLocal_();
+    enqueueUpsert_('ghariMarkDelivery', 'id', quickUpdatePayload_(order, actor, now));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-delivery', order.customerName, `${order.deliveryDate ? `set delivery date ${order.deliveryDate}` : 'cleared delivery date'} for ${order.customerName}`); } catch { /* ignore */ }
+    return order;
+  },
 
   // ---- Purchases (procurement / the "buy" side) ----
   getPurchases: (season, { includeVoid = false } = {}) => {

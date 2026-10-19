@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw, Boxes, BarChart3,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, CalendarPlus, History, RotateCcw, Boxes, BarChart3,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -584,6 +584,33 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   );
 }
 
+// A compact per-row control to set/clear an undelivered order's planned delivery
+// date without opening the full editor. Shows the date once set; tapping opens a
+// native date picker. Delivery-only write, allowed for any viewer.
+function DeliveryDateButton({ order }) {
+  const ref = useRef(null);
+  const date = order.deliveryDate || '';
+  const open = () => { const el = ref.current; if (!el) return; if (el.showPicker) { try { el.showPicker(); return; } catch { /* fall through */ } } el.focus(); el.click(); };
+  const label = date
+    ? new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+    : null;
+  return (
+    <div className="relative shrink-0">
+      <button type="button" onClick={open}
+        title={date ? `Delivery date: ${date} — tap to change` : 'Set delivery date'}
+        className={`flex h-9 items-center gap-1 rounded-xl border px-2 text-[11px] font-black active:scale-95 ${date
+          ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+          : 'border-border-light bg-surface text-text-muted hover:border-primary hover:text-primary'}`}>
+        {date ? <Calendar className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
+        {label && <span>{label}</span>}
+      </button>
+      <input ref={ref} type="date" value={date}
+        onChange={(e) => ghariService.setDeliveryDate(order.id, e.target.value)}
+        className="pointer-events-none absolute inset-0 h-0 w-0 opacity-0" tabIndex={-1} aria-hidden />
+    </div>
+  );
+}
+
 // ───────────────────────── Order row (list) ─────────────────────────────────
 function OrderRow({ order, onOpen }) {
   const bal = order.total - Number(order.paymentReceived || 0);
@@ -646,6 +673,7 @@ function OrderRow({ order, onOpen }) {
           {paidState === 'paid' ? `Paid${order.paymentType ? ' · ' + order.paymentType : ''}` : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
       </div>
+      {!order.delivered && <DeliveryDateButton order={order} />}
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp follow-up"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 active:scale-95">
@@ -2426,6 +2454,17 @@ export default function GhariPage({ user }) {
     if (filter === 'delivered') list = list.filter(o => o.delivered);
     if (filter === 'unpaid') list = list.filter(o => (o.total - Number(o.paymentReceived || 0)) > 0);
     if (filter === 'paid') list = list.filter(o => Number(o.paymentReceived || 0) > 0 && (o.total - Number(o.paymentReceived || 0)) <= 0);
+    // Soonest planned delivery first; orders with no delivery date sink to the
+    // bottom (keeping their existing order-no order among themselves). A stable
+    // sort preserves getOrders' ordering for ties / undated rows.
+    list = list.slice().sort((a, b) => {
+      const da = (a.deliveryDate || '').trim();
+      const db = (b.deliveryDate || '').trim();
+      if (da && db) return da < db ? -1 : da > db ? 1 : 0;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
     return list;
   }, [season, search, filter, tick]);
 

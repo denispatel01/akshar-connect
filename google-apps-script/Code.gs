@@ -2302,7 +2302,11 @@ function doGhariMarkDelivery_(p){
       var n = Math.max(0, Math.min(totalBoxes, Math.round(Number(row.deliveredBoxes)||0)));
       after.delivered = totalBoxes > 0 ? (n >= totalBoxes) : (String(row.delivered)==='true' || row.delivered===true);
       after.deliveredBoxes = n;
-      if(row.deliveryDate !== undefined && row.deliveryDate !== null && String(row.deliveryDate) !== '') after.deliveryDate = row.deliveryDate;
+    }
+    // Planned delivery date — settable (and clearable) on its own, independent of
+    // the delivered/box fields.
+    if(row.deliveryDate !== undefined && row.deliveryDate !== null){
+      after.deliveryDate = String(row.deliveryDate);
     }
     // Payment fields (present on a payment or a combined quick mark).
     if(row.paymentReceived !== undefined || row.paymentType !== undefined){
