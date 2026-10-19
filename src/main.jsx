@@ -109,7 +109,10 @@ try { busService.init() } catch { /* non-fatal */ }
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })
+      // updateViaCache:'none' → the browser NEVER serves sw.js from its HTTP cache on an
+      // update check, so a new deploy's worker is always detected (iOS PWAs especially
+      // would otherwise sit on a cached sw.js and never update).
+      .register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL, updateViaCache: 'none' })
       .then((reg) => {
         // When an updated worker finishes installing, activate it immediately.
         reg.addEventListener('updatefound', () => {
@@ -121,11 +124,13 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
             }
           })
         })
-        // Check for a new build now and whenever the app regains focus.
+        // Check for a new build now, whenever the app regains focus, AND on a timer so a
+        // long-open (or installed) session still picks up a deploy without being reopened.
         reg.update().catch(() => {})
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {})
         })
+        setInterval(() => { reg.update().catch(() => {}) }, 60000)
       })
       .catch(() => {})
 
