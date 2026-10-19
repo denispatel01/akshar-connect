@@ -137,10 +137,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               wordmark stays readable (the temple icon already has a light background). */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
+            {/* Temple icon and wordmark share the SAME height so neither towers over
+                the other — sized to fill the header's available space. */}
             <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt=""
-              className="h-8 w-8 shrink-0 rounded-lg object-contain sm:h-11 sm:w-11" />
+              className="h-6 w-6 shrink-0 rounded-lg object-contain sm:h-8 sm:w-8" />
             <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
-              className="h-4 w-auto object-contain sm:h-7" />
+              className="h-6 w-auto object-contain sm:h-8" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
