@@ -137,10 +137,13 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               wordmark stays readable (the temple icon already has a light background). */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
-            {/* Temple icon and wordmark share the SAME height so neither towers over
-                the other — sized to fill the header's available space. */}
+            {/* The icon file is a padded square — its temple drawing fills only ~84%
+                of the image, so at an equal box it renders SHORTER than the tightly
+                cropped wordmark. The icon box is sized up (÷0.86) to compensate, so the
+                visible temple drawing matches the wordmark's height (measured equal
+                within 1px). The off-white padding blends into the white header. */}
             <img src={`${import.meta.env.BASE_URL}icons/icon-512.png`} alt=""
-              className="h-6 w-6 shrink-0 rounded-lg object-contain sm:h-8 sm:w-8" />
+              className="h-7 w-7 shrink-0 rounded-lg object-contain sm:h-9 sm:w-9" />
             <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
               className="h-6 w-auto object-contain sm:h-8" />
           </button>
