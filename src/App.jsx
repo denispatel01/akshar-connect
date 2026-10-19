@@ -271,8 +271,11 @@ export default function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // On PC (md+) the shell is a fixed-height column with an internally scrolling
+  // <main>, so the header + sidebar stay put while only the page content scrolls.
+  // On mobile the layout is unchanged: the window scrolls and the header is sticky.
   return (
-    <div className="min-h-screen bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <div className="min-h-screen md:h-screen md:overflow-hidden bg-bg-base flex flex-col font-sans transition-colors duration-200" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Non-blocking top loading bar */}
       <div className={`pointer-events-none fixed inset-x-0 top-0 z-[60] h-1 overflow-hidden bg-[#FF862A]/10 transition-opacity duration-200 ${(refreshing || navPulse || dataLoading) ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-[#FF862A] to-transparent" style={{ animation: 'ac-progress 0.9s linear infinite' }} />
@@ -316,8 +319,8 @@ export default function App() {
 
         {/* Content column reserves the fixed sidebar's width on desktop (so the
             sidebar stays put while the page scrolls). */}
-        <div className={`flex-1 flex flex-col min-w-0 transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
-      <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
+        <div className={`flex-1 flex flex-col min-w-0 min-h-0 transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
+      <main className="flex-1 min-h-0 md:overflow-y-auto pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
         <Suspense fallback={<PageLoading />}>
         {activePage === 'dashboard' && <DashboardPage setActivePage={navigate} user={effectiveUser} refreshing={refreshing} />}
