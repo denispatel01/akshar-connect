@@ -849,6 +849,31 @@ export const ghariService = {
     try { dataService.logActivity('ghari-delivery', order.customerName, `${order.deliveryDate ? `set delivery date ${order.deliveryDate}` : 'cleared delivery date'} for ${order.customerName}`); } catch { /* ignore */ }
     return order;
   },
+  // Set (or clear) the planned delivery date on EVERY undelivered order of one
+  // karyakarta in one go — the day-of-delivery planning flow (call the karyakarta,
+  // get their date, stamp all their orders). Delivered orders are left untouched.
+  // Batches the writes: updates local state, enqueues each, and flushes once.
+  setDeliveryDateForKaryakarta: (season, key, date) => {
+    const d = String(date || '').trim();
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    let count = 0, customer = '';
+    orders_().forEach((o, idx) => {
+      if (o.status === 'void' || o.delivered) return;
+      if (orderKaryakartaKey_(o) !== key) return;
+      if ((o.season || meta_().season) !== (season || meta_().season)) return;
+      const order = normalizeOrder_({ ...o, deliveryDate: d, updatedBy: actor, updatedOn: now });
+      MEM.orders[idx] = order;
+      enqueueUpsert_('ghariMarkDelivery', 'id', quickUpdatePayload_(order, actor, now));
+      count++; customer = order.karyakarta || customer;
+    });
+    if (!count) return 0;
+    saveOrdersLocal_();
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-delivery', customer, `${d ? `set delivery date ${d}` : 'cleared delivery date'} for ${count} order${count === 1 ? '' : 's'} of ${customer}`); } catch { /* ignore */ }
+    return count;
+  },
 
   // ---- Purchases (procurement / the "buy" side) ----
   getPurchases: (season, { includeVoid = false } = {}) => {
@@ -990,6 +1015,7 @@ export const ghariService = {
 
   // Kilograms of Ghari vs Bhusu in one order — for showing a per-order kg total.
   orderKg: (o) => orderKg_(o),
+  orderKaryakartaKey: (o) => orderKaryakartaKey_(o),
 
   // Season-wide advance-stock summary for the admin: how much stock was bought
   // (purchased), how much has been DISTRIBUTED to karyakartas (issued), and how

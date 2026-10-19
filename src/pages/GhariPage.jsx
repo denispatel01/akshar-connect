@@ -584,29 +584,70 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   );
 }
 
-// A compact per-row control to set/clear an undelivered order's planned delivery
-// date without opening the full editor. Shows the date once set; tapping opens a
-// native date picker. Delivery-only write, allowed for any viewer.
-function DeliveryDateButton({ order }) {
+// A compact control to set/clear a planned delivery date inline (no full editor).
+// Shows the date once set; tapping opens a native date picker. Used per-order and
+// per-karyakarta (bulk). Delivery-only write, allowed for any viewer.
+function DeliveryDateButton({ value, onPick, title, setLabel = 'Set date', emphasise = false }) {
   const ref = useRef(null);
-  const date = order.deliveryDate || '';
+  const date = value || '';
   const open = () => { const el = ref.current; if (!el) return; if (el.showPicker) { try { el.showPicker(); return; } catch { /* fall through */ } } el.focus(); el.click(); };
-  const label = date
-    ? new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-    : null;
+  const label = date ? new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : setLabel;
   return (
     <div className="relative shrink-0">
       <button type="button" onClick={open}
-        title={date ? `Delivery date: ${date} — tap to change` : 'Set delivery date'}
+        title={title || (date ? `Delivery date: ${date} — tap to change` : 'Set delivery date')}
         className={`flex h-9 items-center gap-1 rounded-xl border px-2 text-[11px] font-black active:scale-95 ${date
           ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-          : 'border-border-light bg-surface text-text-muted hover:border-primary hover:text-primary'}`}>
+          : emphasise
+            ? 'border-primary bg-primary/10 text-primary hover:bg-primary/20'
+            : 'border-border-light bg-surface text-text-muted hover:border-primary hover:text-primary'}`}>
         {date ? <Calendar className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
-        {label && <span>{label}</span>}
+        <span>{label}</span>
       </button>
       <input ref={ref} type="date" value={date}
-        onChange={(e) => ghariService.setDeliveryDate(order.id, e.target.value)}
+        onChange={(e) => onPick(e.target.value)}
         className="pointer-events-none absolute inset-0 h-0 w-0 opacity-0" tabIndex={-1} aria-hidden />
+    </div>
+  );
+}
+
+// One karyakarta's undelivered orders, grouped for the delivery-planning flow:
+// a header that sets ONE date for the whole group (call them, stamp all orders),
+// with each order still settable on its own below. Collapsible.
+function KaryakartaDeliveryGroup({ season, groupKey, name, orders, onOpen }) {
+  const [open, setOpen] = useState(true);
+  const undelivered = orders.filter(o => !o.delivered);
+  // Shared date shown on the header: the common date if every undelivered order
+  // already shares one, otherwise blank (mixed / none).
+  const dates = new Set(undelivered.map(o => (o.deliveryDate || '').trim()));
+  const shared = dates.size === 1 ? [...dates][0] : '';
+  let ghariKg = 0, bhusuKg = 0;
+  orders.forEach(o => { const k = ghariService.orderKg(o); ghariKg += k.ghariKg; bhusuKg += k.bhusuKg; });
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+      <div className="flex items-center gap-2 border-b border-border-light bg-bg-base px-3 py-2.5">
+        <button onClick={() => setOpen(o => !o)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-black text-text-main">{name || '(no karyakarta)'}</div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-black">
+              <span className="text-text-muted">{undelivered.length} to deliver · {orders.length} order{orders.length === 1 ? '' : 's'}</span>
+              {ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(ghariKg)} kg</span>}
+              {bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(bhusuKg)} kg Bhusu</span>}
+            </div>
+          </div>
+        </button>
+        {undelivered.length > 0 && (
+          <DeliveryDateButton value={shared} emphasise setLabel="Set for all"
+            title={shared ? `All ${undelivered.length} undelivered orders: ${shared} — tap to change` : `Set one delivery date for all ${undelivered.length} undelivered orders`}
+            onPick={(d) => ghariService.setDeliveryDateForKaryakarta(season, groupKey, d)} />
+        )}
+      </div>
+      {open && (
+        <div>
+          {orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -673,7 +714,10 @@ function OrderRow({ order, onOpen }) {
           {paidState === 'paid' ? `Paid${order.paymentType ? ' · ' + order.paymentType : ''}` : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
       </div>
-      {!order.delivered && <DeliveryDateButton order={order} />}
+      {!order.delivered && (
+        <DeliveryDateButton value={order.deliveryDate || ''} setLabel=""
+          onPick={(d) => ghariService.setDeliveryDate(order.id, d)} />
+      )}
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp follow-up"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 active:scale-95">
@@ -2425,6 +2469,7 @@ export default function GhariPage({ user }) {
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | undelivered | unpaid
+  const [groupBy, setGroupBy] = useState('none'); // none | kk (karyakarta-wise)
   const [toast, setToast] = useState('');
 
   useEffect(() => { ghariService.init(); ghariService.syncDown().then(() => setTick(t => t + 1)); }, []);
@@ -2476,6 +2521,34 @@ export default function GhariPage({ user }) {
     orders.forEach(o => { const k = ghariService.orderKg(o); ghariKg += k.ghariKg; bhusuKg += k.bhusuKg; });
     return { ghariKg, bhusuKg };
   }, [orders]);
+
+  // Karyakarta-wise grouping for the delivery-planning flow. Built from the same
+  // filtered/searched/sorted `orders`. Groups with any undelivered order (the ones
+  // still needing a date) come first; within that, earliest shared delivery date
+  // first, then undated; fully-delivered groups sink to the bottom.
+  const karyakartaGroups = useMemo(() => {
+    const nameByKey = {};
+    try { ghariService.karyakartaList(season).forEach(k => { nameByKey[k.key] = k.name; }); } catch { /* ignore */ }
+    const map = new Map();
+    orders.forEach(o => {
+      const key = ghariService.orderKaryakartaKey(o);
+      if (!map.has(key)) map.set(key, { key, name: nameByKey[key] || o.karyakarta || '—', orders: [] });
+      map.get(key).orders.push(o);
+    });
+    const groups = [...map.values()].map(g => {
+      const undelivered = g.orders.filter(o => !o.delivered);
+      const dates = undelivered.map(o => (o.deliveryDate || '').trim()).filter(Boolean).sort();
+      return { ...g, pending: undelivered.length, soonest: dates[0] || '' };
+    });
+    groups.sort((a, b) => {
+      if (!!a.pending !== !!b.pending) return a.pending ? -1 : 1; // groups still to deliver first
+      const da = a.soonest, db = b.soonest;
+      if (da && db && da !== db) return da < db ? -1 : 1;
+      if (da !== db) return da ? -1 : 1; // dated before undated
+      return a.name.localeCompare(b.name);
+    });
+    return groups;
+  }, [orders, season]);
 
   if (!dataService.hasModule(user, 'ghari')) {
     return (
@@ -2541,6 +2614,11 @@ export default function GhariPage({ user }) {
             {[['all', 'All'], ['undelivered', 'Undelivered'], ['delivered', 'Delivered'], ['unpaid', 'Unpaid'], ['paid', 'Paid']].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${filter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
             ))}
+            <button onClick={() => setGroupBy(g => g === 'kk' ? 'none' : 'kk')}
+              title="Group orders by karyakarta — set one delivery date for all their orders"
+              className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-black ${groupBy === 'kk' ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>
+              <Users className="h-3.5 w-3.5" /> Karyakarta-wise
+            </button>
             {canEdit && (
               <button onClick={async () => { try { await ghariService.printableOrderSheet(season); } catch (e) { alertError('Could not create sheet', e?.message || ''); } }}
                 className="ml-auto flex items-center gap-1 rounded-full border border-border-light bg-surface px-3 py-1.5 text-[11px] font-black text-text-muted hover:border-primary hover:text-primary" title="Printable blank order sheet (PDF)">
@@ -2562,6 +2640,12 @@ export default function GhariPage({ user }) {
               <Package className="mx-auto mb-2 h-10 w-10 text-text-muted" />
               <p className="text-sm font-bold text-text-muted">No orders yet</p>
               <button onClick={() => setTab('entry')} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white">+ New order</button>
+            </div>
+          ) : groupBy === 'kk' ? (
+            <div className="space-y-2.5">
+              {karyakartaGroups.map(g => (
+                <KaryakartaDeliveryGroup key={g.key} season={season} groupKey={g.key} name={g.name} orders={g.orders} onOpen={setEditing} />
+              ))}
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
