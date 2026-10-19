@@ -121,7 +121,7 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           Dark theme: flat dark surface; the light-background logo goes on a white
           chip so it stays readable. A saffron accent line runs along the bottom. */}
       <header className="sticky top-0 z-40 w-full bg-white text-[#0A2E52] shadow-sm border-b border-black/5 dark:bg-[#0B1322] dark:text-white dark:border-white/10">
-        <div className="relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 min-h-[64px]">
+        <div className="relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5">
           {/* Left: sidebar toggle (desktop) + back + "Akshar Connect" wordmark text */}
           <button onClick={onToggleSidebar} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/70 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10">
@@ -131,16 +131,15 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#0A2E52]/90 hover:bg-black/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          {/* Brand: the full stacked lockup (temple over "Akshar Connect" + tagline),
-              same artwork as the login page. Centered over the row on mobile (the look the
-              user liked); on desktop (md+) it sits inline after the back/sidebar controls
-              so it never collides with the busy right-side controls. max-w keeps it clear
-              of the side buttons on narrow phones. Dark mode: white chip for contrast. */}
+          {/* Brand: temple icon + "Akshar Connect" wordmark, left-aligned (tap → Home).
+              Both the cropped temple-logo.png and the wordmark fill their boxes, so an
+              equal box height gives equal visible heights. Dark mode: white chip. */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
-            className="z-10 absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center leading-none dark:rounded-xl dark:bg-white/95 dark:px-2 dark:py-1">
-            <img src={`${import.meta.env.BASE_URL}images/logo.webp`}
-              alt="Akshar Connect — Connecting Devotees with Divinity"
-              className="h-12 w-auto max-w-[52vw] object-contain sm:max-w-none" />
+            className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
+            <img src={`${import.meta.env.BASE_URL}images/temple-logo.png`} alt=""
+              className="h-7 w-auto shrink-0 rounded-lg object-contain sm:h-9" />
+            <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
+              className="h-7 w-auto object-contain sm:h-9" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
