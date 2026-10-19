@@ -18,6 +18,11 @@ const fmtKg = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
 const sizeKg_ = (size) => { const m = String(size || '').toLowerCase().match(/([\d.]+)\s*(kg|gm|g|gram)?/); if (!m) return 0; const n = parseFloat(m[1]); if (isNaN(n)) return 0; return /kg/.test(m[2] || '') ? n : n / 1000; };
 // Clean a product name for display: "Ghari (Ghee Wali)" → "Ghee Wali".
 const cleanName_ = (name) => String(name || '').replace('Ghari ', '').replace(/[()]/g, '').trim() || 'Item';
+// Bhusu comes in PACKETS, Ghari in BOXES — so label counts by item type.
+const unitWord_ = (category, n) => (category === 'bhusu') ? (Math.abs(n) === 1 ? 'packet' : 'packets') : (Math.abs(n) === 1 ? 'box' : 'boxes');
+// Split an items array into Ghari boxes vs Bhusu packets, and format "X boxes · Y packets".
+const splitUnits_ = (items) => { let box = 0, pkt = 0; (items || []).forEach(it => { const q = Number(it.qty) || 0; if ((it.category || '') === 'bhusu') pkt += q; else box += q; }); return { box, pkt }; };
+const unitsText_ = (items) => { const { box, pkt } = splitUnits_(items); const p = []; if (box) p.push(`${box} ${unitWord_('ghee', box)}`); if (pkt) p.push(`${pkt} ${unitWord_('bhusu', pkt)}`); return p.join(' · ') || '0'; };
 
 // Proper (title) case — capitalizes the first letter of each word as you type,
 // so the text always reads in proper case no matter how it was entered.
@@ -756,7 +761,7 @@ function BoxItemRow({ product, qty, customers }) {
           <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
           {name} <span className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] font-black text-text-muted">{product.size}</span>
         </span>
-        <span className="shrink-0 font-black text-text-main"><span className="text-lg">{qty}</span> <span className="text-[11px] font-bold text-text-muted">box{qty === 1 ? '' : 'es'}</span></span>
+        <span className="shrink-0 font-black text-text-main"><span className="text-lg">{qty}</span> <span className="text-[11px] font-bold text-text-muted">{unitWord_(product.category, qty)}</span></span>
       </button>
       {open && (
         <div className="border-t border-border-light bg-bg-base/50 px-3 py-2">
@@ -767,7 +772,7 @@ function BoxItemRow({ product, qty, customers }) {
               {custList.map(([cust, q]) => (
                 <div key={cust} className="flex items-center justify-between text-[11px]">
                   <span className="truncate font-semibold text-text-main">{cust}</span>
-                  <span className="shrink-0 font-black text-text-muted">{q} box{q === 1 ? '' : 'es'}</span>
+                  <span className="shrink-0 font-black text-text-muted">{q} {unitWord_(product.category, q)}</span>
                 </div>
               ))}
             </div>
@@ -937,7 +942,7 @@ function StockReconCard({ r }) {
         <span className="w-12 shrink-0 text-right font-black">{grand.sold}</span>
         <span className="w-12 shrink-0 text-right font-black">{grand.bought - grand.sold}</span>
       </div>
-      <p className="mt-2 text-[10px] font-semibold text-text-muted">Bought = purchased · Sold = ordered · Left = bought − sold (boxes).{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
+      <p className="mt-2 text-[10px] font-semibold text-text-muted">Bought = purchased · Sold = ordered · Left = bought − sold. Ghari counted in boxes, Bhusu in packets.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
     </div>
   );
 }
@@ -1003,7 +1008,7 @@ function ReportView({ season }) {
       <div className="rounded-2xl border border-border-light bg-surface p-4">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-sm font-black text-text-main">Boxes to prepare</h3>
-          <span className="text-[11px] font-bold text-text-muted">{r.boxes} boxes total</span>
+          <span className="text-[11px] font-bold text-text-muted">{(() => { const s = ghariService.getProducts().reduce((a, p) => { const q = r.bySku[p.sku]?.qty || 0; if (p.category === 'bhusu') a.pkt += q; else a.box += q; return a; }, { box: 0, pkt: 0 }); return [s.box ? `${s.box} boxes` : '', s.pkt ? `${s.pkt} packets` : ''].filter(Boolean).join(' · ') || '0'; })()} total</span>
         </div>
         <div className="space-y-2.5">
           {Object.values(GHARI_CATEGORIES).map(c => {
@@ -1016,7 +1021,7 @@ function ReportView({ season }) {
                   <span className="flex items-center gap-1.5 text-[11px] font-black" style={{ color: c.color }}>
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />{c.label}
                   </span>
-                  <span className="text-[11px] font-black" style={{ color: c.color }}>{catBoxes} box{catBoxes === 1 ? '' : 'es'}</span>
+                  <span className="text-[11px] font-black" style={{ color: c.color }}>{catBoxes} {unitWord_(c.key, catBoxes)}</span>
                 </div>
                 <div className="divide-y divide-border-light">
                   {items.map(({ p, d }) => (
@@ -1888,7 +1893,7 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
       {!readOnly && (
       <div className="sticky bottom-0 z-20 flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur">
         <div className="pl-1">
-          <div className="text-[10px] font-bold uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'} bought</div>
+          <div className="text-[10px] font-bold uppercase text-text-muted">{unitsText_(items)} bought</div>
           <div className="text-xl font-black leading-none text-text-main">{amount ? rupee(amount) : '—'}</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -1920,7 +1925,7 @@ function PurchaseRow({ purchase, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-extrabold text-text-main">{purchase.supplier || '(supplier)'}</div>
         <div className="truncate text-[11px] text-text-muted">{summary}</div>
-        <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {purchase.boxes} box{purchase.boxes === 1 ? '' : 'es'}{photoPending ? ' · photo not synced' : ''}</div>
+        <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {unitsText_(purchase.items)}{photoPending ? ' · photo not synced' : ''}</div>
         {(kg.ghariKg > 0 || kg.bhusuKg > 0) && (
           <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold">
             {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
@@ -1960,7 +1965,6 @@ function PurchasesView({ season, canEdit = true }) {
   const [openName, setOpenName] = useState({}); // which product rows are expanded
   useEffect(() => { const h = () => setTick(t => t + 1); window.addEventListener('ac-ghari-changed', h); window.addEventListener('ac-ghari-synced', h); return () => { window.removeEventListener('ac-ghari-changed', h); window.removeEventListener('ac-ghari-synced', h); }; }, []);
   const list = useMemo(() => ghariService.getPurchases(season), [season, tick]);
-  const totalBoxes = list.reduce((s, p) => s + p.boxes, 0);
   const totalCost = list.reduce((s, p) => s + Number(p.amount || 0), 0);
   // Grand total Ghari vs Bhusu weight across every purchase this season.
   const totalKg = list.reduce((a, p) => { const k = ghariService.orderKg(p); return { ghariKg: a.ghariKg + k.ghariKg, bhusuKg: a.bhusuKg + k.bhusuKg }; }, { ghariKg: 0, bhusuKg: 0 });
@@ -1986,9 +1990,10 @@ function PurchasesView({ season, canEdit = true }) {
   }, [list]);
   return (
     <div>
-      <div className="mb-3 grid grid-cols-3 gap-2">
+      {/* No combined "boxes bought" — Ghari (boxes) and Bhusu (packets) are different
+          items; the per-item split lives in the "Total bought" breakdown below. */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Purchases</div><div className="text-xl font-black text-text-main">{list.length}</div></div>
-        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Boxes bought</div><div className="text-xl font-black text-text-main">{totalBoxes}</div></div>
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
       </div>
       {/* Total bought — overall Ghari/Bhusu, then a per-product breakdown you can
@@ -2012,7 +2017,7 @@ function PurchasesView({ season, canEdit = true }) {
                       className={`flex w-full items-center gap-2 py-2 text-left ${multi ? '' : 'cursor-default'}`}>
                       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
                       <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{cleanName_(g.name)}</span>
-                      <span className="shrink-0 text-[12px] font-black text-text-main">{g.boxes} box{g.boxes === 1 ? '' : 'es'}</span>
+                      <span className="shrink-0 text-[12px] font-black text-text-main">{g.boxes} {unitWord_(g.category, g.boxes)}</span>
                       <span className="shrink-0 text-[11px] font-bold text-text-muted">· {fmtKg(g.kg)} kg</span>
                       {multi && <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
                     </button>
@@ -2021,7 +2026,7 @@ function PurchasesView({ season, canEdit = true }) {
                         {g.sizeList.map(s => (
                           <div key={s.size} className="flex items-center gap-2 py-1 text-[12px]">
                             <span className="min-w-0 flex-1 truncate font-semibold text-text-muted">{s.size}</span>
-                            <span className="shrink-0 font-bold text-text-main">{s.boxes} box{s.boxes === 1 ? '' : 'es'}</span>
+                            <span className="shrink-0 font-bold text-text-main">{s.boxes} {unitWord_(g.category, s.boxes)}</span>
                             <span className="shrink-0 font-semibold text-text-muted">· {fmtKg(s.kg)} kg</span>
                           </div>
                         ))}
@@ -2171,7 +2176,7 @@ function StockIssueForm({ season, initialStock, onSaved, onCancel }) {
       <AutoTextarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks (optional)" minRows={1}
         className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
       <div className="flex items-center gap-2">
-        <div className="pl-1 text-[11px] font-black uppercase text-text-muted">{boxes} box{boxes === 1 ? '' : 'es'}</div>
+        <div className="pl-1 text-[11px] font-black uppercase text-text-muted">{unitsText_(items)}</div>
         <button onClick={save} className="ml-auto rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95">{isEdit ? 'Save changes' : 'Issue stock'}</button>
       </div>
     </div>
@@ -2244,7 +2249,7 @@ function StockView({ season, canEdit = true }) {
   const summary = useMemo(() => ghariService.buildStockSummary(season), [season, tick]);
   const refresh = () => setTick(t => t + 1);
   const voidIssue = async (st) => {
-    if (!(await confirmDialog({ title: 'Remove this issue?', text: `Remove the stock issued to ${st.karyakarta || 'this karyakarta'} (${st.boxes} boxes)? Their in-hand balance will adjust.`, confirmText: 'Remove', danger: true }))) return;
+    if (!(await confirmDialog({ title: 'Remove this issue?', text: `Remove the stock issued to ${st.karyakarta || 'this karyakarta'} (${unitsText_(st.items)})? Their in-hand balance will adjust.`, confirmText: 'Remove', danger: true }))) return;
     ghariService.voidStock(st.id); refresh();
   };
   return (
@@ -2254,16 +2259,16 @@ function StockView({ season, canEdit = true }) {
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted"><Truck className="h-3.5 w-3.5 text-rose-500" /> Distributed</div>
-          <div className="mt-1 text-2xl font-black text-text-main">{summary.distributed.boxes}<span className="ml-1 text-xs font-bold text-text-muted">boxes</span></div>
+          <div className="mt-1 text-lg font-black text-text-main leading-tight">{summary.distributed.box} <span className="text-xs font-bold text-text-muted">boxes</span> · {summary.distributed.pkt} <span className="text-xs font-bold text-text-muted">packets</span></div>
           <div className="text-[11px] font-bold text-text-muted">{fmtKg(summary.distributed.ghariKg)} kg Ghari · {fmtKg(summary.distributed.bhusuKg)} kg Bhusu</div>
         </div>
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-text-muted"><Package className="h-3.5 w-3.5 text-emerald-500" /> At home</div>
-          <div className={`mt-1 text-2xl font-black ${summary.atHome.boxes < 0 ? 'text-red-600' : 'text-text-main'}`}>{summary.atHome.boxes}<span className="ml-1 text-xs font-bold text-text-muted">boxes</span></div>
+          <div className={`mt-1 text-lg font-black leading-tight ${(summary.atHome.box < 0 || summary.atHome.pkt < 0) ? 'text-red-600' : 'text-text-main'}`}>{summary.atHome.box} <span className="text-xs font-bold text-text-muted">boxes</span> · {summary.atHome.pkt} <span className="text-xs font-bold text-text-muted">packets</span></div>
           <div className="text-[11px] font-bold text-text-muted">{fmtKg(summary.atHome.ghariKg)} kg Ghari · {fmtKg(summary.atHome.bhusuKg)} kg Bhusu</div>
         </div>
       </div>
-      <p className="px-1 text-[10px] font-semibold text-text-muted">At home = bought ({summary.purchased.boxes} boxes) − distributed ({summary.distributed.boxes} boxes).</p>
+      <p className="px-1 text-[10px] font-semibold text-text-muted">At home = bought − distributed (Ghari in boxes, Bhusu in packets).</p>
 
       {canEdit && (editing ? (
         <StockIssueForm season={season} initialStock={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />

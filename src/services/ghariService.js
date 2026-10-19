@@ -980,18 +980,21 @@ export const ghariService = {
     const s = season || meta_().season;
     const prods = ghariService.getProducts();
     const bySku = {}; prods.forEach(p => { bySku[p.sku] = p; });
-    const blank = () => ({ boxes: 0, kg: 0, ghariKg: 0, bhusuKg: 0 });
+    // `box` = Ghari (boxes), `pkt` = Bhusu (packets) — they are different items.
+    const blank = () => ({ boxes: 0, box: 0, pkt: 0, kg: 0, ghariKg: 0, bhusuKg: 0 });
     const add = (agg, sku, qty) => {
       const p = bySku[sku] || { size: '', category: 'ghee' };
-      const kg = num_(qty) * sizeToKg_(p.size);
-      agg.boxes += num_(qty); agg.kg += kg;
-      if (p.category === 'bhusu') agg.bhusuKg += kg; else agg.ghariKg += kg;
+      const q = num_(qty); const kg = q * sizeToKg_(p.size);
+      agg.boxes += q; agg.kg += kg;
+      if (p.category === 'bhusu') { agg.bhusuKg += kg; agg.pkt += q; } else { agg.ghariKg += kg; agg.box += q; }
     };
     const purchased = blank(), distributed = blank();
     ghariService.getPurchases(s).forEach(pu => (pu.items || []).forEach(it => add(purchased, it.sku, it.qty)));
     ghariService.getStocks(s).forEach(st => (st.items || []).forEach(it => add(distributed, it.sku, it.qty)));
     const atHome = {
       boxes: purchased.boxes - distributed.boxes,
+      box: purchased.box - distributed.box,
+      pkt: purchased.pkt - distributed.pkt,
       kg: purchased.kg - distributed.kg,
       ghariKg: purchased.ghariKg - distributed.ghariKg,
       bhusuKg: purchased.bhusuKg - distributed.bhusuKg,
