@@ -195,7 +195,8 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
       )}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} user={user}
-        onOpenDevotee={(id) => setActivePage('devotees', { openDevoteeId: id })} />
+        onOpenDevotee={(id) => setActivePage('devotees', { openDevoteeId: id })}
+        onNavigate={(page, params) => setActivePage(page, params)} />
 
       {/* Mobile bottom bar + Menu sheet are rendered via a portal on <body> so no
           transformed/animated ancestor can ever turn their `fixed` positioning into
