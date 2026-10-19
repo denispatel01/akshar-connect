@@ -665,6 +665,22 @@ function deliveryDateLabel_(iso) {
   return nice;
 }
 
+// Group a list of orders by karyakarta (stable key), sorted by name. Direct-to-
+// devotee orders (no karyakarta) fall into a "Direct" bucket shown last.
+function groupByKaryakarta_(list) {
+  const map = new Map();
+  list.forEach(o => {
+    const key = ghariService.orderKaryakartaKey(o);
+    if (!map.has(key)) map.set(key, { key, name: (o.karyakarta || '').trim() || 'Direct (no karyakarta)', orders: [] });
+    map.get(key).orders.push(o);
+  });
+  return [...map.values()].sort((a, b) => {
+    const da = a.name.startsWith('Direct'), db = b.name.startsWith('Direct');
+    if (da !== db) return da ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 // Delivery-planning overview: a date-wise bar chart of how many undelivered orders
 // are due on each date (soonest first), plus a "No delivery date" bucket for orders
 // still unscheduled. Each bar expands to the orders due that day. Collapsible.
@@ -727,7 +743,16 @@ function DeliverySchedule({ season, orders, onOpen }) {
                   </button>
                   {expanded && (
                     <div className="border-t border-border-light">
-                      {g.orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+                      {groupByKaryakarta_(g.orders).map(kk => (
+                        <div key={kk.key}>
+                          <div className="flex items-center gap-1.5 bg-bg-base px-3 py-1.5">
+                            <Users className="h-3 w-3 shrink-0 text-teal-600" />
+                            <span className="truncate text-[11px] font-black text-teal-700 dark:text-teal-300">{kk.name}</span>
+                            <span className="text-[10px] font-bold text-text-muted">· {kk.orders.length} order{kk.orders.length === 1 ? '' : 's'}</span>
+                          </div>
+                          {kk.orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
