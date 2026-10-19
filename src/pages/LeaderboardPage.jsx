@@ -496,13 +496,27 @@ const dayLabel_ = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateSt
 // user never calculates "previous + today" by hand. Every line is also logged.
 // ═══════════════════════════════════════════════════════════════════════════
 function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
-  const [date, setDate] = useState(todayStr_());
+  // Draft persistence — the added-but-not-yet-committed lines are saved to
+  // localStorage so leaving the app (e.g. to open a calculator) or an app reload
+  // never loses them. Keyed per board; cleared only on a successful commit or an
+  // explicit Cancel/discard.
+  const draftKey = 'ac_lb_draft_' + board.id;
+  const loadDraft = () => { try { const v = JSON.parse(localStorage.getItem(draftKey) || 'null'); return v && typeof v === 'object' ? v : null; } catch { return null; } };
+  const draft0 = loadDraft();
+
+  const [date, setDate] = useState(draft0?.date || todayStr_());
   const [leaderId, setLeaderId] = useState(entries[0]?.leaderId || '');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [lines, setLines] = useState([]); // { leaderId, leaderName, amount, note }
+  const [lines, setLines] = useState(Array.isArray(draft0?.lines) ? draft0.lines : []); // { leaderId, leaderName, amount, note }
   const [busy, setBusy] = useState(false);
   const amtRef = useRef(null);
+
+  // Save the draft on every change to the date or the added lines.
+  useEffect(() => {
+    try { localStorage.setItem(draftKey, JSON.stringify({ date, lines })); } catch { /* quota / private mode */ }
+  }, [date, lines, draftKey]);
+  const clearDraft = () => { try { localStorage.removeItem(draftKey); } catch { /* ignore */ } };
 
   const unit = board.unit || 'Kg';
   const leaderName = (id) => entries.find((e) => String(e.leaderId) === String(id))?.leaderName || '';
@@ -538,9 +552,17 @@ function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
     setBusy(true);
     try {
       await leaderboardService.commitLogBatch(board.id, date, lines, user?.name || '');
+      clearDraft();
       onCommitted?.();
       onClose();
     } finally { setBusy(false); }
+  };
+
+  // Explicit discard — only this and a successful commit clear the saved draft.
+  const cancelAndDiscard = async () => {
+    if (lines.length && !(await confirmDialog({ title: 'Discard entries?', text: `Discard ${lines.length} unsaved line${lines.length === 1 ? '' : 's'}? This can't be undone.`, confirmText: 'Discard', danger: true }))) return;
+    clearDraft();
+    onClose();
   };
 
   return createPortal(
@@ -595,7 +617,10 @@ function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
           {/* the day's lines */}
           {lines.length > 0 && (
             <div>
-              <p className="mb-1 text-xs font-bold text-text-muted">{lines.length} line{lines.length === 1 ? '' : 's'} · {fmt(batchTotal)} {unit}</p>
+              <p className="mb-1 flex flex-wrap items-center gap-x-1.5 text-xs font-bold text-text-muted">
+                <span>{lines.length} line{lines.length === 1 ? '' : 's'} · {fmt(batchTotal)} {unit}</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"><Check className="h-3 w-3" /> saved — safe to leave the app</span>
+              </p>
               <div className="divide-y divide-border-light rounded-xl border border-border-light">
                 {lines.map((l, i) => (
                   <div key={i} className="flex items-center gap-2 px-3 py-2">
@@ -627,7 +652,7 @@ function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
 
         {/* footer */}
         <div className="flex items-center gap-2 border-t border-border-light p-3">
-          <button onClick={onClose} className="flex-1 rounded-xl border border-border-light py-3 text-sm font-bold text-text-muted">Cancel</button>
+          <button onClick={cancelAndDiscard} className="flex-1 rounded-xl border border-border-light py-3 text-sm font-bold text-text-muted">Cancel</button>
           <button onClick={commit} disabled={busy || !lines.length}
             className="flex-[1.6] rounded-xl bg-primary py-3 text-sm font-black text-white disabled:opacity-50">
             {busy ? 'Saving…' : `Commit ${lines.length ? `· +${fmt(batchTotal)} ${unit}` : ''}`}
