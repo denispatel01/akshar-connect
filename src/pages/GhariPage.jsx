@@ -23,6 +23,9 @@ const unitWord_ = (category, n) => (category === 'bhusu') ? (Math.abs(n) === 1 ?
 // Split an items array into Ghari boxes vs Bhusu packets, and format "X boxes · Y packets".
 const splitUnits_ = (items) => { let box = 0, pkt = 0; (items || []).forEach(it => { const q = Number(it.qty) || 0; if ((it.category || '') === 'bhusu') pkt += q; else box += q; }); return { box, pkt }; };
 const unitsText_ = (items) => { const { box, pkt } = splitUnits_(items); const p = []; if (box) p.push(`${box} ${unitWord_('ghee', box)}`); if (pkt) p.push(`${pkt} ${unitWord_('bhusu', pkt)}`); return p.join(' · ') || '0'; };
+// Single unit word for a combined count: "box(es)" for Ghari-only, "packet(s)" for
+// Bhusu-only, "item(s)" when an order mixes both (one number can't be split).
+const mixUnitWord_ = (items, n) => { const { box, pkt } = splitUnits_(items); if (box && pkt) return Math.abs(n) === 1 ? 'item' : 'items'; if (pkt) return unitWord_('bhusu', n); return unitWord_('ghee', n); };
 
 // Proper (title) case — capitalizes the first letter of each word as you type,
 // so the text always reads in proper case no matter how it was entered.
@@ -408,7 +411,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                     {products.map(p => <ProductCard key={p.sku} product={p} qty={r.cart[p.sku] || 0} onChange={(q) => setRecipientQty(r.key, p.sku, q)} />)}
                   </div>
                   {rTotals.boxes > 0 && (
-                    <div className="mt-2 text-right text-[12px] font-bold text-text-muted">{rTotals.boxes} box{rTotals.boxes === 1 ? '' : 'es'} · <span className="text-text-main">{rupee(rTotals.total)}</span></div>
+                    <div className="mt-2 text-right text-[12px] font-bold text-text-muted">{unitsText_(cartToItems(r.cart))} · <span className="text-text-main">{rupee(rTotals.total)}</span></div>
                   )}
                 </div>
               );
@@ -490,7 +493,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       {!readOnly && (
       <div className={`sticky z-20 ${embedded ? 'bottom-[76px] md:bottom-3' : 'bottom-0'} flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur`}>
         <div className="pl-1">
-          <div className="text-[10px] font-bold uppercase text-text-muted">{totals.boxes} box{totals.boxes === 1 ? '' : 'es'}</div>
+          <div className="text-[10px] font-bold uppercase text-text-muted">{unitsText_(items)}</div>
           <div className="text-2xl font-black leading-none text-text-main">{rupee(totals.total)}</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -525,7 +528,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                       <div key={i} className="overflow-hidden rounded-2xl border border-border-light">
                         <div className="flex items-center justify-between gap-2 bg-bg-base px-3 py-1.5">
                           <span className="truncate text-[12px] font-black text-text-main">{i + 1}. {so.name}</span>
-                          <span className="shrink-0 text-[11px] font-bold text-text-muted">{st.boxes} box{st.boxes === 1 ? '' : 'es'} · {rupee(st.total)}</span>
+                          <span className="shrink-0 text-[11px] font-bold text-text-muted">{unitsText_(so.items)} · {rupee(st.total)}</span>
                         </div>
                         {so.items.map(it => (
                           <div key={it.sku} className="flex items-center justify-between gap-2 border-t border-border-light px-3 py-2">
@@ -561,7 +564,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                 ))}
               </div>
               <div className="space-y-1 rounded-2xl bg-bg-base px-3 py-2.5 text-sm">
-                <div className="flex justify-between"><span className="font-semibold text-text-muted">{totals.boxes} box{totals.boxes === 1 ? '' : 'es'} · Total</span><span className="font-black text-text-main">{rupee(totals.total)}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-text-muted">{unitsText_(items)} · Total</span><span className="font-black text-text-main">{rupee(totals.total)}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>
                 {balance > 0 && <div className="flex justify-between"><span className="font-semibold text-rose-600">Balance due</span><span className="font-black text-rose-600">{rupee(balance)}</span></div>}
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery</span><span className="font-bold text-text-main">{delivered ? 'Delivered ✓' : 'Not yet'}</span></div>
@@ -1536,7 +1539,7 @@ function DeliveryPanel({ order, canDeliver, onSaved }) {
         </span>
       </div>
       {!canDeliver ? (
-        <p className="text-[12px] font-bold text-text-muted">{count}/{totalBoxes} box{totalBoxes === 1 ? '' : 'es'} delivered.</p>
+        <p className="text-[12px] font-bold text-text-muted">{count}/{totalBoxes} {mixUnitWord_(order.items, totalBoxes)} delivered.</p>
       ) : (
         <>
           <div className="flex items-center justify-between gap-2">
@@ -1546,7 +1549,7 @@ function DeliveryPanel({ order, canDeliver, onSaved }) {
             </button>
             <div className="text-center">
               <div className="text-2xl font-black leading-none text-text-main">{count}<span className="text-base font-bold text-text-muted"> / {totalBoxes}</span></div>
-              <div className="text-[10px] font-bold uppercase tracking-wide text-text-muted">boxes delivered</div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{mixUnitWord_(order.items, count)} delivered</div>
             </div>
             <button onClick={() => commit(count + 1)} disabled={count >= totalBoxes}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#34D399] to-[#059669] text-white shadow active:scale-95 disabled:opacity-40">
@@ -1560,7 +1563,7 @@ function DeliveryPanel({ order, canDeliver, onSaved }) {
               className={`flex-1 rounded-xl border py-2 text-xs font-black ${full ? 'border-emerald-400 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>All delivered</button>
           </div>
           {remaining > 0 && count > 0 && (
-            <p className="mt-2 text-center text-[11px] font-bold text-amber-700 dark:text-amber-300">{remaining} box{remaining === 1 ? '' : 'es'} still to deliver</p>
+            <p className="mt-2 text-center text-[11px] font-bold text-amber-700 dark:text-amber-300">{remaining} {mixUnitWord_(order.items, remaining)} still to deliver</p>
           )}
         </>
       )}
