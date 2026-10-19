@@ -13,6 +13,11 @@ import AutoTextarea from '../components/AutoTextarea';
 const rupee = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 // One-decimal kilograms, e.g. 5, 2.5 — the team talks in kg of Ghari, not only ₹.
 const fmtKg = (n) => (+(Number(n) || 0).toFixed(1)).toLocaleString('en-IN');
+// Size string → kg (e.g. "500 gm" → 0.5, "1 kg" → 1, "250gm" → 0.25). Mirrors the
+// backend/ghariService sizeToKg_ so weight breakdowns match everywhere.
+const sizeKg_ = (size) => { const m = String(size || '').toLowerCase().match(/([\d.]+)\s*(kg|gm|g|gram)?/); if (!m) return 0; const n = parseFloat(m[1]); if (isNaN(n)) return 0; return /kg/.test(m[2] || '') ? n : n / 1000; };
+// Clean a product name for display: "Ghari (Ghee Wali)" → "Ghee Wali".
+const cleanName_ = (name) => String(name || '').replace('Ghari ', '').replace(/[()]/g, '').trim() || 'Item';
 
 // Proper (title) case — capitalizes the first letter of each word as you type,
 // so the text always reads in proper case no matter how it was entered.
@@ -1923,12 +1928,33 @@ function PurchasesView({ season, canEdit = true }) {
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [openName, setOpenName] = useState({}); // which product rows are expanded
   useEffect(() => { const h = () => setTick(t => t + 1); window.addEventListener('ac-ghari-changed', h); window.addEventListener('ac-ghari-synced', h); return () => { window.removeEventListener('ac-ghari-changed', h); window.removeEventListener('ac-ghari-synced', h); }; }, []);
   const list = useMemo(() => ghariService.getPurchases(season), [season, tick]);
   const totalBoxes = list.reduce((s, p) => s + p.boxes, 0);
   const totalCost = list.reduce((s, p) => s + Number(p.amount || 0), 0);
   // Grand total Ghari vs Bhusu weight across every purchase this season.
   const totalKg = list.reduce((a, p) => { const k = ghariService.orderKg(p); return { ghariKg: a.ghariKg + k.ghariKg, bhusuKg: a.bhusuKg + k.bhusuKg }; }, { ghariKg: 0, bhusuKg: 0 });
+  // Per-product breakdown (Ghee Wali, Ghee Vagar ni, …) with per-size boxes + kg,
+  // aggregated from every purchase's line items. Sorted in catalog-category order.
+  const catOrder = Object.keys(GHARI_CATEGORIES); // ghee, noghee, sf, bhusu
+  const breakdown = useMemo(() => {
+    const byName = {};
+    list.forEach(p => (p.items || []).forEach(it => {
+      const name = it.name || 'Item'; const size = it.size || '';
+      const boxes = Number(it.qty) || 0; if (boxes <= 0) return;
+      const kg = boxes * sizeKg_(size);
+      let g = byName[name];
+      if (!g) { g = { name, category: it.category || 'ghee', boxes: 0, kg: 0, sizes: {} }; byName[name] = g; }
+      g.boxes += boxes; g.kg += kg;
+      let s = g.sizes[size];
+      if (!s) { s = { size, boxes: 0, kg: 0 }; g.sizes[size] = s; }
+      s.boxes += boxes; s.kg += kg;
+    }));
+    return Object.values(byName)
+      .map(g => ({ ...g, sizeList: Object.values(g.sizes).sort((a, b) => sizeKg_(a.size) - sizeKg_(b.size)) }))
+      .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name));
+  }, [list]);
   return (
     <div>
       <div className="mb-3 grid grid-cols-3 gap-2">
@@ -1936,12 +1962,47 @@ function PurchasesView({ season, canEdit = true }) {
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Boxes bought</div><div className="text-xl font-black text-text-main">{totalBoxes}</div></div>
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
       </div>
-      {/* Total Ghari vs Bhusu bought this season (ghee/sugar-free etc. = Ghari, bhusu = Bhusu). */}
+      {/* Total bought — overall Ghari/Bhusu, then a per-product breakdown you can
+          expand to see each size's box count + kg (ghee/sugar-free = Ghari, bhusu = Bhusu). */}
       {(totalKg.ghariKg > 0 || totalKg.bhusuKg > 0) && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Total bought</span>
-          {totalKg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[12px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(totalKg.ghariKg)} kg Ghari</span>}
-          {totalKg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-2.5 py-1 text-[12px] font-black text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(totalKg.bhusuKg)} kg Bhusu</span>}
+        <div className="mb-3 rounded-2xl border border-border-light bg-surface p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Total bought</span>
+            {totalKg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[12px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(totalKg.ghariKg)} kg Ghari</span>}
+            {totalKg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-2.5 py-1 text-[12px] font-black text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(totalKg.bhusuKg)} kg Bhusu</span>}
+          </div>
+          {breakdown.length > 0 && (
+            <div className="mt-2.5 divide-y divide-border-light border-t border-border-light">
+              {breakdown.map(g => {
+                const color = GHARI_CATEGORIES[g.category]?.color || '#EA580C';
+                const isOpen = !!openName[g.name];
+                const multi = g.sizeList.length > 1;
+                return (
+                  <div key={g.name}>
+                    <button onClick={() => multi && setOpenName(o => ({ ...o, [g.name]: !o[g.name] }))}
+                      className={`flex w-full items-center gap-2 py-2 text-left ${multi ? '' : 'cursor-default'}`}>
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{cleanName_(g.name)}</span>
+                      <span className="shrink-0 text-[12px] font-black text-text-main">{g.boxes} box{g.boxes === 1 ? '' : 'es'}</span>
+                      <span className="shrink-0 text-[11px] font-bold text-text-muted">· {fmtKg(g.kg)} kg</span>
+                      {multi && <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
+                    </button>
+                    {multi && isOpen && (
+                      <div className="pb-2 pl-5">
+                        {g.sizeList.map(s => (
+                          <div key={s.size} className="flex items-center gap-2 py-1 text-[12px]">
+                            <span className="min-w-0 flex-1 truncate font-semibold text-text-muted">{s.size}</span>
+                            <span className="shrink-0 font-bold text-text-main">{s.boxes} box{s.boxes === 1 ? '' : 'es'}</span>
+                            <span className="shrink-0 font-semibold text-text-muted">· {fmtKg(s.kg)} kg</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       {canEdit && <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>}
