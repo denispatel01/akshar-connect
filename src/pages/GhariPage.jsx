@@ -588,25 +588,23 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
 // Shows the date once set; tapping opens a native date picker. Used per-order and
 // per-karyakarta (bulk). Delivery-only write, allowed for any viewer.
 function DeliveryDateButton({ value, onPick, title, setLabel = 'Set date', emphasise = false }) {
-  const ref = useRef(null);
   const date = value || '';
-  const open = () => { const el = ref.current; if (!el) return; if (el.showPicker) { try { el.showPicker(); return; } catch { /* fall through */ } } el.focus(); el.click(); };
   const label = date ? new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : setLabel;
   return (
-    <div className="relative shrink-0">
-      <button type="button" onClick={open}
+    <div className={`relative flex h-9 shrink-0 items-center gap-1 rounded-xl border px-2 text-[11px] font-black ${date
+      ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+      : emphasise
+        ? 'border-primary bg-primary/10 text-primary'
+        : 'border-border-light bg-surface text-text-muted'}`}>
+      {date ? <Calendar className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
+      {label && <span>{label}</span>}
+      {/* Transparent native date input overlaid on the whole chip: a tap lands on
+          it directly, so the OS date picker opens reliably (incl. Android WebView). */}
+      <input type="date" value={date}
         title={title || (date ? `Delivery date: ${date} — tap to change` : 'Set delivery date')}
-        className={`flex h-9 items-center gap-1 rounded-xl border px-2 text-[11px] font-black active:scale-95 ${date
-          ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-          : emphasise
-            ? 'border-primary bg-primary/10 text-primary hover:bg-primary/20'
-            : 'border-border-light bg-surface text-text-muted hover:border-primary hover:text-primary'}`}>
-        {date ? <Calendar className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
-        <span>{label}</span>
-      </button>
-      <input ref={ref} type="date" value={date}
         onChange={(e) => onPick(e.target.value)}
-        className="pointer-events-none absolute inset-0 h-0 w-0 opacity-0" tabIndex={-1} aria-hidden />
+        onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* native focus still opens it */ } }}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
     </div>
   );
 }
@@ -616,13 +614,16 @@ function DeliveryDateButton({ value, onPick, title, setLabel = 'Set date', empha
 // with each order still settable on its own below. Collapsible.
 function KaryakartaDeliveryGroup({ season, groupKey, name, orders, onOpen }) {
   const [open, setOpen] = useState(true);
+  // Delivery-planning view: only the undelivered orders (the ones still needing a
+  // date). Delivered orders are done and not shown here.
   const undelivered = orders.filter(o => !o.delivered);
+  if (undelivered.length === 0) return null;
   // Shared date shown on the header: the common date if every undelivered order
   // already shares one, otherwise blank (mixed / none).
   const dates = new Set(undelivered.map(o => (o.deliveryDate || '').trim()));
   const shared = dates.size === 1 ? [...dates][0] : '';
   let ghariKg = 0, bhusuKg = 0;
-  orders.forEach(o => { const k = ghariService.orderKg(o); ghariKg += k.ghariKg; bhusuKg += k.bhusuKg; });
+  undelivered.forEach(o => { const k = ghariService.orderKg(o); ghariKg += k.ghariKg; bhusuKg += k.bhusuKg; });
   return (
     <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
       <div className="flex items-center gap-2 border-b border-border-light bg-bg-base px-3 py-2.5">
@@ -631,21 +632,19 @@ function KaryakartaDeliveryGroup({ season, groupKey, name, orders, onOpen }) {
           <div className="min-w-0">
             <div className="truncate text-sm font-black text-text-main">{name || '(no karyakarta)'}</div>
             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-black">
-              <span className="text-text-muted">{undelivered.length} to deliver · {orders.length} order{orders.length === 1 ? '' : 's'}</span>
+              <span className="text-text-muted">{undelivered.length} to deliver</span>
               {ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(ghariKg)} kg</span>}
               {bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(bhusuKg)} kg Bhusu</span>}
             </div>
           </div>
         </button>
-        {undelivered.length > 0 && (
-          <DeliveryDateButton value={shared} emphasise setLabel="Set for all"
-            title={shared ? `All ${undelivered.length} undelivered orders: ${shared} — tap to change` : `Set one delivery date for all ${undelivered.length} undelivered orders`}
-            onPick={(d) => ghariService.setDeliveryDateForKaryakarta(season, groupKey, d)} />
-        )}
+        <DeliveryDateButton value={shared} emphasise setLabel="Set for all"
+          title={shared ? `All ${undelivered.length} undelivered orders: ${shared} — tap to change` : `Set one delivery date for all ${undelivered.length} undelivered orders`}
+          onPick={(d) => ghariService.setDeliveryDateForKaryakarta(season, groupKey, d)} />
       </div>
       {open && (
         <div>
-          {orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+          {undelivered.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
         </div>
       )}
     </div>
@@ -2643,7 +2642,7 @@ export default function GhariPage({ user }) {
             </div>
           ) : groupBy === 'kk' ? (
             <div className="space-y-2.5">
-              {karyakartaGroups.map(g => (
+              {karyakartaGroups.filter(g => g.pending > 0).map(g => (
                 <KaryakartaDeliveryGroup key={g.key} season={season} groupKey={g.key} name={g.name} orders={g.orders} onOpen={setEditing} />
               ))}
             </div>
