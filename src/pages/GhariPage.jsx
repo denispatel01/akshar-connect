@@ -866,86 +866,96 @@ function KaryakartaExportModal({ season, onClose }) {
   );
 }
 
-// Full stock reconciliation — Bought (purchased) vs Sold (ordered) vs Left
-// (bought − sold), detailed per size, per product, with Ghari / Bhusu subtotals and
-// a grand total. Replaces the old "At a glance" KPI grid.
+// Stock reconciliation in KG — collapsed to just Ghari vs Bhusu (bought/sold/left),
+// each expandable to its breakdown: Ghari → With Ghee / Without Ghee / Sugar Free,
+// Bhusu → by size. Kept simple so the big picture reads at a glance.
 function StockReconCard({ r }) {
+  const [open, setOpen] = useState({});
+  const toggle = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
   const prods = ghariService.getProducts();
   const bySkuProd = {}; prods.forEach(p => { bySkuProd[p.sku] = p; });
   const skus = new Set([...Object.keys(r.purchased || {}), ...Object.keys(r.bySku || {})]);
   const catOrder = Object.keys(GHARI_CATEGORIES);
-  const byName = {};
+
+  const ghariByName = {}; const bhusuBySize = {};
+  const gT = { b: 0, s: 0 }, bT = { b: 0, s: 0 };
   skus.forEach(sku => {
-    const bought = Number(r.purchased?.[sku]) || 0;
-    const sold = Number(r.bySku?.[sku]?.qty) || 0;
-    if (!bought && !sold) return;
     const p = bySkuProd[sku] || { name: sku, size: '', category: 'ghee' };
-    const g = byName[p.name] || (byName[p.name] = { name: p.name, category: p.category, sizes: [], bought: 0, sold: 0 });
-    g.sizes.push({ size: p.size, bought, sold });
-    g.bought += bought; g.sold += sold;
+    const boughtBoxes = Number(r.purchased?.[sku]) || 0;
+    const soldBoxes = Number(r.bySku?.[sku]?.qty) || 0;
+    if (!boughtBoxes && !soldBoxes) return;
+    const kgPer = sizeKg_(p.size);
+    const bKg = boughtBoxes * kgPer, sKg = soldBoxes * kgPer;
+    if (p.category === 'bhusu') {
+      bT.b += bKg; bT.s += sKg;
+      const g = bhusuBySize[p.size] || (bhusuBySize[p.size] = { label: p.size || '—', sort: kgPer, b: 0, s: 0 });
+      g.b += bKg; g.s += sKg;
+    } else {
+      gT.b += bKg; gT.s += sKg;
+      const g = ghariByName[p.name] || (ghariByName[p.name] = { label: cleanName_(p.name), sort: catOrder.indexOf(p.category), b: 0, s: 0 });
+      g.b += bKg; g.s += sKg;
+    }
   });
-  const groups = Object.values(byName)
-    .map(g => ({ ...g, sizes: g.sizes.sort((a, b) => sizeKg_(a.size) - sizeKg_(b.size)) }))
-    .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name));
-  if (!groups.length) return null;
+  const ghariChildren = Object.values(ghariByName).sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
+  const bhusuChildren = Object.values(bhusuBySize).sort((a, b) => a.sort - b.sort);
+  const hasGhari = gT.b || gT.s, hasBhusu = bT.b || bT.s;
+  if (!hasGhari && !hasBhusu) return null;
+  const grand = { b: gT.b + bT.b, s: gT.s + bT.s };
 
-  const ghariGroups = groups.filter(g => g.category !== 'bhusu');
-  const bhusuGroups = groups.filter(g => g.category === 'bhusu');
-  const sum = (gs) => gs.reduce((a, g) => ({ bought: a.bought + g.bought, sold: a.sold + g.sold }), { bought: 0, sold: 0 });
-  const ghariT = sum(ghariGroups), bhusuT = sum(bhusuGroups), grand = sum(groups);
-
-  const nums = (b, s) => (
-    <>
-      <span className="w-12 shrink-0 text-right font-bold text-emerald-600">{b}</span>
-      <span className="w-12 shrink-0 text-right font-bold text-rose-600">{s}</span>
-      <span className={`w-12 shrink-0 text-right font-black ${b - s < 0 ? 'text-red-600' : b - s === 0 ? 'text-amber-600' : 'text-text-main'}`}>{b - s}</span>
-    </>
-  );
-  const prodBlock = (g) => (
-    <React.Fragment key={g.name}>
-      <div className="flex items-center gap-1 pt-1.5 text-xs">
-        <span className="min-w-0 flex-1 truncate font-black text-text-main">{cleanName_(g.name)}</span>
-        {nums(g.bought, g.sold)}
+  const cells = (b, s, strong) => {
+    const left = b - s;
+    return (
+      <>
+        <span className={`w-14 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-emerald-600`}>{fmtKg(b)}</span>
+        <span className={`w-14 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-rose-600`}>{fmtKg(s)}</span>
+        <span className={`w-14 shrink-0 text-right font-black ${left < -0.05 ? 'text-red-600' : Math.abs(left) < 0.05 ? 'text-amber-600' : 'text-text-main'}`}>{fmtKg(left)}</span>
+      </>
+    );
+  };
+  const group = (k, label, total, color, children, childWord) => {
+    const isOpen = !!open[k];
+    return (
+      <div className="overflow-hidden rounded-xl border border-border-light">
+        <button onClick={() => toggle(k)} className="flex w-full items-center gap-1 px-2.5 py-2 text-left">
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+          <span className="min-w-0 flex-1 truncate text-sm font-black" style={{ color }}>{label}</span>
+          {cells(total.b, total.s, true)}
+        </button>
+        {isOpen && (
+          <div className="border-t border-border-light bg-bg-base/50 px-2.5 py-1.5">
+            {children.length ? children.map((c, i) => (
+              <div key={i} className="flex items-center gap-1 py-0.5 text-[11px]">
+                <span className="min-w-0 flex-1 truncate pl-5 font-semibold text-text-muted">{c.label}</span>
+                {cells(c.b, c.s)}
+              </div>
+            )) : <p className="pl-5 text-[11px] text-text-muted">No {childWord}.</p>}
+          </div>
+        )}
       </div>
-      {g.sizes.length > 1 && g.sizes.map(s => (
-        <div key={s.size} className="flex items-center gap-1 text-[11px]">
-          <span className="min-w-0 flex-1 truncate pl-3 font-semibold text-text-muted">{s.size || '—'}</span>
-          {nums(s.bought, s.sold)}
-        </div>
-      ))}
-    </React.Fragment>
-  );
-  const totalRow = (label, t, cls) => (
-    <div className={`mt-1 flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${cls}`}>
-      <span className="min-w-0 flex-1 truncate font-black">{label}</span>
-      {nums(t.bought, t.sold)}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="rounded-2xl border border-border-light bg-surface p-4">
-      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> Stock — bought vs sold</h3>
-      <div className="flex items-center gap-1 border-b border-border-light pb-1 text-[9px] font-black uppercase tracking-wide text-text-muted">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> Stock — bought vs sold <span className="font-bold text-text-muted">(kg)</span></h3>
+      <div className="flex items-center gap-1 border-b border-border-light pb-1 pl-8 text-[9px] font-black uppercase tracking-wide text-text-muted">
         <span className="min-w-0 flex-1">Item</span>
-        <span className="w-12 shrink-0 text-right">Bought</span>
-        <span className="w-12 shrink-0 text-right">Sold</span>
-        <span className="w-12 shrink-0 text-right">Left</span>
+        <span className="w-14 shrink-0 text-right">Bought</span>
+        <span className="w-14 shrink-0 text-right">Sold</span>
+        <span className="w-14 shrink-0 text-right">Left</span>
       </div>
-      {ghariGroups.length > 0 && (<>
-        {ghariGroups.map(prodBlock)}
-        {totalRow('Ghari total', ghariT, 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300')}
-      </>)}
-      {bhusuGroups.length > 0 && (<>
-        {bhusuGroups.map(prodBlock)}
-        {totalRow('Bhusu total', bhusuT, 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300')}
-      </>)}
-      <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-xs text-white">
+      <div className="mt-2 space-y-1.5">
+        {hasGhari ? group('ghari', 'Ghari', gT, '#EA580C', ghariChildren, 'Ghari items') : null}
+        {hasBhusu ? group('bhusu', 'Bhusu', bT, '#9333EA', bhusuChildren, 'Bhusu sizes') : null}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-white">
         <span className="min-w-0 flex-1 truncate font-black">TOTAL</span>
-        <span className="w-12 shrink-0 text-right font-black">{grand.bought}</span>
-        <span className="w-12 shrink-0 text-right font-black">{grand.sold}</span>
-        <span className="w-12 shrink-0 text-right font-black">{grand.bought - grand.sold}</span>
+        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.b)}</span>
+        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.s)}</span>
+        <span className="w-14 shrink-0 text-right font-black">{fmtKg(grand.b - grand.s)}</span>
       </div>
-      <p className="mt-2 text-[10px] font-semibold text-text-muted">Bought = purchased · Sold = ordered · Left = bought − sold. Ghari counted in boxes, Bhusu in packets.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
+      <p className="mt-2 text-[10px] font-semibold text-text-muted">All in kg · Bought = purchased · Sold = ordered · Left = bought − sold. Tap Ghari / Bhusu for the breakdown.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
     </div>
   );
 }
