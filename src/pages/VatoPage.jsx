@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Share2, Sparkles, CalendarDays, Shuffle, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Sparkles, CalendarDays, Shuffle, BookOpen, Copy, Check } from 'lucide-react';
 
 import { dataService } from '../services/dataService';
 
@@ -74,6 +74,21 @@ export default function VatoPage({ user }) {
   const random = () => { if (list.length > 1) { let r = idx; while (r === idx) r = Math.floor(Math.random() * list.length); setIdx(r); } };
 
   const shareText = [gu.body, gu.ref, '', en.body, en.ref, '', '— Akshar Connect'].filter((x) => x !== undefined).join('\n').trim();
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(shareText);
+      else {
+        // Fallback for older webviews without the async clipboard API.
+        const ta = document.createElement('textarea');
+        ta.value = shareText; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (e) { /* ignore — clipboard blocked */ }
+  };
   const share = async () => {
     try {
       if (navigator.share) { await navigator.share({ title: 'Vato · Akshar Connect', text: shareText }); return; }
@@ -182,6 +197,10 @@ export default function VatoPage({ user }) {
               )}
               <button onClick={random} title="Random" className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border-light bg-surface text-text-main hover:border-primary active:scale-95">
                 <Shuffle className="h-4 w-4" />
+              </button>
+              <button onClick={copy} title="Copy to clipboard"
+                className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2.5 text-sm font-bold active:scale-95 transition-colors ${copied ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'border-border-light bg-surface text-text-main hover:border-primary'}`}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}
               </button>
               <button onClick={share} className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/30 active:scale-95">
                 <Share2 className="h-4 w-4" /> Share

@@ -46,8 +46,9 @@ function writeCache_(state) {
 // these are protected from (and re-pushed by) refresh — a board that's gone from the
 // server and ISN'T pending was deleted elsewhere, so it must drop locally too
 // (otherwise a deleted board keeps resurrecting from this device's cache).
-let MEM = readCache_() || { leaders: null, boards: [], entries: [], pending: [] };
+let MEM = readCache_() || { leaders: null, boards: [], entries: [], logs: [], pending: [] };
 if (!Array.isArray(MEM.pending)) MEM.pending = [];
+if (!Array.isArray(MEM.logs)) MEM.logs = [];
 
 function num_(v) { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; }
 function bool_(v) { return v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1'; }
@@ -126,6 +127,13 @@ export const leaderboardService = {
     return (MEM.boards || []).find((b) => String(b.id) === String(boardId)) || null;
   },
 
+  /** Day-wise seva log for one board, newest first. */
+  logsFor(boardId) {
+    return (MEM.logs || [])
+      .filter((l) => String(l.boardId) === String(boardId))
+      .sort((a, b) => String(b.createdOn || '').localeCompare(String(a.createdOn || '')));
+  },
+
   /**
    * Background refresh from the backend. Never throws, and NEVER loses local data
    * that hasn't synced yet: the server copy is merged with any local-only rows
@@ -141,6 +149,7 @@ export const leaderboardService = {
 
     const beBoards = (r.boards || []).map((b) => ({ ...b }));
     const beEntries = (r.entries || []).map((e) => ({ ...e, target: num_(e.target), done: num_(e.done) }));
+    const beLogs = (r.logs || []).map((l) => ({ ...l, amount: num_(l.amount) }));
     const pendingIds = new Set((MEM.pending || []).map(String));
 
     // Pending boards: the LOCAL copy wins (don't let the server overwrite unsynced
@@ -155,10 +164,16 @@ export const leaderboardService = {
     const serverBoardIds = new Set(serverBoards.map((b) => String(b.id)));
     const serverEntries = beEntries.filter((e) => serverBoardIds.has(String(e.boardId)));
 
+    // Logs are append-only and server-truth, but keep any local-only lines whose id
+    // the server doesn't have yet (offline add not pushed, or a pending board's lines).
+    const serverLogIds = new Set(beLogs.map((l) => String(l.id)));
+    const localOnlyLogs = (MEM.logs || []).filter((l) => !serverLogIds.has(String(l.id)) && (localPendingIds.has(String(l.boardId)) || !serverBoardIds.has(String(l.boardId))));
+
     MEM = {
       leaders: r.leaders || MEM.leaders || [],
       boards: [...localPendingBoards, ...serverBoards],
       entries: [...serverEntries, ...localPendingEntries],
+      logs: [...beLogs, ...localOnlyLogs],
       pending: MEM.pending || [],
     };
     persist_();
@@ -239,6 +254,81 @@ export const leaderboardService = {
     });
     if (boardId) { markPending_(boardId); scheduleSave_(boardId); }
     persist_();
+  },
+
+  // ── Day-wise seva log (the "just add, we sum it" flow) ──────────────────────
+  /**
+   * Commit a day's challan lines. Each line is { leaderId, leaderName, amount, note }.
+   * The amounts are SUMMED per leader and ADDED to that leader's running `done` — the
+   * user never has to do the arithmetic. Every line is also stored in the day-wise
+   * log so the history is auditable. Returns the total amount added.
+   */
+  async commitLogBatch(boardId, date, lines, who = '') {
+    const clean = (lines || [])
+      .map((l) => ({ ...l, amount: num_(l.amount) }))
+      .filter((l) => l.leaderId && l.amount > 0);
+    if (!clean.length) return 0;
+    const day = String(date || '').slice(0, 10) || nowISO_().slice(0, 10);
+    const now = nowISO_();
+
+    // Build the log rows.
+    const logRows = clean.map((l) => ({
+      id: uid_('LLG'), boardId, leaderId: l.leaderId, leaderName: l.leaderName || '',
+      date: day, amount: num_(l.amount), note: String(l.note || '').trim(),
+      createdBy: who, createdOn: now,
+    }));
+
+    // Sum per leader and add to each entry's running total.
+    const addByLeader = {};
+    clean.forEach((l) => { addByLeader[l.leaderId] = (addByLeader[l.leaderId] || 0) + num_(l.amount); });
+    MEM.entries = (MEM.entries || []).map((e) => {
+      if (String(e.boardId) !== String(boardId)) return e;
+      const add = addByLeader[e.leaderId];
+      return add ? { ...e, done: num_(e.done) + add } : e;
+    });
+    MEM.logs = [...(MEM.logs || []), ...logRows];
+
+    // Touch the board so its email + updatedOn reflect the change.
+    const board = this.board(boardId);
+    if (board) {
+      const next = { ...board, updatedBy: who || board.updatedBy, updatedOn: now };
+      MEM.boards = (MEM.boards || []).map((b) => (String(b.id) === String(boardId) ? next : b));
+    }
+    markPending_(boardId);
+    persist_();
+
+    // One backend call: append the log rows + upsert the updated entries (+ email).
+    if (backendOnline()) {
+      try {
+        const entries = (MEM.entries || []).filter((e) => String(e.boardId) === String(boardId));
+        await backendApi('addLeaderLog', { board: this.board(boardId), entries, logs: logRows });
+        clearPending_(boardId);
+        persist_();
+      } catch (err) { console.warn('addLeaderLog failed:', err.message); } // stays pending, re-pushed on refresh
+    }
+    return logRows.reduce((s, l) => s + num_(l.amount), 0);
+  },
+
+  /** Delete one logged line and roll its amount back out of the leader's total. */
+  async deleteLog(logId) {
+    const log = (MEM.logs || []).find((l) => String(l.id) === String(logId));
+    if (!log) return;
+    const boardId = log.boardId;
+    MEM.entries = (MEM.entries || []).map((e) => {
+      if (String(e.boardId) !== String(boardId) || String(e.leaderId) !== String(log.leaderId)) return e;
+      return { ...e, done: Math.max(0, num_(e.done) - num_(log.amount)) };
+    });
+    MEM.logs = (MEM.logs || []).filter((l) => String(l.id) !== String(logId));
+    markPending_(boardId);
+    persist_();
+    if (backendOnline()) {
+      try {
+        const entries = (MEM.entries || []).filter((e) => String(e.boardId) === String(boardId));
+        await backendApi('deleteLeaderLog', { logId, board: this.board(boardId), entries });
+        clearPending_(boardId);
+        persist_();
+      } catch (err) { console.warn('deleteLeaderLog failed:', err.message); }
+    }
   },
 
   /** Flush any pending debounced board saves now (e.g. when leaving a board). */

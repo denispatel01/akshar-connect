@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Plus, ArrowLeft, Trophy, Pencil, Trash2, Share2, Download, X, Check,
   Users, Target as TargetIcon, CheckCircle2, Percent, RefreshCw, UserPlus,
+  ListPlus, History, CalendarDays,
 } from 'lucide-react';
 import { leaderboardService, COMMON_UNITS } from '../services/leaderboardService';
 import { isAdminRole } from '../utils/navItems';
@@ -299,6 +300,8 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
   const [newLeader, setNewLeader] = useState('');
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [logging, setLogging] = useState(false);     // "Add seva" modal open
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const on = () => rerender();
@@ -421,6 +424,27 @@ function BoardDetail({ boardId, onBack, onChanged, canEdit, user }) {
         </div>
       </div>
 
+      {/* Add seva / History — the "just add, we sum it" entry points. */}
+      <div className="mt-3 flex items-center gap-2">
+        {canEdit && (
+          <button onClick={() => setLogging(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-black text-white active:scale-95">
+            <ListPlus className="h-4 w-4" /> Add seva
+          </button>
+        )}
+        <button onClick={() => setShowHistory((v) => !v)}
+          className={`flex items-center justify-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-black active:scale-95 ${showHistory ? 'border-primary bg-primary/10 text-primary' : 'border-border-light bg-surface text-text-main'} ${canEdit ? '' : 'flex-1'}`}>
+          <History className="h-4 w-4" /> History
+        </button>
+      </div>
+
+      {showHistory && <HistoryPanel boardId={boardId} board={board} canEdit={canEdit} onChanged={rerender} />}
+
+      {logging && (
+        <LogBatchModal board={board} entries={entries} user={user}
+          onClose={() => setLogging(false)} onCommitted={rerender} />
+      )}
+
       {canEdit && (
         <div className="mt-3">
           {addingLeader ? (
@@ -460,6 +484,220 @@ function NumCell({ value, onCommit, disabled }) {
       placeholder="0"
       className="mx-auto w-[64px] rounded-lg border border-border-light bg-bg-base px-1 py-1.5 text-center text-sm font-bold text-text-main outline-none focus:border-primary"
     />
+  );
+}
+
+const todayStr_ = () => new Date().toISOString().slice(0, 10);
+const dayLabel_ = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); } catch { return d; } };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Add today's seva — pick a leader, type the amount, Add. Build the day's list,
+// then Commit. The app SUMS per leader and ADDS to each running total, so the
+// user never calculates "previous + today" by hand. Every line is also logged.
+// ═══════════════════════════════════════════════════════════════════════════
+function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
+  const [date, setDate] = useState(todayStr_());
+  const [leaderId, setLeaderId] = useState(entries[0]?.leaderId || '');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [lines, setLines] = useState([]); // { leaderId, leaderName, amount, note }
+  const [busy, setBusy] = useState(false);
+  const amtRef = useRef(null);
+
+  const unit = board.unit || 'Kg';
+  const leaderName = (id) => entries.find((e) => String(e.leaderId) === String(id))?.leaderName || '';
+
+  const addLine = () => {
+    const a = num(amount);
+    if (!leaderId || a <= 0) { alertError('Add a line', 'Pick a leader and enter an amount greater than 0.'); return; }
+    setLines((ls) => [...ls, { leaderId, leaderName: leaderName(leaderId), amount: a, note: note.trim() }]);
+    setAmount(''); setNote('');
+    // Keep the same leader selected is handy when one person has several challans;
+    // focus the amount for a fast repeat.
+    setTimeout(() => amtRef.current?.focus(), 0);
+  };
+
+  const removeLine = (i) => setLines((ls) => ls.filter((_, j) => j !== i));
+
+  // Per-leader batch subtotal + the resulting new running total (old done + batch).
+  const perLeader = useMemo(() => {
+    const m = {};
+    lines.forEach((l) => { m[l.leaderId] = (m[l.leaderId] || 0) + num(l.amount); });
+    return Object.keys(m).map((id) => {
+      const e = entries.find((x) => String(x.leaderId) === String(id));
+      const add = m[id];
+      const was = num(e?.done);
+      return { leaderId: id, name: leaderName(id), add, was, now: was + add };
+    }).sort((a, b) => b.add - a.add);
+  }, [lines, entries]);
+
+  const batchTotal = useMemo(() => lines.reduce((s, l) => s + num(l.amount), 0), [lines]);
+
+  const commit = async () => {
+    if (!lines.length) return;
+    setBusy(true);
+    try {
+      await leaderboardService.commitLogBatch(board.id, date, lines, user?.name || '');
+      onCommitted?.();
+      onClose();
+    } finally { setBusy(false); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
+      <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-2xl sm:max-w-lg sm:rounded-2xl"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={(e) => e.stopPropagation()}>
+        {/* header */}
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <h3 className="flex items-center gap-2 text-base font-black text-text-main"><ListPlus className="h-5 w-5 text-primary" /> Add seva</h3>
+          <button onClick={onClose} className="rounded-full p-1 text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+          {/* date */}
+          <div>
+            <label className="mb-1 block text-xs font-bold text-text-muted">Date</label>
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-text-muted" />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} max={todayStr_()}
+                className="w-full rounded-xl border border-border-light bg-bg-base pl-9 pr-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
+            </div>
+          </div>
+
+          {/* add-line builder */}
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+            <p className="mb-2 text-xs font-black text-primary">Add a challan line</p>
+            <div className="space-y-2">
+              <select value={leaderId} onChange={(e) => setLeaderId(e.target.value)}
+                className="w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary">
+                {entries.map((e) => <option key={e.leaderId} value={e.leaderId}>{e.leaderName}</option>)}
+              </select>
+              <div className="flex items-stretch gap-2">
+                <div className="relative flex-1">
+                  <input ref={amtRef} inputMode="decimal" value={amount}
+                    onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addLine(); }}
+                    placeholder={`Amount (${unit})`}
+                    className="w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
+                </div>
+                <button onClick={addLine}
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-black text-white active:scale-95">
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              </div>
+              <input value={note} onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addLine(); }}
+                placeholder="Note (optional) — e.g. (Tejashbhai)"
+                className="w-full rounded-xl border border-border-light bg-surface px-3 py-2 text-xs font-semibold text-text-main outline-none focus:border-primary" />
+            </div>
+          </div>
+
+          {/* the day's lines */}
+          {lines.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-bold text-text-muted">{lines.length} line{lines.length === 1 ? '' : 's'} · {fmt(batchTotal)} {unit}</p>
+              <div className="divide-y divide-border-light rounded-xl border border-border-light">
+                {lines.map((l, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{l.leaderName}
+                      {l.note && <span className="ml-1 font-normal text-text-muted">· {l.note}</span>}</span>
+                    <span className="shrink-0 text-sm font-black text-text-main">{fmt(l.amount)} {unit}</span>
+                    <button onClick={() => removeLine(i)} className="shrink-0 rounded-lg p-1 text-text-muted hover:bg-bg-base hover:text-red-500"><X className="h-4 w-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* preview of resulting totals — the "we do the maths" reassurance */}
+          {perLeader.length > 0 && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-50 p-3 dark:bg-emerald-950/30">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><Check className="h-3.5 w-3.5" /> New totals after commit</p>
+              <div className="space-y-1">
+                {perLeader.map((r) => (
+                  <div key={r.leaderId} className="flex items-center justify-between gap-2 text-[13px]">
+                    <span className="min-w-0 flex-1 truncate font-bold text-text-main">{r.name}</span>
+                    <span className="shrink-0 font-semibold text-text-muted">{fmt(r.was)} <span className="text-emerald-600">+ {fmt(r.add)}</span> = <span className="font-black text-text-main">{fmt(r.now)}</span> {unit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* footer */}
+        <div className="flex items-center gap-2 border-t border-border-light p-3">
+          <button onClick={onClose} className="flex-1 rounded-xl border border-border-light py-3 text-sm font-bold text-text-muted">Cancel</button>
+          <button onClick={commit} disabled={busy || !lines.length}
+            className="flex-[1.6] rounded-xl bg-primary py-3 text-sm font-black text-white disabled:opacity-50">
+            {busy ? 'Saving…' : `Commit ${lines.length ? `· +${fmt(batchTotal)} ${unit}` : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Day-wise history — every committed day, its total and per-leader breakdown.
+// ═══════════════════════════════════════════════════════════════════════════
+function HistoryPanel({ boardId, board, canEdit, onChanged }) {
+  const logs = leaderboardService.logsFor(boardId);
+  const unit = board.unit || 'Kg';
+
+  // Group by date (newest first), then per leader within the day.
+  const byDay = useMemo(() => {
+    const days = {};
+    logs.forEach((l) => {
+      const d = String(l.date || l.createdOn || '').slice(0, 10);
+      if (!days[d]) days[d] = { date: d, total: 0, lines: [] };
+      days[d].total += num(l.amount);
+      days[d].lines.push(l);
+    });
+    return Object.values(days).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }, [logs]);
+
+  const del = async (log) => {
+    const ok = await confirmDialog({ title: 'Remove this line?', text: `${log.leaderName}: ${fmt(log.amount)} ${unit}${log.note ? ' · ' + log.note : ''} will be removed and subtracted from the total.`, confirmText: 'Remove', danger: true });
+    if (!ok) return;
+    await leaderboardService.deleteLog(log.id);
+    onChanged?.();
+  };
+
+  if (!logs.length) {
+    return (
+      <div className="mt-3 rounded-2xl border border-dashed border-border-light py-10 text-center">
+        <History className="mx-auto h-8 w-8 text-text-muted/40" />
+        <p className="mt-2 text-sm font-bold text-text-main">No seva logged yet</p>
+        <p className="mt-1 text-xs text-text-muted">Use “Add seva” to log the day's challans — the history builds here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      {byDay.map((day) => (
+        <div key={day.date} className="overflow-hidden rounded-2xl border border-border-light">
+          <div className="flex items-center justify-between bg-bg-base px-3 py-2">
+            <span className="flex items-center gap-1.5 text-sm font-black text-text-main"><CalendarDays className="h-4 w-4 text-primary" /> {dayLabel_(day.date)}</span>
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-black text-primary">+{fmt(day.total)} {unit}</span>
+          </div>
+          <div className="divide-y divide-border-light">
+            {day.lines.map((l) => (
+              <div key={l.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-main">{l.leaderName}
+                  {l.note && <span className="ml-1 font-normal text-text-muted">· {l.note}</span>}</span>
+                <span className="shrink-0 text-sm font-black text-text-main">{fmt(l.amount)} {unit}</span>
+                {canEdit && (
+                  <button onClick={() => del(l)} title="Remove line" className="shrink-0 rounded-lg p-1 text-text-muted hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

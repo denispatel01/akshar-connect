@@ -162,6 +162,9 @@ export default function FollowupsPage({ user }) {
   // tapping an outcome summary chip, so each count drills into its devotee list.
   const [outcomeFilter, setOutcomeFilter] = useState('');
   const [reminder, setReminder] = useState(null); // { who:'devotees'|'karyakartas' } while composing
+  // Which roster cards have their call/in-person/message log expanded. Collapsed by
+  // default — a karyakarta opens it only when they actually want to log a contact.
+  const [openLog, setOpenLog] = useState({});
 
   useEffect(() => {
     setEvents(dataService.getEvents());
@@ -766,9 +769,33 @@ export default function FollowupsPage({ user }) {
 
                 {/* actions */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <Tick on={!!f.call} onClick={() => save(d.id, { call: !f.call })} icon={PhoneCall} label="Called" />
-                  <Tick on={!!f.inPerson} onClick={() => save(d.id, { inPerson: !f.inPerson })} icon={UserRound} label="Met in person" />
-                  <Tick on={!!f.message} onClick={() => save(d.id, { message: !f.message })} icon={MessageSquare} label="Messaged" />
+                  {/* Call / in-person / message are collapsed by default. Tap "Log" to
+                      reveal them only when you actually want to record a contact. The
+                      count badge shows how many are already logged. */}
+                  {(() => {
+                    const n = (f.call ? 1 : 0) + (f.inPerson ? 1 : 0) + (f.message ? 1 : 0);
+                    const open = !!openLog[d.id];
+                    if (!open) {
+                      return (
+                        <button onClick={() => setOpenLog(o => ({ ...o, [d.id]: true }))}
+                          title="Log how you contacted this devotee"
+                          className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold transition-colors ${n ? 'border-primary bg-primary/10 text-primary' : 'border-border-light bg-surface text-text-muted hover:border-primary'}`}>
+                          <ClipboardList className="h-3.5 w-3.5" /> Log{n ? ` (${n})` : ''}
+                        </button>
+                      );
+                    }
+                    return (
+                      <>
+                        <Tick on={!!f.call} onClick={() => save(d.id, { call: !f.call })} icon={PhoneCall} label="Called" />
+                        <Tick on={!!f.inPerson} onClick={() => save(d.id, { inPerson: !f.inPerson })} icon={UserRound} label="Met in person" />
+                        <Tick on={!!f.message} onClick={() => save(d.id, { message: !f.message })} icon={MessageSquare} label="Messaged" />
+                        <button onClick={() => setOpenLog(o => ({ ...o, [d.id]: false }))} title="Hide log options"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-light bg-surface text-text-muted hover:border-primary">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    );
+                  })()}
 
                   <select value={f.outcome || ''} onChange={e => save(d.id, { outcome: e.target.value })}
                     className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold outline-none ${outcomeStyle(f.outcome || '')}`}>

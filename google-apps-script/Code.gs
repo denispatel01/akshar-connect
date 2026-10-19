@@ -54,6 +54,10 @@ var HEADERS = {
   // One row per leader PER board (its target + done). Decoupled from MandalLeaders
   // so a leader can be renamed/removed later without touching past boards.
   LeaderEntries: ['id','boardId','leaderId','leaderName','target','done','sortOrder'],
+  // Day-wise seva log — one row per challan line committed (leader + amount on a
+  // date). The leader's `done` total on LeaderEntries is the running sum of these,
+  // so the user only adds the day's lines and the app keeps the totals + history.
+  LeaderLogs: ['id','boardId','leaderId','leaderName','date','amount','note','createdBy','createdOn'],
   // One row per device registered for push. Keyed by the FCM token. A devotee /
   // staff member can have several devices (several rows).
   PushTokens: ['token','devoteeId','mobile','name','platform','updatedOn'],
@@ -1488,7 +1492,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1659,7 +1663,8 @@ function doGetLeaderboards_(p){
   var leaders = seedMandalLeaders_(false);
   var boards  = readAll_('LeaderBoards');
   var entries = readAll_('LeaderEntries');
-  return json_({ ok:true, leaders: leaders, boards: boards, entries: entries });
+  var logs    = readAll_('LeaderLogs');
+  return json_({ ok:true, leaders: leaders, boards: boards, entries: entries, logs: logs });
 }
 
 // Upsert a single row by id. Returns 'insert' or 'update'.
@@ -1695,6 +1700,35 @@ function doDeleteLeaderboard_(p){
   var brn = findRow_('LeaderBoards', 'id', boardId);
   if(brn > 0) tab_('LeaderBoards').deleteRow(brn);
   logChange_('DELETE', 'LeaderBoards', { name: p.title || boardId, actor: p.actor }, mailFlag_(p));
+  return json_({ ok:true });
+}
+
+// Commit a day's seva log: append the challan lines to LeaderLogs AND upsert the
+// updated entries (whose `done` now includes the day's additions, computed on the
+// client). One call → logs saved + running totals updated + admin emailed.
+function doAddLeaderLog_(p){
+  var board = p.board || {};
+  var entries = p.entries || [];
+  var logs = p.logs || [];
+  if(!board.id) return json_({ ok:false, error:'missing board id' });
+  if(!logs.length) return json_({ ok:false, error:'no log lines' });
+  logs.forEach(function(l){ if(l && l.id) appendRows_('LeaderLogs', [l]); });
+  entries.forEach(function(e){ leaderUpsert_('LeaderEntries', e); });
+  leaderUpsert_('LeaderBoards', board);
+  var added = 0; logs.forEach(function(l){ added += Number(l.amount)||0; });
+  logChange_('UPDATE', 'LeaderBoards', { name: (board.title||'') + ' — +' + added + ' ' + (board.unit||'Kg') + ' logged', updatedBy: board.updatedBy||board.createdBy }, mailFlag_(p));
+  try{ sendLeaderboardEmail_(board, entries, 'update', p); }catch(err){}
+  return json_({ ok:true, added: added });
+}
+
+// Remove one logged line and roll back its amount from the leader's running total.
+function doDeleteLeaderLog_(p){
+  var logId = p.logId; var board = p.board || {}; var entries = p.entries || [];
+  if(!logId) return json_({ ok:false, error:'missing logId' });
+  var rn = findRow_('LeaderLogs', 'id', logId);
+  if(rn > 0) tab_('LeaderLogs').deleteRow(rn);
+  entries.forEach(function(e){ leaderUpsert_('LeaderEntries', e); });
+  if(board.id) logChange_('DELETE', 'LeaderLogs', { name: (board.title||'') + ' — log line removed', updatedBy: board.updatedBy||board.createdBy }, mailFlag_(p));
   return json_({ ok:true });
 }
 
@@ -1761,6 +1795,8 @@ function handle_(p){
     if(action==='seedMandalLeaders') return json_({ ok:true, leaders: seedMandalLeaders_(p && p.force === true) });
     if(action==='saveLeaderboard') return doSaveLeaderboard_(p);
     if(action==='deleteLeaderboard') return doDeleteLeaderboard_(p);
+    if(action==='addLeaderLog') return doAddLeaderLog_(p);
+    if(action==='deleteLeaderLog') return doDeleteLeaderLog_(p);
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),
