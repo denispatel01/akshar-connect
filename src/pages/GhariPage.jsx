@@ -602,7 +602,7 @@ function DeliveryDateButton({ value, onPick, title, setLabel = 'Set date', empha
           it directly, so the OS date picker opens reliably (incl. Android WebView). */}
       <input type="date" value={date}
         title={title || (date ? `Delivery date: ${date} — tap to change` : 'Set delivery date')}
-        onChange={(e) => onPick(e.target.value)}
+        onChange={(e) => { onPick(e.target.value); e.target.blur(); }}
         onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* native focus still opens it */ } }}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
     </div>
