@@ -858,6 +858,90 @@ function KaryakartaExportModal({ season, onClose }) {
   );
 }
 
+// Full stock reconciliation — Bought (purchased) vs Sold (ordered) vs Left
+// (bought − sold), detailed per size, per product, with Ghari / Bhusu subtotals and
+// a grand total. Replaces the old "At a glance" KPI grid.
+function StockReconCard({ r }) {
+  const prods = ghariService.getProducts();
+  const bySkuProd = {}; prods.forEach(p => { bySkuProd[p.sku] = p; });
+  const skus = new Set([...Object.keys(r.purchased || {}), ...Object.keys(r.bySku || {})]);
+  const catOrder = Object.keys(GHARI_CATEGORIES);
+  const byName = {};
+  skus.forEach(sku => {
+    const bought = Number(r.purchased?.[sku]) || 0;
+    const sold = Number(r.bySku?.[sku]?.qty) || 0;
+    if (!bought && !sold) return;
+    const p = bySkuProd[sku] || { name: sku, size: '', category: 'ghee' };
+    const g = byName[p.name] || (byName[p.name] = { name: p.name, category: p.category, sizes: [], bought: 0, sold: 0 });
+    g.sizes.push({ size: p.size, bought, sold });
+    g.bought += bought; g.sold += sold;
+  });
+  const groups = Object.values(byName)
+    .map(g => ({ ...g, sizes: g.sizes.sort((a, b) => sizeKg_(a.size) - sizeKg_(b.size)) }))
+    .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name));
+  if (!groups.length) return null;
+
+  const ghariGroups = groups.filter(g => g.category !== 'bhusu');
+  const bhusuGroups = groups.filter(g => g.category === 'bhusu');
+  const sum = (gs) => gs.reduce((a, g) => ({ bought: a.bought + g.bought, sold: a.sold + g.sold }), { bought: 0, sold: 0 });
+  const ghariT = sum(ghariGroups), bhusuT = sum(bhusuGroups), grand = sum(groups);
+
+  const nums = (b, s) => (
+    <>
+      <span className="w-12 shrink-0 text-right font-bold text-emerald-600">{b}</span>
+      <span className="w-12 shrink-0 text-right font-bold text-rose-600">{s}</span>
+      <span className={`w-12 shrink-0 text-right font-black ${b - s < 0 ? 'text-red-600' : b - s === 0 ? 'text-amber-600' : 'text-text-main'}`}>{b - s}</span>
+    </>
+  );
+  const prodBlock = (g) => (
+    <React.Fragment key={g.name}>
+      <div className="flex items-center gap-1 pt-1.5 text-xs">
+        <span className="min-w-0 flex-1 truncate font-black text-text-main">{cleanName_(g.name)}</span>
+        {nums(g.bought, g.sold)}
+      </div>
+      {g.sizes.length > 1 && g.sizes.map(s => (
+        <div key={s.size} className="flex items-center gap-1 text-[11px]">
+          <span className="min-w-0 flex-1 truncate pl-3 font-semibold text-text-muted">{s.size || '—'}</span>
+          {nums(s.bought, s.sold)}
+        </div>
+      ))}
+    </React.Fragment>
+  );
+  const totalRow = (label, t, cls) => (
+    <div className={`mt-1 flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${cls}`}>
+      <span className="min-w-0 flex-1 truncate font-black">{label}</span>
+      {nums(t.bought, t.sold)}
+    </div>
+  );
+
+  return (
+    <div className="rounded-2xl border border-border-light bg-surface p-4">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> Stock — bought vs sold</h3>
+      <div className="flex items-center gap-1 border-b border-border-light pb-1 text-[9px] font-black uppercase tracking-wide text-text-muted">
+        <span className="min-w-0 flex-1">Item</span>
+        <span className="w-12 shrink-0 text-right">Bought</span>
+        <span className="w-12 shrink-0 text-right">Sold</span>
+        <span className="w-12 shrink-0 text-right">Left</span>
+      </div>
+      {ghariGroups.length > 0 && (<>
+        {ghariGroups.map(prodBlock)}
+        {totalRow('Ghari total', ghariT, 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300')}
+      </>)}
+      {bhusuGroups.length > 0 && (<>
+        {bhusuGroups.map(prodBlock)}
+        {totalRow('Bhusu total', bhusuT, 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300')}
+      </>)}
+      <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-xs text-white">
+        <span className="min-w-0 flex-1 truncate font-black">TOTAL</span>
+        <span className="w-12 shrink-0 text-right font-black">{grand.bought}</span>
+        <span className="w-12 shrink-0 text-right font-black">{grand.sold}</span>
+        <span className="w-12 shrink-0 text-right font-black">{grand.bought - grand.sold}</span>
+      </div>
+      <p className="mt-2 text-[10px] font-semibold text-text-muted">Bought = purchased · Sold = ordered · Left = bought − sold (boxes).{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
+    </div>
+  );
+}
+
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const [exportKk, setExportKk] = useState(false);
@@ -885,38 +969,8 @@ function ReportView({ season }) {
       </div>
 
       {/* At a glance — derived ratios (read-only) so the key insights are one tap away. */}
-      {r.orderCount > 0 && (() => {
-        const kpis = [
-          { l: 'Collection rate', v: r.revenue > 0 ? Math.round((r.received / r.revenue) * 100) + '%' : '—', s: `${rupee(r.outstanding)} to collect` },
-          { l: 'Avg order', v: rupee(Math.round(r.revenue / r.orderCount)), s: `${r.orderCount} orders` },
-          { l: 'Avg boxes/order', v: (r.boxes / r.orderCount).toFixed(1), s: `${r.boxes} boxes` },
-          { l: 'Delivered', v: Math.round((r.delivered / r.orderCount) * 100) + '%', s: `${r.pending} pending` },
-          ...(r.totalKg > 0 ? [
-            { l: 'Ghari share', v: Math.round((r.ghariKg / r.totalKg) * 100) + '%', s: '' },
-            { l: 'Bhusu share', v: Math.round((r.bhusuKg / r.totalKg) * 100) + '%', s: '' },
-          ] : []),
-          ...(r.purchasedBoxes > 0 ? [
-            { l: 'Sold / bought', v: `${r.boxes} / ${r.purchasedBoxes}`, s: `${r.purchasedBoxes - r.boxes} boxes left` },
-          ] : []),
-          ...(r.purchaseCost > 0 ? [
-            { l: 'Margin', v: rupee(r.revenue - r.purchaseCost), s: r.revenue > 0 ? Math.round(((r.revenue - r.purchaseCost) / r.revenue) * 100) + '% of revenue' : '' },
-          ] : []),
-        ];
-        return (
-          <div className="rounded-2xl border border-border-light bg-surface p-4">
-            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> At a glance</h3>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {kpis.map((k) => (
-                <div key={k.l} className="rounded-2xl border border-border-light bg-bg-base p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{k.l}</div>
-                  <div className="mt-0.5 text-lg font-black text-text-main">{k.v}</div>
-                  {k.s && <div className="truncate text-[10px] font-semibold text-text-muted">{k.s}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Stock — bought vs sold vs left: detailed per size/product + Ghari/Bhusu + total. */}
+      <StockReconCard r={r} />
 
       {/* Weight sold — the quick answer to "how many kg of Ghari / Bhusu did we sell?" */}
       {r.totalKg > 0 && (
@@ -974,33 +1028,6 @@ function ReportView({ season }) {
           })}
         </div>
       </div>
-
-      {/* Stock reconciliation — bought (purchases) vs sold (orders) vs remaining. */}
-      {r.purchasedBoxes > 0 && (
-        <div className="rounded-2xl border border-border-light bg-surface p-4">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h3 className="text-sm font-black text-text-main">Stock — bought vs sold</h3>
-            <span className="text-[11px] font-bold text-text-muted">{r.purchasedBoxes} bought · {r.boxes} sold</span>
-          </div>
-          <div className="space-y-1">
-            {ghariService.getProducts().map(p => {
-              const bought = r.purchased[p.sku] || 0; const sold = (r.bySku[p.sku]?.qty) || 0;
-              if (!bought && !sold) return null;
-              const left = bought - sold;
-              const low = left <= 0; // sold everything bought (or oversold) → restock
-              return (
-                <div key={p.sku} className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-text-main">{p.name.replace('Ghari ', '').replace(/[()]/g, '')} <span className="text-text-muted">{p.size}</span>{low && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-black text-red-700 dark:bg-red-950 dark:text-red-300">RESTOCK</span>}</span>
-                  <span className="shrink-0 font-black text-text-muted">
-                    <span className="text-emerald-600">{bought} in</span> · <span className="text-rose-600">{sold} out</span> · <span className={left < 0 ? 'text-red-600' : left === 0 ? 'text-amber-600' : 'text-text-main'}>{left} left</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {r.purchaseCost > 0 && <div className="mt-2 border-t border-border-light pt-2 text-[11px] font-bold text-text-muted">Purchase cost {rupee(r.purchaseCost)} · Revenue {rupee(r.revenue)} · <span className={r.revenue - r.purchaseCost >= 0 ? 'text-emerald-600' : 'text-rose-600'}>Margin {rupee(r.revenue - r.purchaseCost)}</span></div>}
-        </div>
-      )}
 
       {kkList.length > 0 && (
         <div className="rounded-2xl border border-border-light bg-surface p-4">
