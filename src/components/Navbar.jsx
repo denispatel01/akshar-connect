@@ -137,13 +137,11 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
               wordmark stays readable (the temple icon already has a light background). */}
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
-            {/* Match the temple to the wordmark's LETTERS (cap-to-baseline), not its
-                full box: the wordmark image has ~10px of flourish below the baseline, so
-                the actual letters fill only ~0.9 of its height. The temple is sized to
-                that cap-to-baseline height (≈0.9 × wordmark box) so the two read as the
-                same size instead of the solid temple towering over the text. */}
+            {/* temple-logo.png is cropped tight to the temple drawing and the wordmark
+                is tightly cropped too, so BOTH fill their box. At the same box height
+                their visible heights are identical (verified 24≈24 / 32≈32). */}
             <img src={`${import.meta.env.BASE_URL}images/temple-logo.png`} alt=""
-              className="h-[22px] w-auto shrink-0 rounded-lg object-contain sm:h-[30px]" />
+              className="h-6 w-auto shrink-0 rounded-lg object-contain sm:h-8" />
             <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
               className="h-6 w-auto object-contain sm:h-8" />
           </button>
