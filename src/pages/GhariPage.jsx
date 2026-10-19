@@ -1839,6 +1839,8 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
 function PurchaseRow({ purchase, onOpen }) {
   const summary = purchase.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
   const photoPending = String(purchase.challan || '').indexOf('data:') === 0; // not yet on Drive
+  // Ghari vs Bhusu weight in this purchase (ghee/noghee/sf = Ghari, bhusu = Bhusu).
+  const kg = ghariService.orderKg(purchase);
   return (
     <button onClick={() => onOpen(purchase)} className="flex w-full items-center gap-3 border-b border-border-light px-3 py-3 text-left last:border-0 hover:bg-bg-base">
       <div className="relative shrink-0">
@@ -1853,6 +1855,12 @@ function PurchaseRow({ purchase, onOpen }) {
         <div className="truncate text-sm font-extrabold text-text-main">{purchase.supplier || '(supplier)'}</div>
         <div className="truncate text-[11px] text-text-muted">{summary}</div>
         <div className="truncate text-[10px] font-semibold text-text-muted">{fmtDate_(purchase.date)} · {purchase.boxes} box{purchase.boxes === 1 ? '' : 'es'}{photoPending ? ' · photo not synced' : ''}</div>
+        {(kg.ghariKg > 0 || kg.bhusuKg > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold">
+            {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
+            {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(kg.bhusuKg)} kg Bhusu</span>}
+          </div>
+        )}
       </div>
       {purchase.amount > 0 && <div className="shrink-0 text-sm font-black text-text-main">{rupee(purchase.amount)}</div>}
     </button>
@@ -1887,6 +1895,8 @@ function PurchasesView({ season, canEdit = true }) {
   const list = useMemo(() => ghariService.getPurchases(season), [season, tick]);
   const totalBoxes = list.reduce((s, p) => s + p.boxes, 0);
   const totalCost = list.reduce((s, p) => s + Number(p.amount || 0), 0);
+  // Grand total Ghari vs Bhusu weight across every purchase this season.
+  const totalKg = list.reduce((a, p) => { const k = ghariService.orderKg(p); return { ghariKg: a.ghariKg + k.ghariKg, bhusuKg: a.bhusuKg + k.bhusuKg }; }, { ghariKg: 0, bhusuKg: 0 });
   return (
     <div>
       <div className="mb-3 grid grid-cols-3 gap-2">
@@ -1894,6 +1904,14 @@ function PurchasesView({ season, canEdit = true }) {
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Boxes bought</div><div className="text-xl font-black text-text-main">{totalBoxes}</div></div>
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
       </div>
+      {/* Total Ghari vs Bhusu bought this season (ghee/sugar-free etc. = Ghari, bhusu = Bhusu). */}
+      {(totalKg.ghariKg > 0 || totalKg.bhusuKg > 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Total bought</span>
+          {totalKg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[12px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(totalKg.ghariKg)} kg Ghari</span>}
+          {totalKg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-2.5 py-1 text-[12px] font-black text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(totalKg.bhusuKg)} kg Bhusu</span>}
+        </div>
+      )}
       {canEdit && <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>}
       {list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
