@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, User, MapPin, Phone, CalendarDays, Quote, Megaphone, ChevronRight } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { devoteeSearchText, scoreMatch } from '../utils/search';
+import { devoteeGlobalText, scoreMatch } from '../utils/search';
 
 const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
 const clip = (s, n = 90) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n) + '…' : t; };
@@ -35,8 +35,10 @@ export default function GlobalSearch({ open, onClose, onOpenDevotee, onNavigate,
   const nav = (page, params) => { onNavigate?.(page, params); onClose(); };
 
   // One config per searchable type. `text` is what we match on, `title`/`sub` are
-  // what we show, `open` is where tapping goes. Devotees match on their OWN name /
-  // mobile / DOB only (see utils/search.js) — never by karyakarta / reference.
+  // what we show, `open` is where tapping goes. Global search is BROAD — devotees
+  // match on name / mobile / DOB AND address / area / city / family / karyakarta
+  // (devoteeGlobalText), so it "finds everything". (The follow-up screen uses the
+  // narrow matcher instead.)
   const groups = useMemo(() => {
     const s = q.trim();
     if (!s) return [];
@@ -45,7 +47,7 @@ export default function GlobalSearch({ open, onClose, onOpenDevotee, onNavigate,
       {
         key: 'devotee', label: 'Devotees', Icon: User,
         rows: dataService.getDevotees() || [],
-        text: (d) => devoteeSearchText(d),
+        text: (d) => devoteeGlobalText(d),
         name: (d) => d.name || '',
         open: (d) => { onOpenDevotee?.(d.id); onClose(); },
       },

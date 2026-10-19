@@ -58,6 +58,20 @@ export function devoteeSearchText(d) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+// BROAD searchable text for the app-wide Global Search — includes everything a
+// user might look someone up by: name, phones, DOB, AND address / area / city /
+// family id / karyakarta / reference / notes. (The narrow devoteeSearchText above
+// is still used by the follow-up screen, where area/karyakarta must NOT match.)
+export function devoteeGlobalText(d) {
+  return [
+    d.firstName, d.middleName, d.lastName, d.name,
+    d.mobile, d.whatsapp, d.email,
+    dobSearchForms(d.dob),
+    d.address, d.area, d.city, d.areaRoute,
+    d.familyId, d.followupKaryakarta, d.reference, d.notes,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
 // Does a devotee match the query on name / DOB / mobile only? (token-based,
 // every query token must match somewhere in the restricted text.)
 export function devoteeMatches(d, query) {
