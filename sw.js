@@ -1,5 +1,5 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const BUILD_ID = '1792421087862'; // replaced at build time so each deploy ships a new SW
+const BUILD_ID = '1792421498625'; // replaced at build time so each deploy ships a new SW
 const CACHE_NAME = 'akshar-connect-' + BUILD_ID;
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
@@ -64,12 +64,16 @@ self.addEventListener('fetch', (event) => {
   // Never cache / intercept backend API calls — always go to network
   if (isBackendRequest(url)) return;
 
-  // Network-first for navigation requests, with cache fallback
+  // Network-first for navigation requests, with cache fallback. Use no-store so the
+  // app shell (index.html) is ALWAYS fetched fresh from the network — GitHub Pages
+  // serves index.html with max-age=600, and a stale shell points at old JS bundles,
+  // which is the #1 cause of "my change didn't show up". Bypassing the HTTP cache here
+  // means a new deploy is picked up on the very next load.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
-          const response = await fetch(request);
+          const response = await fetch(request, { cache: 'no-store' });
           try {
             const cache = await caches.open(CACHE_NAME);
             cache.put(request, response.clone());
