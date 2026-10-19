@@ -1133,9 +1133,10 @@ function ItemRow({ product, onSave, onDelete }) {
   const [size, setSize] = useState(product.size);
   const [category, setCategory] = useState(product.category);
   const [price, setPrice] = useState(String(product.unitPrice));
+  const [cost, setCost] = useState(product.costPrice ? String(product.costPrice) : '');
 
   const commit = () => {
-    onSave({ ...product, name: name.trim() || product.name, size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0 });
+    onSave({ ...product, name: name.trim() || product.name, size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0, costPrice: Number(cost.replace(/[^\d]/g, '')) || 0 });
     setEditing(false);
   };
 
@@ -1151,10 +1152,17 @@ function ItemRow({ product, onSave, onDelete }) {
             className="flex-1 rounded-lg border border-border-light bg-surface px-2 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary">
             {Object.values(GHARI_CATEGORIES).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
-          <div className="flex items-center gap-0.5 rounded-lg border border-border-light bg-surface px-2">
-            <span className="text-xs font-black text-text-main">₹</span>
-            <input inputMode="numeric" value={price} onChange={e => setPrice(e.target.value.replace(/[^\d]/g, ''))}
-              className="w-14 bg-transparent text-right text-xs font-black text-text-main outline-none" />
+        </div>
+        <div className="flex gap-1.5">
+          <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-light bg-surface px-2">
+            <span className="shrink-0 text-[10px] font-black uppercase text-text-muted">Sell ₹</span>
+            <input inputMode="numeric" value={price} onChange={e => setPrice(e.target.value.replace(/[^\d]/g, ''))} placeholder="0"
+              className="w-full bg-transparent text-right text-xs font-black text-text-main outline-none" />
+          </div>
+          <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-light bg-surface px-2">
+            <span className="shrink-0 text-[10px] font-black uppercase text-text-muted">Cost ₹</span>
+            <input inputMode="numeric" value={cost} onChange={e => setCost(e.target.value.replace(/[^\d]/g, ''))} placeholder="0"
+              className="w-full bg-transparent text-right text-xs font-black text-text-main outline-none" />
           </div>
         </div>
         <div className="flex justify-end gap-1.5">
@@ -1170,7 +1178,7 @@ function ItemRow({ product, onSave, onDelete }) {
       <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
       <button onClick={() => setEditing(true)} className="min-w-0 flex-1 text-left">
         <span className="block truncate text-xs font-bold text-text-main">{product.name} <span className="text-text-muted">· {product.size}</span></span>
-        <span className="text-[10px] font-semibold text-text-muted">{cat?.label} · ₹{product.unitPrice}{!product.active && ' · hidden'}</span>
+        <span className="text-[10px] font-semibold text-text-muted">{cat?.label} · Sell ₹{product.unitPrice}{product.costPrice ? ` · Cost ₹${product.costPrice}` : ''}{!product.active && ' · hidden'}</span>
       </button>
       <button onClick={() => setEditing(true)} title="Edit" className="flex h-7 w-7 items-center justify-center rounded-lg bg-bg-base text-text-muted hover:text-primary">
         <Pencil className="h-3.5 w-3.5" />
@@ -1192,9 +1200,10 @@ function AddItemForm({ onAdd, onClose }) {
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('ghee');
   const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
   const add = () => {
     if (!name.trim()) { alertError('Name needed', 'Please enter the item name.'); return; }
-    onAdd({ name: name.trim(), size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0 });
+    onAdd({ name: name.trim(), size: size.trim(), category, unitPrice: Number(price.replace(/[^\d]/g, '')) || 0, costPrice: Number(cost.replace(/[^\d]/g, '')) || 0 });
     onClose();
   };
   return (
@@ -1208,10 +1217,17 @@ function AddItemForm({ onAdd, onClose }) {
           className="flex-1 rounded-lg border border-border-light bg-surface px-2 py-1.5 text-xs font-semibold text-text-main outline-none focus:border-primary">
           {Object.values(GHARI_CATEGORIES).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
         </select>
-        <div className="flex items-center gap-0.5 rounded-lg border border-border-light bg-surface px-2">
-          <span className="text-xs font-black text-text-main">₹</span>
+      </div>
+      <div className="flex gap-1.5">
+        <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-1.5">
+          <span className="shrink-0 text-[10px] font-black uppercase text-text-muted">Sell ₹</span>
           <input inputMode="numeric" value={price} onChange={e => setPrice(e.target.value.replace(/[^\d]/g, ''))} placeholder="0"
-            className="w-14 bg-transparent text-right text-xs font-black text-text-main outline-none" />
+            className="w-full bg-transparent text-right text-xs font-black text-text-main outline-none" />
+        </div>
+        <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-1.5">
+          <span className="shrink-0 text-[10px] font-black uppercase text-text-muted">Cost ₹</span>
+          <input inputMode="numeric" value={cost} onChange={e => setCost(e.target.value.replace(/[^\d]/g, ''))} placeholder="0"
+            className="w-full bg-transparent text-right text-xs font-black text-text-main outline-none" />
         </div>
       </div>
       <div className="flex justify-end gap-1.5">
@@ -1804,6 +1820,13 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
   const boxes = items.reduce((s, i) => s + i.qty, 0);
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
 
+  // Auto cost = Σ qty × item cost price (set per item in Settings). The amount field
+  // auto-fills from this as you add items, UNLESS the user types their own figure
+  // (then it's left alone). "Use auto" restores the calculated total.
+  const autoAmount = useMemo(() => Math.round(items.reduce((s, it) => s + it.qty * (Number(bySku[it.sku]?.costPrice) || 0), 0)), [items, bySku]);
+  const [amountTouched, setAmountTouched] = useState(!!initialPurchase?.amount);
+  useEffect(() => { if (!amountTouched) setAmount(autoAmount ? String(autoAmount) : ''); }, [autoAmount, amountTouched]);
+
   const pickChallan = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     try {
@@ -1863,11 +1886,17 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Total cost (optional)</label>
+          <label className="mb-1 flex items-center justify-between text-[11px] font-black uppercase tracking-wide text-text-muted">
+            <span>Total cost</span>
+            {autoAmount > 0 && amountTouched && (
+              <button type="button" onClick={() => { setAmountTouched(false); setAmount(String(autoAmount)); }} className="normal-case text-[10px] font-bold text-primary">Use auto ₹{autoAmount.toLocaleString('en-IN')}</button>
+            )}
+          </label>
           <div className="flex items-center gap-1 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
             <span className="text-sm font-black text-text-main">₹</span>
-            <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ''))} placeholder="0" className="w-full bg-transparent text-sm font-black text-text-main outline-none" />
+            <input inputMode="numeric" value={amount} onChange={e => { setAmountTouched(true); setAmount(e.target.value.replace(/[^\d]/g, '')); }} placeholder="0" className="w-full bg-transparent text-sm font-black text-text-main outline-none" />
           </div>
+          <p className="mt-1 text-[10px] font-semibold text-text-muted">{autoAmount > 0 ? (amountTouched ? `Auto from item cost: ₹${autoAmount.toLocaleString('en-IN')}` : 'Auto-calculated from item cost prices — type to override.') : 'Set a Cost ₹ on each item in Settings to auto-calculate this.'}</p>
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Challan / bill (photo or PDF)</label>

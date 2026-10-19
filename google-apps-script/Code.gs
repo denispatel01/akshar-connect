@@ -31,7 +31,7 @@ var HEADERS = {
   // ── Ghari Seva (fundraising ledger) ──────────────────────────────────────
   // Catalog of sellable items. `category` ∈ ghee|noghee|sf|bhusu. Prices are
   // editable (they change year to year), so each ORDER snapshots the unit price.
-  GhariProducts: ['sku','name','size','category','unitPrice','sortOrder','active'],
+  GhariProducts: ['sku','name','size','category','unitPrice','costPrice','sortOrder','active'],
   // One row per customer order. `itemsJson` is the authoritative line-item list
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.

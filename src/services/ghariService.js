@@ -127,7 +127,8 @@ function normalizeProduct_(p) {
     name: String(p.name || '').trim(),
     size: String(p.size || '').trim(),
     category: GHARI_CATEGORIES[p.category] ? p.category : 'ghee',
-    unitPrice: num_(p.unitPrice),
+    unitPrice: num_(p.unitPrice),   // selling price (₹ per box/packet)
+    costPrice: num_(p.costPrice),   // purchase cost (₹ per box/packet) — auto-totals purchases
     sortOrder: num_(p.sortOrder),
     active: p.active === undefined ? true : bool_(p.active),
   };
