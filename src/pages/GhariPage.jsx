@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw, Boxes,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, History, RotateCcw, Boxes, BarChart3,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -878,6 +878,38 @@ function ReportView({ season }) {
         <StatTile label="G-Pay" value={rupee(r.gpay)} color="#2563EB" />
         <StatTile label="Unpaid" value={rupee(r.unpaid)} color="#E11D48" />
       </div>
+
+      {/* At a glance — derived ratios (read-only) so the key insights are one tap away. */}
+      {r.orderCount > 0 && (() => {
+        const kpis = [
+          { l: 'Collection rate', v: r.revenue > 0 ? Math.round((r.received / r.revenue) * 100) + '%' : '—', s: `${rupee(r.outstanding)} to collect` },
+          { l: 'Avg order', v: rupee(Math.round(r.revenue / r.orderCount)), s: `${r.orderCount} orders` },
+          { l: 'Avg boxes/order', v: (r.boxes / r.orderCount).toFixed(1), s: `${r.boxes} boxes` },
+          { l: 'Delivered', v: Math.round((r.delivered / r.orderCount) * 100) + '%', s: `${r.pending} pending` },
+          ...(r.totalKg > 0 ? [
+            { l: 'Ghari share', v: Math.round((r.ghariKg / r.totalKg) * 100) + '%', s: `${kg1(r.ghariKg)} of ${kg1(r.totalKg)} kg` },
+            { l: 'Bhusu share', v: Math.round((r.bhusuKg / r.totalKg) * 100) + '%', s: `${kg1(r.bhusuKg)} kg` },
+          ] : []),
+          ...(r.purchaseCost > 0 ? [
+            { l: 'Margin', v: rupee(r.revenue - r.purchaseCost), s: r.revenue > 0 ? Math.round(((r.revenue - r.purchaseCost) / r.revenue) * 100) + '% of revenue' : '' },
+            { l: 'Sold / bought', v: `${r.boxes} / ${r.purchasedBoxes}`, s: `${r.purchasedBoxes - r.boxes} left` },
+          ] : []),
+        ];
+        return (
+          <div className="rounded-2xl border border-border-light bg-surface p-4">
+            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-black text-text-main"><BarChart3 className="h-4 w-4 text-primary" /> At a glance</h3>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {kpis.map((k) => (
+                <div key={k.l} className="rounded-2xl border border-border-light bg-bg-base p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{k.l}</div>
+                  <div className="mt-0.5 text-lg font-black text-text-main">{k.v}</div>
+                  {k.s && <div className="truncate text-[10px] font-semibold text-text-muted">{k.s}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Weight sold — the quick answer to "how many kg of Ghari / Bhusu did we sell?" */}
       {r.totalKg > 0 && (
@@ -2148,19 +2180,27 @@ function StockView({ season, canEdit = true }) {
         <div className="rounded-2xl border border-border-light bg-surface p-4">
           <h3 className="mb-3 text-sm font-black text-text-main">Recent issues</h3>
           <div className="divide-y divide-border-light">
-            {issues.map(st => (
+            {issues.map(st => {
+              const kg = ghariService.orderKg(st); // Ghari vs Bhusu weight in this issue
+              return (
               <div key={st.id} className="flex items-center gap-2 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-black text-text-main">{st.karyakarta || '—'}</div>
                   <div className="truncate text-[11px] text-text-muted">{(st.items || []).map(i => `${i.qty}× ${i.name.replace('Ghari ', '')} ${i.size}`).join(', ')}</div>
                   <div className="text-[10px] font-semibold text-text-muted">{st.date ? new Date(st.date).toLocaleDateString('en-IN') : ''}{st.remarks ? ` · ${st.remarks}` : ''}{st.createdBy ? ` · by ${String(st.createdBy).replace(/\s*\(.*\)$/, '')}` : ''}</div>
+                  {(kg.ghariKg > 0 || kg.bhusuKg > 0) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold">
+                      {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg Ghari</span>}
+                      {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(kg.bhusuKg)} kg Bhusu</span>}
+                    </div>
+                  )}
                 </div>
                 <span className="shrink-0 text-sm font-black text-text-main">{st.boxes}</span>
                 <button onClick={async () => { try { await ghariService.stockChallanPdf(st, { share: true }); } catch (e) { alertError('Challan failed', e?.message || ''); } }} title="Stock challan (PDF)" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Download className="h-3.5 w-3.5" /></button>
                 {canEdit && <button onClick={() => { setAdding(false); setEditing(st); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ } }} title="Edit issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border-light bg-bg-base text-text-muted hover:border-primary hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>}
                 {canEdit && <button onClick={() => voidIssue(st)} title="Remove issue" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950"><Trash2 className="h-3.5 w-3.5" /></button>}
               </div>
-            ))}
+              ); })}
           </div>
         </div>
       )}
@@ -2256,7 +2296,7 @@ export default function GhariPage({ user }) {
     ...(canEdit ? [{ id: 'entry', label: 'Sell', icon: Plus }] : []),
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
-    { id: 'report', label: 'Report', icon: Wallet },
+    { id: 'report', label: 'Insights', icon: BarChart3 },
     ...(canSeeStock ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
     ...(canSeeLog ? [{ id: 'log', label: 'Log', icon: History }] : []),
     ...(canEdit ? [{ id: 'trash', label: 'Trash', icon: RotateCcw }] : []),
