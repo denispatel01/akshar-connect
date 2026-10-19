@@ -137,9 +137,12 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
           <button onClick={() => setActivePage('dashboard')} title="Akshar Connect — Home"
             className="z-10 flex min-w-0 shrink items-center gap-1.5 leading-none dark:rounded-xl dark:bg-white/95 dark:px-1.5 dark:py-1 sm:gap-2.5">
             <img src={`${import.meta.env.BASE_URL}images/temple-logo.png`} alt=""
-              className="h-7 w-auto shrink-0 rounded-lg object-contain sm:h-9" />
+              className="h-6 w-auto shrink-0 rounded-lg object-contain sm:h-9" />
+            {/* The wordmark is very wide (~8:1); cap its width on phones so it can never
+                run under the right-side icons. object-contain keeps temple+wordmark the
+                same height until the cap kicks in on very narrow screens. */}
             <img src={`${import.meta.env.BASE_URL}images/wordmark.webp`} alt="Akshar Connect"
-              className="h-7 w-auto object-contain sm:h-9" />
+              className="h-6 w-auto max-w-[52vw] object-contain sm:h-9 sm:max-w-none" />
           </button>
 
           {/* Right: search + notifications + theme toggle (+ account/logout on desktop) */}
