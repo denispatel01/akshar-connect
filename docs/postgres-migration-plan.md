@@ -1,8 +1,45 @@
 # Akshar Connect — Backend Migration Plan: Google Apps Script + Sheets → Supabase (Postgres)
 
-**Status:** PROPOSAL — for review before any code is written.
+**Status:** PROPOSAL — approach decided (see §0.5); schema/build not yet started.
 **Author:** Claude (planning session), 2026-10-18
 **Decision owner:** Urvashi / Denis
+
+---
+
+## 0.5 DECISION (2026-10-19): build a separate parallel app, don't migrate in place
+
+The live app must keep running untouched so devotees are never disturbed. So instead of
+flipping the existing app to Supabase behind a flag (§7), we **build a brand-new app that
+is a same-to-same clone of the frontend, differing only in its backend.**
+
+Decisions made with the user:
+- **New separate GitHub repo** (e.g. `akshar-connect-pg`) — a copy of this frontend. The
+  live repo, its GitHub Pages URL, its Apps Script, and its Sheet are **never touched.**
+  The clone gets its **own URL** and its **own Supabase project** (Postgres source of truth).
+- **Copy the current live data into Postgres and keep it synced.** One-time migrate the
+  Sheet into Supabase (§9), then keep both aligned with the sync engine (§5). During the
+  trial both apps show the same real data.
+- **Both run in parallel.** Current app (Sheet) stays live for devotees; the new app
+  (Postgres) is tested privately. When proven, cut devotees over by pointing them at the
+  new URL (or repointing the old URL to the new build). If anything is wrong, the old app
+  is still live and current — rollback is "keep using the old URL," zero data risk.
+
+This **supersedes the in-place feature-flag rollout in §7** for the live app. The
+`USE_SUPABASE` flag still exists inside the clone (so the clone can fall back to the Sheet
+backend during its own development), but the live app is left entirely alone.
+
+**What unblocks the build (account-level, needed from the user):**
+1. A **Supabase project** created (staging + prod, or one to start). Claude needs the
+   project URL + anon key + service-role key (service-role kept as a secret, never
+   committed).
+2. A **new empty GitHub repo** for the clone — Claude can create it via `gh` if desired,
+   or the user creates it and shares the name.
+3. For the nightly Sheet mirror (§6): a **Google service account** with edit access to the
+   mirror Sheet (only if we keep syncing back to a Sheet for the new app; optional at first).
+
+**Buildable right now with no accounts:** the full Supabase schema SQL (§3, the ~40
+`CREATE TABLE`s + triggers + RLS) and the migration/validation script (§9) — both are
+reviewable deliverables that need no credentials to write.
 
 ---
 
