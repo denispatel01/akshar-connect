@@ -2498,17 +2498,20 @@ export default function GhariPage({ user }) {
     if (filter === 'delivered') list = list.filter(o => o.delivered);
     if (filter === 'unpaid') list = list.filter(o => (o.total - Number(o.paymentReceived || 0)) > 0);
     if (filter === 'paid') list = list.filter(o => Number(o.paymentReceived || 0) > 0 && (o.total - Number(o.paymentReceived || 0)) <= 0);
-    // Soonest planned delivery first; orders with no delivery date sink to the
-    // bottom (keeping their existing order-no order among themselves). A stable
-    // sort preserves getOrders' ordering for ties / undated rows.
-    list = list.slice().sort((a, b) => {
-      const da = (a.deliveryDate || '').trim();
-      const db = (b.deliveryDate || '').trim();
-      if (da && db) return da < db ? -1 : da > db ? 1 : 0;
-      if (da) return -1;
-      if (db) return 1;
-      return 0;
-    });
+    // Only the Undelivered tab sorts by delivery date (soonest first, undated last)
+    // — it's the delivery-planning view. Every other tab keeps getOrders' default
+    // latest-first (order-no descending) order. A stable sort keeps undated rows
+    // in that latest-first order among themselves.
+    if (filter === 'undelivered') {
+      list = list.slice().sort((a, b) => {
+        const da = (a.deliveryDate || '').trim();
+        const db = (b.deliveryDate || '').trim();
+        if (da && db) return da < db ? -1 : da > db ? 1 : 0;
+        if (da) return -1;
+        if (db) return 1;
+        return 0;
+      });
+    }
     return list;
   }, [season, search, filter, tick]);
 
