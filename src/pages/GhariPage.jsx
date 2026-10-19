@@ -651,6 +651,95 @@ function KaryakartaDeliveryGroup({ season, groupKey, name, orders, onOpen }) {
   );
 }
 
+// A readable label for a delivery date — "Today" / "Tomorrow" / "Wed, 22 Oct".
+function deliveryDateLabel_(iso) {
+  if (!iso) return 'No delivery date';
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return iso;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d - today) / 86400000);
+  const nice = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+  if (diff === 0) return `Today · ${nice}`;
+  if (diff === 1) return `Tomorrow · ${nice}`;
+  if (diff === -1) return `Yesterday · ${nice}`;
+  return nice;
+}
+
+// Delivery-planning overview: a date-wise bar chart of how many undelivered orders
+// are due on each date (soonest first), plus a "No delivery date" bucket for orders
+// still unscheduled. Each bar expands to the orders due that day. Collapsible.
+function DeliverySchedule({ season, orders, onOpen }) {
+  const [open, setOpen] = useState(false);
+  const [openDate, setOpenDate] = useState(null);
+  const groups = useMemo(() => {
+    const dated = new Map(); // iso -> orders[]
+    const undated = [];
+    orders.forEach(o => {
+      if (o.delivered) return;
+      const d = (o.deliveryDate || '').trim();
+      if (d) { if (!dated.has(d)) dated.set(d, []); dated.get(d).push(o); }
+      else undated.push(o);
+    });
+    const rows = [...dated.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1)
+      .map(([iso, list]) => ({ key: iso, iso, label: deliveryDateLabel_(iso), orders: list }));
+    if (undated.length) rows.push({ key: '__none__', iso: '', label: 'No delivery date', orders: undated });
+    return rows;
+  }, [orders]);
+
+  const totalPending = groups.reduce((s, g) => s + g.orders.length, 0);
+  const scheduled = groups.filter(g => g.iso).reduce((s, g) => s + g.orders.length, 0);
+  const undatedCount = totalPending - scheduled;
+  const maxCount = Math.max(1, ...groups.map(g => g.orders.length));
+  if (totalPending === 0) return null;
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-2xl border border-border-light bg-surface">
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
+        <BarChart3 className="h-4 w-4 shrink-0 text-primary" />
+        <span className="flex-1 text-sm font-black text-text-main">Delivery schedule</span>
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">{scheduled} scheduled</span>
+        {undatedCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950 dark:text-amber-300">{undatedCount} no date</span>}
+        <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && (
+        <div className="border-t border-border-light p-3">
+          <div className="space-y-1.5">
+            {groups.map(g => {
+              const isNone = !g.iso;
+              const expanded = openDate === g.key;
+              const pct = Math.round((g.orders.length / maxCount) * 100);
+              let gKg = 0; g.orders.forEach(o => { gKg += ghariService.orderKg(o).ghariKg; });
+              return (
+                <div key={g.key} className="rounded-xl border border-border-light">
+                  <button onClick={() => setOpenDate(expanded ? null : g.key)}
+                    className={`flex w-full items-center gap-2 px-2.5 py-2 text-left ${isNone ? 'bg-amber-50/60 dark:bg-amber-950/20' : ''}`}>
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? '' : '-rotate-90'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`truncate text-[12px] font-black ${isNone ? 'text-amber-700 dark:text-amber-300' : 'text-text-main'}`}>{g.label}</span>
+                        <span className="shrink-0 text-[12px] font-black text-text-main">{g.orders.length} order{g.orders.length === 1 ? '' : 's'}</span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-bg-base">
+                        <div className={`h-full rounded-full ${isNone ? 'bg-amber-400' : 'bg-gradient-to-r from-[#FF9D52] to-[#E56F18]'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    {gKg > 0 && <span className="shrink-0 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(gKg)} kg</span>}
+                  </button>
+                  {expanded && (
+                    <div className="border-t border-border-light">
+                      {g.orders.map(o => <OrderRow key={o.id} order={o} onOpen={onOpen} />)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────── Order row (list) ─────────────────────────────────
 function OrderRow({ order, onOpen }) {
   const bal = order.total - Number(order.paymentReceived || 0);
@@ -2612,6 +2701,7 @@ export default function GhariPage({ user }) {
               className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
             {search && <button onClick={() => setSearch('')}><X className="h-4 w-4 text-text-muted" /></button>}
           </div>
+          <DeliverySchedule season={season} orders={ghariService.getOrders(season)} onOpen={setEditing} />
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
             {[['all', 'All'], ['undelivered', 'Undelivered'], ['delivered', 'Delivered'], ['unpaid', 'Unpaid'], ['paid', 'Paid']].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${filter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
