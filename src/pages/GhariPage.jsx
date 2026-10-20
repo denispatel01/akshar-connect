@@ -2808,7 +2808,7 @@ function CallListView({ season }) {
             {/* Boxes by size */}
             {dash.ghariSizes.length > 0 && (
               <div>
-                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes</div>
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes ordered (total)</div>
                 <div className="flex flex-wrap gap-1.5">
                   {dash.ghariSizes.map(([size, qty]) => (
                     <span key={size} className="rounded-lg border border-orange-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-orange-900">{size}: <span className="text-orange-600 dark:text-orange-300">{qty}</span></span>
@@ -2818,7 +2818,7 @@ function CallListView({ season }) {
             )}
             {dash.bhusuSizes.length > 0 && (
               <div>
-                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Bhusu packets</div>
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Bhusu packets ordered (total)</div>
                 <div className="flex flex-wrap gap-1.5">
                   {dash.bhusuSizes.map(([size, qty]) => (
                     <span key={size} className="rounded-lg border border-purple-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-purple-900">{size}: <span className="text-purple-600 dark:text-purple-300">{qty}</span></span>
@@ -2835,7 +2835,7 @@ function CallListView({ season }) {
                 {/* Column header */}
                 <div className="flex items-center gap-1 px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-text-muted">
                   <span className="flex-1">Item</span>
-                  <span className="w-12 text-center">Ordered</span>
+                  <span className="w-12 text-center">Pending</span>
                   <span className="w-12 text-center">In hand</span>
                   <span className="w-14 text-center">Needed</span>
                 </div>
@@ -2853,7 +2853,7 @@ function CallListView({ season }) {
                   ))}
                 </div>
                 <div className="mt-1.5 text-[10px] font-bold text-text-muted">
-                  Ordered = still-undelivered orders · In hand = advance stock they already hold · <span className="text-amber-700 dark:text-amber-300">Needed</span> = stock you still need to give.
+                  Pending = still-undelivered boxes (delivered orders excluded, so this is less than the total ordered above) · In hand = advance stock they already hold · <span className="text-amber-700 dark:text-amber-300">Needed</span> = stock you still need to give.
                   {dash.totalNeeded === 0 && ' Everything is covered by advance stock in hand.'}
                 </div>
               </div>
