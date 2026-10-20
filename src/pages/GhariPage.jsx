@@ -2660,6 +2660,7 @@ function CallListView({ season }) {
     // net each karyakarta's advance stock in hand against their own pending.
     const pendByKk = {}; // kkKey -> { sku -> { name, category, size, qty } }
     const nameByKk = {}; // kkKey -> karyakarta display name (for name-based stock fallback)
+    const selKk = new Set(); // every karyakarta key present in the selection
     selected.forEach(o => {
       const kg = ghariService.orderKg(o);
       ghariKg += kg.ghariKg; bhusuKg += kg.bhusuKg;
@@ -2671,6 +2672,7 @@ function CallListView({ season }) {
       const db = Number(o.deliveredBoxes || 0);
       const kkKey = ghariService.orderKaryakartaKey(o);
       nameByKk[kkKey] = o.karyakarta || nameByKk[kkKey] || '';
+      selKk.add(kkKey);
       // Boxes already delivered on this order (all if marked delivered, else the
       // partial count), allocated across items in order — matches stock reconciliation.
       let deliveredBoxes = (o.delivered || (tot > 0 && db >= tot)) ? tot : Math.max(0, Math.min(tot, Math.round(db)));
@@ -2703,13 +2705,18 @@ function CallListView({ season }) {
     // issue and their orders don't always carry the same id (one may be name-only),
     // which would otherwise leave the advance unmatched.
     const inHandByKey = {}, inHandByName = {};
+    const balByKey = {}, balByName = {}; // full balance row (issued/delivered/inHand)
     const normName = (n) => (n || '').trim().toLowerCase();
     try {
       ghariService.buildStockBalances(season).forEach(r => {
         const m = {}; r.lines.forEach(l => { if (l.inHand > 0) m[l.sku] = l.inHand; });
         inHandByKey[r.key] = m;
+        balByKey[r.key] = r;
         const nk = normName(r.name);
-        if (nk) { const t = inHandByName[nk] || (inHandByName[nk] = {}); Object.entries(m).forEach(([sku, q]) => { t[sku] = (t[sku] || 0) + q; }); }
+        if (nk) {
+          const t = inHandByName[nk] || (inHandByName[nk] = {}); Object.entries(m).forEach(([sku, q]) => { t[sku] = (t[sku] || 0) + q; });
+          if (!balByName[nk]) balByName[nk] = r;
+        }
       });
     } catch { /* ignore — show gross pending if balances unavailable */ }
 
@@ -2742,13 +2749,31 @@ function CallListView({ season }) {
     const giveRows = Object.values(rows)
       .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name) || sizeKg_(a.size) - sizeKg_(b.size));
     const totalNeeded = giveRows.reduce((s, r) => s + r.needed, 0);
+
+    // When exactly one karyakarta is in the selection, surface their advance-stock
+    // reconciliation (Issued / Delivered / In-hand). This is where "Nirdoshbhai
+    // took 5 boxes" shows up — and it exposes a data issue (e.g. In-hand 0 because
+    // the delivered count already equals the issued, so nothing is credited).
+    let advStock = null;
+    if (selKk.size === 1) {
+      const kk = [...selKk][0];
+      const row = balByKey[kk] || balByName[normName(nameByKk[kk])] || null;
+      if (row) {
+        const lines = (row.lines || []).filter(l => l.issued > 0).map(l => ({
+          name: cleanName_(l.name), category: l.category || 'ghee', size: (l.size || '').trim() || '—',
+          issued: l.issued, delivered: l.delivered, inHand: l.inHand,
+        })).sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name) || sizeKg_(a.size) - sizeKg_(b.size));
+        if (lines.length) advStock = { name: nameByKk[kk] || row.name || '', lines };
+      }
+    }
+
     // Sort size labels by their kg weight so 250gm < 500gm < 1kg reads naturally.
     const sortSizes = (obj) => Object.entries(obj).sort((a, b) => sizeKg_(a[0]) - sizeKg_(b[0]));
     return {
       ghariKg, bhusuKg, total, paid, bal: total - paid,
       deliveredN, partialN, pendingN, paidN, partPaidN, unpaidN,
       ghariSizes: sortSizes(ghariSizes), bhusuSizes: sortSizes(bhusuSizes),
-      giveRows, totalNeeded,
+      giveRows, totalNeeded, advStock,
     };
   }, [selected]);
 
@@ -2859,6 +2884,34 @@ function CallListView({ season }) {
                 <div className="mt-1.5 text-[10px] font-bold text-text-muted">
                   Pending = still-undelivered boxes (delivered orders excluded, so this is less than the total ordered above) · In hand = advance stock they already hold · <span className="text-amber-700 dark:text-amber-300">Needed</span> = stock you still need to give.
                   {dash.totalNeeded === 0 && ' Everything is covered by advance stock in hand.'}
+                </div>
+              </div>
+            )}
+            {/* Advance stock issued to this karyakarta (shown when one person is
+                selected). Issued = handed to them as advance · Delivered = of that,
+                given to customers · In hand = still with them. If In hand is 0 while
+                Issued > 0, the orders they fulfilled from it are marked delivered. */}
+            {dash.advStock && (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 dark:border-teal-900 dark:bg-teal-950/30">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-teal-700 dark:text-teal-300">🚚 Advance stock issued — {dash.advStock.name}</div>
+                <div className="flex items-center gap-1 px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-text-muted">
+                  <span className="flex-1">Item</span>
+                  <span className="w-12 text-center">Issued</span>
+                  <span className="w-14 text-center">Delivered</span>
+                  <span className="w-12 text-center">In hand</span>
+                </div>
+                <div className="space-y-1">
+                  {dash.advStock.lines.map((l, i) => (
+                    <div key={i} className="flex items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-1.5">
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-black text-text-main">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: GHARI_CATEGORIES[l.category]?.color || '#0D9488' }} />
+                        <span className="truncate">{l.category === 'bhusu' ? 'Bhusu' : l.name} {l.size}</span>
+                      </span>
+                      <span className="w-12 text-center text-[12px] font-bold text-text-main">{l.issued}</span>
+                      <span className="w-14 text-center text-[12px] font-bold text-text-muted">{l.delivered}</span>
+                      <span className="w-12 text-center text-[12px] font-black text-teal-600 dark:text-teal-300">{l.inHand}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
