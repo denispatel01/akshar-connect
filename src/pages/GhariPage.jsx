@@ -2561,6 +2561,242 @@ function StockView({ season, canEdit = true }) {
   );
 }
 
+// ───────────────────────── Call list (confirm with karyakartas) ─────────────
+// A dedicated screen for the "ring every karyakarta and confirm their order"
+// flow. You filter orders down (by customer, by karyakarta, by product type),
+// hand-pick the exact orders that belong to that person — because some orders
+// are entered by the admin under a karyakarta's name without the karyakarta
+// knowing — then read a live dashboard computed ONLY from the ticked orders:
+// total Ghari/Bhusu weight, box counts per size, and the delivery / payment
+// state of each selected order. Selection-driven, nothing is written here.
+function CallListView({ season }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick(t => t + 1);
+    window.addEventListener('ac-ghari-changed', on);
+    window.addEventListener('ac-ghari-synced', on);
+    return () => { window.removeEventListener('ac-ghari-changed', on); window.removeEventListener('ac-ghari-synced', on); };
+  }, []);
+
+  const [custQ, setCustQ] = useState('');
+  const [kkKey, setKkKey] = useState('all');         // 'all' or a karyakarta key
+  const [types, setTypes] = useState({ ghari: true, bhusu: true }); // product-type filter
+  const [picked, setPicked] = useState(() => new Set()); // order ids selected for the dashboard
+
+  const allOrders = useMemo(() => ghariService.getOrders(season), [season, tick]);
+  const kkOptions = useMemo(() => {
+    try { return ghariService.karyakartaList(season); } catch { return []; }
+  }, [season, tick]);
+
+  // The filtered list the checkboxes act on.
+  const filtered = useMemo(() => {
+    const q = custQ.trim().toLowerCase();
+    return allOrders.filter(o => {
+      if (kkKey !== 'all' && ghariService.orderKaryakartaKey(o) !== kkKey) return false;
+      if (q && !(o.customerName || '').toLowerCase().includes(q)) return false;
+      const hasBhusu = (o.items || []).some(it => it.category === 'bhusu');
+      const hasGhari = (o.items || []).some(it => it.category !== 'bhusu');
+      if (!types.ghari && !types.bhusu) return false;
+      if (types.ghari && !types.bhusu && !hasGhari) return false;
+      if (types.bhusu && !types.ghari && !hasBhusu) return false;
+      return true;
+    });
+  }, [allOrders, custQ, kkKey, types]);
+
+  // The dashboard counts only ticked orders that are still visible under the
+  // current filters — so a hidden order never leaks into the summary.
+  const selected = useMemo(() => filtered.filter(o => picked.has(o.id)), [filtered, picked]);
+  const allShownPicked = filtered.length > 0 && filtered.every(o => picked.has(o.id));
+
+  const toggleOne = (id) => setPicked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setPicked(prev => {
+    const n = new Set(prev);
+    if (allShownPicked) { filtered.forEach(o => n.delete(o.id)); }
+    else { filtered.forEach(o => n.add(o.id)); }
+    return n;
+  });
+  const clearPicked = () => setPicked(new Set());
+
+  // Dashboard aggregates across the ticked orders only.
+  const dash = useMemo(() => {
+    let ghariKg = 0, bhusuKg = 0, total = 0, paid = 0;
+    let deliveredN = 0, partialN = 0, pendingN = 0;
+    let paidN = 0, partPaidN = 0, unpaidN = 0;
+    const ghariSizes = {}; // size label -> qty (boxes)
+    const bhusuSizes = {}; // size label -> qty (packets)
+    selected.forEach(o => {
+      const kg = ghariService.orderKg(o);
+      ghariKg += kg.ghariKg; bhusuKg += kg.bhusuKg;
+      total += Number(o.total || 0);
+      const rec = Number(o.paymentReceived || 0);
+      paid += rec;
+      (o.items || []).forEach(it => {
+        const q = Number(it.qty) || 0; if (!q) return;
+        const label = (it.size || '').trim() || '—';
+        if (it.category === 'bhusu') bhusuSizes[label] = (bhusuSizes[label] || 0) + q;
+        else ghariSizes[label] = (ghariSizes[label] || 0) + q;
+      });
+      // delivery
+      const tot = (o.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+      const db = Number(o.deliveredBoxes || 0);
+      if (o.delivered || (tot > 0 && db >= tot)) deliveredN++;
+      else if (db > 0) partialN++;
+      else pendingN++;
+      // payment
+      const bal = Number(o.total || 0) - rec;
+      if (rec <= 0) unpaidN++;
+      else if (bal > 0) partPaidN++;
+      else paidN++;
+    });
+    // Sort size labels by their kg weight so 250gm < 500gm < 1kg reads naturally.
+    const sortSizes = (obj) => Object.entries(obj).sort((a, b) => sizeKg_(a[0]) - sizeKg_(b[0]));
+    return {
+      ghariKg, bhusuKg, total, paid, bal: total - paid,
+      deliveredN, partialN, pendingN, paidN, partPaidN, unpaidN,
+      ghariSizes: sortSizes(ghariSizes), bhusuSizes: sortSizes(bhusuSizes),
+    };
+  }, [selected]);
+
+  const TypeChip = ({ id, label }) => (
+    <button onClick={() => setTypes(t => ({ ...t, [id]: !t[id] }))}
+      className={`rounded-full border px-3 py-1.5 text-[11px] font-black ${types[id] ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
+  );
+
+  return (
+    <div>
+      {/* Filters */}
+      <div className="mb-3 space-y-2">
+        <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">
+          <Search className="h-4 w-4 text-text-muted" />
+          <input value={custQ} onChange={e => setCustQ(e.target.value)} placeholder="Search customer name"
+            className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+          {custQ && <button onClick={() => setCustQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5 rounded-full border border-border-light bg-surface px-2.5 py-1">
+            <Users className="h-3.5 w-3.5 text-text-muted" />
+            <select value={kkKey} onChange={e => setKkKey(e.target.value)}
+              className="max-w-[48vw] bg-transparent text-[11px] font-black text-text-main outline-none">
+              <option value="all">All karyakartas</option>
+              {kkOptions.map(k => <option key={k.key} value={k.key}>{k.name}</option>)}
+            </select>
+          </div>
+          <TypeChip id="ghari" label="🪔 Ghari" />
+          <TypeChip id="bhusu" label="Bhusu" />
+        </div>
+      </div>
+
+      {/* Dashboard — selected orders only */}
+      <div className="mb-3 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-black text-text-main">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            Selected: {selected.length} order{selected.length === 1 ? '' : 's'}
+          </div>
+          {picked.size > 0 && <button onClick={clearPicked} className="text-[11px] font-black text-primary">Clear</button>}
+        </div>
+        {selected.length === 0 ? (
+          <p className="py-2 text-center text-[12px] font-bold text-text-muted">Tick orders below to build the summary.</p>
+        ) : (
+          <div className="space-y-2.5">
+            {/* Weight */}
+            <div className="flex flex-wrap gap-1.5">
+              {dash.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-black text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(dash.ghariKg)} kg Ghari</span>}
+              {dash.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-black text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(dash.bhusuKg)} kg Bhusu</span>}
+            </div>
+            {/* Boxes by size */}
+            {dash.ghariSizes.length > 0 && (
+              <div>
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {dash.ghariSizes.map(([size, qty]) => (
+                    <span key={size} className="rounded-lg border border-orange-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-orange-900">{size}: <span className="text-orange-600 dark:text-orange-300">{qty}</span></span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {dash.bhusuSizes.length > 0 && (
+              <div>
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Bhusu packets</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {dash.bhusuSizes.map(([size, qty]) => (
+                    <span key={size} className="rounded-lg border border-purple-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-purple-900">{size}: <span className="text-purple-600 dark:text-purple-300">{qty}</span></span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Status + money */}
+            <div className="flex flex-wrap gap-1.5 text-[10px] font-black">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Delivered {dash.deliveredN}</span>
+              {dash.partialN > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Partial {dash.partialN}</span>}
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Pending {dash.pendingN}</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Paid {dash.paidN}</span>
+              {dash.partPaidN > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Part-paid {dash.partPaidN}</span>}
+              {dash.unpaidN > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-700 dark:bg-rose-950 dark:text-rose-300">Unpaid {dash.unpaidN}</span>}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border-light pt-2 text-[12px] font-black text-text-main">
+              <span>Total {rupee(dash.total)}</span>
+              <span className="text-emerald-600">Paid {rupee(dash.paid)}</span>
+              {dash.bal > 0 && <span className="text-rose-600">Due {rupee(dash.bal)}</span>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Select-all bar */}
+      <div className="mb-2 flex items-center justify-between px-1">
+        <button onClick={toggleAll} disabled={filtered.length === 0} className="flex items-center gap-1.5 text-[12px] font-black text-primary disabled:opacity-40">
+          <span className={`grid h-4 w-4 place-items-center rounded border ${allShownPicked ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface'}`}>{allShownPicked && <Check className="h-3 w-3" />}</span>
+          {allShownPicked ? 'Clear all' : 'Select all'}
+        </button>
+        <span className="text-[11px] font-bold text-text-muted">{filtered.length} shown</span>
+      </div>
+
+      {/* Order list with checkboxes */}
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border-light bg-surface py-10 text-center">
+          <Package className="mx-auto mb-2 h-10 w-10 text-text-muted" />
+          <p className="text-sm font-bold text-text-muted">No orders match these filters</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+          {filtered.map(o => {
+            const on = picked.has(o.id);
+            const rec = Number(o.paymentReceived || 0);
+            const bal = Number(o.total || 0) - rec;
+            const paidState = rec <= 0 ? 'unpaid' : bal > 0 ? 'partial' : 'paid';
+            const tot = (o.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+            const db = Number(o.deliveredBoxes || 0);
+            const delState = (o.delivered || (tot > 0 && db >= tot)) ? 'delivered' : db > 0 ? 'partial' : 'pending';
+            const kg = ghariService.orderKg(o);
+            return (
+              <button key={o.id} onClick={() => toggleOne(o.id)}
+                className={`flex w-full items-center gap-2.5 border-b border-border-light px-3 py-2.5 text-left last:border-0 ${on ? 'bg-primary/5' : ''}`}>
+                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border ${on ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface'}`}>{on && <Check className="h-3.5 w-3.5" />}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-black text-text-main">{o.customerName || '—'}</span>
+                    <span className="shrink-0 text-[10px] font-bold text-text-muted">#{o.orderNo}</span>
+                  </div>
+                  <div className="truncate text-[11px] font-bold text-text-muted">{o.karyakarta || '—'}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-bold">
+                    {kg.ghariKg > 0 && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-950 dark:text-orange-300">🪔 {fmtKg(kg.ghariKg)} kg</span>}
+                    {kg.bhusuKg > 0 && <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">{fmtKg(kg.bhusuKg)} kg</span>}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${delState === 'delivered' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : delState === 'partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{delState === 'delivered' ? 'Delivered' : delState === 'partial' ? `${db}/${tot}` : 'Pending'}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${paidState === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : paidState === 'partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}`}>{paidState === 'paid' ? 'Paid' : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────── Main page ────────────────────────────────────────
 export default function GhariPage({ user }) {
   // Add/edit (create, edit, delete orders) = Admins, PLUS any specific user an Admin
@@ -2691,6 +2927,7 @@ export default function GhariPage({ user }) {
   const TABS = [
     ...(canEdit ? [{ id: 'entry', label: 'Sell', icon: Plus }] : []),
     { id: 'orders', label: 'Orders', icon: Package },
+    { id: 'calllist', label: 'Call list', icon: Phone },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Insights', icon: BarChart3 },
     ...(canSeeStock ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
@@ -2784,6 +3021,7 @@ export default function GhariPage({ user }) {
         </div>
       )}
 
+      {tab === 'calllist' && <CallListView key={tick} season={season} />}
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
       {tab === 'stock' && canSeeStock && <StockView key={tick} season={season} canEdit={canEdit} />}
