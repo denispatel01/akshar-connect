@@ -2640,25 +2640,43 @@ function CallListView({ season }) {
     let paidN = 0, partPaidN = 0, unpaidN = 0;
     const ghariSizes = {}; // size label -> qty (boxes)
     const bhusuSizes = {}; // size label -> qty (packets)
+    // Pending (still-to-deliver) quantities, broken out for the call.
+    const pendGhari = {}; // "name||size" -> { name, category, size, qty }  (boxes left)
+    const pendBhusu = {}; // size label -> qty (packets left)
+    const catOrder = Object.keys(GHARI_CATEGORIES); // ghee, noghee, sf, bhusu
     selected.forEach(o => {
       const kg = ghariService.orderKg(o);
       ghariKg += kg.ghariKg; bhusuKg += kg.bhusuKg;
       total += Number(o.total || 0);
       const rec = Number(o.paymentReceived || 0);
       paid += rec;
-      (o.items || []).forEach(it => {
+      const items = o.items || [];
+      const tot = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
+      const db = Number(o.deliveredBoxes || 0);
+      // Boxes already delivered on this order (all if marked delivered, else the
+      // partial count), allocated across items in order — matches stock reconciliation.
+      let deliveredBoxes = (o.delivered || (tot > 0 && db >= tot)) ? tot : Math.max(0, Math.min(tot, Math.round(db)));
+      items.forEach(it => {
         const q = Number(it.qty) || 0; if (!q) return;
         const label = (it.size || '').trim() || '—';
         if (it.category === 'bhusu') bhusuSizes[label] = (bhusuSizes[label] || 0) + q;
         else ghariSizes[label] = (ghariSizes[label] || 0) + q;
+        // pending portion of this line
+        const deliv = Math.min(q, deliveredBoxes); deliveredBoxes -= deliv;
+        const pend = q - deliv; if (pend <= 0) return;
+        if (it.category === 'bhusu') { pendBhusu[label] = (pendBhusu[label] || 0) + pend; }
+        else {
+          const name = cleanName_(it.name);
+          const k = name + '||' + label;
+          if (!pendGhari[k]) pendGhari[k] = { name, category: it.category || 'ghee', size: label, qty: 0 };
+          pendGhari[k].qty += pend;
+        }
       });
-      // delivery
-      const tot = (o.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
-      const db = Number(o.deliveredBoxes || 0);
+      // delivery status
       if (o.delivered || (tot > 0 && db >= tot)) deliveredN++;
       else if (db > 0) partialN++;
       else pendingN++;
-      // payment
+      // payment status
       const bal = Number(o.total || 0) - rec;
       if (rec <= 0) unpaidN++;
       else if (bal > 0) partPaidN++;
@@ -2666,10 +2684,13 @@ function CallListView({ season }) {
     });
     // Sort size labels by their kg weight so 250gm < 500gm < 1kg reads naturally.
     const sortSizes = (obj) => Object.entries(obj).sort((a, b) => sizeKg_(a[0]) - sizeKg_(b[0]));
+    const pendGhariList = Object.values(pendGhari)
+      .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name) || sizeKg_(a.size) - sizeKg_(b.size));
     return {
       ghariKg, bhusuKg, total, paid, bal: total - paid,
       deliveredN, partialN, pendingN, paidN, partPaidN, unpaidN,
       ghariSizes: sortSizes(ghariSizes), bhusuSizes: sortSizes(bhusuSizes),
+      pendGhari: pendGhariList, pendBhusu: sortSizes(pendBhusu),
     };
   }, [selected]);
 
@@ -2746,6 +2767,33 @@ function CallListView({ season }) {
                     <span key={size} className="rounded-lg border border-purple-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-purple-900">{size}: <span className="text-purple-600 dark:text-purple-300">{qty}</span></span>
                   ))}
                 </div>
+              </div>
+            )}
+            {/* Pending to deliver — what's still owed to these customers, by
+                product type/size. This is the figure to confirm on the call. */}
+            {(dash.pendGhari.length > 0 || dash.pendBhusu.length > 0) && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900 dark:bg-amber-950/30">
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">⏳ Pending to deliver</div>
+                {dash.pendGhari.length > 0 && (
+                  <div className="mb-1.5">
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dash.pendGhari.map(p => (
+                        <span key={p.name + p.size} className="rounded-lg border border-orange-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-orange-900">{p.name} {p.size}: <span className="text-orange-600 dark:text-orange-300">{p.qty}</span></span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dash.pendBhusu.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Bhusu packets</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dash.pendBhusu.map(([size, qty]) => (
+                        <span key={size} className="rounded-lg border border-purple-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-purple-900">{size}: <span className="text-purple-600 dark:text-purple-300">{qty}</span></span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {/* Status + money */}
