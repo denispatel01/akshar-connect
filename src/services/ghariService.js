@@ -1417,10 +1417,14 @@ export const ghariService = {
     line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
     if (bal > 0) line(`Balance due`, rs(bal), true);
 
-    // Status + signature
+    // Status + signature. 0 delivered = "Pending" (nothing handed over yet);
+    // some-but-not-all = "Partial"; all = "Fully delivered".
     const fullyDel = delBoxes >= ordBoxes && ordBoxes > 0;
+    const statusText = fullyDel ? 'Status: Fully delivered'
+      : delBoxes <= 0 ? `Status: Pending — not yet delivered (${ordBoxes} box(es) to deliver)`
+      : `Status: Partial — ${ordBoxes - delBoxes} box(es) remaining`;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...(fullyDel ? [16, 122, 72] : [194, 120, 3]));
-    doc.text(fullyDel ? 'Status: Fully delivered' : `Status: Partial — ${ordBoxes - delBoxes} box(es) remaining`, 40, y + 6);
+    doc.text(statusText, 40, y + 6);
     if (o.remarks) { doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTE); doc.text(`Remarks: ${o.remarks}`, 40, y + 22); }
     const sigY = y + 56;
     doc.setDrawColor(190, 190, 190); doc.line(40, sigY, 200, sigY); doc.line(pageW - 200, sigY, pageW - 40, sigY);
