@@ -28,6 +28,19 @@ const purchaseValue_ = (purchase, priceBySku = {}) => {
   if (amt > 0) return amt;
   return (purchase.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(priceBySku[it.sku]) || 0), 0);
 };
+// Delivery state of an order: 'delivered' | 'partial' | 'pending'.
+const orderDelState_ = (o) => {
+  const tot = (o.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const db = Number(o.deliveredBoxes || 0);
+  if (o.delivered || (tot > 0 && db >= tot)) return 'delivered';
+  return db > 0 ? 'partial' : 'pending';
+};
+// Payment state of an order: 'paid' | 'partial' | 'unpaid'.
+const orderPayState_ = (o) => {
+  const rec = Number(o.paymentReceived || 0);
+  if (rec <= 0) return 'unpaid';
+  return (Number(o.total || 0) - rec) > 0 ? 'partial' : 'paid';
+};
 // Split an items array into Ghari boxes vs Bhusu packets, and format "X boxes · Y packets".
 const splitUnits_ = (items) => { let box = 0, pkt = 0; (items || []).forEach(it => { const q = Number(it.qty) || 0; if ((it.category || '') === 'bhusu') pkt += q; else box += q; }); return { box, pkt }; };
 const unitsText_ = (items) => { const { box, pkt } = splitUnits_(items); const p = []; if (box) p.push(`${box} ${unitWord_('ghee', box)}`); if (pkt) p.push(`${pkt} ${unitWord_('bhusu', pkt)}`); return p.join(' · ') || '0'; };
@@ -2597,6 +2610,8 @@ function CallListView({ season }) {
   const [custQ, setCustQ] = useState('');
   const [kkKey, setKkKey] = useState('all');         // 'all' or a karyakarta key
   const [types, setTypes] = useState({ ghari: true, bhusu: true }); // product-type filter
+  const [delFilter, setDelFilter] = useState('all');  // all | pending | partial | delivered
+  const [payFilter, setPayFilter] = useState('all');  // all | unpaid | partial | paid
   const [picked, setPicked] = useState(() => new Set()); // order ids selected for the dashboard
 
   const allOrders = useMemo(() => ghariService.getOrders(season), [season, tick]);
@@ -2615,9 +2630,11 @@ function CallListView({ season }) {
       if (!types.ghari && !types.bhusu) return false;
       if (types.ghari && !types.bhusu && !hasGhari) return false;
       if (types.bhusu && !types.ghari && !hasBhusu) return false;
+      if (delFilter !== 'all' && orderDelState_(o) !== delFilter) return false;
+      if (payFilter !== 'all' && orderPayState_(o) !== payFilter) return false;
       return true;
     });
-  }, [allOrders, custQ, kkKey, types]);
+  }, [allOrders, custQ, kkKey, types, delFilter, payFilter]);
 
   // The dashboard counts only ticked orders that are still visible under the
   // current filters — so a hidden order never leaks into the summary.
@@ -2726,6 +2743,22 @@ function CallListView({ season }) {
               <span className={`grid h-4 w-4 place-items-center rounded-full border ${types[id] ? 'border-white bg-white/20' : 'border-border-light'}`}>{types[id] && <Check className="h-3 w-3" />}</span>
               {label}
             </button>
+          ))}
+        </div>
+        {/* Delivery status filter */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Delivery</span>
+          {[['all', 'All'], ['pending', 'Pending'], ['partial', 'Partial'], ['delivered', 'Delivered']].map(([id, label]) => (
+            <button key={id} onClick={() => setDelFilter(id)}
+              className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${delFilter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
+          ))}
+        </div>
+        {/* Payment status filter */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Payment</span>
+          {[['all', 'All'], ['unpaid', 'Unpaid'], ['partial', 'Part-paid'], ['paid', 'Paid']].map(([id, label]) => (
+            <button key={id} onClick={() => setPayFilter(id)}
+              className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${payFilter === id ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
           ))}
         </div>
       </div>
