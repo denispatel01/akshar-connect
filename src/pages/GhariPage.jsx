@@ -2584,6 +2584,7 @@ function StockView({ season, canEdit = true }) {
 // knowing — then read a live dashboard computed ONLY from the ticked orders:
 // total Ghari/Bhusu weight, box counts per size, and the delivery / payment
 // state of each selected order. Selection-driven, nothing is written here.
+const LIST_CAP = 200; // max order rows rendered at once — keeps mobile smooth
 function CallListView({ season }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -2672,32 +2673,39 @@ function CallListView({ season }) {
     };
   }, [selected]);
 
-  const TypeChip = ({ id, label }) => (
-    <button onClick={() => setTypes(t => ({ ...t, [id]: !t[id] }))}
-      className={`rounded-full border px-3 py-1.5 text-[11px] font-black ${types[id] ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>{label}</button>
-  );
+  const toggleType = (id) => setTypes(t => ({ ...t, [id]: !t[id] }));
 
   return (
     <div>
       {/* Filters */}
       <div className="mb-3 space-y-2">
+        {/* Customer search */}
         <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">
           <Search className="h-4 w-4 text-text-muted" />
           <input value={custQ} onChange={e => setCustQ(e.target.value)} placeholder="Search customer name"
             className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
           {custQ && <button onClick={() => setCustQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5 rounded-full border border-border-light bg-surface px-2.5 py-1">
-            <Users className="h-3.5 w-3.5 text-text-muted" />
-            <select value={kkKey} onChange={e => setKkKey(e.target.value)}
-              className="max-w-[48vw] bg-transparent text-[11px] font-black text-text-main outline-none">
-              <option value="all">All karyakartas</option>
-              {kkOptions.map(k => <option key={k.key} value={k.key}>{k.name}</option>)}
-            </select>
-          </div>
-          <TypeChip id="ghari" label="🪔 Ghari" />
-          <TypeChip id="bhusu" label="Bhusu" />
+        {/* Karyakarta — own row so the dropdown has full width */}
+        <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2">
+          <Users className="h-4 w-4 shrink-0 text-text-muted" />
+          <select value={kkKey} onChange={e => setKkKey(e.target.value)}
+            className="w-full bg-transparent text-sm font-bold text-text-main outline-none">
+            <option value="all">All karyakartas</option>
+            {kkOptions.map(k => <option key={k.key} value={k.key}>{k.name}</option>)}
+          </select>
+          <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" />
+        </div>
+        {/* Product type — own row, clearly selectable toggles */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Show</span>
+          {[['ghari', '🪔 Ghari'], ['bhusu', 'Bhusu']].map(([id, label]) => (
+            <button key={id} onClick={() => toggleType(id)}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-black transition-colors ${types[id] ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>
+              <span className={`grid h-4 w-4 place-items-center rounded-full border ${types[id] ? 'border-white bg-white/20' : 'border-border-light'}`}>{types[id] && <Check className="h-3 w-3" />}</span>
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -2767,7 +2775,9 @@ function CallListView({ season }) {
         <span className="text-[11px] font-bold text-text-muted">{filtered.length} shown</span>
       </div>
 
-      {/* Order list with checkboxes */}
+      {/* Order list with checkboxes. Capped so a season with hundreds of orders
+          never freezes a phone rendering them all at once — narrow with the
+          karyakarta / search filters (the normal call-list flow) to see the rest. */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border-light bg-surface py-10 text-center">
           <Package className="mx-auto mb-2 h-10 w-10 text-text-muted" />
@@ -2775,7 +2785,7 @@ function CallListView({ season }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
-          {filtered.map(o => {
+          {filtered.slice(0, LIST_CAP).map(o => {
             const on = picked.has(o.id);
             const rec = Number(o.paymentReceived || 0);
             const bal = Number(o.total || 0) - rec;
@@ -2806,6 +2816,11 @@ function CallListView({ season }) {
               </button>
             );
           })}
+          {filtered.length > LIST_CAP && (
+            <div className="border-t border-border-light bg-bg-base px-3 py-2.5 text-center text-[11px] font-bold text-text-muted">
+              Showing first {LIST_CAP} of {filtered.length}. Pick a karyakarta or search a customer to narrow down.
+            </div>
+          )}
         </div>
       )}
     </div>
