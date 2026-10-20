@@ -20,6 +20,14 @@ const sizeKg_ = (size) => { const m = String(size || '').toLowerCase().match(/([
 const cleanName_ = (name) => String(name || '').replace('Ghari ', '').replace(/[()]/g, '').trim() || 'Item';
 // Bhusu comes in PACKETS, Ghari in BOXES — so label counts by item type.
 const unitWord_ = (category, n) => (category === 'bhusu') ? (Math.abs(n) === 1 ? 'packet' : 'packets') : (Math.abs(n) === 1 ? 'box' : 'boxes');
+// Rupee value of a purchase: the amount typed on it if any, else auto-calculated
+// from the catalog price (Σ qty × item unitPrice in Settings). `priceBySku` maps
+// sku → unitPrice. Keeps the row amount and the Total cost card in agreement.
+const purchaseValue_ = (purchase, priceBySku = {}) => {
+  const amt = Number(purchase.amount || 0);
+  if (amt > 0) return amt;
+  return (purchase.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(priceBySku[it.sku]) || 0), 0);
+};
 // Split an items array into Ghari boxes vs Bhusu packets, and format "X boxes · Y packets".
 const splitUnits_ = (items) => { let box = 0, pkt = 0; (items || []).forEach(it => { const q = Number(it.qty) || 0; if ((it.category || '') === 'bhusu') pkt += q; else box += q; }); return { box, pkt }; };
 const unitsText_ = (items) => { const { box, pkt } = splitUnits_(items); const p = []; if (box) p.push(`${box} ${unitWord_('ghee', box)}`); if (pkt) p.push(`${pkt} ${unitWord_('bhusu', pkt)}`); return p.join(' · ') || '0'; };
@@ -2147,8 +2155,9 @@ function PurchaseForm({ initialPurchase, onSaved, onCancel, onDelete, readOnly }
   );
 }
 
-function PurchaseRow({ purchase, onOpen }) {
+function PurchaseRow({ purchase, onOpen, priceBySku }) {
   const summary = purchase.items.map(i => `${i.qty}× ${i.name.replace('Ghari ', '').replace(/[()]/g, '')} ${i.size}`).join(', ');
+  const value = purchaseValue_(purchase, priceBySku);
   const photoPending = String(purchase.challan || '').indexOf('data:') === 0; // not yet on Drive
   // Ghari vs Bhusu weight in this purchase (ghee/noghee/sf = Ghari, bhusu = Bhusu).
   const kg = ghariService.orderKg(purchase);
@@ -2173,7 +2182,7 @@ function PurchaseRow({ purchase, onOpen }) {
           </div>
         )}
       </div>
-      {purchase.amount > 0 && <div className="shrink-0 text-sm font-black text-text-main">{rupee(purchase.amount)}</div>}
+      {value > 0 && <div className="shrink-0 text-right"><div className="text-sm font-black text-text-main">{rupee(value)}</div>{!(purchase.amount > 0) && <div className="text-[9px] font-bold text-text-muted">est.</div>}</div>}
     </button>
   );
 }
@@ -2205,7 +2214,13 @@ function PurchasesView({ season, canEdit = true }) {
   const [openName, setOpenName] = useState({}); // which product rows are expanded
   useEffect(() => { const h = () => setTick(t => t + 1); window.addEventListener('ac-ghari-changed', h); window.addEventListener('ac-ghari-synced', h); return () => { window.removeEventListener('ac-ghari-changed', h); window.removeEventListener('ac-ghari-synced', h); }; }, []);
   const list = useMemo(() => ghariService.getPurchases(season), [season, tick]);
-  const totalCost = list.reduce((s, p) => s + Number(p.amount || 0), 0);
+  // sku → catalog price, so purchases with no typed amount still show a value
+  // (Σ qty × unitPrice). A typed amount always wins over the estimate.
+  const priceBySku = useMemo(() => Object.fromEntries(ghariService.getProducts().map(p => [p.sku, p.unitPrice])), [tick]);
+  const totalCost = list.reduce((s, p) => s + purchaseValue_(p, priceBySku), 0);
+  // Whether any shown total is an estimate (no amount was typed on that purchase)
+  // — surfaced on the Total cost card so the figure isn't mistaken for actuals.
+  const anyEstimated = list.some(p => !(Number(p.amount) > 0) && purchaseValue_(p, priceBySku) > 0);
   // Grand total Ghari vs Bhusu weight across every purchase this season.
   const totalKg = list.reduce((a, p) => { const k = ghariService.orderKg(p); return { ghariKg: a.ghariKg + k.ghariKg, bhusuKg: a.bhusuKg + k.bhusuKg }; }, { ghariKg: 0, bhusuKg: 0 });
   // Per-product breakdown (Ghee Wali, Ghee Vagar ni, …) with per-size boxes + kg,
@@ -2234,7 +2249,7 @@ function PurchasesView({ season, canEdit = true }) {
           items; the per-item split lives in the "Total bought" breakdown below. */}
       <div className="mb-3 grid grid-cols-2 gap-2">
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Purchases</div><div className="text-xl font-black text-text-main">{list.length}</div></div>
-        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div></div>
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Total cost</div><div className="text-xl font-black text-text-main">{totalCost ? rupee(totalCost) : '—'}</div>{totalCost > 0 && anyEstimated && <div className="text-[9px] font-bold text-text-muted">incl. estimates</div>}</div>
       </div>
       {/* Total bought — overall Ghari/Bhusu, then a per-product breakdown you can
           expand to see each size's box count + kg (ghee/sugar-free = Ghari, bhusu = Bhusu). */}
@@ -2288,7 +2303,7 @@ function PurchasesView({ season, canEdit = true }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
-          {list.map(p => <PurchaseRow key={p.id} purchase={p} onOpen={setEditing} />)}
+          {list.map(p => <PurchaseRow key={p.id} purchase={p} onOpen={setEditing} priceBySku={priceBySku} />)}
         </div>
       )}
       {adding && <PurchaseEditModal onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setTick(t => t + 1); }} />}
