@@ -1351,14 +1351,6 @@ export const ghariService = {
     doc.text(`Season ${s}${o.orderNo ? '  ·  Challan #' + o.orderNo : ''}`, 40, 78);
     doc.setFontSize(9); doc.text(`Date: ${when}`, pageW - 40, 32, { align: 'right' });
 
-    // Party block
-    doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    doc.text('Delivered to', 40, 122);
-    doc.setFontSize(13); doc.text(o.customerName || '—', 40, 140);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTE);
-    const sub = [o.customerMobile ? 'Mobile: ' + o.customerMobile : '', o.karyakarta ? 'Via: ' + o.karyakarta : ''].filter(Boolean).join('   ·   ');
-    if (sub) doc.text(sub, 40, 156);
-
     // Order-level delivery totals (always from the flattened items).
     const delMap = deliveredItemsOf_(o);
     let delBoxes = 0, ordBoxes = 0, ghariKgDel = 0, bhusuKgDel = 0;
@@ -1368,12 +1360,33 @@ export const ghariService = {
       if (it.category === 'bhusu') bhusuKgDel += kg; else ghariKgDel += kg;
     });
     const delAmount = (o.items || []).reduce((sum, it) => sum + (delMap[it.sku] || 0) * it.unitPrice, 0);
+    // Nothing handed over yet → render as a PENDING challan (no all-zero
+    // "Delivered" columns, which read as a mistake at first glance).
+    const pending = delBoxes <= 0 && ordBoxes > 0;
+
+    // Party block
+    doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(pending ? 'To be delivered to' : 'Delivered to', 40, 122);
+    doc.setFontSize(13); doc.text(o.customerName || '—', 40, 140);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTE);
+    const sub = [o.customerMobile ? 'Mobile: ' + o.customerMobile : '', o.karyakarta ? 'Via: ' + o.karyakarta : ''].filter(Boolean).join('   ·   ');
+    if (sub) doc.text(sub, 40, 156);
+
+    // Pending banner — makes clear up front that the zeros below are simply
+    // because delivery hasn't happened yet.
+    let tableStart = 172;
+    if (pending) {
+      doc.setFillColor(255, 243, 205); doc.roundedRect(40, 166, pageW - 80, 28, 5, 5, 'F');
+      doc.setTextColor(146, 100, 10); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+      doc.text(`PENDING DELIVERY — ${ordBoxes} box(es) to deliver. Not yet delivered or paid.`, 52, 184);
+      tableStart = 210;
+    }
 
     const subs = o.subOrders || [];
     if (subs.length) {
       // Split order — one section per named recipient, listing what they ordered.
       // Delivery is tracked at the order level (summary block below).
-      let y0 = 172;
+      let y0 = tableStart;
       subs.forEach((so, idx) => {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...DARK);
         doc.text(`${idx + 1}. ${so.name || 'Recipient'}${so.mobile ? '  ·  ' + so.mobile : ''}`, 40, y0);
@@ -1389,6 +1402,19 @@ export const ghariService = {
         y0 = doc.lastAutoTable.finalY + 16;
       });
       var y = y0 + 2;
+    } else if (pending) {
+      // Nothing delivered yet — show the ORDER (what's to be delivered), not a
+      // column of zeros. Item | Ordered | Rate | Amount(order value).
+      const body = (o.items || []).map(it => [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), rs(it.unitPrice), rs(it.qty * it.unitPrice)]);
+      autoTable(doc, {
+        startY: tableStart,
+        head: [['Item', 'To deliver', 'Rate', 'Amount']], body,
+        theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
+        headStyles: { fillColor: ORANGE, textColor: [255, 255, 255], fontStyle: 'bold' }, alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 0: { cellWidth: 250 }, 1: { halign: 'center', cellWidth: 70 }, 2: { halign: 'right', cellWidth: 90 }, 3: { halign: 'right', cellWidth: 105 } },
+        margin: { left: 40, right: 40 },
+      });
+      var y = doc.lastAutoTable.finalY + 18;
     } else {
       // Single recipient — ordered vs delivered per item.
       const body = (o.items || []).map(it => {
@@ -1396,7 +1422,7 @@ export const ghariService = {
         return [`${it.name.replace(/[()]/g, '')} ${it.size}`, String(it.qty), String(del), kg1(del * sizeToKg_(it.size)), rs(it.unitPrice), rs(del * it.unitPrice)];
       });
       autoTable(doc, {
-        startY: 172,
+        startY: tableStart,
         head: [['Item', 'Ordered', 'Delivered', 'Kg', 'Rate', 'Amount']],
         body,
         theme: 'striped', styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: DARK, lineColor: [235, 225, 215], lineWidth: 0.5, overflow: 'linebreak' },
@@ -1408,14 +1434,22 @@ export const ghariService = {
     }
     const bal = o.total - num_(o.paymentReceived);
     const line = (label, val, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? DARK : MUTE)); doc.setFontSize(10); doc.text(label, pageW - 220, y); doc.setTextColor(...DARK); doc.text(val, pageW - 40, y, { align: 'right' }); y += 16; };
-    line(`Boxes delivered`, `${delBoxes} of ${ordBoxes}`);
-    // Weight delivered split into its two kinds: Total Ghari and Total Bhusu.
-    line(`Total Ghari`, `${kg1(ghariKgDel)} kg`);
-    line(`Total Bhusu`, `${kg1(bhusuKgDel)} kg`);
-    line(`Delivered value`, rs(delAmount));
-    line(`Order total`, rs(o.total), true);
-    line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
-    if (bal > 0) line(`Balance due`, rs(bal), true);
+    if (pending) {
+      // Nothing delivered — skip the all-zero delivered lines; show what's owed.
+      line(`Boxes to deliver`, `${ordBoxes}`);
+      line(`Order total`, rs(o.total), true);
+      line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
+      if (bal > 0) line(`Balance due`, rs(bal), true);
+    } else {
+      line(`Boxes delivered`, `${delBoxes} of ${ordBoxes}`);
+      // Weight delivered split into its two kinds: Total Ghari and Total Bhusu.
+      line(`Total Ghari`, `${kg1(ghariKgDel)} kg`);
+      line(`Total Bhusu`, `${kg1(bhusuKgDel)} kg`);
+      line(`Delivered value`, rs(delAmount));
+      line(`Order total`, rs(o.total), true);
+      line(`Paid${o.paymentType ? ' (' + o.paymentType + ')' : ''}`, rs(num_(o.paymentReceived)));
+      if (bal > 0) line(`Balance due`, rs(bal), true);
+    }
 
     // Status + signature. 0 delivered = "Pending" (nothing handed over yet);
     // some-but-not-all = "Partial"; all = "Fully delivered".
