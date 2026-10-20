@@ -2609,7 +2609,6 @@ function CallListView({ season }) {
 
   const [custQ, setCustQ] = useState('');
   const [kkKey, setKkKey] = useState('all');         // 'all' or a karyakarta key
-  const [types, setTypes] = useState({ ghari: true, bhusu: true }); // product-type filter
   const [delFilter, setDelFilter] = useState('all');  // all | pending | partial | delivered
   const [payFilter, setPayFilter] = useState('all');  // all | unpaid | partial | paid
   const [picked, setPicked] = useState(() => new Set()); // order ids selected for the dashboard
@@ -2625,16 +2624,11 @@ function CallListView({ season }) {
     return allOrders.filter(o => {
       if (kkKey !== 'all' && ghariService.orderKaryakartaKey(o) !== kkKey) return false;
       if (q && !(o.customerName || '').toLowerCase().includes(q)) return false;
-      const hasBhusu = (o.items || []).some(it => it.category === 'bhusu');
-      const hasGhari = (o.items || []).some(it => it.category !== 'bhusu');
-      if (!types.ghari && !types.bhusu) return false;
-      if (types.ghari && !types.bhusu && !hasGhari) return false;
-      if (types.bhusu && !types.ghari && !hasBhusu) return false;
       if (delFilter !== 'all' && orderDelState_(o) !== delFilter) return false;
       if (payFilter !== 'all' && orderPayState_(o) !== payFilter) return false;
       return true;
     });
-  }, [allOrders, custQ, kkKey, types, delFilter, payFilter]);
+  }, [allOrders, custQ, kkKey, delFilter, payFilter]);
 
   // The dashboard counts only ticked orders that are still visible under the
   // current filters — so a hidden order never leaks into the summary.
@@ -2711,8 +2705,6 @@ function CallListView({ season }) {
     };
   }, [selected]);
 
-  const toggleType = (id) => setTypes(t => ({ ...t, [id]: !t[id] }));
-
   return (
     <div>
       {/* Filters */}
@@ -2733,17 +2725,6 @@ function CallListView({ season }) {
             {kkOptions.map(k => <option key={k.key} value={k.key}>{k.name}</option>)}
           </select>
           <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" />
-        </div>
-        {/* Product type — own row, clearly selectable toggles */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Show</span>
-          {[['ghari', '🪔 Ghari'], ['bhusu', 'Bhusu']].map(([id, label]) => (
-            <button key={id} onClick={() => toggleType(id)}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-black transition-colors ${types[id] ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>
-              <span className={`grid h-4 w-4 place-items-center rounded-full border ${types[id] ? 'border-white bg-white/20' : 'border-border-light'}`}>{types[id] && <Check className="h-3 w-3" />}</span>
-              {label}
-            </button>
-          ))}
         </div>
         {/* Delivery status filter */}
         <div className="flex flex-wrap items-center gap-1.5">
