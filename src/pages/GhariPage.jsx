@@ -2655,6 +2655,7 @@ function CallListView({ season }) {
     // Pending (still-to-deliver) quantities, kept per karyakarta + sku so we can
     // net each karyakarta's advance stock in hand against their own pending.
     const pendByKk = {}; // kkKey -> { sku -> { name, category, size, qty } }
+    const nameByKk = {}; // kkKey -> karyakarta display name (for name-based stock fallback)
     selected.forEach(o => {
       const kg = ghariService.orderKg(o);
       ghariKg += kg.ghariKg; bhusuKg += kg.bhusuKg;
@@ -2665,6 +2666,7 @@ function CallListView({ season }) {
       const tot = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
       const db = Number(o.deliveredBoxes || 0);
       const kkKey = ghariService.orderKaryakartaKey(o);
+      nameByKk[kkKey] = o.karyakarta || nameByKk[kkKey] || '';
       // Boxes already delivered on this order (all if marked delivered, else the
       // partial count), allocated across items in order — matches stock reconciliation.
       let deliveredBoxes = (o.delivered || (tot > 0 && db >= tot)) ? tot : Math.max(0, Math.min(tot, Math.round(db)));
@@ -2693,11 +2695,17 @@ function CallListView({ season }) {
 
     // Advance stock each karyakarta is still holding (issued − delivered), per sku.
     // We deduct it from their own pending, since those boxes are already with them.
-    const inHandByKk = {};
+    // Indexed by the stock key AND by normalized name, because a karyakarta's stock
+    // issue and their orders don't always carry the same id (one may be name-only),
+    // which would otherwise leave the advance unmatched.
+    const inHandByKey = {}, inHandByName = {};
+    const normName = (n) => (n || '').trim().toLowerCase();
     try {
       ghariService.buildStockBalances(season).forEach(r => {
         const m = {}; r.lines.forEach(l => { if (l.inHand > 0) m[l.sku] = l.inHand; });
-        inHandByKk[r.key] = m;
+        inHandByKey[r.key] = m;
+        const nk = normName(r.name);
+        if (nk) { const t = inHandByName[nk] || (inHandByName[nk] = {}); Object.entries(m).forEach(([sku, q]) => { t[sku] = (t[sku] || 0) + q; }); }
       });
     } catch { /* ignore — show gross pending if balances unavailable */ }
 
@@ -2706,7 +2714,9 @@ function CallListView({ season }) {
     const pendBhusu = {}; // size -> qty
     let advGhariBoxes = 0, advBhusuPkts = 0; // advance stock deducted (for the caption)
     Object.entries(pendByKk).forEach(([kkKey, bySku]) => {
-      const hand = { ...(inHandByKk[kkKey] || {}) };
+      // Prefer an exact key match; fall back to matching by name.
+      const src = inHandByKey[kkKey] || inHandByName[normName(nameByKk[kkKey])] || {};
+      const hand = { ...src };
       Object.entries(bySku).forEach(([sku, info]) => {
         const avail = hand[sku] || 0;
         const used = Math.min(avail, info.qty);
