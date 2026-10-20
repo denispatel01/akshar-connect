@@ -2613,6 +2613,10 @@ function CallListView({ season }) {
   const [payFilter, setPayFilter] = useState('all');  // all | unpaid | partial | paid
   const [picked, setPicked] = useState(() => new Set()); // order ids selected for the dashboard
 
+  // Clear the selection whenever the karyakarta (or season) changes, so the
+  // dashboard never mixes ticks from two different people.
+  useEffect(() => { setPicked(new Set()); }, [kkKey, season]);
+
   const allOrders = useMemo(() => ghariService.getOrders(season), [season, tick]);
   const kkOptions = useMemo(() => {
     try { return ghariService.karyakartaList(season); } catch { return []; }
