@@ -107,6 +107,10 @@ var HEADERS = {
   // Display seat numbers are a running per-event sequence, computed on the client.
   // status ∈ active|void.
   BusBookings: ['id','eventId','passengersJson','passengerCount','seatType','mobile','karyakarta','karyakartaId','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // Per-karyakarta quick tally for an event (the simple Single/Double/Bhakto count
+  // sheet, independent of the detailed per-passenger bookings above). One row per
+  // karyakarta per event. status ∈ active|void.
+  BusTally: ['id','eventId','karyakarta','karyakartaId','single','double','bhakto','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   // ── Vato (daily Gujarati/English teachings, maintained by hand in the sheet) ─
   Vato: ['SN','Gujarati','English'],
   // ── Devotee edit audit (old↔new on every add/edit/delete, revertible) ───────
@@ -1492,7 +1496,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -2058,11 +2062,13 @@ function handle_(p){
     if(BUS_WRITE_ACTIONS_[action] && !busCanWrite_(p))
       return json_({ ok:false, error:'Not allowed — Bus Seva is view-only for your account.' });
     if(action==='busBootstrap')
-      return json_({ ok:true, events: readAll_('BusEvents'), bookings: readAll_('BusBookings') });
+      return json_({ ok:true, events: readAll_('BusEvents'), bookings: readAll_('BusBookings'), tallies: readAll_('BusTally') });
     if(action==='busUpsertEvent')   return busUpsert_('BusEvents', p.row || {});
     if(action==='busDeleteEvent')   return busDelete_('BusEvents', p.id);
     if(action==='busUpsertBooking') return busUpsert_('BusBookings', p.row || {});
     if(action==='busDeleteBooking') return busDelete_('BusBookings', p.id);
+    if(action==='busUpsertTally')   return busUpsert_('BusTally', p.row || {});
+    if(action==='busDeleteTally')   return busDelete_('BusTally', p.id);
     if(action==='getVato') return cachedJson_('vato', 1800, function(){ return JSON.parse(doGetVato_().getContent()); });
     if(action==='backupNow') return json_({ ok:true, result: backupSpreadsheet_(Number(p.keep)||90) });
     if(action==='getGroupAttendance') return cachedJson_('groupAtt', 600, function(){ return JSON.parse(doGetGroupAttendance_().getContent()); });
@@ -2674,6 +2680,7 @@ function sendGhariDeliveryMail_(row, when){
 // `bus`; reads (busBootstrap) are open. Mirrors the client nav gate in navItems.js.
 var BUS_WRITE_ACTIONS_ = {
   busUpsertEvent: 1, busDeleteEvent: 1, busUpsertBooking: 1, busDeleteBooking: 1,
+  busUpsertTally: 1, busDeleteTally: 1,
 };
 function busCanWrite_(p){
   var mob = normMob_(p && p.actorMobile || '');

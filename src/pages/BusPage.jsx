@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, X, Check, Trash2, RefreshCw, ArrowLeft, User, Users, Bus, Calendar, MapPin,
-  CloudOff, Cloud, Pencil, Copy, Armchair, ChevronRight,
+  CloudOff, Cloud, Pencil, Copy, Armchair, ChevronRight, LayoutList, Table2,
 } from 'lucide-react';
 import { busService, BUS_SEAT_TYPES, DEFAULT_SEAT_TYPE } from '../services/busService';
 import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
@@ -297,6 +297,124 @@ function BookingRow({ booking, seatNos, onOpen, canEdit }) {
   );
 }
 
+// ───────────────────────── Quick tally grid ─────────────────────────────────
+// A spreadsheet-style per-karyakarta count sheet: Single / Double sofo + Bhakto
+// (people). Mirrors the manually-kept Excel so it no longer lives outside the app.
+const onlyDigits = (v) => String(v).replace(/[^\d]/g, '');
+
+function TallyNumCell({ value, onCommit, readOnly }) {
+  const [v, setV] = useState(String(value || 0));
+  useEffect(() => { setV(String(value || 0)); }, [value]);
+  const commit = () => { const n = Number(onlyDigits(v)) || 0; if (n !== Number(value || 0)) onCommit(n); setV(String(n)); };
+  return (
+    <input inputMode="numeric" disabled={readOnly} value={v === '0' ? '' : v} placeholder="0"
+      onChange={(e) => setV(onlyDigits(e.target.value))}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+      className="w-full rounded-lg border border-border-light bg-surface px-1 py-1.5 text-center text-sm font-bold text-text-main outline-none focus:border-primary disabled:bg-bg-base" />
+  );
+}
+
+function TallyRow({ tally, onSave, onDelete, readOnly }) {
+  const [name, setName] = useState(tally.karyakarta);
+  useEffect(() => { setName(tally.karyakarta); }, [tally.karyakarta]);
+  const commitName = () => { const n = properName(name); if (n !== tally.karyakarta) onSave({ karyakarta: n }); setName(n); };
+  return (
+    <div className="flex items-center gap-1 border-b border-border-light px-1.5 py-1 last:border-0">
+      <input value={name} disabled={readOnly} onChange={(e) => setName(e.target.value)} onBlur={commitName}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }} placeholder="Karyakarta"
+        className="min-w-0 flex-1 rounded-lg bg-transparent px-1.5 py-1.5 text-sm font-bold text-text-main outline-none focus:bg-bg-base disabled:bg-transparent" />
+      <div className="w-12 shrink-0"><TallyNumCell value={tally.single} readOnly={readOnly} onCommit={(n) => onSave({ single: n })} /></div>
+      <div className="w-12 shrink-0"><TallyNumCell value={tally.double} readOnly={readOnly} onCommit={(n) => onSave({ double: n })} /></div>
+      <div className="w-14 shrink-0"><TallyNumCell value={tally.bhakto} readOnly={readOnly} onCommit={(n) => onSave({ bhakto: n })} /></div>
+      {!readOnly && (
+        <button onClick={onDelete} title="Remove row" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-text-muted hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950"><X className="h-4 w-4" /></button>
+      )}
+    </div>
+  );
+}
+
+function TallyGrid({ eventId, canEdit }) {
+  const [, setTick] = useState(0);
+  const refresh = () => setTick(t => t + 1);
+  useEffect(() => {
+    const on = () => refresh();
+    window.addEventListener('ac-bus-changed', on); window.addEventListener('ac-bus-synced', on);
+    return () => { window.removeEventListener('ac-bus-changed', on); window.removeEventListener('ac-bus-synced', on); };
+  }, []);
+  const rows = busService.getTallies(eventId);
+  const totals = busService.tallyTotals(eventId);
+  const [draft, setDraft] = useState({ name: '', single: '', double: '', bhakto: '' });
+
+  const addDraft = () => {
+    const nm = properName(draft.name);
+    if (!nm) { alertError('Name needed', 'Enter the karyakarta name for this row.'); return; }
+    busService.saveTally({ eventId, karyakarta: nm, single: Number(draft.single) || 0, double: Number(draft.double) || 0, bhakto: Number(draft.bhakto) || 0 });
+    setDraft({ name: '', single: '', double: '', bhakto: '' });
+    refresh();
+  };
+  const removeRow = async (t) => {
+    const ok = await confirmDialog({ title: 'Remove row?', text: `Remove ${t.karyakarta || 'this karyakarta'} from the tally?`, confirmText: 'Remove', danger: true });
+    if (ok) { busService.voidTally(t.id); refresh(); }
+  };
+  const copyTally = async () => {
+    const lines = rows.map(t => `${t.karyakarta}\t${t.single}\t${t.double}\t${t.bhakto}`);
+    const text = `Karyakarta\tSingle\tDouble\tBhakto\n${lines.join('\n')}\nTotal\t${totals.single}\t${totals.double}\t${totals.bhakto}`;
+    try { await navigator.clipboard.writeText(text); alertSuccess('Copied', 'The tally is on your clipboard — paste into WhatsApp or Excel.'); }
+    catch { alertError('Could not copy', 'Your browser blocked clipboard access.'); }
+  };
+
+  return (
+    <div>
+      <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+        {/* Header */}
+        <div className="flex items-center gap-1 border-b border-border-light bg-bg-base px-1.5 py-2 text-[10px] font-black uppercase tracking-wide text-text-muted">
+          <span className="min-w-0 flex-1 pl-1.5">Karyakarta</span>
+          <span className="w-12 shrink-0 text-center">Single</span>
+          <span className="w-12 shrink-0 text-center">Double</span>
+          <span className="w-14 shrink-0 text-center">Bhakto</span>
+          {canEdit && <span className="w-7 shrink-0" />}
+        </div>
+        {/* Rows */}
+        {rows.length === 0 && !canEdit && (
+          <div className="py-10 text-center text-sm font-bold text-text-muted">No tally entered yet</div>
+        )}
+        {rows.map(t => (
+          <TallyRow key={t.id} tally={t} readOnly={!canEdit}
+            onSave={(patch) => busService.saveTally({ id: t.id, eventId, ...patch })}
+            onDelete={() => removeRow(t)} />
+        ))}
+        {/* Draft add row */}
+        {canEdit && (
+          <div className="flex items-center gap-1 border-t border-dashed border-border-light bg-bg-base/50 px-1.5 py-1.5">
+            <input value={draft.name} onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') addDraft(); }} placeholder="+ Add karyakarta"
+              className="min-w-0 flex-1 rounded-lg bg-transparent px-1.5 py-1.5 text-sm font-bold text-text-main outline-none focus:bg-surface" />
+            <input inputMode="numeric" value={draft.single} onChange={(e) => setDraft(d => ({ ...d, single: onlyDigits(e.target.value) }))} placeholder="0" className="w-12 shrink-0 rounded-lg border border-border-light bg-surface px-1 py-1.5 text-center text-sm font-bold outline-none focus:border-primary" />
+            <input inputMode="numeric" value={draft.double} onChange={(e) => setDraft(d => ({ ...d, double: onlyDigits(e.target.value) }))} placeholder="0" className="w-12 shrink-0 rounded-lg border border-border-light bg-surface px-1 py-1.5 text-center text-sm font-bold outline-none focus:border-primary" />
+            <input inputMode="numeric" value={draft.bhakto} onChange={(e) => setDraft(d => ({ ...d, bhakto: onlyDigits(e.target.value) }))} placeholder="0" className="w-14 shrink-0 rounded-lg border border-border-light bg-surface px-1 py-1.5 text-center text-sm font-bold outline-none focus:border-primary" />
+            <button onClick={addDraft} title="Add row" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#2563EB] text-white"><Plus className="h-4 w-4" /></button>
+          </div>
+        )}
+        {/* Totals */}
+        <div className="flex items-center gap-1 border-t-2 border-border-light bg-[#2563EB]/5 px-1.5 py-2 text-sm font-black text-text-main">
+          <span className="min-w-0 flex-1 pl-1.5">Total</span>
+          <span className="w-12 shrink-0 text-center text-[#2563EB]">{totals.single}</span>
+          <span className="w-12 shrink-0 text-center text-[#2563EB]">{totals.double}</span>
+          <span className="w-14 shrink-0 text-center text-[#2563EB]">{totals.bhakto}</span>
+          {canEdit && <span className="w-7 shrink-0" />}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-text-muted">{totals.rows} karyakarta{totals.rows === 1 ? '' : 's'} · {totals.bhakto} bhakto</p>
+        <button onClick={copyTally} disabled={!rows.length} className="flex items-center gap-1.5 rounded-xl border border-border-light bg-surface px-3 py-1.5 text-[12px] font-bold text-text-muted disabled:opacity-50 hover:text-text-main">
+          <Copy className="h-3.5 w-3.5" /> Copy
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Event detail ─────────────────────────────────────
 function EventDetail({ eventId, canEdit, onBack }) {
   const [, setTick] = useState(0);
@@ -314,6 +432,7 @@ function EventDetail({ eventId, canEdit, onBack }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null); // booking being edited
   const [editEvent, setEditEvent] = useState(false);
+  const [view, setView] = useState('bookings'); // 'bookings' | 'tally'
 
   if (!event) return (
     <div className="p-4"><button onClick={onBack} className="flex items-center gap-1 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button><p className="mt-6 text-center text-sm text-text-muted">This event is no longer available.</p></div>
@@ -344,6 +463,19 @@ function EventDetail({ eventId, canEdit, onBack }) {
         <SyncStrip />
       </div>
 
+      {/* View toggle: detailed bookings (existing) vs quick tally (new) */}
+      <div className="mb-3 flex gap-1 rounded-2xl border border-border-light bg-surface p-1">
+        {[['bookings', 'Bookings', LayoutList], ['tally', 'Quick tally', Table2]].map(([id, label, Icon]) => (
+          <button key={id} onClick={() => setView(id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-black transition-all ${view === id ? 'bg-gradient-to-br from-[#3B82F6] to-[#2563EB] text-white shadow' : 'text-text-muted hover:bg-bg-base'}`}>
+            <Icon className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'tally' ? (
+        <TallyGrid eventId={eventId} canEdit={canEdit} />
+      ) : (<>
       {/* Stat row */}
       <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="rounded-2xl border border-border-light bg-surface p-3">
@@ -395,6 +527,7 @@ function EventDetail({ eventId, canEdit, onBack }) {
           <BookingRow key={b.id} booking={b} seatNos={seats[b.id] || []} canEdit={canEdit} onOpen={(bk) => { setAdding(false); setEditing(bk); }} />
         ))}
       </div>
+      </>)}
 
       {/* Add / edit booking sheet */}
       {(adding || editing) && createPortal(
@@ -439,6 +572,41 @@ function EventCard({ event, onOpen }) {
   );
 }
 
+// One-time import of the real "Bus - Sharad Purnima" tally sheet, so it no longer
+// lives in Excel. Idempotent: stable ids mean replays upsert the same rows, and it
+// never runs if a matching event already has tally rows (so edits are never clobbered).
+const SHARAD_SEED = {
+  eventId: 'BEV-sharad-2026',
+  title: 'Sharad Purnima',
+  rows: [
+    { n: 'Digeshbhai',        single: 6, double: 5, bhakto: 20 },
+    { n: 'Krunalbhai Vasani', single: 0, double: 3, bhakto: 6 },
+    { n: 'Pushpakbhai',       single: 1, double: 2, bhakto: 10 },
+    { n: 'Mohitbhai',         single: 3, double: 0, bhakto: 4 },
+    { n: 'Dr. Jigneshbhai',   single: 1, double: 1, bhakto: 5 },
+    { n: 'Divyankbhai',       single: 4, double: 2, bhakto: 15 },
+  ],
+};
+function seedSharadTally() {
+  try {
+    if (localStorage.getItem('ac_bus_seed_sharad_v1')) return;
+    // Reuse an existing Sharad event if the mandal already created one.
+    const existing = busService.getEvents().find(e => /sharad/i.test(e.title));
+    const evId = existing ? existing.id : SHARAD_SEED.eventId;
+    if (!existing && !busService.getEventById(SHARAD_SEED.eventId)) {
+      busService.saveEvent({ id: SHARAD_SEED.eventId, title: SHARAD_SEED.title, remarks: 'Imported from the Bus seva Excel sheet.', status: 'active' });
+    }
+    // Only seed tallies if this event has none yet — never overwrite real entries.
+    if (busService.getTallies(evId).length === 0) {
+      SHARAD_SEED.rows.forEach((r, i) => busService.saveTally({
+        id: `BTL-sharad-2026-${String(i + 1).padStart(2, '0')}`,
+        eventId: evId, karyakarta: r.n, single: r.single, double: r.double, bhakto: r.bhakto,
+      }));
+    }
+    localStorage.setItem('ac_bus_seed_sharad_v1', '1');
+  } catch { /* ignore */ }
+}
+
 // ───────────────────────── Page root ────────────────────────────────────────
 export default function BusPage({ user }) {
   const canEdit = isAdminRole(user) || isSevakRole(user) ||
@@ -448,7 +616,12 @@ export default function BusPage({ user }) {
   const [openId, setOpenId] = useState(null);
   const [newEvent, setNewEvent] = useState(false);
 
-  useEffect(() => { try { busService.init(); } catch { /* ignore */ } }, []);
+  useEffect(() => {
+    try { busService.init(); } catch { /* ignore */ }
+    // After the first pull, import the Sharad Purnima tally once (edit-capable users
+    // only — view-only writes are rejected server-side anyway).
+    if (canEdit) { busService.syncDown().then(() => { seedSharadTally(); refresh(); }).catch(() => {}); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const on = () => refresh();
     window.addEventListener('ac-bus-changed', on); window.addEventListener('ac-bus-synced', on);

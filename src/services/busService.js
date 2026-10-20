@@ -27,6 +27,7 @@ export const DEFAULT_SEAT_TYPE = 'single_sofo';
 // ── Storage keys ─────────────────────────────────────────────────────────────
 const EVENTS_KEY   = 'ac_bus_events_v1';
 const BOOKINGS_KEY = 'ac_bus_bookings_v1';
+const TALLY_KEY    = 'ac_bus_tally_v1';
 const OUTBOX_KEY   = 'ac_bus_outbox_v1';
 
 // ── Small persistence helpers (every read/write is try/caught) ───────────────
@@ -38,7 +39,7 @@ function writeJSON_(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; }
 }
 
-let MEM = { events: null, bookings: null };
+let MEM = { events: null, bookings: null, tallies: null };
 let flushing = false;
 let inited = false;
 // The last error that blocked a sync (e.g. the backend action isn't deployed yet,
@@ -84,6 +85,25 @@ function normalizeBooking_(b) {
   };
 }
 
+// A per-karyakarta quick tally row: counts of Single / Double sofo + Bhakto
+// (people), independent of the detailed per-passenger bookings.
+function num_(n) { const v = Number(n); return Number.isFinite(v) && v > 0 ? Math.round(v) : 0; }
+function normalizeTally_(t) {
+  return {
+    id: String(t.id || ''),
+    eventId: String(t.eventId || ''),
+    karyakarta: String(t.karyakarta || '').trim(),
+    karyakartaId: String(t.karyakartaId || ''),
+    single: num_(t.single),
+    double: num_(t.double),
+    bhakto: num_(t.bhakto),
+    remarks: String(t.remarks || '').trim(),
+    status: (String(t.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
+    createdBy: String(t.createdBy || ''), createdOn: String(t.createdOn || ''),
+    updatedBy: String(t.updatedBy || ''), updatedOn: String(t.updatedOn || ''),
+  };
+}
+
 // Flatten a typed booking → the backend row (keeps the Sheet readable).
 function toBackendBooking_(b) {
   return {
@@ -106,8 +126,13 @@ function bookings_() {
   if (!MEM.bookings) MEM.bookings = (readJSON_(BOOKINGS_KEY, []) || []).map(normalizeBooking_);
   return MEM.bookings;
 }
+function tallies_() {
+  if (!MEM.tallies) MEM.tallies = (readJSON_(TALLY_KEY, []) || []).map(normalizeTally_);
+  return MEM.tallies;
+}
 function saveEventsLocal_() { writeJSON_(EVENTS_KEY, MEM.events); }
 function saveBookingsLocal_() { writeJSON_(BOOKINGS_KEY, MEM.bookings); }
+function saveTalliesLocal_() { writeJSON_(TALLY_KEY, MEM.tallies); }
 function outbox_() { return readJSON_(OUTBOX_KEY, []) || []; }
 function setOutbox_(arr) { writeJSON_(OUTBOX_KEY, arr); }
 
@@ -163,10 +188,12 @@ async function syncDown() {
   try { res = await backendApi('busBootstrap', {}); } catch (e) { return { ok: false, error: e.message }; }
   const serverEvents = (res.events || []).map(normalizeEvent_);
   const serverBookings = (res.bookings || []).map(normalizeBooking_);
+  const serverTallies = (res.tallies || []).map(normalizeTally_);
 
   const box = outbox_();
   const pendingEventIds = new Set(box.filter(o => o.action === 'busUpsertEvent' || o.action === 'busDeleteEvent').map(o => o.payload?.row?.id ?? o.payload?.id));
   const pendingBookingIds = new Set(box.filter(o => o.action === 'busUpsertBooking' || o.action === 'busDeleteBooking').map(o => o.payload?.row?.id ?? o.payload?.id));
+  const pendingTallyIds = new Set(box.filter(o => o.action === 'busUpsertTally' || o.action === 'busDeleteTally').map(o => o.payload?.row?.id ?? o.payload?.id));
 
   // Server is authoritative EXCEPT for ids with a pending local op (keep local).
   const mergedEvents = serverEvents.filter(e => !pendingEventIds.has(e.id));
@@ -177,6 +204,10 @@ async function syncDown() {
   bookings_().forEach(b => { if (pendingBookingIds.has(b.id)) mergedBookings.push(b); });
   MEM.bookings = mergedBookings.map(normalizeBooking_); saveBookingsLocal_();
 
+  const mergedTallies = serverTallies.filter(t => !pendingTallyIds.has(t.id));
+  tallies_().forEach(t => { if (pendingTallyIds.has(t.id)) mergedTallies.push(t); });
+  MEM.tallies = mergedTallies.map(normalizeTally_); saveTalliesLocal_();
+
   emit_('ac-bus-synced', { pending: outbox_().length, refreshed: true });
   return { ok: true };
 }
@@ -185,7 +216,7 @@ async function syncDown() {
 function init() {
   if (inited) return;
   inited = true;
-  events_(); bookings_();
+  events_(); bookings_(); tallies_();
   try {
     window.addEventListener('online', () => { flush().then(() => syncDown()); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
@@ -346,5 +377,49 @@ export const busService = {
   voidBooking: (id) => {
     const b = busService.getBookingById(id); if (!b) return null;
     return busService.saveBooking({ ...b, status: 'void' });
+  },
+
+  // ---- Quick tally (per-karyakarta Single/Double/Bhakto counts) ----
+  // Active tally rows for an event, karyakarta A→Z.
+  getTallies: (eventId, { includeVoid = false } = {}) => tallies_()
+    .filter(t => t.eventId === eventId && (includeVoid || t.status !== 'void'))
+    .sort((a, b) => String(a.karyakarta).localeCompare(String(b.karyakarta)) || String(a.createdOn).localeCompare(String(b.createdOn))),
+  getTallyById: (id) => tallies_().find(t => t.id === id) || null,
+
+  // Column + row totals for an event's tally grid.
+  tallyTotals: (eventId) => {
+    const list = busService.getTallies(eventId);
+    return list.reduce((s, t) => ({ single: s.single + t.single, double: s.double + t.double, bhakto: s.bhakto + t.bhakto, rows: s.rows + 1 }), { single: 0, double: 0, bhakto: 0, rows: 0 });
+  },
+
+  saveTally: (input) => {
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const existingIdx = input.id ? tallies_().findIndex(t => t.id === input.id) : -1;
+    const prev = existingIdx >= 0 ? MEM.tallies[existingIdx] : null;
+    const eventId = input.eventId || prev?.eventId || '';
+    const id = input.id || `BTL-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const tally = normalizeTally_({
+      ...(prev || {}), id, eventId,
+      karyakarta: input.karyakarta ?? prev?.karyakarta ?? '',
+      karyakartaId: input.karyakartaId ?? prev?.karyakartaId ?? '',
+      single: input.single ?? prev?.single ?? 0,
+      double: input.double ?? prev?.double ?? 0,
+      bhakto: input.bhakto ?? prev?.bhakto ?? 0,
+      remarks: input.remarks ?? prev?.remarks ?? '',
+      status: input.status ?? prev?.status ?? 'active',
+      createdBy: prev?.createdBy || actor, createdOn: prev?.createdOn || now,
+      updatedBy: actor, updatedOn: now,
+    });
+    if (existingIdx >= 0) MEM.tallies[existingIdx] = tally; else MEM.tallies.push(tally);
+    saveTalliesLocal_();
+    enqueueUpsert_('busUpsertTally', tally);
+    emit_('ac-bus-changed');
+    flush();
+    return tally;
+  },
+  voidTally: (id) => {
+    const t = busService.getTallyById(id); if (!t) return null;
+    return busService.saveTally({ ...t, status: 'void' });
   },
 };
