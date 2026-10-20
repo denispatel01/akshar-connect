@@ -1,5 +1,5 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const BUILD_ID = '1792485515168'; // replaced at build time so each deploy ships a new SW
+const BUILD_ID = '1792515178397'; // replaced at build time so each deploy ships a new SW
 const CACHE_NAME = 'akshar-connect-' + BUILD_ID;
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
@@ -64,27 +64,27 @@ self.addEventListener('fetch', (event) => {
   // Never cache / intercept backend API calls — always go to network
   if (isBackendRequest(url)) return;
 
-  // Network-first for navigation requests, with cache fallback. Use no-store so the
-  // app shell (index.html) is ALWAYS fetched fresh from the network — GitHub Pages
-  // serves index.html with max-age=600, and a stale shell points at old JS bundles,
-  // which is the #1 cause of "my change didn't show up". Bypassing the HTTP cache here
-  // means a new deploy is picked up on the very next load.
+  // Stale-while-revalidate for navigation (the app shell / index.html). Serve the
+  // CACHED shell instantly so a cold open isn't blocked on a network round-trip to
+  // GitHub Pages — this is the #1 cause of a multi-second blank screen on startup —
+  // then refresh the cached shell in the background for next time. Staying fresh is
+  // still guaranteed: each deploy stamps a new BUILD_ID → a new SW + cache name, and
+  // the page auto-reloads once when that new worker activates (see main.jsx), so a
+  // new build is always picked up; the cached shell only ever serves the SAME build's
+  // index (whose hashed JS chunks are themselves cached), never a cross-build mix.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
-        try {
-          const response = await fetch(request, { cache: 'no-store' });
-          try {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, response.clone());
-          } catch (err) {
-            // ignore cache write errors
-          }
-          return response;
-        } catch (err) {
-          const cached = await caches.match(request);
-          return cached || (await caches.match(BASE)) || Response.error();
-        }
+        const cached = (await caches.match(request)) || (await caches.match(BASE));
+        // Kick off a background refresh so the next open has the latest shell.
+        const fresh = fetch(request, { cache: 'no-store' })
+          .then((response) => {
+            try { caches.open(CACHE_NAME).then((c) => c.put(request, response.clone())); } catch (err) { /* ignore */ }
+            return response;
+          })
+          .catch(() => null);
+        // Instant when cached; first-ever visit (no cache) waits for the network.
+        return cached || (await fresh) || Response.error();
       })()
     );
     return;
