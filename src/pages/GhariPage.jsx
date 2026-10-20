@@ -2709,37 +2709,42 @@ function CallListView({ season }) {
       });
     } catch { /* ignore — show gross pending if balances unavailable */ }
 
-    // Net pending = pending − advance in hand, aggregated across selected karyakartas.
-    const pendGhari = {}; // "name||size" -> { name, category, size, qty }
-    const pendBhusu = {}; // size -> qty
-    let advGhariBoxes = 0, advBhusuPkts = 0; // advance stock deducted (for the caption)
+    // Per-product breakdown: ordered (pending) vs advance in hand vs still needed.
+    // Netting is per karyakarta (one person's stock never covers another's), then
+    // the rows are summed per product (sku) across the selected karyakartas.
+    const rows = {}; // sku -> { name, category, size, pending, inHand, needed }
+    const prodMeta = {}; try { ghariService.getProducts().forEach(p => { prodMeta[p.sku] = p; }); } catch { /* ignore */ }
+    const ensureRow = (sku, meta) => (rows[sku] = rows[sku] || { sku, name: cleanName_(meta.name), category: meta.category || 'ghee', size: (meta.size || '').trim() || '—', pending: 0, inHand: 0, needed: 0 });
     Object.entries(pendByKk).forEach(([kkKey, bySku]) => {
       // Prefer an exact key match; fall back to matching by name.
       const src = inHandByKey[kkKey] || inHandByName[normName(nameByKk[kkKey])] || {};
       const hand = { ...src };
       Object.entries(bySku).forEach(([sku, info]) => {
         const avail = hand[sku] || 0;
-        const used = Math.min(avail, info.qty);
-        if (used > 0) { if (info.category === 'bhusu') advBhusuPkts += used; else advGhariBoxes += used; }
-        const net = info.qty - used; if (net <= 0) return;
-        if (info.category === 'bhusu') { pendBhusu[info.size] = (pendBhusu[info.size] || 0) + net; }
-        else {
-          const k = info.name + '||' + info.size;
-          if (!pendGhari[k]) pendGhari[k] = { name: info.name, category: info.category, size: info.size, qty: 0 };
-          pendGhari[k].qty += net;
-        }
+        const pend = info.qty;
+        const used = Math.min(avail, pend);
+        const need = pend - used;
+        const row = ensureRow(sku, info);
+        row.pending += pend; row.inHand += avail; row.needed += need;
+        hand[sku] = Math.max(0, avail - used); // leftover advance (not ordered)
+      });
+      // Advance stock the karyakarta holds for products with NO pending order.
+      Object.entries(hand).forEach(([sku, left]) => {
+        if (left <= 0 || (bySku[sku])) return;
+        const row = ensureRow(sku, prodMeta[sku] || { name: sku, size: '', category: 'ghee' });
+        row.inHand += left; // pending stays 0, needed stays 0
       });
     });
+    const giveRows = Object.values(rows)
+      .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name) || sizeKg_(a.size) - sizeKg_(b.size));
+    const totalNeeded = giveRows.reduce((s, r) => s + r.needed, 0);
     // Sort size labels by their kg weight so 250gm < 500gm < 1kg reads naturally.
     const sortSizes = (obj) => Object.entries(obj).sort((a, b) => sizeKg_(a[0]) - sizeKg_(b[0]));
-    const pendGhariList = Object.values(pendGhari)
-      .sort((a, b) => (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) || a.name.localeCompare(b.name) || sizeKg_(a.size) - sizeKg_(b.size));
     return {
       ghariKg, bhusuKg, total, paid, bal: total - paid,
       deliveredN, partialN, pendingN, paidN, partPaidN, unpaidN,
-      advGhariBoxes, advBhusuPkts,
       ghariSizes: sortSizes(ghariSizes), bhusuSizes: sortSizes(bhusuSizes),
-      pendGhari: pendGhariList, pendBhusu: sortSizes(pendBhusu),
+      giveRows, totalNeeded,
     };
   }, [selected]);
 
@@ -2821,40 +2826,36 @@ function CallListView({ season }) {
                 </div>
               </div>
             )}
-            {/* Still to give — pending orders minus the advance stock the
-                karyakarta already holds. This is the figure to confirm on the call. */}
-            {(dash.pendGhari.length > 0 || dash.pendBhusu.length > 0 || dash.advGhariBoxes > 0 || dash.advBhusuPkts > 0) && (
+            {/* Stock to give — per product: how much is ordered (pending), how
+                much advance stock the karyakarta already holds, and the remaining
+                stock you still need to give (highlighted). The call-confirm figure. */}
+            {dash.giveRows.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900 dark:bg-amber-950/30">
-                <div className="mb-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">⏳ Still to give (after advance stock)</div>
-                {(dash.advGhariBoxes > 0 || dash.advBhusuPkts > 0) && (
-                  <div className="mb-1.5 text-[10px] font-bold text-text-muted">
-                    Advance in hand deducted: {[dash.advGhariBoxes > 0 ? `${dash.advGhariBoxes} ${unitWord_('ghee', dash.advGhariBoxes)} Ghari` : '', dash.advBhusuPkts > 0 ? `${dash.advBhusuPkts} ${unitWord_('bhusu', dash.advBhusuPkts)} Bhusu` : ''].filter(Boolean).join(' · ')}
-                  </div>
-                )}
-                {dash.pendGhari.length === 0 && dash.pendBhusu.length === 0 ? (
-                  <div className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">✓ Fully covered by advance stock in hand — nothing more to give.</div>
-                ) : (<>
-                {dash.pendGhari.length > 0 && (
-                  <div className="mb-1.5">
-                    <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {dash.pendGhari.map(p => (
-                        <span key={p.name + p.size} className="rounded-lg border border-orange-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-orange-900">{p.name} {p.size}: <span className="text-orange-600 dark:text-orange-300">{p.qty}</span></span>
-                      ))}
+                <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">📦 Stock to give</div>
+                {/* Column header */}
+                <div className="flex items-center gap-1 px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-text-muted">
+                  <span className="flex-1">Item</span>
+                  <span className="w-12 text-center">Ordered</span>
+                  <span className="w-12 text-center">In hand</span>
+                  <span className="w-14 text-center">Needed</span>
+                </div>
+                <div className="space-y-1">
+                  {dash.giveRows.map(r => (
+                    <div key={r.sku} className="flex items-center gap-1 rounded-lg border border-border-light bg-surface px-2 py-1.5">
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-black text-text-main">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: GHARI_CATEGORIES[r.category]?.color || '#EA580C' }} />
+                        <span className="truncate">{r.category === 'bhusu' ? 'Bhusu' : r.name} {r.size}</span>
+                      </span>
+                      <span className="w-12 text-center text-[12px] font-bold text-text-muted">{r.pending}</span>
+                      <span className="w-12 text-center text-[12px] font-bold text-emerald-600 dark:text-emerald-400">{r.inHand}</span>
+                      <span className={`w-14 rounded-md px-1 py-0.5 text-center text-[12px] font-black ${r.needed > 0 ? 'bg-amber-300 text-amber-900 dark:bg-amber-500 dark:text-amber-950' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}`}>{r.needed > 0 ? r.needed : '✓'}</span>
                     </div>
-                  </div>
-                )}
-                {dash.pendBhusu.length > 0 && (
-                  <div>
-                    <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Bhusu packets</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {dash.pendBhusu.map(([size, qty]) => (
-                        <span key={size} className="rounded-lg border border-purple-200 bg-surface px-2 py-1 text-[11px] font-black text-text-main dark:border-purple-900">{size}: <span className="text-purple-600 dark:text-purple-300">{qty}</span></span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                </>)}
+                  ))}
+                </div>
+                <div className="mt-1.5 text-[10px] font-bold text-text-muted">
+                  Ordered = still-undelivered orders · In hand = advance stock they already hold · <span className="text-amber-700 dark:text-amber-300">Needed</span> = stock you still need to give.
+                  {dash.totalNeeded === 0 && ' Everything is covered by advance stock in hand.'}
+                </div>
               </div>
             )}
             {/* Status + money */}
