@@ -2651,10 +2651,10 @@ function CallListView({ season }) {
     let paidN = 0, partPaidN = 0, unpaidN = 0;
     const ghariSizes = {}; // size label -> qty (boxes)
     const bhusuSizes = {}; // size label -> qty (packets)
-    // Pending (still-to-deliver) quantities, broken out for the call.
-    const pendGhari = {}; // "name||size" -> { name, category, size, qty }  (boxes left)
-    const pendBhusu = {}; // size label -> qty (packets left)
     const catOrder = Object.keys(GHARI_CATEGORIES); // ghee, noghee, sf, bhusu
+    // Pending (still-to-deliver) quantities, kept per karyakarta + sku so we can
+    // net each karyakarta's advance stock in hand against their own pending.
+    const pendByKk = {}; // kkKey -> { sku -> { name, category, size, qty } }
     selected.forEach(o => {
       const kg = ghariService.orderKg(o);
       ghariKg += kg.ghariKg; bhusuKg += kg.bhusuKg;
@@ -2664,6 +2664,7 @@ function CallListView({ season }) {
       const items = o.items || [];
       const tot = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
       const db = Number(o.deliveredBoxes || 0);
+      const kkKey = ghariService.orderKaryakartaKey(o);
       // Boxes already delivered on this order (all if marked delivered, else the
       // partial count), allocated across items in order — matches stock reconciliation.
       let deliveredBoxes = (o.delivered || (tot > 0 && db >= tot)) ? tot : Math.max(0, Math.min(tot, Math.round(db)));
@@ -2675,13 +2676,9 @@ function CallListView({ season }) {
         // pending portion of this line
         const deliv = Math.min(q, deliveredBoxes); deliveredBoxes -= deliv;
         const pend = q - deliv; if (pend <= 0) return;
-        if (it.category === 'bhusu') { pendBhusu[label] = (pendBhusu[label] || 0) + pend; }
-        else {
-          const name = cleanName_(it.name);
-          const k = name + '||' + label;
-          if (!pendGhari[k]) pendGhari[k] = { name, category: it.category || 'ghee', size: label, qty: 0 };
-          pendGhari[k].qty += pend;
-        }
+        const bucket = (pendByKk[kkKey] = pendByKk[kkKey] || {});
+        const row = (bucket[it.sku] = bucket[it.sku] || { name: cleanName_(it.name), category: it.category || 'ghee', size: label, qty: 0 });
+        row.qty += pend;
       });
       // delivery status
       if (o.delivered || (tot > 0 && db >= tot)) deliveredN++;
@@ -2693,6 +2690,36 @@ function CallListView({ season }) {
       else if (bal > 0) partPaidN++;
       else paidN++;
     });
+
+    // Advance stock each karyakarta is still holding (issued − delivered), per sku.
+    // We deduct it from their own pending, since those boxes are already with them.
+    const inHandByKk = {};
+    try {
+      ghariService.buildStockBalances(season).forEach(r => {
+        const m = {}; r.lines.forEach(l => { if (l.inHand > 0) m[l.sku] = l.inHand; });
+        inHandByKk[r.key] = m;
+      });
+    } catch { /* ignore — show gross pending if balances unavailable */ }
+
+    // Net pending = pending − advance in hand, aggregated across selected karyakartas.
+    const pendGhari = {}; // "name||size" -> { name, category, size, qty }
+    const pendBhusu = {}; // size -> qty
+    let advGhariBoxes = 0, advBhusuPkts = 0; // advance stock deducted (for the caption)
+    Object.entries(pendByKk).forEach(([kkKey, bySku]) => {
+      const hand = { ...(inHandByKk[kkKey] || {}) };
+      Object.entries(bySku).forEach(([sku, info]) => {
+        const avail = hand[sku] || 0;
+        const used = Math.min(avail, info.qty);
+        if (used > 0) { if (info.category === 'bhusu') advBhusuPkts += used; else advGhariBoxes += used; }
+        const net = info.qty - used; if (net <= 0) return;
+        if (info.category === 'bhusu') { pendBhusu[info.size] = (pendBhusu[info.size] || 0) + net; }
+        else {
+          const k = info.name + '||' + info.size;
+          if (!pendGhari[k]) pendGhari[k] = { name: info.name, category: info.category, size: info.size, qty: 0 };
+          pendGhari[k].qty += net;
+        }
+      });
+    });
     // Sort size labels by their kg weight so 250gm < 500gm < 1kg reads naturally.
     const sortSizes = (obj) => Object.entries(obj).sort((a, b) => sizeKg_(a[0]) - sizeKg_(b[0]));
     const pendGhariList = Object.values(pendGhari)
@@ -2700,6 +2727,7 @@ function CallListView({ season }) {
     return {
       ghariKg, bhusuKg, total, paid, bal: total - paid,
       deliveredN, partialN, pendingN, paidN, partPaidN, unpaidN,
+      advGhariBoxes, advBhusuPkts,
       ghariSizes: sortSizes(ghariSizes), bhusuSizes: sortSizes(bhusuSizes),
       pendGhari: pendGhariList, pendBhusu: sortSizes(pendBhusu),
     };
@@ -2783,11 +2811,19 @@ function CallListView({ season }) {
                 </div>
               </div>
             )}
-            {/* Pending to deliver — what's still owed to these customers, by
-                product type/size. This is the figure to confirm on the call. */}
-            {(dash.pendGhari.length > 0 || dash.pendBhusu.length > 0) && (
+            {/* Still to give — pending orders minus the advance stock the
+                karyakarta already holds. This is the figure to confirm on the call. */}
+            {(dash.pendGhari.length > 0 || dash.pendBhusu.length > 0 || dash.advGhariBoxes > 0 || dash.advBhusuPkts > 0) && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900 dark:bg-amber-950/30">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">⏳ Pending to deliver</div>
+                <div className="mb-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">⏳ Still to give (after advance stock)</div>
+                {(dash.advGhariBoxes > 0 || dash.advBhusuPkts > 0) && (
+                  <div className="mb-1.5 text-[10px] font-bold text-text-muted">
+                    Advance in hand deducted: {[dash.advGhariBoxes > 0 ? `${dash.advGhariBoxes} ${unitWord_('ghee', dash.advGhariBoxes)} Ghari` : '', dash.advBhusuPkts > 0 ? `${dash.advBhusuPkts} ${unitWord_('bhusu', dash.advBhusuPkts)} Bhusu` : ''].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+                {dash.pendGhari.length === 0 && dash.pendBhusu.length === 0 ? (
+                  <div className="text-[12px] font-black text-emerald-600 dark:text-emerald-400">✓ Fully covered by advance stock in hand — nothing more to give.</div>
+                ) : (<>
                 {dash.pendGhari.length > 0 && (
                   <div className="mb-1.5">
                     <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-text-muted">Ghari boxes</div>
@@ -2808,6 +2844,7 @@ function CallListView({ season }) {
                     </div>
                   </div>
                 )}
+                </>)}
               </div>
             )}
             {/* Status + money */}
