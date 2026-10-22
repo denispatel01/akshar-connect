@@ -49,6 +49,9 @@ var HEADERS = {
   // money; it's an organising layer ("who belongs to which leader"). Seeded once
   // from the final GHARI SALES 2026 workbook. leaderId references MandalLeaders.id.
   GhariBuyers: ['id','buyer','leaderId','leaderName','ghariKg','orders','amount','updatedBy','updatedOn'],
+  // Per-leader Target (kg) for the Mandal Leaders summary. Done = sum of that
+  // leader's buyers' ghariKg (computed on the client), so only the target is stored.
+  GhariLeaderTargets: ['leaderId','target','updatedBy','updatedOn'],
   // ── Adajan Mandal Leaderboard ────────────────────────────────────────────
   // A reusable progress board for any seva (Ghari now, more later). The mandal's
   // leaders are fixed, so they are seeded ONCE here and every new board prefills
@@ -125,7 +128,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-23-ghari-buyers';
+var SCHEMA_VERSION = '2026-10-23-ghari-leader-targets';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1503,7 +1506,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariBuyers','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1845,10 +1848,26 @@ function seedGhariBuyers_(force){
   return { seeded:true, count: rows.length };
 }
 
-// Read the fixed leaders + every buyer mapping. Auto-seeds buyers on first call.
+// Read the fixed leaders + every buyer mapping + per-leader targets. Auto-seeds
+// buyers on first call.
 function doGetGhariBuyers_(p){
   seedGhariBuyers_(false);
-  return json_({ ok:true, leaders: seedMandalLeaders_(false), buyers: readAll_('GhariBuyers') });
+  return json_({ ok:true, leaders: seedMandalLeaders_(false), buyers: readAll_('GhariBuyers'), targets: readAll_('GhariLeaderTargets') });
+}
+
+// Upsert per-leader Target (kg). rows = [{ leaderId, target }].
+function doSaveGhariLeaderTargets_(p){
+  var rows = p.rows || [];
+  var now = new Date().toISOString();
+  rows.forEach(function(r){
+    if(!r || !r.leaderId) return;
+    var row = { leaderId: String(r.leaderId), target: Number(r.target)||0, updatedBy: (r.updatedBy||p.actor||''), updatedOn: now };
+    var rn = findRow_('GhariLeaderTargets', 'leaderId', row.leaderId);
+    if(rn > 0) tab_('GhariLeaderTargets').getRange(rn,1,1,HEADERS.GhariLeaderTargets.length).setValues([rowFromObj_('GhariLeaderTargets', row)]);
+    else appendRows_('GhariLeaderTargets', [row]);
+  });
+  logChange_('UPDATE', 'GhariLeaderTargets', { name: rows.length + ' leader target(s) set', updatedBy: p.actor }, mailFlag_(p));
+  return json_({ ok:true, count: rows.length });
 }
 
 // Keep the denormalized leaderName in step with leaderId, whatever the client sent.
@@ -1968,6 +1987,7 @@ function handle_(p){
     if(action==='bulkSaveGhariBuyers') return doBulkSaveGhariBuyers_(p);
     if(action==='removeGhariBuyer') return doRemoveGhariBuyer_(p);
     if(action==='seedGhariBuyers') return json_({ ok:true, result: seedGhariBuyers_(p && p.force === true) });
+    if(action==='saveGhariLeaderTargets') return doSaveGhariLeaderTargets_(p);
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),

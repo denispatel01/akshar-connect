@@ -37,8 +37,9 @@ function writeCache_(state) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(state)); } catch { /* quota */ }
 }
 
-let MEM = readCache_() || { leaders: null, buyers: [] };
+let MEM = readCache_() || { leaders: null, buyers: [], targets: {} };
 if (!Array.isArray(MEM.buyers)) MEM.buyers = [];
+if (!MEM.targets || typeof MEM.targets !== 'object') MEM.targets = {};
 
 function num_(v) { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; }
 function uid_() { return 'GBY-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
@@ -53,6 +54,14 @@ function persist_() { writeCache_(MEM); emitChanged_(); }
 export function getLeaders() {
   const l = MEM.leaders && MEM.leaders.length ? MEM.leaders : FIXED_LEADERS;
   return l.slice().sort((a, b) => (num_(a.sortOrder) - num_(b.sortOrder)));
+}
+
+/** Per-leader Target (kg) as a map { leaderId: number }. */
+export function getTargets() {
+  const t = MEM.targets || {};
+  const out = {};
+  Object.keys(t).forEach((k) => { out[k] = num_(t[k]); });
+  return out;
 }
 
 /** All buyer mappings (from cache). Normalized numbers. */
@@ -80,14 +89,18 @@ export function getGrouped() {
     if (b.leaderId && byLeader.has(b.leaderId)) byLeader.get(b.leaderId).push(b);
     else noLeader.push(b);
   });
+  const targets = getTargets();
   const groups = leaders.map((l) => {
     const items = byLeader.get(l.id).slice().sort((a, b) => b.ghariKg - a.ghariKg || b.amount - a.amount);
-    return { leader: l, items, ...totals_(items) };
+    const t = totals_(items);
+    const target = num_(targets[l.id]);
+    const pct = target > 0 ? (t.kg / target) * 100 : 0;
+    return { leader: l, items, ...t, target, pct };
   });
   groups.sort((a, b) => b.kg - a.kg || b.amount - a.amount);
   if (noLeader.length) {
     const items = noLeader.slice().sort((a, b) => b.ghariKg - a.ghariKg);
-    groups.push({ leader: { id: '', name: 'No leader', sortOrder: 999 }, items, ...totals_(items) });
+    groups.push({ leader: { id: '', name: 'No leader', sortOrder: 999 }, items, ...totals_(items), target: 0, pct: 0 });
   }
   return groups;
 }
@@ -119,6 +132,11 @@ export async function refresh() {
     if (res && res.ok) {
       MEM.leaders = Array.isArray(res.leaders) ? res.leaders : MEM.leaders;
       MEM.buyers = Array.isArray(res.buyers) ? res.buyers : [];
+      if (Array.isArray(res.targets)) {
+        const m = {};
+        res.targets.forEach((t) => { if (t && t.leaderId) m[t.leaderId] = num_(t.target); });
+        MEM.targets = m;
+      }
       persist_();
     }
   } catch (err) { console.warn('getGhariBuyers failed:', err.message); }
@@ -227,6 +245,23 @@ export async function importBuyers(parsed, actor = '') {
     catch (err) { console.warn('import bulkSaveGhariBuyers failed:', err.message); }
   }
   return { added, updated, total: rows.length };
+}
+
+/**
+ * Save per-leader targets. `map` = { leaderId: kg }. Optimistic local update,
+ * single backend round-trip.
+ */
+export async function saveTargets(map, actor = '') {
+  const next = { ...(MEM.targets || {}) };
+  Object.keys(map || {}).forEach((k) => { next[k] = num_(map[k]); });
+  MEM.targets = next;
+  persist_();
+  const rows = Object.keys(next).map((leaderId) => ({ leaderId, target: num_(next[leaderId]) }));
+  if (backendOnline()) {
+    try { await backendApi('saveGhariLeaderTargets', { rows, actor, mail: false }); }
+    catch (err) { console.warn('saveGhariLeaderTargets failed:', err.message); }
+  }
+  return next;
 }
 
 /**

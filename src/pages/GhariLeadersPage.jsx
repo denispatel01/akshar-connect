@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import {
   Users, Cookie, IndianRupee, RefreshCw, Plus, Pencil, Trash2, X, Check,
   Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog, Upload,
-  Image as ImageIcon, Download, Share2, Split as SplitIcon,
+  Image as ImageIcon, Download, Share2, Split as SplitIcon, Target,
 } from 'lucide-react';
 import {
-  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer,
+  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer, getTargets, saveTargets,
 } from '../services/ghariLeadersService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
@@ -74,17 +74,22 @@ const initials = (name) => String(name || '?').replace(/[^A-Za-z ]/g, '').trim()
   .slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 // ── Summary share image ──────────────────────────────────────────────────────
-// Renders a Leaderboard-style PNG of each leader's buyer count / Ghari kg / amount,
-// stamped with the date + time it was generated. `rows` = leaders in roster order,
-// each { name, buyers, kg, amount }.
-async function renderSummaryImage(rows, totals, stamp) {
+// Renders a Leaderboard-style PNG — SN · Leader · Target (kg) · Done · Percentage
+// — stamped with the date + time it was generated. `rows` = leaders in roster
+// order, each { name, target, done }.
+async function renderSummaryImage(rows, stamp) {
   const S = 2;                 // supersample for crisp text
   const W = 860;
   const headerH = 84, barH = 8, statH = 84, colH = 38, rowH = 50, footerH = 46;
   const GREEN = '#1B5E20', GREEN2 = '#2E7D32', LIME = '#43A047';
   const BLUE = '#1976D2', PURPLE = '#7E57C2';
   const fmt = (n) => (+(num(n).toFixed(2))).toLocaleString('en-IN');
-  const rs = (n) => '₹' + num(n).toLocaleString('en-IN');
+  const pctOf = (done, target) => (num(target) > 0 ? (num(done) / num(target)) * 100 : 0);
+  const fmtPct = (p) => p.toFixed(2) + '%';
+
+  const totTarget = rows.reduce((s, r) => s + num(r.target), 0);
+  const totDone = rows.reduce((s, r) => s + num(r.done), 0);
+  const overall = pctOf(totDone, totTarget);
 
   const H = headerH + barH + statH + colH + rows.length * rowH + footerH + 6;
   const canvas = document.createElement('canvas');
@@ -97,9 +102,9 @@ async function renderSummaryImage(rows, totals, stamp) {
   ctx.fillStyle = GREEN; ctx.fillRect(0, 0, W, headerH);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff'; ctx.font = '800 23px Inter, system-ui, sans-serif';
-  ctx.fillText('🌸 Adajan Mandal — Ghari Seva', W / 2, 30);
+  ctx.fillText('🌸 Chandni Padvo — Ghari Seva', W / 2, 30);
   ctx.fillStyle = '#C8E6C9'; ctx.font = '600 14px Inter, system-ui, sans-serif';
-  ctx.fillText('Buyers by leader', W / 2, 52);
+  ctx.fillText('Adajan — Distribution progress', W / 2, 52);
   ctx.fillStyle = '#A5D6A7'; ctx.font = '600 12px Inter, system-ui, sans-serif';
   ctx.fillText(stamp, W / 2, 70);
 
@@ -109,10 +114,10 @@ async function renderSummaryImage(rows, totals, stamp) {
   // Stat row (4 cells)
   const sy = headerH + barH;
   const cells = [
-    { big: String(rows.length), label: 'LEADERS', color: BLUE },
-    { big: fmt(totals.buyers), label: 'BUYERS', color: PURPLE },
-    { big: fmt(totals.kg) + ' kg', label: 'TOTAL GHARI', color: GREEN2 },
-    { big: rs(totals.amount), label: 'AMOUNT', color: LIME },
+    { big: String(rows.length), label: 'KARYAKARTAS', color: BLUE },
+    { big: fmt(totTarget), label: 'TOTAL TARGET', color: PURPLE },
+    { big: fmt(totDone), label: 'DONE', color: GREEN2 },
+    { big: fmtPct(overall), label: 'OVERALL', color: LIME },
   ];
   const cw = W / 4;
   cells.forEach((c, i) => {
@@ -123,14 +128,14 @@ async function renderSummaryImage(rows, totals, stamp) {
     ctx.fillText(c.label, cx, sy + 62);
   });
 
-  // Column geometry
+  // Column geometry: SN | Leader | Target | Done | Percentage
   const snW = 56, nameColW = 300;
   const restW = W - snW - nameColW;
-  const bW = restW * 0.22, kW = restW * 0.30, aW = restW * 0.48;
+  const tW = restW * 0.3, dW = restW * 0.26, pW = restW * 0.44;
   const xSN = snW / 2, xName = snW + 14;
-  const xB = snW + nameColW + bW / 2;
-  const xK = snW + nameColW + bW + kW / 2;
-  const xA = snW + nameColW + bW + kW + aW / 2;
+  const xT = snW + nameColW + tW / 2;
+  const xD = snW + nameColW + tW + dW / 2;
+  const xP = snW + nameColW + tW + dW + pW / 2;
 
   // Column header
   const cy = sy + statH;
@@ -139,15 +144,16 @@ async function renderSummaryImage(rows, totals, stamp) {
   ctx.textAlign = 'center'; ctx.fillText('SN', xSN, cy + colH / 2);
   ctx.textAlign = 'left'; ctx.fillText('Leader', xName, cy + colH / 2);
   ctx.textAlign = 'center';
-  ctx.fillText('Buyers', xB, cy + colH / 2);
-  ctx.fillText('Ghari (Kg)', xK, cy + colH / 2);
-  ctx.fillText('Amount', xA, cy + colH / 2);
+  ctx.fillText('Target (Kg)', xT, cy + colH / 2);
+  ctx.fillText('Done', xD, cy + colH / 2);
+  ctx.fillText('Percentage', xP, cy + colH / 2);
 
   // Body rows
   let ry = cy + colH;
   rows.forEach((r, i) => {
+    const p = pctOf(r.done, r.target);
     ctx.fillStyle = i % 2 ? '#F7F9F7' : '#FFFFFF'; ctx.fillRect(0, ry, W, rowH);
-    ctx.fillStyle = '#E8F5E9'; ctx.fillRect(snW + nameColW + bW + kW, ry, aW, rowH);
+    ctx.fillStyle = p === 0 ? '#FFF8E1' : '#E8F5E9'; ctx.fillRect(snW + nameColW + tW + dW, ry, pW, rowH);
     const midY = ry + rowH / 2;
     ctx.fillStyle = '#607D8B'; ctx.textAlign = 'center'; ctx.font = '700 15px Inter, system-ui, sans-serif';
     ctx.fillText(String(i + 1), xSN, midY);
@@ -157,10 +163,10 @@ async function renderSummaryImage(rows, totals, stamp) {
     if (nm !== r.name) nm = nm.replace(/\s*$/, '') + '…';
     ctx.fillText(nm, xName, midY);
     ctx.fillStyle = '#37474F'; ctx.textAlign = 'center'; ctx.font = '700 16px Inter, system-ui, sans-serif';
-    ctx.fillText(String(r.buyers), xB, midY);
-    ctx.fillText(fmt(r.kg), xK, midY);
-    ctx.fillStyle = '#1B5E20'; ctx.font = '800 16px Inter, system-ui, sans-serif';
-    ctx.fillText(rs(r.amount), xA, midY);
+    ctx.fillText(num(r.target) ? fmt(r.target) : '—', xT, midY);
+    ctx.fillText(fmt(r.done), xD, midY);
+    ctx.fillStyle = p === 0 ? '#E65100' : '#1B5E20'; ctx.font = '800 16px Inter, system-ui, sans-serif';
+    ctx.fillText(fmtPct(p), xP, midY);
     ctx.strokeStyle = '#ECEFF1'; ctx.beginPath(); ctx.moveTo(0, ry + rowH); ctx.lineTo(W, ry + rowH); ctx.stroke();
     ry += rowH;
   });
@@ -169,9 +175,9 @@ async function renderSummaryImage(rows, totals, stamp) {
   ctx.fillStyle = GREEN2; ctx.fillRect(0, ry, W, footerH);
   ctx.fillStyle = '#ffffff'; ctx.font = '800 16px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center'; ctx.fillText('TOTAL', (snW + nameColW) / 2, ry + footerH / 2);
-  ctx.fillText(fmt(totals.buyers), xB, ry + footerH / 2);
-  ctx.fillText(fmt(totals.kg), xK, ry + footerH / 2);
-  ctx.fillText(rs(totals.amount), xA, ry + footerH / 2);
+  ctx.fillText(fmt(totTarget), xT, ry + footerH / 2);
+  ctx.fillText(fmt(totDone), xD, ry + footerH / 2);
+  ctx.fillText(fmtPct(overall), xP, ry + footerH / 2);
 
   return await new Promise((res) => canvas.toBlob((b) => res(b), 'image/png', 0.95));
 }
@@ -202,6 +208,7 @@ export default function GhariLeadersPage({ user, refreshing }) {
   const [summaryStamp, setSummaryStamp] = useState('');
   const [summaryBusy, setSummaryBusy] = useState(false);
   const summaryBlobRef = useRef(null);
+  const [showTargets, setShowTargets] = useState(false);
 
   const reload = useCallback(() => {
     setSnap({ leaders: getLeaders(), groups: getGrouped(), totals: getGrandTotals() });
@@ -258,11 +265,11 @@ export default function GhariLeadersPage({ user, refreshing }) {
       const ordered = (snap.groups || [])
         .filter((g) => g.leader.id || g.items.length)
         .slice().sort((a, b) => lnum(a.leader.id) - lnum(b.leader.id));
-      const rows = ordered.map((g) => ({ name: g.leader.name, buyers: g.buyers, kg: g.kg, amount: g.amount }));
+      const rows = ordered.map((g) => ({ name: g.leader.name, target: g.target, done: g.kg }));
       const stamp = new Date().toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
       });
-      const blob = await renderSummaryImage(rows, totals, stamp);
+      const blob = await renderSummaryImage(rows, stamp);
       if (!blob) { alertError('Could not create image', 'Please try again.'); return; }
       summaryBlobRef.current = blob;
       setSummaryUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
@@ -347,6 +354,11 @@ export default function GhariLeadersPage({ user, refreshing }) {
           </button>
           {canWrite && (
             <>
+              <button onClick={() => setShowTargets(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover"
+                title="Set per-leader targets">
+                <Target className="h-4 w-4" /> Targets
+              </button>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImportFile} />
               <button onClick={() => fileRef.current && fileRef.current.click()} disabled={importing}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover disabled:opacity-50"
@@ -487,6 +499,12 @@ export default function GhariLeadersPage({ user, refreshing }) {
         <SplitModal buyer={splitting} leaders={leaders} actor={actor}
           onClose={() => setSplitting(null)}
           onSaved={() => { setSplitting(null); reload(); }} />
+      )}
+
+      {showTargets && (
+        <TargetsModal leaders={leaders} groups={groups} actor={actor}
+          onClose={() => setShowTargets(false)}
+          onSaved={() => { setShowTargets(false); reload(); }} />
       )}
 
       {summaryUrl && createPortal(
@@ -712,6 +730,69 @@ function SplitModal({ buyer, leaders, actor, onClose, onSaved }) {
           </button>
         </div>
         <style>{`.inp{width:100%;height:40px;padding:0 10px;border-radius:10px;border:1px solid var(--border-light);background:var(--surface);color:var(--text-main);outline:none}.inp:focus{box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent)}`}</style>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function TargetsModal({ leaders, groups, actor, onClose, onSaved }) {
+  // Done (kg) per leader, for a live percentage preview while typing targets.
+  const doneBy = {};
+  (groups || []).forEach((g) => { if (g.leader.id) doneBy[g.leader.id] = g.kg; });
+  const [vals, setVals] = useState(() => {
+    const t = getTargets(); const o = {};
+    leaders.forEach((l) => { o[l.id] = t[l.id] != null ? String(t[l.id]) : ''; });
+    return o;
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const map = {};
+      leaders.forEach((l) => { map[l.id] = num(vals[l.id]); });
+      await saveTargets(map, actor);
+      onSaved();
+    } catch (e) { alertError('Could not save targets', e.message); setSaving(false); }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-border-light">
+          <div>
+            <h2 className="font-semibold text-text-main">Leader targets (kg)</h2>
+            <p className="text-xs text-text-muted">Done is auto-calculated from buyers</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-3 overflow-y-auto space-y-1.5">
+          {leaders.map((l) => {
+            const done = num(doneBy[l.id]);
+            const tgt = num(vals[l.id]);
+            const p = tgt > 0 ? (done / tgt) * 100 : 0;
+            return (
+              <div key={l.id} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 text-sm text-text-main truncate">{l.name}</span>
+                <span className="text-xs text-text-muted w-20 text-right shrink-0">{fmtKg(done)} done</span>
+                <input value={vals[l.id]} onChange={(e) => setVals((v) => ({ ...v, [l.id]: e.target.value }))}
+                  inputMode="decimal" placeholder="target"
+                  className="w-20 h-9 px-2 rounded-lg border border-border-light bg-surface text-text-main text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0" />
+                <span className="text-xs w-12 text-right shrink-0 text-text-muted">{tgt > 0 ? p.toFixed(0) + '%' : '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="p-4 flex gap-2 border-t border-border-light">
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border-light text-text-main font-medium">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 h-11 rounded-xl bg-primary text-white font-medium disabled:opacity-50 inline-flex items-center justify-center gap-1.5">
+            <Check className="h-4 w-4" /> {saving ? 'Saving…' : 'Save targets'}
+          </button>
+        </div>
       </div>
     </div>,
     document.body,
