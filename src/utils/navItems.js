@@ -115,7 +115,7 @@ export function getNavGroups(user) {
             ]
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),
-        ...(canGhari ? [{ id: 'ghari-leaders', label: 'Ghari Leaders', icon: UserCog }] : []),
+        ...(canGhari ? [{ id: 'mandal-leaders', label: 'Mandal Leaders', icon: UserCog }] : []),
         ...(canBus ? [{ id: 'bus', label: 'Bus Seva', icon: Bus }] : []),
         ...(isAdmin ? [{ id: 'leaderboard', label: 'Leaderboard', icon: Trophy, adminOnly: true }] : []),
       ],

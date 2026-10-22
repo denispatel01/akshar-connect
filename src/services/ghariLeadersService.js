@@ -188,6 +188,47 @@ export async function transferBuyers(ids, leaderId, actor = '') {
   return rows.length;
 }
 
+// ── Import (merge Pravin kaka's latest workbook) ──────────────────────────────
+// Match key for reconciling an imported buyer against an existing one: trimmed,
+// collapsed whitespace, upper-cased (so "Bharatbhai  Panchhigar" == "BHARATBHAI PANCHHIGAR").
+function normName_(s) { return String(s || '').trim().replace(/\s+/g, ' ').toUpperCase(); }
+
+/**
+ * Merge an aggregated buyer list (parsed from the Excel on the client) into the
+ * current mapping. Existing buyers (matched by name) get their kg/orders/amount
+ * refreshed but KEEP their leader; buyers not seen before are added UNASSIGNED
+ * (no leader) for the user to tag. Returns { added, updated, total }.
+ */
+export async function importBuyers(parsed, actor = '') {
+  const existing = getBuyers();
+  const byName = new Map(existing.map((b) => [normName_(b.buyer), b]));
+  const rows = [];
+  let added = 0, updated = 0;
+  (parsed || []).forEach((p) => {
+    const name = String(p.buyer || '').trim();
+    if (!name) return;
+    const ex = byName.get(normName_(name));
+    if (ex) {
+      rows.push({ ...ex, ghariKg: num_(p.ghariKg), orders: num_(p.orders), amount: num_(p.amount),
+        updatedBy: actor || 'import', updatedOn: nowISO_() });
+      updated += 1;
+    } else {
+      rows.push({ id: uid_(), buyer: name, leaderId: '', leaderName: '',
+        ghariKg: num_(p.ghariKg), orders: num_(p.orders), amount: num_(p.amount),
+        updatedBy: actor || 'import', updatedOn: nowISO_() });
+      added += 1;
+    }
+  });
+  if (!rows.length) return { added: 0, updated: 0, total: 0 };
+  rows.forEach(upsertLocal_);
+  persist_();
+  if (backendOnline()) {
+    try { await backendApi('bulkSaveGhariBuyers', { rows, actor, mail: false }); }
+    catch (err) { console.warn('import bulkSaveGhariBuyers failed:', err.message); }
+  }
+  return { added, updated, total: rows.length };
+}
+
 /** Delete one buyer mapping. */
 export async function removeBuyer(id, actor = '') {
   const b = (MEM.buyers || []).find((x) => String(x.id) === String(id));

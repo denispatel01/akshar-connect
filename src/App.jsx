@@ -347,7 +347,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={effectiveUser} />}
         {activePage === 'family-tags' && <FamilyTagPage user={effectiveUser} />}
         {activePage === 'ghari' && <GhariPage user={effectiveUser} />}
-        {activePage === 'ghari-leaders' && <GhariLeadersPage user={effectiveUser} refreshing={refreshing} />}
+        {activePage === 'mandal-leaders' && <GhariLeadersPage user={effectiveUser} refreshing={refreshing} />}
         {activePage === 'leaderboard' && <LeaderboardPage user={effectiveUser} />}
         {activePage === 'bus' && <BusPage user={effectiveUser} />}
         {activePage === 'app-usage' && <AppUsagePage user={effectiveUser} />}

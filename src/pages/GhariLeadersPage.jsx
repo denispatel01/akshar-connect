@@ -1,14 +1,48 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Users, Cookie, IndianRupee, RefreshCw, Plus, Pencil, Trash2, X, Check,
-  Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog,
+  Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog, Upload,
 } from 'lucide-react';
 import {
-  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals,
+  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers,
 } from '../services/ghariLeadersService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
-import { alertError, confirmDialog } from '../utils/sweetAlert';
+import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
+
+// Parse Pravin kaka's "GHARI SALES" workbook on the client and aggregate per buyer.
+// Robust to layout drift: it finds the header row by the "Total Ghari" column rather
+// than assuming fixed positions, then sums kg / amount and counts orders per name.
+async function parseWorkbook(file) {
+  const XLSX = await import('xlsx');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets['Sheet1'] || wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('That file has no sheets.');
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+  let hi = -1;
+  for (let i = 0; i < Math.min(rows.length, 8); i++) {
+    if ((rows[i] || []).some((c) => /total ghari/i.test(String(c)))) { hi = i; break; }
+  }
+  if (hi < 0) throw new Error('Could not find a "Total Ghari" column — is this the right file?');
+  const head = rows[hi].map((c) => String(c == null ? '' : c).replace(/\s+/g, ' ').trim().toLowerCase());
+  const nameCol = head.findIndex((h) => h === 'name' || h.startsWith('name'));
+  const ghariCol = head.findIndex((h) => h.includes('total ghari'));
+  const amtCol = head.findIndex((h) => h.includes('overall total'));
+  if (nameCol < 0 || ghariCol < 0) throw new Error('Missing the Name or Total Ghari column.');
+  const agg = {};
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    const name = String(r[nameCol] == null ? '' : r[nameCol]).trim();
+    if (!name || /^cancel/i.test(name)) continue;
+    const kg = Number(r[ghariCol]) || 0;
+    const amt = amtCol >= 0 ? (Number(r[amtCol]) || 0) : 0;
+    if (!agg[name]) agg[name] = { buyer: name, ghariKg: 0, orders: 0, amount: 0 };
+    agg[name].ghariKg += kg; agg[name].amount += amt; agg[name].orders += 1;
+  }
+  return Object.values(agg);
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; };
@@ -42,6 +76,8 @@ export default function GhariLeadersPage({ user, refreshing }) {
   const [editing, setEditing] = useState(null);          // buyer obj or {} (new) or null
   const [transferTo, setTransferTo] = useState('');
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef(null);
 
   const reload = useCallback(() => {
     setSnap({ leaders: getLeaders(), groups: getGrouped(), totals: getGrandTotals() });
@@ -91,6 +127,27 @@ export default function GhariLeadersPage({ user, refreshing }) {
     finally { setBusy(false); }
   }
 
+  async function onImportFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (fileRef.current) fileRef.current.value = '';
+    if (!file) return;
+    setImporting(true);
+    try {
+      const parsed = await parseWorkbook(file);
+      if (!parsed.length) { alertError('Nothing to import', 'No buyer rows were found in that file.'); return; }
+      const ok = await confirmDialog({
+        title: 'Import from Excel?',
+        text: `${parsed.length} buyers found. New buyers are added without a leader (tag them after); existing buyers keep their leader and get refreshed totals.`,
+        confirmText: 'Import', icon: 'question',
+      });
+      if (!ok) return;
+      const res = await importBuyers(parsed, actor);
+      reload();
+      alertSuccess('Imported', `${res.added} added, ${res.updated} updated.`);
+    } catch (err) { alertError('Import failed', err.message); }
+    finally { setImporting(false); }
+  }
+
   async function doDelete(b) {
     const ok = await confirmDialog({
       title: 'Remove buyer?', text: `Remove "${b.buyer}" from the leaders list. This does not touch any Ghari order.`,
@@ -110,7 +167,7 @@ export default function GhariLeadersPage({ user, refreshing }) {
             <UserCog className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-semibold text-text-main leading-tight">Ghari Leaders</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-text-main leading-tight">Mandal Leaders</h1>
             <p className="text-xs text-text-muted">Which buyer comes under which leader</p>
           </div>
         </div>
@@ -121,10 +178,18 @@ export default function GhariLeadersPage({ user, refreshing }) {
             <RefreshCw className="h-4 w-4" />
           </button>
           {canWrite && (
-            <button onClick={() => setEditing({})}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
-              <Plus className="h-4 w-4" /> Add buyer
-            </button>
+            <>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImportFile} />
+              <button onClick={() => fileRef.current && fileRef.current.click()} disabled={importing}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover disabled:opacity-50"
+                title="Import Pravin kaka's Excel">
+                <Upload className="h-4 w-4" /> {importing ? 'Importing…' : 'Import'}
+              </button>
+              <button onClick={() => setEditing({})}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
+                <Plus className="h-4 w-4" /> Add buyer
+              </button>
+            </>
           )}
         </div>
       </div>
