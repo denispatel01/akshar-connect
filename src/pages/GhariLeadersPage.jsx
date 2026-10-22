@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import {
   Users, Cookie, IndianRupee, RefreshCw, Plus, Pencil, Trash2, X, Check,
   Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog, Upload,
-  Image as ImageIcon, Download, Share2,
+  Image as ImageIcon, Download, Share2, Split as SplitIcon,
 } from 'lucide-react';
 import {
-  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers,
+  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer,
 } from '../services/ghariLeadersService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
@@ -26,7 +26,14 @@ async function parseWorkbook(file) {
     if ((rows[i] || []).some((c) => /total ghari/i.test(String(c)))) { hi = i; break; }
   }
   if (hi < 0) throw new Error('Could not find a "Total Ghari" column — is this the right file?');
-  const head = rows[hi].map((c) => String(c == null ? '' : c).replace(/\s+/g, ' ').trim().toLowerCase());
+  // Build a DENSE header array — sheet_to_json can hand back a sparse row (holes
+  // for blank cells), and .map() skips holes, leaving `undefined` that crashes
+  // findIndex's `h.includes(...)`. Index-filling avoids that.
+  const hraw = rows[hi] || [];
+  const head = [];
+  for (let c = 0; c < hraw.length; c++) {
+    head[c] = String(hraw[c] == null ? '' : hraw[c]).replace(/\s+/g, ' ').trim().toLowerCase();
+  }
   const nameCol = head.findIndex((h) => h === 'name' || h.startsWith('name'));
   const ghariCol = head.findIndex((h) => h.includes('total ghari'));
   const amtCol = head.findIndex((h) => h.includes('overall total'));
@@ -186,6 +193,7 @@ export default function GhariLeadersPage({ user, refreshing }) {
   const [collapsed, setCollapsed] = useState({});       // leaderId -> true when collapsed
   const [selected, setSelected] = useState({});          // buyerId -> true
   const [editing, setEditing] = useState(null);          // buyer obj or {} (new) or null
+  const [splitting, setSplitting] = useState(null);      // buyer obj being split, or null
   const [transferTo, setTransferTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -421,6 +429,10 @@ export default function GhariLeadersPage({ user, refreshing }) {
                       </div>
                       {canWrite && (
                         <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => setSplitting(b)} aria-label="Split across leaders" title="Split across leaders"
+                            className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover">
+                            <SplitIcon className="h-4 w-4" />
+                          </button>
                           <button onClick={() => setEditing(b)} aria-label="Edit"
                             className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover">
                             <Pencil className="h-4 w-4" />
@@ -469,6 +481,12 @@ export default function GhariLeadersPage({ user, refreshing }) {
         <BuyerModal buyer={editing} leaders={leaders} actor={actor}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); reload(); }} />
+      )}
+
+      {splitting && (
+        <SplitModal buyer={splitting} leaders={leaders} actor={actor}
+          onClose={() => setSplitting(null)}
+          onSaved={() => { setSplitting(null); reload(); }} />
       )}
 
       {summaryUrl && createPortal(
@@ -575,6 +593,126 @@ function BuyerModal({ buyer, leaders, actor, onClose, onSaved }) {
         </div>
       </div>
       <style>{`.inp{width:100%;height:42px;padding:0 10px;border-radius:10px;border:1px solid var(--border-light);background:var(--surface);color:var(--text-main);outline:none}.inp:focus{box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent)}`}</style>
+    </div>,
+    document.body,
+  );
+}
+
+function SplitModal({ buyer, leaders, actor, onClose, onSaved }) {
+  const totKg = num(buyer.ghariKg), totOrd = num(buyer.orders), totAmt = num(buyer.amount);
+  const [parts, setParts] = useState([
+    { leaderId: buyer.leaderId || '', ghariKg: '', orders: '', amount: '' },
+    { leaderId: '', ghariKg: '', orders: '', amount: '' },
+  ]);
+  const [saving, setSaving] = useState(false);
+
+  const setPart = (i, key, val) => setParts((ps) => ps.map((p, j) => (j === i ? { ...p, [key]: val } : p)));
+  const addPart = () => setParts((ps) => (ps.length >= 8 ? ps : [...ps, { leaderId: '', ghariKg: '', orders: '', amount: '' }]));
+  const removePart = (i) => setParts((ps) => (ps.length <= 2 ? ps : ps.filter((_, j) => j !== i)));
+
+  function splitEqually() {
+    const n = parts.length;
+    const kgEach = +(totKg / n).toFixed(2);
+    const amEach = Math.floor(totAmt / n);
+    const odEach = Math.floor(totOrd / n);
+    setParts((ps) => ps.map((p, i) => (i === n - 1
+      ? { ...p, ghariKg: String(+(totKg - kgEach * (n - 1)).toFixed(2)), amount: String(totAmt - amEach * (n - 1)), orders: String(totOrd - odEach * (n - 1)) }
+      : { ...p, ghariKg: String(kgEach), amount: String(amEach), orders: String(odEach) })));
+  }
+
+  const sumKg = parts.reduce((s, p) => s + num(p.ghariKg), 0);
+  const sumAmt = parts.reduce((s, p) => s + num(p.amount), 0);
+  const remKg = +(totKg - sumKg).toFixed(2);
+  const remAmt = totAmt - sumAmt;
+
+  async function save() {
+    const chosen = parts.filter((p) => p.leaderId);
+    if (chosen.length < 2) { alertError('Pick leaders', 'Choose a leader for at least two parts.'); return; }
+    const ids = chosen.map((p) => p.leaderId);
+    if (new Set(ids).size !== ids.length) { alertError('Duplicate leader', 'Each part must go to a different leader.'); return; }
+    const ok = await confirmDialog({
+      title: `Split ${buyer.buyer}?`,
+      text: `This replaces the buyer with ${chosen.length} parts, one per leader. The original single entry is removed.`,
+      confirmText: 'Split', icon: 'question',
+    });
+    if (!ok) return;
+    setSaving(true);
+    try { await splitBuyer(buyer.id, parts, actor); onSaved(); }
+    catch (e) { alertError('Split failed', e.message); setSaving(false); }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:max-w-lg bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-border-light sticky top-0 bg-surface">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-text-main truncate">Split {buyer.buyer}</h2>
+            <p className="text-xs text-text-muted">{fmtKg(totKg)} kg · {totOrd} orders · {fmtRs(totAmt)}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <button onClick={splitEqually}
+            className="w-full h-9 rounded-lg border border-border-light text-text-main text-sm font-medium hover:bg-surface-hover">
+            Split equally across {parts.length}
+          </button>
+
+          {parts.map((p, i) => (
+            <div key={i} className="rounded-xl border border-border-light p-2.5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-muted w-10 shrink-0">Part {i + 1}</span>
+                <select value={p.leaderId} onChange={(e) => setPart(i, 'leaderId', e.target.value)} className="inp flex-1">
+                  <option value="">Choose leader…</option>
+                  {leaders.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                {parts.length > 2 && (
+                  <button onClick={() => removePart(i)} aria-label="Remove part"
+                    className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover shrink-0">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="block"><span className="block text-[11px] text-text-muted mb-0.5">Kg</span>
+                  <input value={p.ghariKg} onChange={(e) => setPart(i, 'ghariKg', e.target.value)} inputMode="decimal" className="inp" /></label>
+                <label className="block"><span className="block text-[11px] text-text-muted mb-0.5">Orders</span>
+                  <input value={p.orders} onChange={(e) => setPart(i, 'orders', e.target.value)} inputMode="numeric" className="inp" /></label>
+                <label className="block"><span className="block text-[11px] text-text-muted mb-0.5">Amount ₹</span>
+                  <input value={p.amount} onChange={(e) => setPart(i, 'amount', e.target.value)} inputMode="numeric" className="inp" /></label>
+              </div>
+            </div>
+          ))}
+
+          <button onClick={addPart} disabled={parts.length >= 8}
+            className="w-full h-9 rounded-lg border border-dashed border-border-light text-text-muted text-sm hover:bg-surface-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5">
+            <Plus className="h-4 w-4" /> Add leader
+          </button>
+
+          <div className="rounded-xl bg-bg-base p-3 text-sm">
+            <div className="flex justify-between"><span className="text-text-muted">Assigned kg</span>
+              <span className="text-text-main">{fmtKg(sumKg)} / {fmtKg(totKg)}</span></div>
+            <div className="flex justify-between"><span className="text-text-muted">Remaining kg</span>
+              <span className={remKg === 0 ? 'text-text-main' : 'text-primary font-medium'}>{fmtKg(remKg)}</span></div>
+            <div className="flex justify-between mt-1"><span className="text-text-muted">Assigned amount</span>
+              <span className="text-text-main">{fmtRs(sumAmt)} / {fmtRs(totAmt)}</span></div>
+            <div className="flex justify-between"><span className="text-text-muted">Remaining amount</span>
+              <span className={remAmt === 0 ? 'text-text-main' : 'text-primary font-medium'}>{fmtRs(remAmt)}</span></div>
+          </div>
+          <p className="text-[11px] text-text-muted">Parts don't have to add up exactly — but matching the totals keeps the summary correct.</p>
+        </div>
+
+        <div className="p-4 flex gap-2 border-t border-border-light sticky bottom-0 bg-surface">
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border-light text-text-main font-medium">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 h-11 rounded-xl bg-primary text-white font-medium disabled:opacity-50 inline-flex items-center justify-center gap-1.5">
+            <SplitIcon className="h-4 w-4" /> {saving ? 'Splitting…' : 'Split'}
+          </button>
+        </div>
+        <style>{`.inp{width:100%;height:40px;padding:0 10px;border-radius:10px;border:1px solid var(--border-light);background:var(--surface);color:var(--text-main);outline:none}.inp:focus{box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent)}`}</style>
+      </div>
     </div>,
     document.body,
   );

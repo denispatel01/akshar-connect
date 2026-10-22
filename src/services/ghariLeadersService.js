@@ -229,6 +229,38 @@ export async function importBuyers(parsed, actor = '') {
   return { added, updated, total: rows.length };
 }
 
+/**
+ * Split one buyer across several leaders. The original buyer row is replaced by
+ * one row PER part, named "<buyer> (<leader>)" so each part counts under its
+ * leader (and stays distinct). `parts` = [{ leaderId, ghariKg, orders, amount }].
+ */
+export async function splitBuyer(buyerId, parts, actor = '') {
+  const orig = getBuyers().find((b) => String(b.id) === String(buyerId));
+  if (!orig) throw new Error('Buyer not found.');
+  const rows = (parts || []).filter((p) => p.leaderId).map((p) => ({
+    id: uid_(),
+    buyer: `${orig.buyer} (${leaderName_(p.leaderId)})`,
+    leaderId: p.leaderId,
+    leaderName: leaderName_(p.leaderId),
+    ghariKg: num_(p.ghariKg),
+    orders: num_(p.orders),
+    amount: num_(p.amount),
+    updatedBy: actor || 'app',
+    updatedOn: nowISO_(),
+  }));
+  if (rows.length < 2) throw new Error('Pick a leader for at least two parts.');
+  MEM.buyers = (MEM.buyers || []).filter((b) => String(b.id) !== String(buyerId));
+  rows.forEach(upsertLocal_);
+  persist_();
+  if (backendOnline()) {
+    try { await backendApi('bulkSaveGhariBuyers', { rows, actor, mail: false }); }
+    catch (err) { console.warn('split bulkSave failed:', err.message); }
+    try { await backendApi('removeGhariBuyer', { id: buyerId, buyer: orig.buyer, actor, mail: false }); }
+    catch (err) { console.warn('split remove original failed:', err.message); }
+  }
+  return rows.length;
+}
+
 /** Delete one buyer mapping. */
 export async function removeBuyer(id, actor = '') {
   const b = (MEM.buyers || []).find((x) => String(x.id) === String(id));
