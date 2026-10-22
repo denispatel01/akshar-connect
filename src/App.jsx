@@ -16,6 +16,7 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const BulkTagPage = lazy(() => import('./pages/BulkTagPage'));
 const FamilyTagPage = lazy(() => import('./pages/FamilyTagPage'));
 const GhariPage = lazy(() => import('./pages/GhariPage'));
+const GhariLeadersPage = lazy(() => import('./pages/GhariLeadersPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const BusPage = lazy(() => import('./pages/BusPage'));
 const AppUsagePage = lazy(() => import('./pages/AppUsagePage'));
@@ -346,6 +347,7 @@ export default function App() {
         {activePage === 'bulk-tags' && <BulkTagPage user={effectiveUser} />}
         {activePage === 'family-tags' && <FamilyTagPage user={effectiveUser} />}
         {activePage === 'ghari' && <GhariPage user={effectiveUser} />}
+        {activePage === 'ghari-leaders' && <GhariLeadersPage user={effectiveUser} refreshing={refreshing} />}
         {activePage === 'leaderboard' && <LeaderboardPage user={effectiveUser} />}
         {activePage === 'bus' && <BusPage user={effectiveUser} />}
         {activePage === 'app-usage' && <AppUsagePage user={effectiveUser} />}

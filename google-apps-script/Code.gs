@@ -42,6 +42,13 @@ var HEADERS = {
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
   GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   GhariStock: ['id','season','date','karyakarta','karyakartaId','itemsJson','itemsSummary','boxes','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // ── Ghari Leaders (buyer → leader assignment) ────────────────────────────
+  // A STANDALONE map of each Ghari buyer to one of the fixed MandalLeaders, with a
+  // snapshot of their season totals (kg/orders/amount) that staff can edit by hand.
+  // Deliberately decoupled from GhariOrders — this never reads or writes order
+  // money; it's an organising layer ("who belongs to which leader"). Seeded once
+  // from the final GHARI SALES 2026 workbook. leaderId references MandalLeaders.id.
+  GhariBuyers: ['id','buyer','leaderId','leaderName','ghariKg','orders','amount','updatedBy','updatedOn'],
   // ── Adajan Mandal Leaderboard ────────────────────────────────────────────
   // A reusable progress board for any seva (Ghari now, more later). The mandal's
   // leaders are fixed, so they are seeded ONCE here and every new board prefills
@@ -118,7 +125,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-16-ghari-sub-orders';
+var SCHEMA_VERSION = '2026-10-23-ghari-buyers';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1496,7 +1503,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariBuyers','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -1736,6 +1743,161 @@ function doDeleteLeaderLog_(p){
   return json_({ ok:true });
 }
 
+// ── Ghari Leaders (buyer → leader assignment) ──────────────────────────────
+// A standalone organising layer: each Ghari buyer is mapped to one of the fixed
+// MandalLeaders, with an EDITABLE snapshot of their season totals. It never reads
+// or writes GhariOrders — no money is touched here.
+
+// The final GHARI SALES 2026 buyer→leader assignment, dumped once into the sheet.
+var GHARI_BUYERS_SEED = [
+  {buyer:"KALPESHBHAI JOGANI", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:141, orders:6, amount:134050},
+  {buyer:"DIGESHBHAI", leaderId:"LDR-14", leaderName:"Nirdoshbhai", ghariKg:122.5, orders:6, amount:116825},
+  {buyer:"ASHISHBHAI", leaderId:"LDR-12", leaderName:"Mohitbhai", ghariKg:40.5, orders:5, amount:38575},
+  {buyer:"PAVITRABHAI SARANG", leaderId:"LDR-4", leaderName:"Pavitrabhai", ghariKg:40.5, orders:6, amount:38525},
+  {buyer:"TEJASBHAI", leaderId:"LDR-13", leaderName:"Pushpakbhai", ghariKg:30, orders:1, amount:28500},
+  {buyer:"SMITBHAI", leaderId:"LDR-2", leaderName:"Smitbhai/Krunalbhai", ghariKg:29, orders:11, amount:27800},
+  {buyer:"MOHITBHAI CHAPANERIA", leaderId:"LDR-12", leaderName:"Mohitbhai", ghariKg:25, orders:5, amount:23950},
+  {buyer:"LAXMIPATI MILLS", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:25, orders:1, amount:23750},
+  {buyer:"RAMESHBHAI MODI", leaderId:"LDR-6", leaderName:"Rameshbhai Modi", ghariKg:24.5, orders:6, amount:23375},
+  {buyer:"BHAVIKBHAI", leaderId:"LDR-3", leaderName:"Bhavikbhai", ghariKg:20, orders:3, amount:19000},
+  {buyer:"MAYURBHAI TAILER", leaderId:"LDR-10", leaderName:"Mayurbhai Tailor", ghariKg:19.5, orders:3, amount:18525},
+  {buyer:"PRAVINKAKA", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:18, orders:5, amount:17650},
+  {buyer:"KRUNALBHAI VASANI", leaderId:"LDR-8", leaderName:"Krunalbhai Vasani", ghariKg:18, orders:4, amount:17100},
+  {buyer:"VANITABEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:15, orders:2, amount:14250},
+  {buyer:"DR.JIGNESHBHAI", leaderId:"LDR-11", leaderName:"Dr. Jigneshbhai", ghariKg:14, orders:3, amount:13400},
+  {buyer:"BRIJESHBHAI CHACHU", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:13, orders:4, amount:12350},
+  {buyer:"PANKAJBHAI PATEL", leaderId:"LDR-1", leaderName:"Pankajbhai", ghariKg:13, orders:6, amount:12350},
+  {buyer:"JIGISHABEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:9.5, orders:5, amount:9025},
+  {buyer:"AMISHABEN UMARA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:8.5, orders:2, amount:8325},
+  {buyer:"PUSHPAKBHAI", leaderId:"LDR-13", leaderName:"Pushpakbhai", ghariKg:7.5, orders:2, amount:7175},
+  {buyer:"PRITIBEN PILUDARIYA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:7, orders:1, amount:6650},
+  {buyer:"UMESHBHAI", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:6, orders:4, amount:5700},
+  {buyer:"TIRTHABEN KANDIWALI", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:5.5, orders:1, amount:5475},
+  {buyer:"DHARMENDRA CHAPANERIA", leaderId:"LDR-12", leaderName:"Mohitbhai", ghariKg:5.5, orders:1, amount:5225},
+  {buyer:"ANILBHAI PITHWA", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:5, orders:1, amount:4750},
+  {buyer:"AMIRASBHAI MANDIRWALA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:5, orders:1, amount:4750},
+  {buyer:"KALPESHBHAI (MEHULBHAI)(ANJANA FESHAN)", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:5, orders:1, amount:4750},
+  {buyer:"SANJAYBHAI VALKESHWAR", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:4.5, orders:1, amount:4275},
+  {buyer:"AMIBEN VYAS", leaderId:"LDR-8", leaderName:"Krunalbhai Vasani", ghariKg:4, orders:4, amount:3900},
+  {buyer:"ANKURBHAI CHAUDHARI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:4, orders:1, amount:3800},
+  {buyer:"MANOJBHAI", leaderId:"LDR-3", leaderName:"Bhavikbhai", ghariKg:4, orders:2, amount:3800},
+  {buyer:"AMITBHAI OLPAD", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:3.5, orders:1, amount:3325},
+  {buyer:"KISHORBHAI RANDER", leaderId:"LDR-12", leaderName:"Mohitbhai", ghariKg:3.5, orders:1, amount:3325},
+  {buyer:"PRATIKBHAI BERISTER", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:3, orders:2, amount:2900},
+  {buyer:"BHARATBHAI GAMI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:3, orders:2, amount:2850},
+  {buyer:"DAXESHBHAI PARMAR", leaderId:"LDR-3", leaderName:"Bhavikbhai", ghariKg:3, orders:2, amount:2850},
+  {buyer:"L P SAVANI SCHOOL", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:3, orders:1, amount:2850},
+  {buyer:"BHARATBHAI  PANCHHIGAR", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:3, orders:1, amount:2850},
+  {buyer:"ANZALBEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:2.5, orders:1, amount:2375},
+  {buyer:"JASHUBEN MEVADA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:2.5, orders:1, amount:2375},
+  {buyer:"RITABEN TIRTHA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:2, orders:1, amount:1900},
+  {buyer:"POONAMBEN", leaderId:"LDR-8", leaderName:"Krunalbhai Vasani", ghariKg:2, orders:1, amount:1900},
+  {buyer:"VANITABEN VAGHELA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:2, orders:1, amount:1900},
+  {buyer:"SMITBHAI/PANKAJBHAI", leaderId:"LDR-2", leaderName:"Smitbhai/Krunalbhai", ghariKg:2, orders:1, amount:1900},
+  {buyer:"RAJESHBHAI CHAUHAN", leaderId:"LDR-4", leaderName:"Pavitrabhai", ghariKg:1.5, orders:1, amount:1425},
+  {buyer:"HANSHABEN SABARIA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1.5, orders:1, amount:1425},
+  {buyer:"RENUBEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"PRITIBEN BHATT NANAVAT", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"KINJAL DESAI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"TIKUBEN SURUCHI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"RAKESHBHAI UAMRIGAR", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"NISHABEN INDUBEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"MANOJBHAI(PETROL PUMP)", leaderId:"LDR-3", leaderName:"Bhavikbhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"PARTHBHAI AFRIKAWALA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"HARSHBHAI SAVAIWALA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:1, orders:2, amount:950},
+  {buyer:"KAJALBEN", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"KRISHNA SONI", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"MANSHRIBEN", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"RAJSHRIBEN RITABEN", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"MANDABEN KHOLGADE", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"NILESHBHAI/PANKAJBHAI", leaderId:"LDR-1", leaderName:"Pankajbhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"BHAVNABEN JARIWALA", leaderId:"LDR-5", leaderName:"Bittubhai", ghariKg:1, orders:1, amount:950},
+  {buyer:"RAKESHBHAI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"NILAMBEN MISTRY", leaderId:"LDR-13", leaderName:"Pushpakbhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"RAJAWADI MUMBAI", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"RAKESHBHAI MADHAVANI", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"AMITABEN SAVANT", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"RITABEN", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"NISTHABEN PATEL", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"RITABEN AFRIKAWALA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"PRASHANTBHAI BATEKA", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"LILABEN RITABEN", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"BHAGAT", leaderId:"LDR-7", leaderName:"Chachubhai", ghariKg:0.5, orders:1, amount:475},
+  {buyer:"SAPNABEN MANDIRWALA", leaderId:"LDR-9", leaderName:"Umeshbhai", ghariKg:0, orders:1, amount:0},
+  {buyer:"RAJUBHAI SARANG", leaderId:"LDR-4", leaderName:"Pavitrabhai", ghariKg:0, orders:1, amount:0}
+];
+
+// One-time dump of the final workbook into the GhariBuyers sheet. Idempotent:
+// skips if rows already exist (pass force=true to wipe + reseed).
+function seedGhariBuyers_(force){
+  var existing = readAll_('GhariBuyers');
+  if(existing.length && !force) return { seeded:false, count: existing.length };
+  if(existing.length && force){
+    var sh = tab_('GhariBuyers'); var lr = sh.getLastRow();
+    if(lr > 1) sh.deleteRows(2, lr - 1);
+  }
+  var now = new Date().toISOString();
+  var rows = GHARI_BUYERS_SEED.map(function(b, i){
+    return { id:'GBY-' + (i+1), buyer:b.buyer, leaderId:b.leaderId, leaderName:b.leaderName,
+             ghariKg:b.ghariKg, orders:b.orders, amount:b.amount, updatedBy:'seed', updatedOn:now };
+  });
+  appendRows_('GhariBuyers', rows);
+  return { seeded:true, count: rows.length };
+}
+
+// Read the fixed leaders + every buyer mapping. Auto-seeds buyers on first call.
+function doGetGhariBuyers_(p){
+  seedGhariBuyers_(false);
+  return json_({ ok:true, leaders: seedMandalLeaders_(false), buyers: readAll_('GhariBuyers') });
+}
+
+// Keep the denormalized leaderName in step with leaderId, whatever the client sent.
+function ghariBuyerFillLeaderName_(row){
+  if(!row) return row;
+  if(row.leaderId){
+    var l = readAll_('MandalLeaders').filter(function(x){ return String(x.id) === String(row.leaderId); })[0];
+    if(l) row.leaderName = l.name;
+  } else { row.leaderName = row.leaderName || ''; }
+  return row;
+}
+
+// Upsert one buyer (add or edit). Generates an id for a new buyer.
+function doSaveGhariBuyer_(p){
+  var row = p.row || {};
+  if(!row.buyer || !String(row.buyer).trim()) return json_({ ok:false, error:'Buyer name is required.' });
+  if(!row.id) row.id = 'GBY-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+  ghariBuyerFillLeaderName_(row);
+  row.updatedOn = new Date().toISOString();
+  var mode = leaderUpsert_('GhariBuyers', row);
+  logChange_(mode==='insert'?'INSERT':'UPDATE', 'GhariBuyers', { name: row.buyer + ' → ' + (row.leaderName||'—'), updatedBy: row.updatedBy }, mailFlag_(p));
+  return json_({ ok:true, mode: mode, row: row });
+}
+
+// Transfer / bulk edit: upsert many buyers in one call (used by the Transfer flow).
+function doBulkSaveGhariBuyers_(p){
+  var rows = p.rows || [];
+  if(!rows.length) return json_({ ok:false, error:'no rows' });
+  var now = new Date().toISOString();
+  rows.forEach(function(row){
+    if(!row.buyer) return;
+    if(!row.id) row.id = 'GBY-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+    ghariBuyerFillLeaderName_(row);
+    row.updatedOn = now;
+    leaderUpsert_('GhariBuyers', row);
+  });
+  var leadName = (rows[0] && rows[0].leaderName) || '';
+  logChange_('UPDATE', 'GhariBuyers', { name: rows.length + ' buyer(s) → ' + (leadName||'reassigned'), updatedBy: (rows[0]&&rows[0].updatedBy)||p.actor }, mailFlag_(p));
+  return json_({ ok:true, count: rows.length });
+}
+
+// Delete one buyer mapping.
+function doRemoveGhariBuyer_(p){
+  if(!p.id) return json_({ ok:false, error:'missing id' });
+  var rn = findRow_('GhariBuyers', 'id', p.id);
+  if(rn > 0){ tab_('GhariBuyers').deleteRow(rn); logChange_('DELETE', 'GhariBuyers', { name: p.buyer || p.id, actor: p.actor }, mailFlag_(p)); }
+  return json_({ ok:true });
+}
+
 function sendLeaderboardEmail_(board, entries, mode, p){
   var mf = mailFlag_(p);
   if(mf === false) return;                         // client said mail was OFF
@@ -1801,6 +1963,11 @@ function handle_(p){
     if(action==='deleteLeaderboard') return doDeleteLeaderboard_(p);
     if(action==='addLeaderLog') return doAddLeaderLog_(p);
     if(action==='deleteLeaderLog') return doDeleteLeaderLog_(p);
+    if(action==='getGhariBuyers') return doGetGhariBuyers_(p);
+    if(action==='saveGhariBuyer') return doSaveGhariBuyer_(p);
+    if(action==='bulkSaveGhariBuyers') return doBulkSaveGhariBuyers_(p);
+    if(action==='removeGhariBuyer') return doRemoveGhariBuyer_(p);
+    if(action==='seedGhariBuyers') return json_({ ok:true, result: seedGhariBuyers_(p && p.force === true) });
     if(action==='reset'){ resetAll_(); return json_({ ok:true, msg:'reset done' }); }
     if(action==='bootstrap') return json_({ ok:true,
       users:readAll_('Users'), devotees:readAll_('Devotees'),

@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   Bus,
   Trophy,
+  UserCog,
   Activity as ActivityIcon,
 } from 'lucide-react';
 
@@ -114,6 +115,7 @@ export function getNavGroups(user) {
             ]
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),
+        ...(canGhari ? [{ id: 'ghari-leaders', label: 'Ghari Leaders', icon: UserCog }] : []),
         ...(canBus ? [{ id: 'bus', label: 'Bus Seva', icon: Bus }] : []),
         ...(isAdmin ? [{ id: 'leaderboard', label: 'Leaderboard', icon: Trophy, adminOnly: true }] : []),
       ],
