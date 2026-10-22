@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
-  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, CalendarPlus, History, RotateCcw, Boxes, BarChart3,
+  Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, CalendarPlus, History, RotateCcw, Boxes, BarChart3, UserPlus,
 } from 'lucide-react';
 import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
 import { dataService } from '../services/dataService';
@@ -2598,6 +2598,97 @@ function StockView({ season, canEdit = true }) {
 // total Ghari/Bhusu weight, box counts per size, and the delivery / payment
 // state of each selected order. Selection-driven, nothing is written here.
 const LIST_CAP = 200; // max order rows rendered at once — keeps mobile smooth
+// ───────────────────────── Ghari follow-up (tagged, not ordered) ─────────────
+// Devotees who carry the "Ghaari Seva" tag but have NOT placed a Ghari order this
+// season — the outreach list. Call / WhatsApp each to invite them to order.
+function GhariFollowupView({ season }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick(t => t + 1);
+    window.addEventListener('ac-ghari-changed', on);
+    window.addEventListener('ac-ghari-synced', on);
+    window.addEventListener('ac-data-refreshed', on);
+    return () => { window.removeEventListener('ac-ghari-changed', on); window.removeEventListener('ac-ghari-synced', on); window.removeEventListener('ac-data-refreshed', on); };
+  }, []);
+  const [q, setQ] = useState('');
+  const last10 = (m) => String(m || '').replace(/\D/g, '').slice(-10);
+
+  // Everyone who already placed (or is a named recipient on) a Ghari order this season.
+  const buyers = useMemo(() => {
+    const ids = new Set(), mobs = new Set();
+    (ghariService.getOrders(season) || []).forEach(o => {
+      if (o.devoteeId) ids.add(String(o.devoteeId));
+      const m = last10(o.customerMobile); if (m) mobs.add(m);
+      (o.subOrders || []).forEach(so => { if (so.devoteeId) ids.add(String(so.devoteeId)); const sm = last10(so.mobile); if (sm) mobs.add(sm); });
+    });
+    return { ids, mobs };
+  }, [season, tick]);
+
+  const tagged = useMemo(() => {
+    const seen = new Set();
+    return (dataService.getDevotees() || []).filter(d => {
+      if (!(d.tags || []).includes('ghaari-seva')) return false;
+      if (seen.has(d.id)) return false; seen.add(d.id);
+      return true;
+    });
+  }, [tick]);
+
+  const pending = useMemo(() => {
+    const list = tagged.filter(d => {
+      if (d.id && buyers.ids.has(String(d.id))) return false;
+      const m = last10(d.mobile), w = last10(d.whatsapp);
+      if (m && buyers.mobs.has(m)) return false;
+      if (w && buyers.mobs.has(w)) return false;
+      return true;
+    });
+    const s = q.trim().toLowerCase();
+    const digits = s.replace(/\D/g, '');
+    const f = s ? list.filter(d => (d.name || '').toLowerCase().includes(s) || (d.area || '').toLowerCase().includes(s) || (digits && last10(d.mobile).includes(digits))) : list;
+    return f.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  }, [tagged, buyers, q]);
+
+  const telHref = (d) => { const n = last10(d.mobile || d.whatsapp); return n ? `tel:+91${n}` : null; };
+  const waHref = (d) => { const n = last10(d.whatsapp || d.mobile); if (!n) return null; const txt = encodeURIComponent(`Jai Swaminarayan ${d.firstName || d.name || ''} 🙏\nGhari Seva no laabh levaa maate aapno Ghari order aapva namra vinanti. 🙏`); return `https://wa.me/91${n}?text=${txt}`; };
+
+  return (
+    <div>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Ghari-tagged</div><div className="text-xl font-black text-text-main">{tagged.length}</div></div>
+        <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Yet to order</div><div className="text-xl font-black text-[#EA580C]">{pending.length}</div></div>
+      </div>
+      <div className="mb-3 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+        <Search className="h-4 w-4 text-text-muted" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, mobile or area…" className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
+        {q && <button onClick={() => setQ('')}><X className="h-4 w-4 text-text-muted" /></button>}
+      </div>
+      {pending.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
+          <UserPlus className="mx-auto mb-2 h-10 w-10 text-text-muted" />
+          <p className="text-sm font-bold text-text-muted">{tagged.length ? 'Everyone tagged for Ghaari Seva has ordered 🎉' : 'No devotees carry the “Ghaari Seva” tag yet.'}</p>
+          <p className="mt-1 text-[11px] text-text-muted">This list shows devotees with the “Ghaari Seva” tag who haven't placed a Ghari order this season.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border-light overflow-hidden rounded-2xl border border-border-light bg-surface">
+          {pending.map(d => {
+            const tel = telHref(d), wa = waHref(d);
+            return (
+              <div key={d.id} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-black text-primary">{String(d.name || 'U')[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-text-main">{d.name || '—'}</p>
+                  <p className="truncate text-[11px] text-text-muted">{[d.area, last10(d.mobile)].filter(Boolean).join(' · ') || 'No contact on file'}</p>
+                </div>
+                {tel && <a href={tel} title="Call" className="flex h-9 items-center gap-1 rounded-xl bg-sky-50 px-2.5 text-xs font-black text-sky-700 dark:bg-sky-950 dark:text-sky-300"><Phone className="h-3.5 w-3.5" /> Call</a>}
+                {wa && <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" className="flex h-9 items-center gap-1 rounded-xl bg-emerald-50 px-2.5 text-xs font-black text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><MessageCircle className="h-3.5 w-3.5" /> WA</a>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CallListView({ season }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -3125,6 +3216,7 @@ export default function GhariPage({ user }) {
     ...(canEdit ? [{ id: 'entry', label: 'Sell', icon: Plus }] : []),
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'calllist', label: 'Call list', icon: Phone },
+    { id: 'ghariFollowup', label: 'Follow-up', icon: UserPlus },
     { id: 'purchases', label: 'Buy', icon: ShoppingCart },
     { id: 'report', label: 'Insights', icon: BarChart3 },
     ...(canSeeStock ? [{ id: 'stock', label: 'Stock', icon: Boxes }] : []),
@@ -3219,6 +3311,7 @@ export default function GhariPage({ user }) {
       )}
 
       {tab === 'calllist' && <CallListView key={tick} season={season} />}
+      {tab === 'ghariFollowup' && <GhariFollowupView key={tick} season={season} />}
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'report' && <ReportView key={tick} season={season} />}
       {tab === 'stock' && canSeeStock && <StockView key={tick} season={season} canEdit={canEdit} />}
