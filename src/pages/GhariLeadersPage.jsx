@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Users, Cookie, IndianRupee, RefreshCw, Plus, Pencil, Trash2, X, Check,
   Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog, Upload,
+  Image as ImageIcon, Download, Share2,
 } from 'lucide-react';
 import {
   getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers,
@@ -65,6 +66,117 @@ const accentFor = (leaderId) => {
 const initials = (name) => String(name || '?').replace(/[^A-Za-z ]/g, '').trim().split(/\s+/)
   .slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
+// ── Summary share image ──────────────────────────────────────────────────────
+// Renders a Leaderboard-style PNG of each leader's buyer count / Ghari kg / amount,
+// stamped with the date + time it was generated. `rows` = leaders in roster order,
+// each { name, buyers, kg, amount }.
+async function renderSummaryImage(rows, totals, stamp) {
+  const S = 2;                 // supersample for crisp text
+  const W = 860;
+  const headerH = 84, barH = 8, statH = 84, colH = 38, rowH = 50, footerH = 46;
+  const GREEN = '#1B5E20', GREEN2 = '#2E7D32', LIME = '#43A047';
+  const BLUE = '#1976D2', PURPLE = '#7E57C2';
+  const fmt = (n) => (+(num(n).toFixed(2))).toLocaleString('en-IN');
+  const rs = (n) => '₹' + num(n).toLocaleString('en-IN');
+
+  const H = headerH + barH + statH + colH + rows.length * rowH + footerH + 6;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * S; canvas.height = H * S;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(S, S); ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = GREEN; ctx.fillRect(0, 0, W, headerH);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 23px Inter, system-ui, sans-serif';
+  ctx.fillText('🌸 Adajan Mandal — Ghari Seva', W / 2, 30);
+  ctx.fillStyle = '#C8E6C9'; ctx.font = '600 14px Inter, system-ui, sans-serif';
+  ctx.fillText('Buyers by leader', W / 2, 52);
+  ctx.fillStyle = '#A5D6A7'; ctx.font = '600 12px Inter, system-ui, sans-serif';
+  ctx.fillText(stamp, W / 2, 70);
+
+  // lime bar
+  ctx.fillStyle = LIME; ctx.fillRect(0, headerH, W, barH);
+
+  // Stat row (4 cells)
+  const sy = headerH + barH;
+  const cells = [
+    { big: String(rows.length), label: 'LEADERS', color: BLUE },
+    { big: fmt(totals.buyers), label: 'BUYERS', color: PURPLE },
+    { big: fmt(totals.kg) + ' kg', label: 'TOTAL GHARI', color: GREEN2 },
+    { big: rs(totals.amount), label: 'AMOUNT', color: LIME },
+  ];
+  const cw = W / 4;
+  cells.forEach((c, i) => {
+    const cx = cw * i + cw / 2;
+    ctx.fillStyle = c.color; ctx.font = '800 25px Inter, system-ui, sans-serif';
+    ctx.fillText(c.big, cx, sy + 34);
+    ctx.fillStyle = '#9E9E9E'; ctx.font = '700 10px Inter, system-ui, sans-serif';
+    ctx.fillText(c.label, cx, sy + 62);
+  });
+
+  // Column geometry
+  const snW = 56, nameColW = 300;
+  const restW = W - snW - nameColW;
+  const bW = restW * 0.22, kW = restW * 0.30, aW = restW * 0.48;
+  const xSN = snW / 2, xName = snW + 14;
+  const xB = snW + nameColW + bW / 2;
+  const xK = snW + nameColW + bW + kW / 2;
+  const xA = snW + nameColW + bW + kW + aW / 2;
+
+  // Column header
+  const cy = sy + statH;
+  ctx.fillStyle = GREEN; ctx.fillRect(0, cy, W, colH);
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 15px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('SN', xSN, cy + colH / 2);
+  ctx.textAlign = 'left'; ctx.fillText('Leader', xName, cy + colH / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('Buyers', xB, cy + colH / 2);
+  ctx.fillText('Ghari (Kg)', xK, cy + colH / 2);
+  ctx.fillText('Amount', xA, cy + colH / 2);
+
+  // Body rows
+  let ry = cy + colH;
+  rows.forEach((r, i) => {
+    ctx.fillStyle = i % 2 ? '#F7F9F7' : '#FFFFFF'; ctx.fillRect(0, ry, W, rowH);
+    ctx.fillStyle = '#E8F5E9'; ctx.fillRect(snW + nameColW + bW + kW, ry, aW, rowH);
+    const midY = ry + rowH / 2;
+    ctx.fillStyle = '#607D8B'; ctx.textAlign = 'center'; ctx.font = '700 15px Inter, system-ui, sans-serif';
+    ctx.fillText(String(i + 1), xSN, midY);
+    ctx.fillStyle = '#1B2A20'; ctx.textAlign = 'left'; ctx.font = '700 16px Inter, system-ui, sans-serif';
+    let nm = String(r.name || '');
+    while (ctx.measureText(nm).width > nameColW - 18 && nm.length > 4) nm = nm.slice(0, -2);
+    if (nm !== r.name) nm = nm.replace(/\s*$/, '') + '…';
+    ctx.fillText(nm, xName, midY);
+    ctx.fillStyle = '#37474F'; ctx.textAlign = 'center'; ctx.font = '700 16px Inter, system-ui, sans-serif';
+    ctx.fillText(String(r.buyers), xB, midY);
+    ctx.fillText(fmt(r.kg), xK, midY);
+    ctx.fillStyle = '#1B5E20'; ctx.font = '800 16px Inter, system-ui, sans-serif';
+    ctx.fillText(rs(r.amount), xA, midY);
+    ctx.strokeStyle = '#ECEFF1'; ctx.beginPath(); ctx.moveTo(0, ry + rowH); ctx.lineTo(W, ry + rowH); ctx.stroke();
+    ry += rowH;
+  });
+
+  // Footer TOTAL
+  ctx.fillStyle = GREEN2; ctx.fillRect(0, ry, W, footerH);
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 16px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('TOTAL', (snW + nameColW) / 2, ry + footerH / 2);
+  ctx.fillText(fmt(totals.buyers), xB, ry + footerH / 2);
+  ctx.fillText(fmt(totals.kg), xK, ry + footerH / 2);
+  ctx.fillText(rs(totals.amount), xA, ry + footerH / 2);
+
+  return await new Promise((res) => canvas.toBlob((b) => res(b), 'image/png', 0.95));
+}
+
+function downloadBlob_(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${name}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
 export default function GhariLeadersPage({ user, refreshing }) {
   const canWrite = isAdminRole(user) || isSevakRole(user);
   const actor = user?.name || user?.mobile || '';
@@ -78,6 +190,10 @@ export default function GhariLeadersPage({ user, refreshing }) {
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef(null);
+  const [summaryUrl, setSummaryUrl] = useState(null);
+  const [summaryStamp, setSummaryStamp] = useState('');
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const summaryBlobRef = useRef(null);
 
   const reload = useCallback(() => {
     setSnap({ leaders: getLeaders(), groups: getGrouped(), totals: getGrandTotals() });
@@ -125,6 +241,45 @@ export default function GhariLeadersPage({ user, refreshing }) {
     try { await transferBuyers(selectedIds, transferTo, actor); clearSel(); reload(); }
     catch (e) { alertError('Transfer failed', e.message); }
     finally { setBusy(false); }
+  }
+
+  async function openSummary() {
+    setSummaryBusy(true);
+    try {
+      const lnum = (id) => (Number(String(id).replace('LDR-', '')) || 999);
+      const ordered = (snap.groups || [])
+        .filter((g) => g.leader.id || g.items.length)
+        .slice().sort((a, b) => lnum(a.leader.id) - lnum(b.leader.id));
+      const rows = ordered.map((g) => ({ name: g.leader.name, buyers: g.buyers, kg: g.kg, amount: g.amount }));
+      const stamp = new Date().toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+      const blob = await renderSummaryImage(rows, totals, stamp);
+      if (!blob) { alertError('Could not create image', 'Please try again.'); return; }
+      summaryBlobRef.current = blob;
+      setSummaryUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+      setSummaryStamp(stamp);
+    } catch (e) { alertError('Summary failed', e.message); }
+    finally { setSummaryBusy(false); }
+  }
+
+  function closeSummary() {
+    setSummaryUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+  }
+
+  function summaryName() {
+    return 'Mandal_Leaders_' + summaryStamp.replace(/[^\w]+/g, '_').replace(/_+$/, '');
+  }
+
+  async function shareSummary() {
+    const blob = summaryBlobRef.current;
+    if (!blob) return;
+    const file = new File([blob], `${summaryName()}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Adajan Mandal — Ghari Seva' }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    downloadBlob_(blob, summaryName());
   }
 
   async function onImportFile(e) {
@@ -176,6 +331,11 @@ export default function GhariLeadersPage({ user, refreshing }) {
             className="grid place-items-center h-9 w-9 rounded-lg border border-border-light text-text-muted hover:bg-surface-hover"
             title="Refresh" aria-label="Refresh">
             <RefreshCw className="h-4 w-4" />
+          </button>
+          <button onClick={openSummary} disabled={summaryBusy}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover disabled:opacity-50"
+            title="Summary image">
+            <ImageIcon className="h-4 w-4" /> {summaryBusy ? '…' : 'Summary'}
           </button>
           {canWrite && (
             <>
@@ -309,6 +469,35 @@ export default function GhariLeadersPage({ user, refreshing }) {
         <BuyerModal buyer={editing} leaders={leaders} actor={actor}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); reload(); }} />
+      )}
+
+      {summaryUrl && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeSummary}>
+          <div className="w-full max-w-lg bg-surface rounded-2xl shadow-2xl flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b border-border-light">
+              <span className="font-semibold text-text-main">Summary · {summaryStamp}</span>
+              <button onClick={closeSummary} aria-label="Close"
+                className="grid place-items-center h-8 w-8 rounded-md text-text-muted hover:bg-surface-hover">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-3 overflow-auto">
+              <img src={summaryUrl} alt="Mandal leaders summary"
+                className="w-full rounded-lg border border-border-light" />
+            </div>
+            <div className="p-3 flex gap-2 border-t border-border-light">
+              <button onClick={() => downloadBlob_(summaryBlobRef.current, summaryName())}
+                className="flex-1 h-11 rounded-xl bg-primary text-white font-medium inline-flex items-center justify-center gap-1.5">
+                <Download className="h-4 w-4" /> Download
+              </button>
+              <button onClick={shareSummary}
+                className="h-11 px-4 rounded-xl border border-border-light text-text-main font-medium inline-flex items-center justify-center gap-1.5">
+                <Share2 className="h-4 w-4" /> Share
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
