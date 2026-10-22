@@ -1858,6 +1858,7 @@ function doGetGhariBuyers_(p){
 // Upsert per-leader Target (kg). rows = [{ leaderId, target }].
 function doSaveGhariLeaderTargets_(p){
   var rows = p.rows || [];
+  if(typeof rows === 'string'){ try{ rows = JSON.parse(rows); }catch(e){ rows = []; } }  // GET-friendly
   var now = new Date().toISOString();
   rows.forEach(function(r){
     if(!r || !r.leaderId) return;
