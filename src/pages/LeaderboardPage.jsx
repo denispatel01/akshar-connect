@@ -590,16 +590,26 @@ function LogBatchModal({ board, entries, onClose, onCommitted, user }) {
           <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
             <p className="mb-2 text-xs font-black text-primary">Add a challan line</p>
             <div className="space-y-2">
-              <select value={leaderId} onChange={(e) => setLeaderId(e.target.value)}
-                className="w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary">
-                {entries.map((e) => <option key={e.leaderId} value={e.leaderId}>{e.leaderName}</option>)}
-              </select>
+              {/* Tap a leader (stays selected), type the amount, Add. Far faster than a
+                  dropdown when logging 20–30 lines — switching leader is a single tap. */}
+              <div className="flex flex-wrap gap-1.5">
+                {entries.map((e) => {
+                  const on = String(leaderId) === String(e.leaderId);
+                  return (
+                    <button key={e.leaderId} type="button"
+                      onClick={() => { setLeaderId(e.leaderId); setTimeout(() => amtRef.current?.focus(), 0); }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors active:scale-95 ${on ? 'bg-primary text-white shadow' : 'border border-border-light bg-surface text-text-main hover:border-primary'}`}>
+                      {e.leaderName}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="flex items-stretch gap-2">
                 <div className="relative flex-1">
                   <input ref={amtRef} inputMode="decimal" value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
                     onKeyDown={(e) => { if (e.key === 'Enter') addLine(); }}
-                    placeholder={`Amount (${unit})`}
+                    placeholder={leaderId ? `Amount for ${leaderName(leaderId)} (${unit})` : `Tap a leader first`}
                     className="w-full rounded-xl border border-border-light bg-surface px-3 py-2.5 text-sm font-bold text-text-main outline-none focus:border-primary" />
                 </div>
                 <button onClick={addLine}
