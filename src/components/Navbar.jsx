@@ -186,13 +186,9 @@ export default function Navbar({ activePage, setActivePage, user, onLogout, onBa
         <div className="h-[3px] w-full bg-gradient-to-r from-[#E56F18] via-[#FF862A] to-[#FFC08A]" />
       </header>
 
-      {/* Updates apply automatically (the app reloads itself) — a thin bar just
-          reassures the user while the new version swaps in; no action needed. */}
-      {updateAvailable && (
-        <div className="w-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-2 px-4 py-1.5 z-40">
-          <RefreshCw className="h-3 w-3 animate-spin" /> Updating to the latest version…
-        </div>
-      )}
+      {/* A new version no longer reloads the app on its own — the user is asked
+          first (see the "New version is ready" prompt in App.jsx), so nothing
+          in-progress is lost. No thin auto-update bar here anymore. */}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} user={user}
         onOpenDevotee={(id) => setActivePage('devotees', { openDevoteeId: id })}

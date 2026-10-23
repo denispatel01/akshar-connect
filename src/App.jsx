@@ -36,6 +36,7 @@ import NotificationsPopup from './components/NotificationsPopup';
 import { dataService } from './services/dataService';
 import { initPush } from './services/pushService';
 import { installProperCase } from './utils/properCase';
+import { RefreshCw } from 'lucide-react';
 
 // Shown briefly while a lazily-loaded page's chunk is fetched (usually a flash on
 // first open of that page, then cached). Kept minimal so it never feels heavy.
@@ -135,6 +136,19 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);    // bump to remount pages after refresh
   const [refreshing, setRefreshing] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateDeferred, setUpdateDeferred] = useState(false);
+
+  // A new app version is ready (announced by main.jsx). We NEVER reload on our own
+  // — the user picks "Refresh now" or "Later" so nothing in-progress is lost.
+  useEffect(() => {
+    const on = () => setUpdateAvailable(true);
+    window.addEventListener('ac-update-ready', on);
+    return () => window.removeEventListener('ac-update-ready', on);
+  }, []);
+  const applyUpdate = () => {
+    try { if (typeof window.__acApplyUpdate === 'function') { window.__acApplyUpdate(); return; } } catch (e) {}
+    try { window.location.reload(); } catch (e) {}
+  };
 
   // Passive flag only — the service worker auto-updates and reloads itself from
   // main.jsx (loop-guarded there). We do NOT trigger skip-waiting/reloads here, to
@@ -369,6 +383,37 @@ export default function App() {
         </div>
       </div>
       <ScrollHelper />
+
+      {/* New-version prompt — never auto-reloads. The user chooses when to refresh
+          so in-progress work (e.g. assigning leaders) is never lost. "Later"
+          collapses this to a small corner button they can tap anytime. */}
+      {updateAvailable && !updateDeferred && (
+        <div className="fixed inset-x-0 bottom-20 sm:bottom-6 z-[120] px-3 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-border-light bg-surface shadow-2xl p-3 flex items-center gap-3">
+            <span className="grid place-items-center h-9 w-9 rounded-xl bg-primary/15 text-primary shrink-0">
+              <RefreshCw className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-text-main leading-tight">A new version is ready</p>
+              <p className="text-xs text-text-muted">Refresh when you're done with your current work.</p>
+            </div>
+            <button onClick={() => setUpdateDeferred(true)}
+              className="h-9 px-3 rounded-lg border border-border-light text-text-main text-sm font-medium hover:bg-surface-hover shrink-0">
+              Later
+            </button>
+            <button onClick={applyUpdate}
+              className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover shrink-0">
+              Refresh now
+            </button>
+          </div>
+        </div>
+      )}
+      {updateAvailable && updateDeferred && (
+        <button onClick={applyUpdate} title="Refresh to the new version"
+          className="fixed bottom-20 right-3 sm:bottom-6 sm:right-6 z-[120] inline-flex items-center gap-1.5 h-10 px-3 rounded-full bg-primary text-white text-sm font-medium shadow-2xl hover:bg-primary-hover">
+          <RefreshCw className="h-4 w-4" /> Refresh
+        </button>
+      )}
     </div>
   );
 }

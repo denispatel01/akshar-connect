@@ -114,14 +114,22 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       // would otherwise sit on a cached sw.js and never update).
       .register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL, updateViaCache: 'none' })
       .then((reg) => {
-        // When an updated worker finishes installing, activate it immediately.
+        // A freshly-installed worker is NOT activated automatically — that would
+        // reload the app and wipe in-progress work. Instead we announce it and let
+        // the user choose when to refresh (see the in-app "New version" prompt in
+        // App.jsx). window.__acApplyUpdate() activates the waiting worker on demand.
+        const announce = () => { try { window.dispatchEvent(new Event('ac-update-ready')) } catch (e) {} }
+        window.__acApplyUpdate = () => {
+          const w = reg.waiting || reg.installing
+          if (w) { try { w.postMessage({ type: 'SKIP_WAITING' }) } catch (e) { window.location.reload() } }
+          else { window.location.reload() }
+        }
+        if (reg.waiting && navigator.serviceWorker.controller) announce()
         reg.addEventListener('updatefound', () => {
           const nw = reg.installing
           if (!nw) return
           nw.addEventListener('statechange', () => {
-            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-              nw.postMessage({ type: 'SKIP_WAITING' })
-            }
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) announce()
           })
         })
         // Check for a new build now, whenever the app regains focus, AND on a timer so a

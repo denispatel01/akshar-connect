@@ -20,7 +20,10 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // NOTE: we deliberately do NOT call self.skipWaiting() here. A freshly-installed
+  // worker stays in "waiting" until the PAGE asks it to activate (the SKIP_WAITING
+  // message above), so a new deploy never reloads the app out from under the user
+  // mid-task. The in-app "New version — Refresh now / Later" prompt triggers it.
   event.waitUntil(
     (async () => {
       try {
