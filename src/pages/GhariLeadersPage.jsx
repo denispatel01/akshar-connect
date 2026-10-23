@@ -7,7 +7,7 @@ import {
   ListChecks, ArrowLeft, ArrowRight, SkipForward,
 } from 'lucide-react';
 import {
-  getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer, getTargets, saveTargets,
+  getLeaders, getBuyers, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer, getTargets, saveTargets,
 } from '../services/ghariLeadersService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
@@ -114,8 +114,9 @@ async function renderSummaryImage(rows, stamp) {
 
   // Stat row (4 cells)
   const sy = headerH + barH;
+  const leaderCount = rows.filter((r) => !r.isNoLeader).length;
   const cells = [
-    { big: String(rows.length), label: 'KARYAKARTAS', color: BLUE },
+    { big: String(leaderCount), label: 'KARYAKARTAS', color: BLUE },
     { big: fmt(totTarget), label: 'TOTAL TARGET', color: PURPLE },
     { big: fmt(totDone), label: 'DONE', color: GREEN2 },
     { big: fmtPct(overall), label: 'OVERALL', color: LIME },
@@ -287,7 +288,7 @@ export default function GhariLeadersPage({ user, refreshing }) {
       const ordered = (snap.groups || [])
         .filter((g) => g.leader.id || g.items.length)
         .slice().sort((a, b) => lnum(a.leader.id) - lnum(b.leader.id));
-      const rows = ordered.map((g) => ({ name: g.leader.name, target: g.target, done: g.kg }));
+      const rows = ordered.map((g) => ({ name: g.leader.name, target: g.target, done: g.kg, isNoLeader: !g.leader.id }));
       const stamp = new Date().toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
       });
@@ -373,9 +374,9 @@ export default function GhariLeadersPage({ user, refreshing }) {
             <p className="text-xs text-text-muted">Which buyer comes under which leader</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto">
           <button onClick={() => refresh().then(reload)}
-            className="grid place-items-center h-9 w-9 rounded-lg border border-border-light text-text-muted hover:bg-surface-hover"
+            className="grid place-items-center h-9 w-9 rounded-lg border border-border-light text-text-muted hover:bg-surface-hover shrink-0"
             title="Refresh" aria-label="Refresh">
             <RefreshCw className="h-4 w-4" />
           </button>
