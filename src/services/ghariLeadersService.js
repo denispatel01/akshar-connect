@@ -284,14 +284,24 @@ export async function splitBuyer(buyerId, parts, actor = '') {
     updatedOn: nowISO_(),
   }));
   if (rows.length < 2) throw new Error('Pick a leader for at least two parts.');
-  MEM.buyers = (MEM.buyers || []).filter((b) => String(b.id) !== String(buyerId));
+  // REPLACE any previous split of this buyer: remove the original row AND any
+  // existing "<buyer> (…)" child rows from an earlier split. This keeps the
+  // recurring workflow clean — after each import you can re-split the (re-added)
+  // buyer and it never piles up duplicate parts.
+  const base = normName_(orig.buyer);
+  const victims = getBuyers().filter((b) =>
+    String(b.id) === String(buyerId) || normName_(b.buyer).startsWith(base + ' ('));
+  const victimIds = victims.map((v) => v.id);
+  MEM.buyers = (MEM.buyers || []).filter((b) => !victimIds.includes(b.id));
   rows.forEach(upsertLocal_);
   persist_();
   if (backendOnline()) {
     try { await backendApi('bulkSaveGhariBuyers', { rows, actor, mail: false }); }
     catch (err) { console.warn('split bulkSave failed:', err.message); }
-    try { await backendApi('removeGhariBuyer', { id: buyerId, buyer: orig.buyer, actor, mail: false }); }
-    catch (err) { console.warn('split remove original failed:', err.message); }
+    for (const v of victims) {
+      try { await backendApi('removeGhariBuyer', { id: v.id, buyer: v.buyer, actor, mail: false }); }
+      catch (err) { console.warn('split remove failed:', err.message); }
+    }
   }
   return rows.length;
 }
