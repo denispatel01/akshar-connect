@@ -4,6 +4,7 @@ import {
   Users, Cookie, IndianRupee, RefreshCw, Plus, Pencil, Trash2, X, Check,
   Search, ArrowRightLeft, ChevronDown, ChevronRight, UserCog, Upload,
   Image as ImageIcon, Download, Share2, Split as SplitIcon, Target,
+  ListChecks, ArrowLeft, ArrowRight, SkipForward,
 } from 'lucide-react';
 import {
   getLeaders, loadCached, refresh, saveBuyer, transferBuyers, removeBuyer, getGrouped, getGrandTotals, importBuyers, splitBuyer, getTargets, saveTargets,
@@ -209,6 +210,27 @@ export default function GhariLeadersPage({ user, refreshing }) {
   const [summaryBusy, setSummaryBusy] = useState(false);
   const summaryBlobRef = useRef(null);
   const [showTargets, setShowTargets] = useState(false);
+  const [assignMode, setAssignMode] = useState(false);
+  const [assignOrder, setAssignOrder] = useState([]);     // snapshot of buyer ids, stable during the session
+  const [assignStart, setAssignStart] = useState(0);
+
+  function openAssign(startUnassigned) {
+    const list = getBuyers().slice().sort((a, b) => b.ghariKg - a.ghariKg || b.amount - a.amount);
+    const order = list.map((b) => b.id);
+    let start = 0;
+    if (startUnassigned) {
+      const idx = list.findIndex((b) => !b.leaderId);
+      start = idx >= 0 ? idx : 0;
+    }
+    setAssignOrder(order);
+    setAssignStart(start);
+    setAssignMode(true);
+  }
+
+  async function assignLeader(id, leaderId) {
+    await transferBuyers([id], leaderId, actor);
+    reload();
+  }
 
   const reload = useCallback(() => {
     setSnap({ leaders: getLeaders(), groups: getGrouped(), totals: getGrandTotals() });
@@ -313,7 +335,9 @@ export default function GhariLeadersPage({ user, refreshing }) {
       if (!ok) return;
       const res = await importBuyers(parsed, actor);
       reload();
-      alertSuccess('Imported', `${res.added} added, ${res.updated} updated.`);
+      await alertSuccess('Imported', `${res.added} added, ${res.updated} updated. Now assign leaders to the new buyers.`);
+      openAssign(true); // jump straight to the first buyer with no leader
+
     } catch (err) { alertError('Import failed', err.message); }
     finally { setImporting(false); }
   }
@@ -326,6 +350,14 @@ export default function GhariLeadersPage({ user, refreshing }) {
     if (!ok) return;
     try { await removeBuyer(b.id, actor); reload(); }
     catch (e) { alertError('Could not remove', e.message); }
+  }
+
+  if (assignMode) {
+    return (
+      <AssignScreen
+        order={assignOrder} startIndex={assignStart} buyers={getBuyers()} leaders={leaders}
+        onAssign={assignLeader} onExit={() => setAssignMode(false)} />
+    );
   }
 
   return (
@@ -364,6 +396,11 @@ export default function GhariLeadersPage({ user, refreshing }) {
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover disabled:opacity-50"
                 title="Import Pravin kaka's Excel">
                 <Upload className="h-4 w-4" /> {importing ? 'Importing…' : 'Import'}
+              </button>
+              <button onClick={() => openAssign(false)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover"
+                title="Assign leaders one by one">
+                <ListChecks className="h-4 w-4" /> Assign
               </button>
               <button onClick={() => setEditing({})}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
@@ -535,6 +572,119 @@ export default function GhariLeadersPage({ user, refreshing }) {
         </div>,
         document.body,
       )}
+    </div>
+  );
+}
+
+// Full-screen one-buyer-at-a-time leader picker. Shows the buyer and all 17
+// leaders; tapping a leader saves and advances. Pre-selected leader is marked and
+// can be changed. "Next unassigned" skips past buyers that already have a leader.
+function AssignScreen({ order, startIndex, buyers, leaders, onAssign, onExit }) {
+  const [i, setI] = useState(Math.min(startIndex || 0, Math.max(0, order.length - 1)));
+  const [saving, setSaving] = useState(false);
+  const byId = useMemo(() => {
+    const m = new Map(); buyers.forEach((b) => m.set(String(b.id), b)); return m;
+  }, [buyers]);
+
+  const total = order.length;
+  const id = order[i];
+  const buyer = byId.get(String(id));
+  const assignedCount = order.reduce((n, bid) => n + (byId.get(String(bid))?.leaderId ? 1 : 0), 0);
+
+  const goNext = () => setI((x) => Math.min(x + 1, total - 1));
+  const goPrev = () => setI((x) => Math.max(x - 1, 0));
+  const atLast = i >= total - 1;
+
+  function nextUnassigned() {
+    for (let j = i + 1; j < total; j++) if (!byId.get(String(order[j]))?.leaderId) { setI(j); return; }
+    for (let j = 0; j <= i; j++) if (!byId.get(String(order[j]))?.leaderId) { setI(j); return; }
+    alertError('All assigned', 'Every buyer already has a leader.');
+  }
+
+  async function pick(leaderId) {
+    if (!buyer) { goNext(); return; }
+    if ((buyer.leaderId || '') === (leaderId || '')) { if (!atLast) goNext(); return; }
+    setSaving(true);
+    try { await onAssign(id, leaderId); if (!atLast) goNext(); }
+    catch (e) { alertError('Could not save', e.message); }
+    finally { setSaving(false); }
+  }
+
+  const curLeaderId = buyer?.leaderId || '';
+
+  return (
+    <div className="w-full mx-auto max-w-[1100px] px-4 py-4 sm:px-6 pb-28">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 mb-3">
+        <button onClick={onExit} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border-light text-text-main font-medium hover:bg-surface-hover">
+          <ArrowLeft className="h-4 w-4" /> Done
+        </button>
+        <div className="ml-auto text-sm text-text-muted">{assignedCount}/{total} assigned</div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1.5 rounded-full bg-bg-base overflow-hidden mb-4">
+        <div className="h-full bg-primary transition-all" style={{ width: `${total ? ((i + 1) / total) * 100 : 0}%` }} />
+      </div>
+
+      {/* Buyer card */}
+      <div className="rounded-2xl border border-border-light bg-surface p-4 mb-4">
+        <div className="text-xs text-text-muted mb-1">Buyer {i + 1} of {total}</div>
+        {buyer ? (
+          <>
+            <div className="text-xl font-semibold text-text-main break-words">{buyer.buyer}</div>
+            <div className="text-sm text-text-muted mt-0.5">
+              {fmtKg(buyer.ghariKg)} kg · {buyer.orders} order{buyer.orders !== 1 ? 's' : ''} · {fmtRs(buyer.amount)}
+            </div>
+            <div className="mt-2 text-sm">
+              {curLeaderId
+                ? <span className="text-text-main">Current: <span className="font-medium text-primary">{leaders.find((l) => l.id === curLeaderId)?.name || '—'}</span></span>
+                : <span className="text-text-muted">No leader yet — tap one below</span>}
+            </div>
+          </>
+        ) : (
+          <div className="text-text-muted">This buyer was removed. <button onClick={goNext} className="text-primary underline">Next</button></div>
+        )}
+      </div>
+
+      {/* Leader grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+        {leaders.map((l) => {
+          const accent = accentFor(l.id);
+          const sel = curLeaderId === l.id;
+          return (
+            <button key={l.id} onClick={() => pick(l.id)} disabled={saving}
+              className={`relative flex items-center gap-2 p-2.5 rounded-xl border text-left transition-colors disabled:opacity-60 ${sel ? 'border-primary bg-primary/10' : 'border-border-light bg-surface hover:bg-surface-hover'}`}
+              style={sel ? undefined : { borderLeft: `4px solid ${accent}` }}>
+              <span className="grid place-items-center h-8 w-8 rounded-lg text-white text-[11px] font-semibold shrink-0" style={{ background: accent }}>
+                {initials(l.name)}
+              </span>
+              <span className="min-w-0 flex-1 text-sm font-medium text-text-main truncate">{l.name}</span>
+              {sel && <Check className="h-4 w-4 text-primary shrink-0" />}
+            </button>
+          );
+        })}
+        <button onClick={() => pick('')} disabled={saving}
+          className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-sm font-medium transition-colors disabled:opacity-60 ${!curLeaderId ? 'border-primary bg-primary/10 text-primary' : 'border-border-light bg-surface text-text-muted hover:bg-surface-hover'}`}>
+          <X className="h-4 w-4" /> No leader
+        </button>
+      </div>
+
+      {/* Nav */}
+      <div className="flex items-center gap-2">
+        <button onClick={goPrev} disabled={i === 0}
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-border-light text-text-main font-medium hover:bg-surface-hover disabled:opacity-40">
+          <ArrowLeft className="h-4 w-4" /> Prev
+        </button>
+        <button onClick={nextUnassigned}
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-border-light text-text-main font-medium hover:bg-surface-hover">
+          <SkipForward className="h-4 w-4" /> Next unassigned
+        </button>
+        <button onClick={atLast ? onExit : goNext}
+          className="ml-auto inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-primary text-white font-medium">
+          {atLast ? 'Finish' : 'Skip'} <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
