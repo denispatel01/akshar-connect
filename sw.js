@@ -1,5 +1,5 @@
 /* Akshar Connect service worker — simple, safe offline support */
-const BUILD_ID = '1792719087428'; // replaced at build time so each deploy ships a new SW
+const BUILD_ID = '1792719894670'; // replaced at build time so each deploy ships a new SW
 const CACHE_NAME = 'akshar-connect-' + BUILD_ID;
 const BASE = self.location.pathname.replace(/sw\.js$/, ''); // e.g. /akshar-connect/
 const STATIC_ASSETS = [
@@ -20,7 +20,10 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // NOTE: we deliberately do NOT call self.skipWaiting() here. A freshly-installed
+  // worker stays in "waiting" until the PAGE asks it to activate (the SKIP_WAITING
+  // message above), so a new deploy never reloads the app out from under the user
+  // mid-task. The in-app "New version — Refresh now / Later" prompt triggers it.
   event.waitUntil(
     (async () => {
       try {
