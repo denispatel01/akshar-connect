@@ -253,7 +253,9 @@ function normalizeOrder_(o) {
     // amount actually received by us.
     paymentReceived: officePaid ? totals.total : (o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived)),
     paymentType: String(o.paymentType || '').trim(),
-    status: (String(o.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
+    // active = normal, void = deleted (recoverable), cancelled = the customer called
+    // off the order (kept on record, excluded from totals/delivery, shown separately).
+    status: (() => { const st = String(o.status || 'active').toLowerCase(); return st === 'void' ? 'void' : st === 'cancelled' ? 'cancelled' : 'active'; })(),
     remarks: String(o.remarks || '').trim(),
     createdBy: String(o.createdBy || ''), createdOn: String(o.createdOn || ''),
     updatedBy: String(o.updatedBy || ''), updatedOn: String(o.updatedOn || ''),
@@ -701,13 +703,15 @@ export const ghariService = {
   getProducts: () => products_().slice().sort((a, b) => a.sortOrder - b.sortOrder),
   getActiveProducts: () => products_().filter(p => p.active).sort((a, b) => a.sortOrder - b.sortOrder),
 
-  // All non-void orders for a season, highest order number first (last order on
-  // top, first order at the bottom). Falls back to createdOn when numbers tie.
-  // Pass {includeVoid:true} for trash.
-  getOrders: (season, { includeVoid = false } = {}) => {
+  // Active orders for a season (excludes deleted/void AND cancelled), highest order
+  // number first (last order on top, first at the bottom); createdOn breaks ties.
+  // Pass {includeVoid:true} for trash, {includeCancelled:true} to also list cancelled.
+  getOrders: (season, { includeVoid = false, includeCancelled = false } = {}) => {
     const s = season || meta_().season;
     return orders_()
-      .filter(o => o.season === s && (includeVoid || o.status !== 'void'))
+      .filter(o => o.season === s
+        && (includeVoid || o.status !== 'void')
+        && (includeCancelled || o.status !== 'cancelled'))
       .sort((a, b) => (Number(b.orderNo) || 0) - (Number(a.orderNo) || 0)
         || String(b.createdOn).localeCompare(String(a.createdOn)));
   },
@@ -719,7 +723,7 @@ export const ghariService = {
     const s = season || meta_().season;
     let kg = 0;
     orders_().forEach(o => {
-      if (o.season === s && o.status !== 'void' && !o.delivered) {
+      if (o.season === s && o.status !== 'void' && o.status !== 'cancelled' && !o.delivered) {
         (o.items || []).forEach(it => { kg += num_(it.qty) * sizeToKg_(it.size); });
       }
     });
@@ -841,6 +845,22 @@ export const ghariService = {
     return ghariService.saveOrder({ ...o, status: 'active' });
   },
 
+  // Cancel an order the customer called off — kept on record (not deleted), but
+  // excluded from totals, delivery and reports. Reversible via uncancelOrder.
+  cancelOrder: (id) => {
+    const o = ghariService.getOrderById(id);
+    if (!o) return null;
+    const saved = ghariService.saveOrder({ ...o, status: 'cancelled' });
+    try { dataService.logActivity('ghari-cancel', o.customerName, `cancelled ghari order for ${o.customerName} (₹${o.total})`); } catch { /* ignore */ }
+    return saved;
+  },
+  // Reinstate a cancelled order back to active.
+  uncancelOrder: (id) => {
+    const o = ghariService.getOrderById(id);
+    if (!o) return null;
+    return ghariService.saveOrder({ ...o, status: 'active' });
+  },
+
   // Quick field toggles used by the list (delivered / payment), still durable.
   setDelivered: (id, delivered) => {
     const o = ghariService.getOrderById(id); if (!o) return null;
@@ -916,7 +936,7 @@ export const ghariService = {
     const now = nowISO_();
     let count = 0, customer = '';
     orders_().forEach((o, idx) => {
-      if (o.status === 'void' || o.delivered) return;
+      if (o.status === 'void' || o.status === 'cancelled' || o.delivered) return;
       if (orderKaryakartaKey_(o) !== key) return;
       if ((o.season || meta_().season) !== (season || meta_().season)) return;
       const order = normalizeOrder_({ ...o, deliveryDate: d, updatedBy: actor, updatedOn: now });

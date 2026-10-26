@@ -2834,7 +2834,8 @@ function ghariDeliveryReminders_(){
   var rows = readAll_('GhariOrders');
   var sent = 0;
   rows.forEach(function(o){
-    if(String(o.status||'').toLowerCase() === 'void') return;
+    var st = String(o.status||'').toLowerCase();
+    if(st === 'void' || st === 'cancelled') return;
     if(o.delivered === true || String(o.delivered).toLowerCase() === 'true') return;
     var d = String(o.deliveryDate || '').trim();
     if(!d) return;
