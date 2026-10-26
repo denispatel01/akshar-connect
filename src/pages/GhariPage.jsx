@@ -2220,6 +2220,241 @@ function PurchaseEditModal({ purchase, onClose, onSaved, canEdit = true }) {
   );
 }
 
+// ───────────────────────── Mandal payments (the "pay" side) ─────────────────
+const PAY_METHODS = ['Cash', 'G-Pay', 'Cheque', 'Bank', 'Other'];
+
+// Record / edit one payment made to a mandal (supplier). `lockSupplier` prefills and
+// pins the mandal name when adding a payment from a specific mandal's row.
+function MandalPaymentForm({ initialPayment, presetSupplier, onSaved, onCancel, onDelete, readOnly }) {
+  // Mandal names seen on purchases (this season + last) — quick-pick chips.
+  const recentSuppliers = useMemo(() => {
+    const seen = []; const out = [];
+    [...ghariService.getPurchases(ghariService.getSeason()), ...ghariService.getPurchases(String(Number(ghariService.getSeason()) - 1))]
+      .forEach(p => { const s = (p.supplier || '').trim(); const k = s.toLowerCase(); if (s && !seen.includes(k)) { seen.push(k); out.push(s); } });
+    return out.slice(0, 6);
+  }, []);
+  const isEdit = !!initialPayment;
+  const [supplier, setSupplier] = useState(initialPayment?.supplier || presetSupplier || '');
+  const [date, setDate] = useState(toLocalInput_(initialPayment?.date) || toLocalInput_(new Date().toISOString()));
+  const [amount, setAmount] = useState(initialPayment?.amount ? String(initialPayment.amount) : '');
+  const [method, setMethod] = useState(initialPayment?.method || 'Cash');
+  const [remarks, setRemarks] = useState(initialPayment?.remarks || '');
+  const [busy, setBusy] = useState(false);
+
+  const save = () => {
+    const amt = Number(String(amount).replace(/[^\d]/g, '')) || 0;
+    if (!supplier.trim()) { alertError('Mandal needed', 'Enter the mandal / supplier you paid.'); return; }
+    if (amt <= 0) { alertError('Amount needed', 'Enter the amount you paid (greater than 0).'); return; }
+    setBusy(true);
+    try {
+      const pm = ghariService.saveMandalPayment({ id: initialPayment?.id, season: initialPayment?.season, date: fromLocalInput_(date), supplier: properName(supplier), amount: amt, method, remarks: remarks.trim(), status: initialPayment?.status || 'active' });
+      onSaved?.(pm);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <fieldset disabled={readOnly} className="space-y-4 m-0 min-w-0 border-0 p-0">
+      {readOnly && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          👁️ View only — Sevaks can see payments but cannot edit or delete.
+        </div>
+      )}
+      <div>
+        <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Paid to (mandal)</label>
+        <DevoteePicker value={supplier} icon={User} placeholder="Mandal / supplier name"
+          onText={(t) => setSupplier(t)} onPick={(d) => setSupplier(d ? d.name : '')} />
+        {recentSuppliers.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {recentSuppliers.map(s => (
+              <button key={s} type="button" onClick={() => setSupplier(s)} className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${supplier === s ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{s}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Amount paid</label>
+          <div className="flex items-center gap-1 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+            <span className="text-sm font-black text-text-main">₹</span>
+            <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ''))} placeholder="0" className="w-full bg-transparent text-sm font-black text-text-main outline-none" autoFocus={!isEdit} />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Date &amp; time</label>
+          <div className="flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5 focus-within:border-primary">
+            <Calendar className="h-4 w-4 shrink-0 text-text-muted" />
+            <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-transparent text-sm font-semibold text-text-main outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">How paid</label>
+        <div className="flex flex-wrap gap-1.5">
+          {PAY_METHODS.map(m => (
+            <button key={m} type="button" onClick={() => setMethod(m)} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${method === m ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{m}</button>
+          ))}
+        </div>
+      </div>
+
+      <AutoTextarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Remarks (optional) — e.g. cheque no., instalment" minRows={1}
+        className="w-full rounded-2xl border border-border-light bg-surface px-3 py-2.5 text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted focus:border-primary" />
+
+      {!readOnly && (
+      <div className="sticky bottom-0 z-20 flex items-center gap-2 rounded-2xl border border-border-light bg-surface/95 p-2.5 shadow-lg backdrop-blur">
+        <div className="pl-1">
+          <div className="text-[10px] font-bold uppercase text-text-muted">Paying {method}</div>
+          <div className="text-xl font-black leading-none text-text-main">{amount ? rupee(amount) : '—'}</div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {onDelete && <button onClick={onDelete} title="Delete payment" className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:border-rose-900"><Trash2 className="h-4 w-4" /></button>}
+          {onCancel && <button onClick={onCancel} className="rounded-xl border border-border-light px-3 py-2.5 text-sm font-bold text-text-muted">Cancel</button>}
+          <button onClick={save} disabled={busy} className="rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-5 py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-60">{busy ? 'Saving…' : (isEdit ? 'Save' : 'Save payment')}</button>
+        </div>
+      </div>
+      )}
+    </fieldset>
+  );
+}
+
+function MandalPaymentModal({ payment, presetSupplier, onClose, onSaved, canEdit = true }) {
+  const del = (payment && canEdit) ? async () => {
+    if (!(await confirmDialog({ title: 'Delete payment?', text: `Delete this ${rupee(payment.amount)} payment to ${payment.supplier || 'this mandal'}?`, confirmText: 'Delete', danger: true }))) return;
+    ghariService.voidMandalPayment(payment.id); onSaved?.();
+  } : null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-bg-base">
+      <div className="flex shrink-0 items-center justify-between border-b border-border-light bg-surface px-4 py-3">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm font-bold text-text-muted"><ArrowLeft className="h-4 w-4" /> Back</button>
+        <span className="text-sm font-black text-text-main">{payment ? (canEdit ? 'Edit payment' : 'View payment') : 'Record payment'}</span>
+        <span className="w-12" />
+      </div>
+      <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+        <MandalPaymentForm initialPayment={payment} presetSupplier={presetSupplier} onCancel={onClose} onDelete={del} onSaved={() => onSaved?.()} readOnly={!canEdit} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Per-mandal reconciliation: Bought (Σ purchase cost) vs Paid vs Remaining, with a
+// "Record payment" action and the payment history for each mandal. Colour-blind-safe:
+// no red/green — status is shown with a saturated accent bar + an explicit text label
+// ("Remaining" / "Fully paid" / "Advance") on a light background.
+function MandalLedger({ season, canEdit = true, tick }) {
+  const [openKey, setOpenKey] = useState({});
+  const [payModal, setPayModal] = useState(null); // { payment?, presetSupplier? }
+  const { mandals, totals } = useMemo(() => ghariService.buildMandalLedger(season), [season, tick]);
+  const refresh = () => setPayModal(null);
+
+  if (!mandals.length) {
+    return (
+      <>
+        <div className="mb-3 rounded-2xl border border-border-light bg-surface p-4 text-center">
+          <Wallet className="mx-auto mb-2 h-8 w-8 text-text-muted" />
+          <p className="text-sm font-bold text-text-muted">No mandal payments yet</p>
+          <p className="mt-1 text-[11px] text-text-muted">Record what you pay each mandal to track paid vs remaining.</p>
+          {canEdit && <button onClick={() => setPayModal({})} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] px-4 py-2 text-xs font-black text-white shadow"><Plus className="h-4 w-4" /> Record payment</button>}
+        </div>
+        {payModal && <MandalPaymentModal payment={payModal.payment} presetSupplier={payModal.presetSupplier} canEdit={canEdit} onClose={() => setPayModal(null)} onSaved={refresh} />}
+      </>
+    );
+  }
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-2xl border border-border-light bg-surface">
+      <div className="flex items-center gap-2 border-b border-border-light bg-bg-base px-3 py-2.5">
+        <Wallet className="h-4 w-4 shrink-0 text-primary" />
+        <span className="text-[12px] font-black uppercase tracking-wide text-text-muted">Paid to mandals</span>
+        {canEdit && <button onClick={() => setPayModal({})} className="ml-auto flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-[11px] font-black text-white active:scale-95"><Plus className="h-3.5 w-3.5" /> Payment</button>}
+      </div>
+
+      {/* Season totals — Bought / Paid / Remaining */}
+      <div className="grid grid-cols-3 divide-x divide-border-light border-b border-border-light">
+        <div className="px-3 py-2.5 text-center">
+          <div className="text-[10px] font-bold uppercase text-text-muted">Bought</div>
+          <div className="text-base font-black text-text-main">{rupee(totals.bought)}</div>
+          {totals.estimated && <div className="text-[9px] font-bold text-text-muted">incl. est.</div>}
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <div className="text-[10px] font-bold uppercase text-text-muted">Paid</div>
+          <div className="text-base font-black text-text-main">{rupee(totals.paid)}</div>
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <div className="text-[10px] font-bold uppercase text-text-muted">{totals.remaining < 0 ? 'Advance' : 'Remaining'}</div>
+          <div className="text-base font-black text-primary">{rupee(Math.abs(totals.remaining))}</div>
+        </div>
+      </div>
+
+      {/* Per-mandal rows */}
+      <div className="divide-y divide-border-light">
+        {mandals.map(m => {
+          const isOpen = !!openKey[m.key];
+          const cleared = m.remaining <= 0 && m.bought > 0;
+          const advance = m.remaining < 0;
+          // Colour-blind-safe status: accent bar + label, light tints only.
+          const accent = advance ? '#0E7490' : cleared ? '#0D9488' : '#D97706'; // cyan / teal / amber
+          const statusLabel = advance ? 'Advance' : cleared ? 'Fully paid' : 'Remaining';
+          const pct = m.bought > 0 ? Math.max(0, Math.min(100, Math.round((m.paid / m.bought) * 100))) : (m.paid > 0 ? 100 : 0);
+          return (
+            <div key={m.key}>
+              <div className="relative flex items-stretch">
+                <span className="w-1 shrink-0" style={{ background: accent }} />
+                <button onClick={() => setOpenKey(o => ({ ...o, [m.key]: !o[m.key] }))} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-extrabold text-text-main">{m.name}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-bold text-text-muted">
+                      <span>Bought {rupee(m.bought)}{m.estimated ? ' est.' : ''}</span>
+                      <span>· Paid {rupee(m.paid)}</span>
+                    </div>
+                    {/* Paid-progress bar — width encodes %, colour is the status accent. */}
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-bg-base">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: accent }} />
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-black" style={{ color: accent }}>{rupee(Math.abs(m.remaining))}</div>
+                    <div className="text-[10px] font-black uppercase" style={{ color: accent }}>{statusLabel}</div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+              {isOpen && (
+                <div className="bg-bg-base px-3 pb-3 pt-1">
+                  {canEdit && (
+                    <button onClick={() => setPayModal({ presetSupplier: m.name })} className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/50 bg-surface py-2 text-[12px] font-black text-primary active:scale-95">
+                      <Plus className="h-3.5 w-3.5" /> Record a payment to {m.name}
+                    </button>
+                  )}
+                  {m.payments.length === 0 ? (
+                    <p className="py-1 text-center text-[11px] font-semibold text-text-muted">No payments recorded to this mandal yet.</p>
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-border-light bg-surface">
+                      {m.payments.slice().sort((a, b) => String(b.date || b.createdOn).localeCompare(String(a.date || a.createdOn))).map(pm => (
+                        <button key={pm.id} onClick={() => setPayModal({ payment: pm })} className="flex w-full items-center gap-2 border-b border-border-light px-3 py-2 text-left last:border-0 hover:bg-bg-base">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Wallet className="h-4 w-4" /></span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[12px] font-bold text-text-main">{fmtDate_(pm.date)}{pm.method ? ` · ${pm.method}` : ''}</div>
+                            {pm.remarks && <div className="truncate text-[10px] font-semibold text-text-muted">{pm.remarks}</div>}
+                          </div>
+                          <span className="shrink-0 text-sm font-black text-text-main">{rupee(pm.amount)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {payModal && <MandalPaymentModal payment={payModal.payment} presetSupplier={payModal.presetSupplier} canEdit={canEdit} onClose={() => setPayModal(null)} onSaved={refresh} />}
+    </div>
+  );
+}
+
 function PurchasesView({ season, canEdit = true }) {
   const [tick, setTick] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -2307,6 +2542,8 @@ function PurchasesView({ season, canEdit = true }) {
           )}
         </div>
       )}
+      {/* Mandal payment ledger — how much paid to each mandal vs remaining. */}
+      <MandalLedger season={season} canEdit={canEdit} tick={tick} />
       {canEdit && <button onClick={() => setAdding(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md"><Plus className="h-4 w-4" /> Add purchase</button>}
       {list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">

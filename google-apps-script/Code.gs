@@ -42,6 +42,11 @@ var HEADERS = {
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
   GhariPurchases: ['id','season','date','supplier','itemsJson','itemsSummary','boxes','amount','challan','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   GhariStock: ['id','season','date','karyakarta','karyakartaId','itemsJson','itemsSummary','boxes','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
+  // Mandal payments (the "pay" side of procurement): money we PAID to a mandal /
+  // supplier, independent of any single purchase bill. Grouped by `supplier`, the
+  // app shows each mandal's total bought (Σ purchase cost) vs total paid vs
+  // remaining. `method` ∈ Cash|G-Pay|Cheque|Bank|Other. status ∈ active|void.
+  GhariMandalPayments: ['id','season','date','supplier','amount','method','remarks','status','createdBy','createdOn','updatedBy','updatedOn'],
   // ── Ghari Leaders (buyer → leader assignment) ────────────────────────────
   // A STANDALONE map of each Ghari buyer to one of the fixed MandalLeaders, with a
   // snapshot of their season totals (kg/orders/amount) that staff can edit by hand.
@@ -128,7 +133,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-23-ghari-leader-targets';
+var SCHEMA_VERSION = '2026-10-26-ghari-mandal-payments';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1506,7 +1511,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -2143,18 +2148,21 @@ function handle_(p){
       var _gOrders = readAll_('GhariOrders');
       var _gPurch  = readAll_('GhariPurchases');
       var _gStock  = readAll_('GhariStock');
+      var _gPays   = readAll_('GhariMandalPayments');
       // Distinct list of years present (tiny) so the client's season switcher shows
       // every year even when the orders payload is scoped to just one.
       var _seasonSet = {}; _gOrders.forEach(function(o){ var s=String(o.season||''); if(s) _seasonSet[s]=1; });
       _gPurch.forEach(function(pu){ var s=String(pu.season||''); if(s) _seasonSet[s]=1; });
       _gStock.forEach(function(st){ var s=String(st.season||''); if(s) _seasonSet[s]=1; });
+      _gPays.forEach(function(pm){ var s=String(pm.season||''); if(s) _seasonSet[s]=1; });
       var _seasons = Object.keys(_seasonSet).sort(function(a,b){ return Number(b)-Number(a); });
       if(_gSeason){
         _gOrders = _gOrders.filter(function(o){ return String(o.season) === _gSeason; });
         _gPurch  = _gPurch.filter(function(pu){ return String(pu.season) === _gSeason; });
         _gStock  = _gStock.filter(function(st){ return String(st.season) === _gSeason; });
+        _gPays   = _gPays.filter(function(pm){ return String(pm.season) === _gSeason; });
       }
-      return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, stocks: _gStock, season: _gSeason, seasons: _seasons });
+      return json_({ ok:true, products: readAll_('GhariProducts'), orders: _gOrders, purchases: _gPurch, stocks: _gStock, mandalPayments: _gPays, season: _gSeason, seasons: _seasons });
     }
     if(action==='repairGhariShift')   return doRepairGhariShift_(p);
     if(action==='ghariMarkDelivery')  return doGhariMarkDelivery_(p);
@@ -2166,6 +2174,8 @@ function handle_(p){
     if(action==='ghariDeletePurchase') return doGhariDelete_('GhariPurchases', p.id, 'id');
     if(action==='ghariUpsertStock')    return doGhariUpsert_('GhariStock', p.row || {}, 'id');
     if(action==='ghariDeleteStock')    return doGhariDelete_('GhariStock', p.id, 'id');
+    if(action==='ghariUpsertMandalPayment') return doGhariUpsert_('GhariMandalPayments', p.row || {}, 'id');
+    if(action==='ghariDeleteMandalPayment') return doGhariDelete_('GhariMandalPayments', p.id, 'id');
     if(action==='ghariImportOrders'){ var _r=p.rows||[]; if(_r.length) appendRows_('GhariOrders', _r); return json_({ ok:true, count:_r.length }); }
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
@@ -2431,6 +2441,7 @@ var GHARI_WRITE_ACTIONS_ = {
   ghariUpsertOrder: 1, ghariUpsertProduct: 1, ghariUpsertPurchase: 1,
   ghariDeleteOrder: 1, ghariDeleteProduct: 1, ghariDeletePurchase: 1,
   ghariUpsertStock: 1, ghariDeleteStock: 1,
+  ghariUpsertMandalPayment: 1, ghariDeleteMandalPayment: 1,
   ghariImportOrders: 1, ghariRevert: 1,
 };
 // Add/edit/delete of the Ghari ledger (orders, products, purchases, stock) is for
@@ -2610,7 +2621,7 @@ function readRowObj_(collection, rn){
 // and keeps full snapshots so the change is both human-readable and revertible.
 function ghariLog_(entity, action, actor, beforeRow, afterRow){
   try{
-    var coll = entity==='order' ? 'GhariOrders' : (entity==='purchase' ? 'GhariPurchases' : (entity==='stock' ? 'GhariStock' : 'GhariProducts'));
+    var coll = entity==='order' ? 'GhariOrders' : (entity==='purchase' ? 'GhariPurchases' : (entity==='stock' ? 'GhariStock' : (entity==='mandalPayment' ? 'GhariMandalPayments' : 'GhariProducts')));
     var H = HEADERS[coll];
     var skip = { updatedOn:1, createdOn:1, updatedBy:1, createdBy:1 };
     var changes = [];
@@ -2682,7 +2693,7 @@ function doGhariUpsert_(collection, row, keyField){
     var before = rn>0 ? readRowObj_(collection, rn) : null;
     if(rn>0) tab_(collection).getRange(rn,1,1,HEADERS[collection].length).setValues([rowFromObj_(collection,row)]);
     else appendRows_(collection,[row]);
-    var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : 'order'));
+    var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : (collection==='GhariMandalPayments' ? 'mandalPayment' : 'order')));
     var act = !before ? 'create' : (String(row.status||'').toLowerCase()==='void' ? 'void' : 'update');
     ghariLog_(entity, act, row.updatedBy || row.createdBy || '', before, row);
     return json_({ ok:true });
@@ -2927,7 +2938,7 @@ function doGhariRevert_(p){
     if(!entry) return json_({ ok:false, error:'log entry not found' });
     var before; try{ before = JSON.parse(entry.beforeJson || 'null'); }catch(e){ before = null; }
     if(!before) return json_({ ok:false, error:'no previous state to revert to (this was a create)' });
-    var coll = entry.entity==='purchase' ? 'GhariPurchases' : (entry.entity==='product' ? 'GhariProducts' : 'GhariOrders');
+    var coll = entry.entity==='purchase' ? 'GhariPurchases' : (entry.entity==='product' ? 'GhariProducts' : (entry.entity==='stock' ? 'GhariStock' : (entry.entity==='mandalPayment' ? 'GhariMandalPayments' : 'GhariOrders')));
     var keyField = coll==='GhariProducts' ? 'sku' : 'id';
     var rn = findRow_(coll, keyField, before[keyField]);
     var cur = rn>0 ? readRowObj_(coll, rn) : null;
@@ -2949,7 +2960,7 @@ function doGhariDelete_(collection, keyVal, keyField){
     if(rn>0){
       var before = readRowObj_(collection, rn);
       tab_(collection).deleteRow(rn);
-      var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : 'order'));
+      var entity = collection==='GhariPurchases' ? 'purchase' : (collection==='GhariProducts' ? 'product' : (collection==='GhariStock' ? 'stock' : (collection==='GhariMandalPayments' ? 'mandalPayment' : 'order')));
       ghariLog_(entity, 'delete', '', before, null);
     }
     return json_({ ok:true });

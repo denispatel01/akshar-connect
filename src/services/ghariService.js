@@ -28,6 +28,7 @@ import { scoreMatch, devoteeSearchText } from '../utils/search';
 const ORDERS_KEY   = 'ac_ghari_orders_v1';
 const PRODUCTS_KEY  = 'ac_ghari_products_v1';
 const PURCHASES_KEY = 'ac_ghari_purchases_v1';
+const PAYMENTS_KEY  = 'ac_ghari_mandal_payments_v1';
 const STOCK_KEY     = 'ac_ghari_stock_v1';
 const OUTBOX_KEY    = 'ac_ghari_outbox_v1';
 const META_KEY      = 'ac_ghari_meta_v1';
@@ -69,7 +70,7 @@ function writeJSON_(key, val) {
 }
 
 // ── In-memory cache (hydrated synchronously on first use) ────────────────────
-let MEM = { orders: null, products: null, purchases: null, stocks: null, meta: null };
+let MEM = { orders: null, products: null, purchases: null, payments: null, stocks: null, meta: null };
 let flushing = false;
 let inited = false;
 
@@ -106,6 +107,11 @@ function purchases_() {
   return MEM.purchases;
 }
 function savePurchasesLocal_() { writeJSON_(PURCHASES_KEY, MEM.purchases); }
+function payments_() {
+  if (!MEM.payments) MEM.payments = (readJSON_(PAYMENTS_KEY, []) || []).map(normalizeMandalPayment_);
+  return MEM.payments;
+}
+function savePaymentsLocal_() { writeJSON_(PAYMENTS_KEY, MEM.payments); }
 function stocks_() {
   if (!MEM.stocks) MEM.stocks = (readJSON_(STOCK_KEY, []) || []).map(normalizeStock_);
   return MEM.stocks;
@@ -272,6 +278,33 @@ function toBackendRowPurchase_(pu) {
     amount: num_(pu.amount), challan: pu.challan || '', remarks: pu.remarks || '',
     status: pu.status || 'active',
     createdBy: pu.createdBy, createdOn: pu.createdOn, updatedBy: pu.updatedBy, updatedOn: pu.updatedOn,
+  };
+}
+
+// A mandal payment — money PAID to a mandal / supplier for Ghari bought from them.
+// Independent of any single purchase bill: payments are grouped by `supplier` and
+// reconciled against the total cost of that mandal's purchases (bought − paid =
+// remaining). `method` ∈ Cash|G-Pay|Cheque|Bank|Other. status ∈ active|void.
+function normalizeMandalPayment_(pm) {
+  return {
+    id: String(pm.id || ''),
+    season: String(pm.season || defaultSeason_()),
+    date: String(pm.date || ''),
+    supplier: String(pm.supplier || '').trim(),
+    amount: pm.amount === '' || pm.amount == null ? 0 : num_(pm.amount),
+    method: String(pm.method || '').trim(),
+    remarks: String(pm.remarks || '').trim(),
+    status: (String(pm.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
+    createdBy: String(pm.createdBy || ''), createdOn: String(pm.createdOn || ''),
+    updatedBy: String(pm.updatedBy || ''), updatedOn: String(pm.updatedOn || ''),
+  };
+}
+function toBackendRowMandalPayment_(pm) {
+  return {
+    id: pm.id, season: pm.season, date: pm.date, supplier: pm.supplier,
+    amount: num_(pm.amount), method: pm.method || '', remarks: pm.remarks || '',
+    status: pm.status || 'active',
+    createdBy: pm.createdBy, createdOn: pm.createdOn, updatedBy: pm.updatedBy, updatedOn: pm.updatedOn,
   };
 }
 
@@ -505,6 +538,7 @@ async function syncDown(season) {
   const serverOrders = (res.orders || []).map(normalizeOrder_);
   const serverPurchases = (res.purchases || []).map(normalizePurchase_);
   const serverStocks = (res.stocks || []).map(normalizeStock_);
+  const serverPayments = (res.mandalPayments || []).map(normalizeMandalPayment_);
 
   // Ids that still have pending local ops → KEEP the local copy (it's newer /
   // not yet on the server). Everything else takes the server's version.
@@ -513,6 +547,7 @@ async function syncDown(season) {
   const pendingProductSkus = new Set(box.filter(o => o.action === 'ghariUpsertProduct' || o.action === 'ghariDeleteProduct').map(o => o.payload?.row?.sku ?? o.payload?.sku));
   const pendingPurchaseIds = new Set(box.filter(o => o.action === 'ghariUpsertPurchase' || o.action === 'ghariDeletePurchase').map(o => o.payload?.row?.id ?? o.payload?.id));
   const pendingStockIds = new Set(box.filter(o => o.action === 'ghariUpsertStock' || o.action === 'ghariDeleteStock').map(o => o.payload?.row?.id ?? o.payload?.id));
+  const pendingPaymentIds = new Set(box.filter(o => o.action === 'ghariUpsertMandalPayment' || o.action === 'ghariDeleteMandalPayment').map(o => o.payload?.row?.id ?? o.payload?.id));
 
   if (serverProducts.length) {
     const localBySku = {}; products_().forEach(p => { localBySku[p.sku] = p; });
@@ -553,6 +588,15 @@ async function syncDown(season) {
   });
   MEM.stocks = mergedStocks.map(normalizeStock_); saveStocksLocal_();
 
+  const seenPaymentIds = new Set();
+  const mergedPayments = [];
+  serverPayments.forEach(pm => { if (!pendingPaymentIds.has(pm.id) && !seenPaymentIds.has(pm.id)) { seenPaymentIds.add(pm.id); mergedPayments.push(pm); } });
+  payments_().forEach(pm => {
+    if (seenPaymentIds.has(pm.id)) return;
+    if (String(pm.season) !== scope || pendingPaymentIds.has(pm.id)) { seenPaymentIds.add(pm.id); mergedPayments.push(pm); }
+  });
+  MEM.payments = mergedPayments.map(normalizeMandalPayment_); savePaymentsLocal_();
+
   // Remember the full list of seasons the server knows (small), so the season
   // switcher still shows every year even though we only cache the loaded ones.
   const seasonsList = Array.isArray(res.seasons) ? res.seasons.map(String).filter(Boolean) : (meta_().seasonsList || []);
@@ -565,7 +609,7 @@ async function syncDown(season) {
 function init() {
   if (inited) return;
   inited = true;
-  products_(); orders_(); purchases_(); stocks_(); meta_();   // hydrate synchronously
+  products_(); orders_(); purchases_(); payments_(); stocks_(); meta_();   // hydrate synchronously
   backfillOrderNosLocal_();   // ensure every cached order already shows a number
   try {
     window.addEventListener('online', () => { flush().then(() => syncDown()); });
@@ -922,6 +966,92 @@ export const ghariService = {
   voidPurchase: (id) => {
     const p = ghariService.getPurchaseById(id); if (!p) return null;
     return ghariService.savePurchase({ ...p, status: 'void' });
+  },
+
+  // ---- Mandal payments (money PAID to a mandal/supplier for Ghari bought) ----
+  getMandalPayments: (season, { includeVoid = false } = {}) => {
+    const s = season || meta_().season;
+    return payments_()
+      .filter(pm => pm.season === s && (includeVoid || pm.status !== 'void'))
+      .sort((a, b) => String(b.date || b.createdOn).localeCompare(String(a.date || a.createdOn)));
+  },
+  getMandalPaymentById: (id) => payments_().find(pm => pm.id === id) || null,
+
+  // Create/update a payment to a mandal. Saves instantly (money-safe: localStorage +
+  // durable outbox), syncs in the background. Admin-only write (mirrors the backend
+  // ghariUpsertMandalPayment guard).
+  saveMandalPayment: (input) => {
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const existingIdx = input.id ? payments_().findIndex(pm => pm.id === input.id) : -1;
+    const prev = existingIdx >= 0 ? MEM.payments[existingIdx] : null;
+    const season = input.season || meta_().season;
+    const id = input.id || `GHM-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const payment = normalizeMandalPayment_({
+      ...(prev || {}), id, season,
+      date: input.date ?? prev?.date ?? now,
+      supplier: input.supplier ?? prev?.supplier ?? '',
+      amount: input.amount ?? prev?.amount ?? 0,
+      method: input.method ?? prev?.method ?? '',
+      remarks: input.remarks ?? prev?.remarks ?? '',
+      status: input.status ?? prev?.status ?? 'active',
+      createdBy: prev?.createdBy || actor, createdOn: prev?.createdOn || now,
+      updatedBy: actor, updatedOn: now,
+    });
+    if (existingIdx >= 0) MEM.payments[existingIdx] = payment; else MEM.payments.unshift(payment);
+    savePaymentsLocal_();
+    enqueueUpsert_('ghariUpsertMandalPayment', 'id', toBackendRowMandalPayment_(payment));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-mandal-payment', payment.supplier, `${prev ? 'updated' : 'added'} payment of ₹${payment.amount} to ${payment.supplier || 'mandal'}`); } catch { /* ignore */ }
+    return payment;
+  },
+  voidMandalPayment: (id) => {
+    const pm = ghariService.getMandalPaymentById(id); if (!pm) return null;
+    return ghariService.saveMandalPayment({ ...pm, status: 'void' });
+  },
+
+  // Per-mandal (supplier) reconciliation for a season: total BOUGHT (Σ purchase cost,
+  // typed amount or catalog estimate) vs total PAID vs REMAINING (bought − paid). A
+  // mandal appears if it has either purchases or payments. Grouped case-insensitively
+  // by supplier name; the fullest-cased spelling wins as the display name. Also returns
+  // season-wide totals. Negative remaining = overpaid (shown as advance/credit).
+  buildMandalLedger: (season) => {
+    const s = season || meta_().season;
+    const priceBySku = {}; products_().forEach(p => { priceBySku[p.sku] = p.unitPrice; });
+    const purchaseValue = (pu) => {
+      const amt = num_(pu.amount);
+      if (amt > 0) return amt;
+      return (pu.items || []).reduce((sum, it) => sum + num_(it.qty) * num_(priceBySku[it.sku] || 0), 0);
+    };
+    const rows = {}; // key -> { key, name, bought, paid, purchaseCount, payments: [] }
+    const ensure = (name) => {
+      const nm = String(name || '').trim() || '(no mandal)';
+      const key = nm.toLowerCase();
+      if (!rows[key]) rows[key] = { key, name: nm, bought: 0, paid: 0, estimated: false, purchaseCount: 0, paymentCount: 0, payments: [] };
+      // Keep the fullest-cased spelling as the display name.
+      if (nm.length > rows[key].name.length) rows[key].name = nm;
+      return rows[key];
+    };
+    ghariService.getPurchases(s).forEach(pu => {
+      const row = ensure(pu.supplier);
+      const v = purchaseValue(pu);
+      row.bought += v; row.purchaseCount++;
+      if (!(num_(pu.amount) > 0) && v > 0) row.estimated = true;
+    });
+    ghariService.getMandalPayments(s).forEach(pm => {
+      const row = ensure(pm.supplier);
+      row.paid += num_(pm.amount); row.paymentCount++;
+      row.payments.push(pm);
+    });
+    const mandals = Object.values(rows).map(r => ({ ...r, remaining: r.bought - r.paid }))
+      // Most still-owed first, then biggest spend.
+      .sort((a, b) => (b.remaining - a.remaining) || (b.bought - a.bought) || a.name.localeCompare(b.name));
+    const totals = mandals.reduce((t, r) => ({
+      bought: t.bought + r.bought, paid: t.paid + r.paid, remaining: t.remaining + r.remaining,
+      estimated: t.estimated || r.estimated,
+    }), { bought: 0, paid: 0, remaining: 0, estimated: false });
+    return { mandals, totals };
   },
 
   // ---- Advance stock (Ghari issued to Karyakartas, deducted as they deliver) ----
