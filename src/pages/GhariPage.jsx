@@ -1121,33 +1121,38 @@ function StockReconCard({ r }) {
   const catOrder = Object.keys(GHARI_CATEGORIES);
 
   const ghariByName = {}; const bhusuBySize = {};
-  const gT = { b: 0, s: 0 }, bT = { b: 0, s: 0 };
+  const gT = { b: 0, s: 0, o: 0 }, bT = { b: 0, s: 0, o: 0 };
   skus.forEach(sku => {
     const p = bySkuProd[sku] || { name: sku, size: '', category: 'ghee' };
     const boughtBoxes = Number(r.purchased?.[sku]) || 0;
     const soldBoxes = Number(r.bySku?.[sku]?.qty) || 0;
+    const officeBoxes = Number(r.officeBySku?.[sku]) || 0; // of the sold, collected direct at office
     if (!boughtBoxes && !soldBoxes) return;
     const kgPer = sizeKg_(p.size);
-    const bKg = boughtBoxes * kgPer, sKg = soldBoxes * kgPer;
+    const bKg = boughtBoxes * kgPer, sKg = soldBoxes * kgPer, oKg = officeBoxes * kgPer;
     if (p.category === 'bhusu') {
-      bT.b += bKg; bT.s += sKg;
-      const g = bhusuBySize[p.size] || (bhusuBySize[p.size] = { label: p.size || '—', sort: kgPer, b: 0, s: 0 });
-      g.b += bKg; g.s += sKg;
+      bT.b += bKg; bT.s += sKg; bT.o += oKg;
+      const g = bhusuBySize[p.size] || (bhusuBySize[p.size] = { label: p.size || '—', sort: kgPer, b: 0, s: 0, o: 0 });
+      g.b += bKg; g.s += sKg; g.o += oKg;
     } else {
-      gT.b += bKg; gT.s += sKg;
-      const g = ghariByName[p.name] || (ghariByName[p.name] = { label: cleanName_(p.name), sort: catOrder.indexOf(p.category), b: 0, s: 0 });
-      g.b += bKg; g.s += sKg;
+      gT.b += bKg; gT.s += sKg; gT.o += oKg;
+      const g = ghariByName[p.name] || (ghariByName[p.name] = { label: cleanName_(p.name), sort: catOrder.indexOf(p.category), b: 0, s: 0, o: 0 });
+      g.b += bKg; g.s += sKg; g.o += oKg;
     }
   });
   const ghariChildren = Object.values(ghariByName).sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
   const bhusuChildren = Object.values(bhusuBySize).sort((a, b) => a.sort - b.sort);
   const hasGhari = gT.b || gT.s, hasBhusu = bT.b || bT.s;
   if (!hasGhari && !hasBhusu) return null;
-  const grand = { b: gT.b + bT.b, s: gT.s + bT.s };
+  const grand = { b: gT.b + bT.b, s: gT.s + bT.s, o: gT.o + bT.o };
 
   const kgVal = (n) => <>{fmtKg(n)}<span className="text-[9px] font-semibold text-text-muted">kg</span></>;
-  const cells = (b, s, strong) => {
-    const left = b - s;
+  // "Left" is what we should still hold from what WE bought. Ghari collected directly
+  // at the mandal office is inside "sold" but was never bought by us, so we add it
+  // back: Left = bought − sold + at-office. Without this, office pickups made Left
+  // look negative for no real shortfall.
+  const cells = (b, s, o, strong) => {
+    const left = b - s + (o || 0);
     return (
       <>
         <span className={`w-16 shrink-0 text-right ${strong ? 'font-black' : 'font-bold'} text-emerald-600`}>{kgVal(b)}</span>
@@ -1163,15 +1168,18 @@ function StockReconCard({ r }) {
         <button onClick={() => toggle(k)} className="flex w-full items-center gap-1 px-2.5 py-2 text-left">
           <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-          <span className="min-w-0 flex-1 truncate text-sm font-black" style={{ color }}>{label}</span>
-          {cells(total.b, total.s, true)}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-black" style={{ color }}>{label}</span>
+            {total.o > 0.05 && <span className="block text-[9px] font-bold text-indigo-500 dark:text-indigo-300">incl. {fmtKg(total.o)}kg at office (direct)</span>}
+          </span>
+          {cells(total.b, total.s, total.o, true)}
         </button>
         {isOpen && (
           <div className="border-t border-border-light bg-bg-base/50 px-2.5 py-1.5">
             {children.length ? children.map((c, i) => (
               <div key={i} className="flex items-center gap-1 py-0.5 text-[11px]">
-                <span className="min-w-0 flex-1 truncate pl-5 font-semibold text-text-muted">{c.label}</span>
-                {cells(c.b, c.s)}
+                <span className="min-w-0 flex-1 truncate pl-5 font-semibold text-text-muted">{c.label}{c.o > 0.05 ? <span className="text-indigo-500 dark:text-indigo-300"> · {fmtKg(c.o)}kg office</span> : ''}</span>
+                {cells(c.b, c.s, c.o)}
               </div>
             )) : <p className="pl-5 text-[11px] text-text-muted">No {childWord}.</p>}
           </div>
@@ -1197,9 +1205,14 @@ function StockReconCard({ r }) {
         <span className="min-w-0 flex-1 truncate font-black">TOTAL</span>
         <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.b)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
         <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.s)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
-        <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.b - grand.s)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
+        <span className="w-16 shrink-0 text-right font-black">{fmtKg(grand.b - grand.s + grand.o)}<span className="text-[9px] font-semibold text-white/70">kg</span></span>
       </div>
-      <p className="mt-2 text-[10px] font-semibold text-text-muted">All in kg · Bought = purchased · Sold = ordered · Left = bought − sold. Tap Ghari / Bhusu for the breakdown.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
+      {grand.o > 0.05 && (
+        <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[10px] font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+          🏢 <span>{fmtKg(grand.o)}kg was collected directly at the mandal office (we didn’t buy it). It’s part of “Sold”, so it’s added back into “Left” — otherwise Left looks short by that much.</span>
+        </div>
+      )}
+      <p className="mt-2 text-[10px] font-semibold text-text-muted">All in kg · Bought = purchased · Sold = ordered · Left = bought − sold{grand.o > 0.05 ? ' + at-office' : ''}. Tap Ghari / Bhusu for the breakdown.{r.purchaseCost > 0 ? ` · Margin ${rupee(r.revenue - r.purchaseCost)}` : ''}</p>
     </div>
   );
 }

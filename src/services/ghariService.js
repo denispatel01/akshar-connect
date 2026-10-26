@@ -1262,6 +1262,10 @@ export const ghariService = {
       kgByCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       ghariKg: 0, bhusuKg: 0, totalKg: 0,
       bySku: {}, byKaryakarta: {}, byCustomer: {}, custBySku: {},
+      // Quantity (boxes) collected directly at the mandal office, per sku — these are
+      // in `bySku` (sold) but never in `purchased` (we didn't buy them), so the stock
+      // reconciliation surfaces them to explain an otherwise-negative "Left".
+      officeBySku: {},
     };
     prods.forEach(p => { r.bySku[p.sku] = { name: p.name, size: p.size, qty: 0, amount: 0 }; });
     // Devotee id → canonical name, so a karyakarta stored under different name
@@ -1297,6 +1301,7 @@ export const ghariService = {
       o.items.forEach(it => {
         if (!r.bySku[it.sku]) r.bySku[it.sku] = { name: it.name, size: it.size, qty: 0, amount: 0 };
         r.bySku[it.sku].qty += it.qty; r.bySku[it.sku].amount += it.qty * it.unitPrice;
+        if (office) r.officeBySku[it.sku] = (r.officeBySku[it.sku] || 0) + it.qty;
         const kg = it.qty * sizeToKg_(it.size);
         if (r.kgByCategory[it.category] === undefined) r.kgByCategory[it.category] = 0;
         r.kgByCategory[it.category] += kg;
