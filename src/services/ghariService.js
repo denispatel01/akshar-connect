@@ -58,7 +58,13 @@ export const DEFAULT_PRODUCTS = [
   { sku: 'BHUSU_1000', name: 'Bhusu',                 size: '1 kg',   category: 'bhusu',  unitPrice: 280, sortOrder: 8,  active: true },
 ];
 
-export const PAYMENT_TYPES = ['Cash', 'G-Pay', 'Pending'];
+// 'Office' = the customer collected the Ghari from the mandal office themselves and
+// paid cash/G-Pay directly to the office. It never passed through our stock or our
+// cash: such an order counts for the customer's/karyakarta's kg & amount totals, but
+// is treated as settled (₹0 collected by us) and is NOT deducted from our stock.
+export const PAYMENT_TYPES = ['Cash', 'G-Pay', 'Office', 'Pending'];
+// True when an order was collected & paid directly at the mandal office.
+export const isOfficePaid = (o) => String((o && o.paymentType) || '').trim().toLowerCase() === 'office';
 
 // ── Small persistence helpers (every read/write is try/caught) ───────────────
 function readJSON_(key, fallback) {
@@ -215,9 +221,14 @@ function normalizeOrder_(o) {
   // `delivered` stays the simple "fully delivered?" flag the rest of the app reads;
   // `deliveredBoxes` carries the partial count (e.g. 2 of 4). We reconcile the two so
   // legacy rows (delivered=true, no count) and crafted rows can never disagree.
+  // Collected & paid directly at the mandal office → always fully handed over (the
+  // customer took it there) and fully settled (paid to the office). We enforce both
+  // here, the single chokepoint, so this holds no matter how the order was entered.
+  const officePaid = String(o.paymentType || '').trim().toLowerCase() === 'office';
   const totalBoxes = totals.boxes;
   let deliveredBoxes = num_(o.deliveredBoxes);
   let delivered = bool_(o.delivered);
+  if (officePaid) deliveredBoxes = totalBoxes;                         // office pickup = fully handed over
   if (delivered && !deliveredBoxes) deliveredBoxes = totalBoxes;       // legacy fully-delivered row
   deliveredBoxes = Math.max(0, Math.min(totalBoxes, Math.round(deliveredBoxes)));
   // The flag is always derived from the count when there are boxes to deliver.
@@ -238,7 +249,9 @@ function normalizeOrder_(o) {
     delivered,
     deliveredBoxes,
     deliveryDate: String(o.deliveryDate || '').trim(),
-    paymentReceived: o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived),
+    // Office-paid orders are settled in full at the office; everyone else keeps the
+    // amount actually received by us.
+    paymentReceived: officePaid ? totals.total : (o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived)),
     paymentType: String(o.paymentType || '').trim(),
     status: (String(o.status || 'active').toLowerCase() === 'void') ? 'void' : 'active',
     remarks: String(o.remarks || '').trim(),
@@ -1115,6 +1128,9 @@ export const ghariService = {
     });
     // Delivered (only counts orders whose karyakarta has been issued stock)
     ghariService.getOrders(s).forEach(o => {
+      // Collected directly at the mandal office → never came from our advance stock,
+      // so it must not be deducted from any karyakarta's holding.
+      if (String(o.paymentType || '').trim().toLowerCase() === 'office') return;
       const key = orderKaryakartaKey_(o);
       if (!rows[key]) return; // no advance stock issued to this karyakarta → skip
       const row = rows[key];
@@ -1221,7 +1237,7 @@ export const ghariService = {
       season: s, orderCount: list.length,
       revenue: 0, received: 0, outstanding: 0,
       boxes: 0, delivered: 0, pending: 0,
-      cash: 0, gpay: 0, unpaid: 0,
+      cash: 0, gpay: 0, office: 0, unpaid: 0,
       byCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       kgByCategory: { ghee: 0, noghee: 0, sf: 0, bhusu: 0 },
       ghariKg: 0, bhusuKg: 0, totalKg: 0,
@@ -1234,15 +1250,22 @@ export const ghariService = {
     (dataService.getDevotees() || []).forEach(d => { if (d.id) devNameById[d.id] = d.name || ''; });
     list.forEach(o => {
       const t = computeTotals(o.items);
+      const pt = norm_(o.paymentType);
+      const office = pt === 'office';
+      const paidAmt = num_(o.paymentReceived);
       r.revenue += t.total; r.boxes += t.boxes;
-      r.received += num_(o.paymentReceived);
-      const bal = t.total - num_(o.paymentReceived);
+      // Office-paid orders were settled directly at the mandal office — count the
+      // amount in its own bucket, NOT in `received` (money we collected). They carry
+      // no balance (settled), so they never add to outstanding or unpaid.
+      if (office) r.office += t.total;
+      else r.received += paidAmt;
+      const bal = t.total - paidAmt;
       if (bal > 0) r.outstanding += bal;
       if (o.delivered) r.delivered++; else r.pending++;
-      const pt = norm_(o.paymentType);
-      if (num_(o.paymentReceived) <= 0) r.unpaid += t.total;
-      else if (pt === 'g-pay' || pt === 'gpay') r.gpay += num_(o.paymentReceived);
-      else if (pt === 'cash') r.cash += num_(o.paymentReceived);
+      if (office) { /* already bucketed above */ }
+      else if (paidAmt <= 0) r.unpaid += t.total;
+      else if (pt === 'g-pay' || pt === 'gpay') r.gpay += paidAmt;
+      else if (pt === 'cash') r.cash += paidAmt;
       Object.keys(r.byCategory).forEach(k => { r.byCategory[k] += t.byCategory[k] || 0; });
       // A split order attributes each line to its own named recipient; a plain
       // order is a single segment under its customerName. Used for the per-recipient

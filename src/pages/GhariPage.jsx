@@ -4,7 +4,7 @@ import {
   Plus, Minus, Search, X, Check, Trash2, Download, RefreshCw, Settings as SettingsIcon,
   Package, Truck, Wallet, ArrowLeft, User, Users, AlertCircle, CloudOff, Cloud, Eye, EyeOff, Pencil, MessageCircle, Phone, ChevronDown, ShoppingCart, Camera, Calendar, CalendarPlus, History, RotateCcw, Boxes, BarChart3, UserPlus,
 } from 'lucide-react';
-import { ghariService, GHARI_CATEGORIES } from '../services/ghariService';
+import { ghariService, GHARI_CATEGORIES, isOfficePaid } from '../services/ghariService';
 import { dataService } from '../services/dataService';
 import { alertError, confirmDialog } from '../utils/sweetAlert';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
@@ -452,12 +452,24 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div className="rounded-2xl border border-border-light bg-surface p-3">
           <label className="mb-2 block text-[11px] font-black uppercase tracking-wide text-text-muted">Payment</label>
-          <div className="mb-2.5 flex gap-1.5">
-            {['Cash', 'G-Pay', 'Pending'].map(pt => (
-              <button key={pt} onClick={() => { setPaymentType(pt); if (pt === 'Pending') { setPayEdited(true); setPaymentReceived(0); } else if (!payEdited || paid === 0) { setPayEdited(false); } }}
-                className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-colors ${paymentType === pt ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{pt}</button>
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            {['Cash', 'G-Pay', 'Office', 'Pending'].map(pt => (
+              <button key={pt} onClick={() => {
+                  setPaymentType(pt);
+                  if (pt === 'Pending') { setPayEdited(true); setPaymentReceived(0); }
+                  else if (pt === 'Office') { setPayEdited(false); setDelivered(true); } // collected & paid at office → settled + handed over
+                  else if (!payEdited || paid === 0) { setPayEdited(false); }
+                }}
+                className={`min-w-[22%] flex-1 rounded-xl border py-2 text-[11px] font-bold transition-colors ${paymentType === pt ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{pt === 'Office' ? 'At office' : pt}</button>
             ))}
           </div>
+          {paymentType === 'Office' ? (
+            // Collected & paid directly at the mandal office: no money we collected, and
+            // not from our stock — so hide the Received editor and explain the effect.
+            <p className="rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[11px] font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300">
+              🏢 Collected & paid directly at the mandal office. Counts for {customerName || 'the customer'}’s totals, but ₹0 collected by you and not taken from your stock.
+            </p>
+          ) : (<>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-text-muted">Received</span>
             <div className="flex flex-1 items-center gap-1 rounded-xl border border-border-light bg-bg-base px-2.5 py-1.5">
@@ -470,6 +482,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
               className="rounded-lg bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Full</button>
           </div>
           {balance > 0 && <p className="mt-1.5 text-[11px] font-bold text-rose-600">Balance due: {rupee(balance)}</p>}
+          </>)}
         </div>
         <button onClick={() => setDelivered(d => !d)}
           className={`flex items-center justify-center gap-2.5 rounded-2xl border-2 p-3 text-sm font-black transition-all ${delivered ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'border-border-light bg-surface text-text-muted'}`}>
@@ -586,7 +599,9 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
               </div>
               <div className="space-y-1 rounded-2xl bg-bg-base px-3 py-2.5 text-sm">
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">{unitsText_(items)} · Total</span><span className="font-black text-text-main">{rupee(totals.total)}</span></div>
-                <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>
+                {paymentType === 'Office'
+                  ? <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · At office</span><span className="font-bold text-indigo-600">{rupee(paid)} paid at office</span></div>
+                  : <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>}
                 {balance > 0 && <div className="flex justify-between"><span className="font-semibold text-rose-600">Balance due</span><span className="font-black text-rose-600">{rupee(balance)}</span></div>}
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery</span><span className="font-bold text-text-main">{delivered ? 'Delivered ✓' : 'Not yet'}</span></div>
                 {deliveryDate && <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery date</span><span className="font-bold text-text-main">{deliveryDate}</span></div>}
@@ -857,7 +872,7 @@ function OrderRow({ order, onOpen }) {
           paidState === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
           : paidState === 'partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
           : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'}`}>
-          {paidState === 'paid' ? `Paid${order.paymentType ? ' · ' + order.paymentType : ''}` : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
+          {paidState === 'paid' ? (isOfficePaid(order) ? 'Paid · At office' : `Paid${order.paymentType ? ' · ' + order.paymentType : ''}`) : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
       </div>
       {!order.delivered && (
@@ -1202,6 +1217,7 @@ function ReportView({ season }) {
         <StatTile label="Delivery" value={`${r.delivered}/${r.orderCount}`} sub={`${r.pending} pending`} color="#2563EB" icon={Truck} />
         <StatTile label="Cash" value={rupee(r.cash)} color="#16A34A" />
         <StatTile label="G-Pay" value={rupee(r.gpay)} color="#2563EB" />
+        {r.office > 0 && <StatTile label="At office" value={rupee(r.office)} sub="paid directly" color="#4F46E5" />}
         <StatTile label="Unpaid" value={rupee(r.unpaid)} color="#E11D48" />
       </div>
 
@@ -1853,6 +1869,8 @@ function PaymentPanel({ order, canDeliver }) {
             className={`flex-1 rounded-xl border py-2 text-xs font-black ${fullyPaid && ptype === 'Cash' ? 'border-emerald-400 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>Paid · Cash</button>
           <button onClick={() => commit('G-Pay')}
             className={`flex-1 rounded-xl border py-2 text-xs font-black ${fullyPaid && ptype === 'G-Pay' ? 'border-blue-400 bg-blue-100 text-blue-700 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300'}`}>Paid · G-Pay</button>
+          <button onClick={() => commit('Office')} title="Collected & paid directly at the mandal office"
+            className={`flex-1 rounded-xl border py-2 text-xs font-black ${fullyPaid && ptype === 'Office' ? 'border-indigo-400 bg-indigo-100 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900 dark:text-indigo-300' : 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'}`}>At office</button>
           {paid > 0 && (
             <button onClick={() => commit('Pending')}
               className="shrink-0 rounded-xl border border-border-light bg-bg-base px-3 py-2 text-xs font-black text-text-muted">Pending</button>
