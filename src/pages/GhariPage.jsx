@@ -1387,7 +1387,7 @@ function ReportView({ season }) {
           karyakarta and customer. Great for sharing the season's insight. */}
       <button onClick={downloadImages} disabled={imgBusy}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#9333EA] to-[#6D28D9] py-3 text-sm font-black text-white shadow-md disabled:opacity-60">
-        <BarChart3 className="h-4 w-4" /> {imgBusy ? 'Preparing images…' : 'Contribution images (Ghari + Bhusu)'}
+        <BarChart3 className="h-4 w-4" /> {imgBusy ? 'Preparing image…' : 'Contribution image (Ghari + Bhusu)'}
       </button>
 
       {/* Share just one or a few karyakartas' orders — e.g. for an out-of-town
