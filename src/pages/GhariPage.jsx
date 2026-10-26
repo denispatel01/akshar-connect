@@ -7,6 +7,7 @@ import {
 import { ghariService, GHARI_CATEGORIES, isOfficePaid } from '../services/ghariService';
 import { dataService } from '../services/dataService';
 import { alertError, confirmDialog } from '../utils/sweetAlert';
+import { downloadGhariSummaryImages } from '../utils/ghariSummaryImage';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import AutoTextarea from '../components/AutoTextarea';
 
@@ -1220,6 +1221,16 @@ function StockReconCard({ r }) {
 function ReportView({ season }) {
   const r = useMemo(() => ghariService.buildReport(season), [season]);
   const [exportKk, setExportKk] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
+  // Build + hand over the two 4K contribution images (Ghari, Bhusu) — share sheet
+  // on a phone, download on desktop.
+  const downloadImages = async () => {
+    if (imgBusy) return;
+    setImgBusy(true);
+    try { await downloadGhariSummaryImages(season); }
+    catch (e) { alertError('Could not create images', e?.message || 'Please try again.'); }
+    finally { setImgBusy(false); }
+  };
   // The two big lists collapse so the report isn't a long scroll (default open).
   const [openKk, setOpenKk] = useState(true);
   const [openCust, setOpenCust] = useState(true);
@@ -1371,6 +1382,13 @@ function ReportView({ season }) {
           <Download className="h-4 w-4" /> Excel ledger
         </button>
       </div>
+
+      {/* Two shareable 4K contribution posters (kg only) — Ghari + Bhusu, ranked by
+          karyakarta and customer. Great for sharing the season's insight. */}
+      <button onClick={downloadImages} disabled={imgBusy}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#9333EA] to-[#6D28D9] py-3 text-sm font-black text-white shadow-md disabled:opacity-60">
+        <BarChart3 className="h-4 w-4" /> {imgBusy ? 'Preparing images…' : 'Contribution images (Ghari + Bhusu)'}
+      </button>
 
       {/* Share just one or a few karyakartas' orders — e.g. for an out-of-town
           team to follow up with the devotees who order Ghari every year. */}
