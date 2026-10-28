@@ -759,15 +759,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
         },
       });
 
+      // Download the PDF file directly (no OS share sheet) — on desktop it saves to
+      // Downloads; on mobile the browser hands over the PDF to save/open. jsPDF's save
+      // handles the blob + filename across browsers.
       const filename = `Devotee_Directory_${now.toISOString().slice(0, 10)}.pdf`;
-      try {
-        const blob = doc.output('blob');
-        const file = new File([blob], filename, { type: 'application/pdf' });
-        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'Akshar Connect — Devotee Directory', text: `Devotee Directory (${exportList.length})` });
-          return;
-        }
-      } catch (e) { if (String(e && e.name) === 'AbortError') return; /* else fall through to download */ }
       doc.save(filename);
     } catch (e) {
       alertError('Could not create PDF', e?.message || 'Please try again.');
