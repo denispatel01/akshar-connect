@@ -237,6 +237,11 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const [remarks, setRemarks] = useState(initialOrder?.remarks || '');
   const [payEdited, setPayEdited] = useState(isEdit);
   const [paymentReceived, setPaymentReceived] = useState(initialOrder?.paymentReceived ?? 0);
+  // Split payment (Cash + G-Pay on one order) — the two portions. Only meaningful
+  // when paymentType === 'Split'. Seeded from the order so a split settled from the
+  // karyakarta screen shows its breakdown here, and can be edited by hand.
+  const [cashReceived, setCashReceived] = useState(initialOrder?.cashReceived ?? 0);
+  const [gpayReceived, setGpayReceived] = useState(initialOrder?.gpayReceived ?? 0);
   const [review, setReview] = useState(null); // {addAnother} while showing the confirm-order preview
 
   // Optional "split order" — one order holding several named recipients, each with
@@ -279,7 +284,13 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
   const items = useMemo(() => split ? mergeLines(subPayload.flatMap(s => s.items)) : cartToItems(cart),
     [split, subPayload, cart, bySku, origBySku]);
   const totals = useMemo(() => ghariService.computeTotals(items), [items]);
-  const paid = payEdited ? Number(paymentReceived || 0) : totals.total;
+  const isSplitPay = paymentType === 'Split';
+  const splitCash = Math.max(0, Number(cashReceived || 0));
+  const splitGpay = Math.max(0, Number(gpayReceived || 0));
+  const splitSum = splitCash + splitGpay;
+  // Money received on this order: the sum of the two portions for a split, else the
+  // edited/full amount as before.
+  const paid = isSplitPay ? splitSum : (payEdited ? Number(paymentReceived || 0) : totals.total);
   const balance = totals.total - paid;
 
   const setQty = (sku, qty) => setCart(c => ({ ...c, [sku]: qty }));
@@ -299,7 +310,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
     if (Object.keys(merged).length) setCart(c => { const n = { ...c }; Object.entries(merged).forEach(([sku, q]) => { n[sku] = (n[sku] || 0) + q; }); return n; });
     setSplit(false);
   };
-  const reset = () => { setCart({}); setSplit(false); setRecipients([]); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setDeliveryDate(''); setShowDeliveryDate(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); };
+  const reset = () => { setCart({}); setSplit(false); setRecipients([]); setOrderNo(''); setCustomerName(''); setCustomerMobile(''); setShowMobile(false); setDevoteeId(''); setKaryakarta(''); setKaryakartaId(''); setDelivered(false); setDeliveryDate(''); setShowDeliveryDate(false); setPaymentType(''); setRemarks(''); setPayEdited(false); setPaymentReceived(0); setCashReceived(0); setGpayReceived(0); };
 
   // Review-before-save: validate, then show a preview so the user can confirm the
   // exact order (items hard to re-check by scrolling up past many product cards).
@@ -332,6 +343,7 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
       // count in step with it (partial counts are set from the Delivery panel).
       items, delivered, deliveredBoxes: delivered ? totals.boxes : 0, deliveryDate,
       paymentReceived: paid, paymentType: paymentType || (paid > 0 ? 'Cash' : 'Pending'),
+      cashReceived: isSplitPay ? splitCash : 0, gpayReceived: isSplitPay ? splitGpay : 0,
       remarks: remarks.trim(), status: initialOrder?.status || 'active',
     });
     onSaved?.(order, addAnother);
@@ -456,17 +468,52 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
         <div className="rounded-2xl border border-border-light bg-surface p-3">
           <label className="mb-2 block text-[11px] font-black uppercase tracking-wide text-text-muted">Payment</label>
           <div className="mb-2.5 flex flex-wrap gap-1.5">
-            {['Cash', 'G-Pay', 'Office', 'Pending'].map(pt => (
+            {['Cash', 'G-Pay', 'Office', 'Pending', 'Split'].map(pt => (
               <button key={pt} onClick={() => {
                   setPaymentType(pt);
                   if (pt === 'Pending') { setPayEdited(true); setPaymentReceived(0); }
                   else if (pt === 'Office') { setPayEdited(false); setDelivered(true); } // collected & paid at office → settled + handed over
+                  else if (pt === 'Split') {
+                    // Seed the breakdown so it always sums to the order total: keep any
+                    // existing cash portion, put the rest on G-Pay.
+                    setPayEdited(true);
+                    if (splitSum <= 0) { setCashReceived(0); setGpayReceived(totals.total); }
+                  }
                   else if (!payEdited || paid === 0) { setPayEdited(false); }
                 }}
-                className={`min-w-[22%] flex-1 rounded-xl border py-2 text-[11px] font-bold transition-colors ${paymentType === pt ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{pt === 'Office' ? 'At office' : pt}</button>
+                className={`${pt === 'Split' ? 'min-w-full' : 'min-w-[22%]'} flex-1 rounded-xl border py-2 text-[11px] font-bold transition-colors ${paymentType === pt ? 'border-primary bg-primary text-white' : 'border-border-light bg-bg-base text-text-muted'}`}>{pt === 'Office' ? 'At office' : pt === 'Split' ? 'Cash + G-Pay' : pt}</button>
             ))}
           </div>
-          {paymentType === 'Office' ? (
+          {isSplitPay ? (
+            // Split payment: two editable portions (Cash + G-Pay) that together make up
+            // what was received on this order.
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 text-sm font-bold text-amber-700 dark:text-amber-300">Cash</span>
+                <div className="flex flex-1 items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-1.5 dark:border-amber-800 dark:bg-amber-950/40">
+                  <span className="text-sm font-black text-amber-700 dark:text-amber-300">₹</span>
+                  <input inputMode="numeric" value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value.replace(/[^\d]/g, ''))}
+                    className="w-full bg-transparent text-right text-sm font-black text-amber-800 outline-none dark:text-amber-200" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 text-sm font-bold text-blue-700 dark:text-blue-300">G-Pay</span>
+                <div className="flex flex-1 items-center gap-1 rounded-xl border border-blue-300 bg-blue-50 px-2.5 py-1.5 dark:border-blue-800 dark:bg-blue-950/40">
+                  <span className="text-sm font-black text-blue-700 dark:text-blue-300">₹</span>
+                  <input inputMode="numeric" value={gpayReceived}
+                    onChange={(e) => setGpayReceived(e.target.value.replace(/[^\d]/g, ''))}
+                    className="w-full bg-transparent text-right text-sm font-black text-blue-800 outline-none dark:text-blue-200" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-[11px] font-bold text-text-muted">Received {rupee(splitSum)}</span>
+                {balance > 0 ? <span className="text-[11px] font-bold text-rose-600">Balance due: {rupee(balance)}</span>
+                  : balance < 0 ? <span className="text-[11px] font-bold text-amber-600">Over by {rupee(-balance)}</span>
+                  : <span className="text-[11px] font-bold text-emerald-600">Matches total ✓</span>}
+              </div>
+            </div>
+          ) : paymentType === 'Office' ? (
             // Collected & paid directly at the mandal office: no money we collected, and
             // not from our stock — so hide the Received editor and explain the effect.
             <p className="rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[11px] font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300">
@@ -604,7 +651,9 @@ function OrderForm({ initialOrder, onSaved, onCancel, embedded, onManageItems, o
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">{unitsText_(items)} · Total</span><span className="font-black text-text-main">{rupee(totals.total)}</span></div>
                 {paymentType === 'Office'
                   ? <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · At office</span><span className="font-bold text-indigo-600">{rupee(paid)} paid at office</span></div>
-                  : <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {paymentType || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>}
+                  : isSplitPay
+                  ? <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · Cash + G-Pay</span><span className="font-bold text-emerald-600">{rupee(splitCash)} cash + {rupee(splitGpay)} G-Pay</span></div>
+                  : <div className="flex justify-between"><span className="font-semibold text-text-muted">Payment · {payLabel_(paymentType) || (paid > 0 ? 'Cash' : 'Pending')}</span><span className="font-bold text-emerald-600">{rupee(paid)} received</span></div>}
                 {balance > 0 && <div className="flex justify-between"><span className="font-semibold text-rose-600">Balance due</span><span className="font-black text-rose-600">{rupee(balance)}</span></div>}
                 <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery</span><span className="font-bold text-text-main">{delivered ? 'Delivered ✓' : 'Not yet'}</span></div>
                 {deliveryDate && <div className="flex justify-between"><span className="font-semibold text-text-muted">Delivery date</span><span className="font-bold text-text-main">{deliveryDate}</span></div>}

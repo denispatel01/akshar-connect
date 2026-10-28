@@ -826,6 +826,11 @@ export const ghariService = {
       deliveryDate: input.deliveryDate ?? prev?.deliveryDate ?? '',
       paymentReceived: input.paymentReceived ?? prev?.paymentReceived ?? 0,
       paymentType: input.paymentType ?? prev?.paymentType ?? '',
+      // Split-payment portions (kept only while paymentType is 'Split' — normalizeOrder_
+      // clears them for any plain type, so switching off a split never leaves a stale
+      // breakdown behind).
+      cashReceived: input.cashReceived ?? prev?.cashReceived ?? 0,
+      gpayReceived: input.gpayReceived ?? prev?.gpayReceived ?? 0,
       status: input.status ?? prev?.status ?? 'active',
       remarks: input.remarks ?? prev?.remarks ?? '',
       createdBy: prev?.createdBy || actor, createdOn: prev?.createdOn || now,
