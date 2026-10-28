@@ -21,6 +21,8 @@ const sizeKg_ = (size) => { const m = String(size || '').toLowerCase().match(/([
 const cleanName_ = (name) => String(name || '').replace('Ghari ', '').replace(/[()]/g, '').trim() || 'Item';
 // Bhusu comes in PACKETS, Ghari in BOXES — so label counts by item type.
 const unitWord_ = (category, n) => (category === 'bhusu') ? (Math.abs(n) === 1 ? 'packet' : 'packets') : (Math.abs(n) === 1 ? 'box' : 'boxes');
+// Human label for a payment type — a split karyakarta settlement reads as "Cash + G-Pay".
+const payLabel_ = (t) => String(t || '').trim().toLowerCase() === 'split' ? 'Cash + G-Pay' : String(t || '').trim();
 // Rupee value of a purchase: the amount typed on it if any, else auto-calculated
 // from the catalog price (Σ qty × item unitPrice in Settings). `priceBySku` maps
 // sku → unitPrice. Keeps the row amount and the Total cost card in agreement.
@@ -882,7 +884,7 @@ function OrderRow({ order, onOpen }) {
           paidState === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
           : paidState === 'partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
           : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'}`}>
-          {paidState === 'paid' ? (isOfficePaid(order) ? 'Paid · At office' : `Paid${order.paymentType ? ' · ' + order.paymentType : ''}`) : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
+          {paidState === 'paid' ? (isOfficePaid(order) ? 'Paid · At office' : `Paid${order.paymentType ? ' · ' + payLabel_(order.paymentType) : ''}`) : paidState === 'partial' ? `Due ${rupee(bal)}` : 'Unpaid'}
         </span>
         )}
       </div>
@@ -912,12 +914,117 @@ function StatTile({ label, value, sub, color = '#E56F18', icon: Icon }) {
     </div>
   );
 }
+// Settle a karyakarta's cash + G-Pay. A reference collects for several orders and
+// hands the money over as a mix (e.g. ₹2,000 cash + ₹1,700 G-Pay). You type the
+// cash they gave; the G-Pay is the rest of the unpaid total. The app then works out
+// exactly which orders to mark Cash and which G-Pay — splitting at most ONE order so
+// both totals match to the rupee — shows the plan, and marks them all on Confirm.
+function SettleKaryakartaModal({ season, cardKey, name, onClose, onDone }) {
+  const plan0 = useMemo(() => ghariService.planKaryakartaSettlement(season, cardKey, 0), [season, cardKey]);
+  const totalDue = plan0.totalDue;
+  // The cash portion the karyakarta handed over, as a string so the field can be
+  // cleared while typing. G-Pay is always the remainder (totalDue − cash).
+  const [cashStr, setCashStr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const cash = Math.max(0, Math.min(totalDue, Math.round(Number(cashStr || 0) || 0)));
+  const gpay = totalDue - cash;
+  const plan = useMemo(() => ghariService.planKaryakartaSettlement(season, cardKey, cash), [season, cardKey, cash]);
+  const over = Number(cashStr || 0) > totalDue;
+  const confirm = async () => {
+    if (busy || !plan.ok) return;
+    if (!(await confirmDialog({
+      title: 'Settle payments?',
+      text: `Mark ${plan.count} order${plan.count === 1 ? '' : 's'} for ${name}: ${rupee(cash)} as Cash and ${rupee(gpay)} as G-Pay${plan.splitCount ? ' (one order split across both)' : ''}.`,
+      confirmText: 'Mark paid',
+    }))) return;
+    setBusy(true);
+    try { ghariService.applyKaryakartaSettlement(plan.plan); onDone?.(); }
+    catch (e) { alertError('Could not settle', e?.message || 'Please try again.'); setBusy(false); }
+  };
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <h3 className="flex min-w-0 items-center gap-2 text-sm font-black text-text-main"><Wallet className="h-4 w-4 shrink-0 text-primary" /> <span className="truncate">Settle · {name}</span></h3>
+          <button onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+        </div>
+
+        {!plan0.ok ? (
+          <div className="p-6 text-center text-sm font-semibold text-text-muted">All of {name}'s orders are already paid — nothing to settle.</div>
+        ) : (
+          <>
+            <div className="border-b border-border-light p-4">
+              <div className="mb-3 flex items-baseline justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Unpaid total</span>
+                <span className="text-lg font-black text-text-main">{rupee(totalDue)}</span>
+              </div>
+              <label className="mb-1 block text-[11px] font-black uppercase tracking-wide text-text-muted">Cash received</label>
+              <div className="flex items-center gap-2 rounded-xl border-2 border-border-light bg-bg-base px-3 py-2 focus-within:border-primary">
+                <span className="text-base font-black text-text-muted">₹</span>
+                <input inputMode="numeric" value={cashStr} onChange={e => setCashStr(e.target.value.replace(/[^\d]/g, ''))}
+                  placeholder="0" className="w-full bg-transparent text-base font-black text-text-main outline-none" autoFocus />
+              </div>
+              {over && <p className="mt-1 text-[11px] font-bold text-amber-600">That's more than the unpaid total — capped at {rupee(totalDue)}.</p>}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/40">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">Cash</div>
+                  <div className="text-base font-black text-amber-800 dark:text-amber-200">{rupee(cash)}</div>
+                </div>
+                <div className="rounded-xl border-2 border-blue-300 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/40">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">G-Pay (auto)</div>
+                  <div className="text-base font-black text-blue-800 dark:text-blue-200">{rupee(gpay)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <p className="mb-2 text-[11px] font-bold text-text-muted">These {plan.count} order{plan.count === 1 ? '' : 's'} will be marked:</p>
+              <div className="space-y-1.5">
+                {plan.plan.map(x => (
+                  <div key={x.id} className="flex items-center gap-2 rounded-xl border border-border-light bg-bg-base px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        {x.orderNo ? <span className="shrink-0 rounded bg-surface px-1 font-mono text-[9px] font-black text-text-muted">#{x.orderNo}</span> : null}
+                        <span className="truncate text-[12px] font-bold text-text-main">{x.customerName || '(no name)'}</span>
+                      </div>
+                      <div className="text-[10px] font-semibold text-text-muted">{rupee(x.total)}</div>
+                    </div>
+                    {x.method === 'Split' ? (
+                      <div className="flex shrink-0 flex-col items-end gap-0.5">
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-900 dark:text-amber-300">Cash {rupee(x.cash)}</span>
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700 dark:bg-blue-900 dark:text-blue-300">G-Pay {rupee(x.gpay)}</span>
+                      </div>
+                    ) : x.method === 'Cash' ? (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:bg-amber-900 dark:text-amber-300">Cash</span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-black text-blue-700 dark:bg-blue-900 dark:text-blue-300">G-Pay</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-border-light p-3">
+              <button onClick={confirm} disabled={busy}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#FF9D52] to-[#E56F18] py-3 text-sm font-black text-white shadow-md disabled:opacity-50">
+                <Check className="h-4 w-4" /> {busy ? 'Marking…' : `Mark ${rupee(cash)} Cash + ${rupee(gpay)} G-Pay`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // Compact, scannable karyakarta row (works even with dozens of people); tap to
 // expand the FULL order list (every customer + what they ordered + ₹/balance),
 // and export just this karyakarta to PDF / Excel.
-function KaryakartaCard({ name, d, season, cardKey }) {
+function KaryakartaCard({ name, d, season, cardKey, canSettle }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
+  const [settling, setSettling] = useState(false);
   const due = d.amount - d.received;
   // Load this karyakarta's actual orders only when expanded (newest first).
   const orders = useMemo(
@@ -975,6 +1082,12 @@ function KaryakartaCard({ name, d, season, cardKey }) {
             })}
             {orders.length === 0 && <p className="py-2 text-[11px] text-text-muted">No orders.</p>}
           </div>
+          {canSettle && due > 0 && (
+            <button onClick={() => setSettling(true)}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/5 py-2 text-[11px] font-black text-primary">
+              <Wallet className="h-3.5 w-3.5" /> Settle cash + G-Pay ({rupee(due)} due)
+            </button>
+          )}
           <div className="mt-2 flex items-center gap-2 border-t border-border-light pt-2">
             <span className="flex-1 text-[10px] font-semibold text-text-muted">Received {rupee(d.received)} of {rupee(d.amount)}</span>
             <button onClick={() => exportOne('pdf')} disabled={!!busy}
@@ -987,6 +1100,11 @@ function KaryakartaCard({ name, d, season, cardKey }) {
             </button>
           </div>
         </div>
+      )}
+      {settling && (
+        <SettleKaryakartaModal season={season} cardKey={cardKey} name={name}
+          onClose={() => setSettling(false)}
+          onDone={() => { setSettling(false); }} />
       )}
     </div>
   );
@@ -1218,8 +1336,17 @@ function StockReconCard({ r }) {
   );
 }
 
-function ReportView({ season }) {
-  const r = useMemo(() => ghariService.buildReport(season), [season]);
+function ReportView({ season, canEdit = false }) {
+  // Recompute when an order changes (e.g. a karyakarta settlement marks payments)
+  // so the cash/G-Pay tiles and the per-karyakarta "due" update immediately.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick(t => t + 1);
+    window.addEventListener('ac-ghari-changed', on);
+    window.addEventListener('ac-ghari-synced', on);
+    return () => { window.removeEventListener('ac-ghari-changed', on); window.removeEventListener('ac-ghari-synced', on); };
+  }, []);
+  const r = useMemo(() => ghariService.buildReport(season), [season, tick]);
   const [exportKk, setExportKk] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
   // Build + hand over the two 4K contribution images (Ghari, Bhusu) — share sheet
@@ -1326,7 +1453,7 @@ function ReportView({ season }) {
             <>
               <p className="mb-3 mt-1 text-[11px] text-text-muted">Collection per person — tap a row to see every order with names, and export that person to PDF / Excel. Use the button below for several or all karyakartas at once.</p>
               <div className="space-y-2">
-                {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} season={season} cardKey={key} />)}
+                {kkList.map(([key, d]) => <KaryakartaCard key={key} name={d.name || key} d={d} season={season} cardKey={key} canSettle={canEdit} />)}
               </div>
             </>
           )}
@@ -1895,7 +2022,7 @@ function PaymentPanel({ order, canDeliver }) {
           <Wallet className="h-3.5 w-3.5" /> Payment
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${fullyPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : paid > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-bg-base text-text-muted'}`}>
-          {fullyPaid ? `Paid${ptype ? ' · ' + ptype : ''}` : paid > 0 ? `Due ${rupee(balance)}` : 'Unpaid'}
+          {fullyPaid ? `Paid${ptype ? ' · ' + payLabel_(ptype) : ''}` : paid > 0 ? `Due ${rupee(balance)}` : 'Unpaid'}
         </span>
       </div>
       <div className="mb-2 flex items-baseline justify-between">
@@ -1903,7 +2030,7 @@ function PaymentPanel({ order, canDeliver }) {
         <span className="text-[11px] font-bold text-text-muted">Received {rupee(paid)}</span>
       </div>
       {!canDeliver ? (
-        <p className="text-[12px] font-bold text-text-muted">{fullyPaid ? `Paid${ptype ? ' (' + ptype + ')' : ''}.` : `${rupee(balance)} due.`}</p>
+        <p className="text-[12px] font-bold text-text-muted">{fullyPaid ? `Paid${ptype ? ' (' + payLabel_(ptype) + ')' : ''}.` : `${rupee(balance)} due.`}</p>
       ) : (
         <div className="flex gap-1.5">
           <button onClick={() => commit('Cash')}
@@ -3602,7 +3729,7 @@ export default function GhariPage({ user }) {
       {tab === 'calllist' && <CallListView key={tick} season={season} />}
       {tab === 'ghariFollowup' && <GhariFollowupView key={tick} season={season} />}
       {tab === 'purchases' && <PurchasesView key={tick} season={season} canEdit={canEdit} />}
-      {tab === 'report' && <ReportView key={tick} season={season} />}
+      {tab === 'report' && <ReportView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'stock' && canSeeStock && <StockView key={tick} season={season} canEdit={canEdit} />}
       {tab === 'log' && canSeeLog && <GhariLogView key={tick} flash={flash} selfOnly={!canEdit} />}
       {tab === 'trash' && canEdit && <TrashView key={tick} season={season} flash={flash} onRestored={() => setTick(t => t + 1)} />}

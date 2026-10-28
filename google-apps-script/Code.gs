@@ -36,7 +36,7 @@ var HEADERS = {
   // (each line snapshots its unit price); the flattened amount columns are a
   // human-readable denormalization so the Sheet still reads like a ledger.
   // `status` ∈ active|void (soft delete — orders are never hard-deleted: money).
-  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','subOrdersJson','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveredBoxes','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn'],
+  GhariOrders: ['id','orderNo','season','customerName','customerMobile','devoteeId','karyakarta','karyakartaId','itemsJson','itemsSummary','subOrdersJson','total','withGheeAmt','withoutGheeAmt','sugarFreeAmt','bhusuAmt','delivered','deliveredBoxes','deliveryDate','paymentReceived','balance','paymentType','status','remarks','createdBy','createdOn','updatedBy','updatedOn','cashReceived','gpayReceived'],
   // Procurement (the "buy" side): boxes bought from a supplier on a date, with an
   // optional cost and a challan (bill/delivery note) photo URL. `boxes` = total
   // boxes across items; `itemsJson` holds per-item qty. status ∈ active|void.
@@ -133,7 +133,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-26-ghari-mandal-payments';
+var SCHEMA_VERSION = '2026-10-28-ghari-split-payment';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -2519,6 +2519,11 @@ function doGhariMarkDelivery_(p){
       after.paymentReceived = paid;
       if(row.paymentType !== undefined) after.paymentType = String(row.paymentType||'');
       after.balance = total - paid;
+      // Split-payment portions always travel with a payment mark (0 for a plain
+      // Cash/G-Pay/Office/Pending mark), so switching an order off a split can never
+      // leave a stale cash/G-Pay breakdown behind.
+      after.cashReceived = Math.max(0, Number(row.cashReceived)||0);
+      after.gpayReceived = Math.max(0, Number(row.gpayReceived)||0);
     }
     after.updatedBy = row.updatedBy || '';
     after.updatedOn = row.updatedOn || new Date().toISOString();

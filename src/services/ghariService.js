@@ -233,6 +233,14 @@ function normalizeOrder_(o) {
   deliveredBoxes = Math.max(0, Math.min(totalBoxes, Math.round(deliveredBoxes)));
   // The flag is always derived from the count when there are boxes to deliver.
   if (totalBoxes > 0) delivered = deliveredBoxes >= totalBoxes;
+  // Split payment: a karyakarta settlement can pay one order partly in cash and
+  // partly via G-Pay. paymentType === 'Split' is the single source of truth — the
+  // cash & G-Pay portions are kept ONLY while the type is Split, so switching an
+  // order back to a plain Cash/G-Pay/Office/Pending type can never leave a stale
+  // split behind. For a split, the money received is exactly cash + G-Pay.
+  const isSplit = String(o.paymentType || '').trim().toLowerCase() === 'split';
+  const cashReceived = isSplit ? Math.max(0, num_(o.cashReceived)) : 0;
+  const gpayReceived = isSplit ? Math.max(0, num_(o.gpayReceived)) : 0;
   return {
     id: String(o.id || ''),
     orderNo: (o.orderNo === '' || o.orderNo == null) ? '' : (Number(o.orderNo) || ''),
@@ -251,8 +259,10 @@ function normalizeOrder_(o) {
     deliveryDate: String(o.deliveryDate || '').trim(),
     // Office-paid orders are settled in full at the office; everyone else keeps the
     // amount actually received by us.
-    paymentReceived: officePaid ? totals.total : (o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived)),
+    paymentReceived: officePaid ? totals.total : (isSplit ? (cashReceived + gpayReceived) : (o.paymentReceived === '' || o.paymentReceived == null ? 0 : num_(o.paymentReceived))),
     paymentType: String(o.paymentType || '').trim(),
+    cashReceived,
+    gpayReceived,
     // active = normal, void = deleted (recoverable), cancelled = the customer called
     // off the order (kept on record, excluded from totals/delivery, shown separately).
     status: (() => { const st = String(o.status || 'active').toLowerCase(); return st === 'void' ? 'void' : st === 'cancelled' ? 'cancelled' : 'active'; })(),
@@ -371,6 +381,7 @@ function quickUpdatePayload_(order, actor, now) {
     id: order.id, season: order.season,
     delivered: !!order.delivered, deliveredBoxes: num_(order.deliveredBoxes), deliveryDate: order.deliveryDate || '',
     paymentReceived: received, paymentType: order.paymentType || '', balance: num_(order.total) - received,
+    cashReceived: num_(order.cashReceived), gpayReceived: num_(order.gpayReceived),
     updatedBy: actor, updatedOn: now,
   };
 }
@@ -445,6 +456,7 @@ function toBackendRow_(o) {
     sugarFreeAmt: t.byCategory.sf, bhusuAmt: t.byCategory.bhusu,
     delivered: !!o.delivered, deliveredBoxes: num_(o.deliveredBoxes), deliveryDate: o.deliveryDate || '', paymentReceived: num_(o.paymentReceived),
     balance: t.total - num_(o.paymentReceived), paymentType: o.paymentType,
+    cashReceived: num_(o.cashReceived), gpayReceived: num_(o.gpayReceived),
     status: o.status || 'active', remarks: o.remarks,
     createdBy: o.createdBy, createdOn: o.createdOn, updatedBy: o.updatedBy, updatedOn: o.updatedOn,
   };
@@ -908,6 +920,26 @@ export const ghariService = {
     try { dataService.logActivity('ghari-payment', order.customerName, `${pending ? 'marked payment pending' : `marked paid (${pType}) ₹${paymentReceived}`} for ${order.customerName}`); } catch { /* ignore */ }
     return order;
   },
+  // Mark ONE order as paid partly in cash and partly via G-Pay (a split payment) —
+  // used by the karyakarta settlement to settle the single "boundary" order whose
+  // total straddles the cash/G-Pay divide. paymentType becomes 'Split' and the two
+  // portions are stored; paymentReceived = cash + gpay. A PAYMENT-ONLY write, synced
+  // via the same lightweight `ghariMarkDelivery` action as markPaid/markDelivery.
+  markPaidSplit: (id, cashReceived, gpayReceived) => {
+    const idx = orders_().findIndex(o => o.id === id); if (idx < 0) return null;
+    const prev = MEM.orders[idx];
+    const cash = Math.max(0, num_(cashReceived));
+    const gpay = Math.max(0, num_(gpayReceived));
+    const actor = dataService.currentActor();
+    const now = nowISO_();
+    const order = normalizeOrder_({ ...prev, paymentType: 'Split', cashReceived: cash, gpayReceived: gpay, paymentReceived: cash + gpay, updatedBy: actor, updatedOn: now });
+    MEM.orders[idx] = order; saveOrdersLocal_();
+    enqueueUpsert_('ghariMarkDelivery', 'id', quickUpdatePayload_(order, actor, now));
+    emit_('ac-ghari-changed');
+    flush();
+    try { dataService.logActivity('ghari-payment', order.customerName, `marked paid (Split · Cash ₹${cash} + G-Pay ₹${gpay}) for ${order.customerName}`); } catch { /* ignore */ }
+    return order;
+  },
   // Set (or clear) an order's planned delivery date — a DELIVERY-ONLY write, so it
   // is allowed for any known user like marking delivery/payment. `date` is a
   // 'YYYY-MM-DD' string (or '' to clear). Syncs via the lightweight
@@ -1288,6 +1320,9 @@ export const ghariService = {
       if (o.delivered) r.delivered++; else r.pending++;
       if (office) { /* already bucketed above */ }
       else if (paidAmt <= 0) r.unpaid += t.total;
+      // Split settlement: the order's own cash & G-Pay portions are authoritative,
+      // so each lands in its own bucket (and together they sum back to paidAmt).
+      else if (pt === 'split') { r.cash += num_(o.cashReceived); r.gpay += num_(o.gpayReceived); }
       else if (pt === 'g-pay' || pt === 'gpay') r.gpay += paidAmt;
       else if (pt === 'cash') r.cash += paidAmt;
       Object.keys(r.byCategory).forEach(k => { r.byCategory[k] += t.byCategory[k] || 0; });
@@ -1399,6 +1434,66 @@ export const ghariService = {
   ordersByKaryakarta: (season, keys) => {
     const set = new Set(keys || []);
     return ghariService.getOrders(season || meta_().season).filter(o => set.has(orderKaryakartaKey_(o)));
+  },
+
+  // ---- Karyakarta cash + G-Pay settlement (partial-payment split) ----
+  // A karyakarta (reference) collects for several orders and hands the money over as
+  // a mix: part cash, part G-Pay. Given the cash amount they handed over, work out
+  // EXACTLY which of their still-unpaid orders to mark Cash and which to mark G-Pay,
+  // so the two running totals match what was actually received to the rupee. Whole
+  // orders go to one method each; at most ONE "boundary" order is split (part cash,
+  // part G-Pay) so the cash total lands precisely — never more than one split.
+  //
+  // Pure calculation (no writes): returns the proposed plan for review. The caller
+  // enters the cash figure; G-Pay is simply the remainder of the unpaid total.
+  // Only orders not yet paid (and not Office-settled) are touched — never a paid one.
+  planKaryakartaSettlement: (season, kkKey, cashAmt) => {
+    const s = season || meta_().season;
+    const orders = ghariService.ordersByKaryakarta(s, [kkKey])
+      .filter(o => o.status === 'active' && !isOfficePaid(o) && num_(o.paymentReceived) <= 0 && num_(o.total) > 0)
+      // Oldest order first (by permanent number) — deterministic, and the person
+      // reads their orders in the order they were taken.
+      .sort((a, b) => (Number(a.orderNo) || 0) - (Number(b.orderNo) || 0) || String(a.createdOn).localeCompare(String(b.createdOn)));
+    const totalDue = orders.reduce((acc, o) => acc + num_(o.total), 0);
+    // Clamp the cash figure to [0, totalDue]; the rest is G-Pay. (The UI blocks a
+    // cash amount above the total, but we clamp here too so the plan is always sane.)
+    const cash = Math.max(0, Math.min(totalDue, Math.round(num_(cashAmt))));
+    let remaining = cash;
+    const plan = orders.map(o => {
+      const total = num_(o.total);
+      let c;
+      if (remaining >= total) { c = total; remaining -= total; }   // whole order → cash
+      else if (remaining > 0) { c = remaining; remaining = 0; }     // the one boundary split
+      else c = 0;                                                   // whole order → G-Pay
+      return {
+        id: o.id, orderNo: o.orderNo, customerName: o.customerName,
+        total, cash: c, gpay: total - c,
+        method: c <= 0 ? 'G-Pay' : (c >= total ? 'Cash' : 'Split'),
+      };
+    });
+    const cashAllocated = plan.reduce((acc, x) => acc + x.cash, 0);
+    const gpayAllocated = plan.reduce((acc, x) => acc + x.gpay, 0);
+    return {
+      ok: orders.length > 0,
+      orders, plan, totalDue,
+      cash, gpay: totalDue - cash,
+      cashAllocated, gpayAllocated,
+      splitCount: plan.filter(x => x.method === 'Split').length,
+      count: orders.length,
+    };
+  },
+  // Apply a plan from planKaryakartaSettlement: mark each order Cash, G-Pay, or Split.
+  // Idempotent per order (each goes through the durable, de-duping outbox).
+  applyKaryakartaSettlement: (plan) => {
+    let n = 0;
+    (plan || []).forEach(x => {
+      if (!x || !x.id) return;
+      if (x.cash > 0 && x.gpay > 0) ghariService.markPaidSplit(x.id, x.cash, x.gpay);
+      else if (x.cash > 0) ghariService.markPaid(x.id, 'Cash');
+      else ghariService.markPaid(x.id, 'G-Pay');
+      n++;
+    });
+    return n;
   },
 
   // Excel: one row per order, grouped by karyakarta — the list the follow-up team
