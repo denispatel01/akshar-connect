@@ -3073,19 +3073,48 @@ function GhariFollowupView({ season }) {
     });
   }, [tick]);
 
+  // Which karyakarta's devotees to show ('all', a karyakarta name, or '__none__'
+  // for those with no karyakarta assigned). Lets each karyakarta call only their own.
+  const [kk, setKk] = useState('all');
+
+  // Tagged devotees who haven't ordered yet — the raw outreach pool, before the
+  // karyakarta filter and the search are applied. Each devotee's own follow-up
+  // karyakarta (followupKaryakarta) decides who should call them.
+  const pendingBase = useMemo(() => tagged.filter(d => {
+    if (d.id && buyers.ids.has(String(d.id))) return false;
+    const m = last10(d.mobile), w = last10(d.whatsapp);
+    if (m && buyers.mobs.has(m)) return false;
+    if (w && buyers.mobs.has(w)) return false;
+    return true;
+  }), [tagged, buyers]);
+
+  // Karyakarta options for the filter — only those who still have devotees to call,
+  // each with a live count, plus an "unassigned" bucket when any devotee has no
+  // karyakarta on file. Sorted by name so a karyakarta can quickly find themselves.
+  const kkOptions = useMemo(() => {
+    const counts = new Map(); let none = 0;
+    pendingBase.forEach(d => { const k = String(d.followupKaryakarta || '').trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); else none++; });
+    const arr = [...counts.entries()].map(([name, n]) => ({ value: name, name, n })).sort((a, b) => a.name.localeCompare(b.name));
+    if (none) arr.push({ value: '__none__', name: 'No karyakarta', n: none });
+    return arr;
+  }, [pendingBase]);
+
+  // If the chosen karyakarta no longer has anyone to call (e.g. they all ordered),
+  // fall back to "All" so the list never looks empty for a stale selection.
+  useEffect(() => {
+    if (kk === 'all') return;
+    if (!kkOptions.some(o => o.value === kk)) setKk('all');
+  }, [kk, kkOptions]);
+
   const pending = useMemo(() => {
-    const list = tagged.filter(d => {
-      if (d.id && buyers.ids.has(String(d.id))) return false;
-      const m = last10(d.mobile), w = last10(d.whatsapp);
-      if (m && buyers.mobs.has(m)) return false;
-      if (w && buyers.mobs.has(w)) return false;
-      return true;
-    });
+    let list = pendingBase;
+    if (kk === '__none__') list = list.filter(d => !String(d.followupKaryakarta || '').trim());
+    else if (kk !== 'all') list = list.filter(d => String(d.followupKaryakarta || '').trim() === kk);
     const s = q.trim().toLowerCase();
     const digits = s.replace(/\D/g, '');
     const f = s ? list.filter(d => (d.name || '').toLowerCase().includes(s) || (d.area || '').toLowerCase().includes(s) || (digits && last10(d.mobile).includes(digits))) : list;
     return f.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-  }, [tagged, buyers, q]);
+  }, [pendingBase, kk, q]);
 
   const telHref = (d) => { const n = last10(d.mobile || d.whatsapp); return n ? `tel:+91${n}` : null; };
   const waHref = (d) => { const n = last10(d.whatsapp || d.mobile); if (!n) return null; const txt = encodeURIComponent(`Jai Swaminarayan ${d.firstName || d.name || ''} 🙏\nGhari Seva no laabh levaa maate aapno Ghari order aapva namra vinanti. 🙏`); return `https://wa.me/91${n}?text=${txt}`; };
@@ -3096,6 +3125,17 @@ function GhariFollowupView({ season }) {
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Ghari-tagged</div><div className="text-xl font-black text-text-main">{tagged.length}</div></div>
         <div className="rounded-2xl border border-border-light bg-surface p-3"><div className="text-[11px] font-bold uppercase text-text-muted">Yet to order</div><div className="text-xl font-black text-[#EA580C]">{pending.length}</div></div>
       </div>
+      {kkOptions.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
+          <User className="h-4 w-4 shrink-0 text-text-muted" />
+          <select value={kk} onChange={e => setKk(e.target.value)}
+            className="w-full min-w-0 bg-transparent text-sm font-bold text-text-main outline-none">
+            <option value="all">All karyakartas ({pendingBase.length})</option>
+            {kkOptions.map(o => <option key={o.value} value={o.value}>{o.name} ({o.n})</option>)}
+          </select>
+          <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" />
+        </div>
+      )}
       <div className="mb-3 flex items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
         <Search className="h-4 w-4 text-text-muted" />
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, mobile or area…" className="w-full bg-transparent text-sm font-semibold text-text-main outline-none placeholder:font-medium placeholder:text-text-muted" />
@@ -3104,8 +3144,8 @@ function GhariFollowupView({ season }) {
       {pending.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border-light bg-surface py-12 text-center">
           <UserPlus className="mx-auto mb-2 h-10 w-10 text-text-muted" />
-          <p className="text-sm font-bold text-text-muted">{tagged.length ? 'Everyone tagged for Ghaari Seva has ordered 🎉' : 'No devotees carry the “Ghaari Seva” tag yet.'}</p>
-          <p className="mt-1 text-[11px] text-text-muted">This list shows devotees with the “Ghaari Seva” tag who haven't placed a Ghari order this season.</p>
+          <p className="text-sm font-bold text-text-muted">{(q || kk !== 'all') ? 'No devotees match this filter.' : (tagged.length ? 'Everyone tagged for Ghaari Seva has ordered 🎉' : 'No devotees carry the “Ghaari Seva” tag yet.')}</p>
+          <p className="mt-1 text-[11px] text-text-muted">{(q || kk !== 'all') ? 'Try “All karyakartas” or clear the search.' : 'This list shows devotees with the “Ghaari Seva” tag who haven\'t placed a Ghari order this season.'}</p>
         </div>
       ) : (
         <div className="divide-y divide-border-light overflow-hidden rounded-2xl border border-border-light bg-surface">
