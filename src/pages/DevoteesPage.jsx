@@ -415,6 +415,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [saving, setSaving] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [familyFilter, setFamilyFilter] = useState(null); // familyId -> show all its members
   const [expandedCard, setExpandedCard] = useState(null); // devotee id expanded inline
   const [tagsExpandedId, setTagsExpandedId] = useState(null); // devotee id whose full tags are shown
@@ -700,6 +701,81 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     [filteredDevotees, selectedIds]
   );
 
+  // Devotee Directory → a REAL PDF the phone can save/share. The old approach opened
+  // a new window and called window.print(), which on iOS just shows a bare page with
+  // no print/download control. Instead we build the PDF with jsPDF + autoTable and
+  // hand it to the OS share sheet (Save to Files / WhatsApp), falling back to a direct
+  // download on desktop — the same proven pattern as the Ghari exports.
+  const exportDirectoryPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      let jsPDF, autoTableMod;
+      try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+      catch {
+        // A stale lazy chunk after a background update — reload once and let the user retry.
+        try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+        throw new Error('The app was updated in the background. Reloading — please tap export again.');
+      }
+      const autoTable = autoTableMod.default || autoTableMod.autoTable;
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const filterDesc = searchQuery ? `Search: "${searchQuery}"` : selectedTags.length ? `Tags: ${selectedTags.join(', ')}` : filterKaryakartas.length ? `Karyakarta: ${filterKaryakartas.join(', ')}` : familyFilter ? `Family: ${familyFilter}` : 'All Devotees';
+      const NAVY = [0, 49, 88];
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+
+      doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+      doc.text('Akshar Connect — Devotee Directory', 40, 44);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(90, 100, 115);
+      doc.text('Adajan Satsang Mandal · Swaminarayan Hariprabodham Foundation, Adajan, Surat', 40, 58);
+      doc.text(`Printed: ${dateStr}  ·  Jai Swaminarayan`, pageW - 40, 44, { align: 'right' });
+      doc.setTextColor(60, 70, 85); doc.setFontSize(9);
+      doc.text(`Filter: ${selectedIds.size > 0 ? 'Hand-picked selection' : filterDesc}     Total: ${exportList.length} devotees`, 40, 74);
+
+      const body = exportList.map((d, i) => [
+        i + 1, d.name || '', d.address || '', firstLastName(d.followupKaryakarta) || '', mobileOf(d) || '',
+      ]);
+      autoTable(doc, {
+        startY: 84,
+        head: [['#', 'Full Name', 'Address', 'Karyakarta', 'Mobile No']],
+        body,
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+        headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [244, 247, 251] },
+        columnStyles: {
+          0: { cellWidth: 24, halign: 'right' },
+          1: { cellWidth: 120, textColor: NAVY, fontStyle: 'bold' },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 80 },
+          4: { cellWidth: 70 },
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: () => {
+          const h = doc.internal.pageSize.getHeight();
+          doc.setFontSize(7.5); doc.setTextColor(150, 160, 175); doc.setFont('helvetica', 'normal');
+          doc.text('Akshar Connect · akshar-connect.web.app', 40, h - 18);
+          doc.text('Confidential — for internal satsang use only', pageW - 40, h - 18, { align: 'right' });
+        },
+      });
+
+      const filename = `Devotee_Directory_${now.toISOString().slice(0, 10)}.pdf`;
+      try {
+        const blob = doc.output('blob');
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Akshar Connect — Devotee Directory', text: `Devotee Directory (${exportList.length})` });
+          return;
+        }
+      } catch (e) { if (String(e && e.name) === 'AbortError') return; /* else fall through to download */ }
+      doc.save(filename);
+    } catch (e) {
+      alertError('Could not create PDF', e?.message || 'Please try again.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     const name = formData.name || [formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' ');
@@ -948,58 +1024,8 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                    (selectMode ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-main hover:bg-bg-base')}>
                  <CheckSquare className="h-4 w-4" /> {selectMode ? (selectedIds.size ? `${selectedIds.size} selected` : 'Selecting') : 'Select'}
                </button>
-               <button onClick={() => {
-                 const now = new Date();
-                 const dateStr = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-                 const filterDesc = searchQuery ? `Search: "${searchQuery}"` : selectedTags.length ? `Tags: ${selectedTags.join(', ')}` : filterKaryakartas.length ? `Karyakarta: ${filterKaryakartas.join(', ')}` : familyFilter ? `Family: ${familyFilter}` : 'All Devotees';
-                 const rows = exportList.map((d, i) => `
-                   <tr>
-                     <td>${i + 1}</td>
-                     <td class="name">${d.name || ''}</td>
-                     <td>${d.address || ''}</td>
-                     <td>${firstLastName(d.followupKaryakarta) || ''}</td>
-                     <td>${mobileOf(d) || ''}</td>
-                   </tr>`).join('');
-                 const win = window.open('', '_blank');
-                 win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Akshar Connect – Devotee Directory</title><style>
-                   *{margin:0;padding:0;box-sizing:border-box}
-                   body{font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px}
-                   .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #003158;padding-bottom:10px;margin-bottom:12px}
-                   .header-left h1{font-size:16px;font-weight:700;color:#003158}
-                   .header-left p{font-size:9px;color:#555;margin-top:2px}
-                   .header-right{text-align:right;font-size:9px;color:#555}
-                   .meta{display:flex;gap:20px;margin-bottom:10px;font-size:9px;color:#444;background:#f4f7fb;padding:6px 10px;border-radius:6px}
-                   .meta strong{color:#003158}
-                   table{width:100%;border-collapse:collapse;font-size:9px}
-                   thead tr{background:#003158;color:#fff}
-                   thead th{padding:6px 5px;text-align:left;font-weight:600;white-space:nowrap}
-                   tbody tr:nth-child(even){background:#f4f7fb}
-                   tbody tr:hover{background:#e8eff8}
-                   td{padding:5px 5px;border-bottom:1px solid #e4eaf3;vertical-align:top}
-                   td.name{font-weight:600;color:#003158}
-                   .footer{margin-top:14px;border-top:1px solid #ddd;padding-top:8px;display:flex;justify-content:space-between;font-size:8px;color:#888}
-                   @page{margin:14mm 12mm;size:A4 portrait}
-                   @media print{body{padding:0}}
-                 </style></head><body>
-                   <div class="header">
-                     <div class="header-left">
-                       <h1>Akshar Connect — Devotee Directory</h1>
-                       <p>Adajan Satsang Mandal · Swaminarayan Hariprabodham Foundation, Adajan, Surat</p>
-                     </div>
-                     <div class="header-right">Printed: ${dateStr}<br/>Jai Swaminarayan 🙏</div>
-                   </div>
-                   <div class="meta"><span><strong>Filter:</strong> ${selectedIds.size > 0 ? 'Hand-picked selection' : filterDesc}</span><span><strong>Total:</strong> ${exportList.length} devotees</span></div>
-                   <table>
-                     <thead><tr>
-                       <th>#</th><th>Full Name</th><th>Address</th><th>Karyakarta</th><th>Mobile No</th>
-                     </tr></thead>
-                     <tbody>${rows}</tbody>
-                   </table>
-                   <div class="footer"><span>Akshar Connect · akshar-connect.web.app</span><span>Confidential — for internal satsang use only</span></div>
-                   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
-                 </body></html>`);
-                 win.document.close();
-               }} title="Print / PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors">
+               <button onClick={exportDirectoryPdf} disabled={pdfBusy}
+                 title="Download / share PDF" className="flex items-center justify-center p-2.5 rounded-2xl border border-border-light bg-surface text-text-main hover:bg-bg-base transition-colors disabled:opacity-50">
                  <Printer className="h-4 w-4" />
                </button>
                <button onClick={async () => {
