@@ -158,6 +158,14 @@ export default function FollowupsPage({ user }) {
   const [showTagPanel, setShowTagPanel] = useState(false);
   const [viewFilter, setViewFilter] = useState('all'); // all | pending | contacted
   const [karyakarta, setKaryakarta] = useState('');
+  const [sortBy, setSortBy] = useState(''); // '' = Name A–Z | joinedDesc | joinedAsc | areaAsc | areaDesc
+  const [headsOnly, setHeadsOnly] = useState(false); // show only family heads (Primary members)
+  // Area name (lowercased) -> assigned number from the Area Master, for area sorting.
+  const areaNumMap = useMemo(() => {
+    const m = {};
+    (dataService.getAreas() || []).forEach(a => { if (a.name) m[String(a.name).trim().toLowerCase()] = a.number; });
+    return m;
+  }, []);
   // When set, the roster is filtered to devotees with this exact outcome — set by
   // tapping an outcome summary chip, so each count drills into its devotee list.
   const [outcomeFilter, setOutcomeFilter] = useState('');
@@ -285,7 +293,12 @@ export default function FollowupsPage({ user }) {
   // Audience = devotees matching search + tag filter (+ pending filter)
   const audience = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const areaNum = (d) => {
+      const n = areaNumMap[String(d.area || '').trim().toLowerCase()];
+      return (n === undefined || n === '' || isNaN(parseInt(n, 10))) ? null : parseInt(n, 10);
+    };
     return devotees.filter(d => {
+      if (headsOnly && d.type !== 'Primary') return false;
       if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
@@ -293,8 +306,19 @@ export default function FollowupsPage({ user }) {
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
       if (outcomeFilter && (fmap[d.id]?.outcome || '') !== outcomeFilter) return false;
       return true;
-    }).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))); // A→Z
-  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter]);
+    }).sort((a, b) => {
+      if (sortBy === 'joinedDesc') return String(b.dateOfJoining || '').localeCompare(String(a.dateOfJoining || ''));
+      if (sortBy === 'joinedAsc') return String(a.dateOfJoining || '').localeCompare(String(b.dateOfJoining || ''));
+      if (sortBy === 'areaAsc' || sortBy === 'areaDesc') {
+        const na = areaNum(a), nb = areaNum(b);
+        if (na === null && nb === null) return String(a.area || '').localeCompare(String(b.area || ''));
+        if (na === null) return 1;   // unnumbered areas last
+        if (nb === null) return -1;
+        return sortBy === 'areaAsc' ? na - nb : nb - na;
+      }
+      return String(a.name || '').localeCompare(String(b.name || '')); // A→Z
+    });
+  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter, sortBy, headsOnly, areaNumMap]);
 
   // Name → mobile for karyakartas (so a reminder can reach the karyakartas, not
   // only the devotees). Matches the assigned/default karyakarta name to a devotee
@@ -319,6 +343,7 @@ export default function FollowupsPage({ user }) {
   const summary = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = devotees.filter(d => {
+      if (headsOnly && d.type !== 'Primary') return false;
       if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
@@ -331,7 +356,7 @@ export default function FollowupsPage({ user }) {
       if (f?.outcome) s.byOutcome[f.outcome] = (s.byOutcome[f.outcome] || 0) + 1;
     });
     return s;
-  }, [devotees, search, selectedTags, fmap, karyakarta]);
+  }, [devotees, search, selectedTags, fmap, karyakarta, headsOnly]);
 
   // This event's own outcome options (Ghari Seva drives differ from attendance).
   const eventOutcomes = useMemo(() => parseOutcomes(selectedEvent?.outcomes), [selectedEvent]);
@@ -638,6 +663,19 @@ export default function FollowupsPage({ user }) {
                 {karyakartaOptions.map(k => <option key={k} value={k}>{firstLastName(k)}</option>)}
               </select>
             )}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} title="Sort"
+              className={`col-span-2 sm:col-auto w-full sm:w-auto min-w-0 truncate rounded-2xl border px-3 py-2.5 text-sm font-bold outline-none ${sortBy ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
+              <option value="">Sort: Name (A–Z)</option>
+              <option value="joinedDesc">Recently joined</option>
+              <option value="joinedAsc">Oldest joined</option>
+              <option value="areaAsc">Area (1 → last)</option>
+              <option value="areaDesc">Area (last → 1)</option>
+            </select>
+            <button onClick={() => setHeadsOnly(v => !v)}
+              title="Show only family heads (primary members)"
+              className={`col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${headsOnly ? 'border-primary bg-primary text-white' : 'border-border-light bg-surface text-text-muted'}`}>
+              <UserRound className="h-4 w-4" /> Family heads
+            </button>
             <button onClick={() => setShowTagPanel(v => !v)}
               className={`col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold ${selectedTags.length ? 'border-primary bg-[#EAF0F7] text-text-main' : 'border-border-light bg-surface text-text-muted'}`}>
               <Filter className="h-4 w-4" /> Tags{selectedTags.length ? ` (${selectedTags.length})` : ''}
