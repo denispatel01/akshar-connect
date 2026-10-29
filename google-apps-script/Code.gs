@@ -1526,7 +1526,20 @@ function migrateHeaders_(name){
       sh.copyTo(ss_()).setName(name + '_bak_' + Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd_HHmmss'));
     } catch(e) {}
     var block = last >= 1 ? sh.getRange(1,1,last,width).getValues() : [[]];
-    var pos = {}; cur2.forEach(function(h,idx){ pos[h] = idx; });
+    // Map each header NAME to a source column. If a header appears more than once
+    // (a stray duplicate column), keep the occurrence that actually HAS data, else
+    // the FIRST one — never let a trailing blank duplicate shadow the real column
+    // (that once blanked the Areas names). Data is still moved only by name.
+    var pos = {};
+    cur2.forEach(function(h, idx){
+      if(!(h in pos)) { pos[h] = idx; return; }
+      var prevHasData = false, thisHasData = false;
+      for(var rr=1; rr<block.length; rr++){
+        if(String(block[rr][pos[h]]==null?'':block[rr][pos[h]]).trim()) prevHasData = true;
+        if(String(block[rr][idx]==null?'':block[rr][idx]).trim()) thisHasData = true;
+      }
+      if(!prevHasData && thisHasData) pos[h] = idx; // replace an empty dup with the filled one
+    });
     var out = block.map(function(row, r){
       return target.map(function(h){
         if(r === 0) return h;                 // header row -> target names
