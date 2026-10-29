@@ -162,6 +162,8 @@ export default function FollowupsPage({ user }) {
   const [headsOnly, setHeadsOnly] = useState(false); // show only family heads (Primary members)
   const [collapsedAreas, setCollapsedAreas] = useState(new Set()); // area names collapsed in a family-wise drive
   const toggleArea = (area) => setCollapsedAreas(prev => { const n = new Set(prev); n.has(area) ? n.delete(area) : n.add(area); return n; });
+  const [collapsedCards, setCollapsedCards] = useState(new Set()); // devotee/family cards collapsed to a one-line header
+  const toggleCard = (id) => setCollapsedCards(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // Area name (lowercased) -> assigned number from the Area Master, for area sorting.
   const areaNumMap = useMemo(() => {
     const m = {};
@@ -779,15 +781,21 @@ export default function FollowupsPage({ user }) {
           const assigned = (f.assignedTo || d.followupKaryakarta || '').trim();
           const doneBy = (f.contactedBy || '').trim();
           const coveredBy = contacted(f) && doneBy && assigned && doneBy.toLowerCase() !== assigned.toLowerCase();
+          const expanded = !collapsedCards.has(d.id);
           return (
             <div key={d.id} className="rounded-2xl border border-border-light bg-surface p-3 shadow-xs">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                {/* identity */}
-                <div className="min-w-0 flex-1">
+                {/* identity — tap to collapse/expand this card */}
+                <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleCard(d.id)}>
                   <div className="flex items-center gap-2">
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
                     <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                    {!expanded && f.outcome && (
+                      <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${outcomeStyle(f.outcome)}`}>{f.outcome}</span>
+                    )}
                   </div>
+                  {expanded && <>
                   <p className="text-[11px] text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {d.mobile || '—'}</p>
                   {/* Assigned karyakarta + who actually did the follow-up (and when). */}
                   {assigned && (
@@ -821,10 +829,11 @@ export default function FollowupsPage({ user }) {
                       </div>
                     );
                   })()}
+                  </>}
                 </div>
 
                 {/* actions */}
-                <div className="flex flex-wrap items-center gap-2">
+                {expanded && <div className="flex flex-wrap items-center gap-2">
                   {/* Call / in-person / message are collapsed by default. Tap "Log" to
                       reveal them only when you actually want to record a contact. The
                       count badge shows how many are already logged. */}
@@ -871,13 +880,13 @@ export default function FollowupsPage({ user }) {
                     title="Send WhatsApp invite">
                     <MessageSquare className="h-3.5 w-3.5" /> WA
                   </a>
-                </div>
+                </div>}
               </div>
 
               {/* Family — mark each member coming / not coming right here, so a
                   mixed household (e.g. 3 coming, 2 not) can be recorded without
                   opening every member's card. Shows who already followed up too. */}
-              {famAll.length > 0 && (
+              {expanded && famAll.length > 0 && (
                 <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="flex items-center gap-1 text-[11px] font-bold text-primary">
@@ -915,6 +924,7 @@ export default function FollowupsPage({ user }) {
 
               {/* Assign (or re-assign) the karyakarta for this devotee's follow-up.
                   Overrides the devotee's default assignee for this event only. */}
+              {expanded && <>
               <input
                 list="followup-karyakarta-list"
                 defaultValue={f.assignedTo || ''}
@@ -926,6 +936,7 @@ export default function FollowupsPage({ user }) {
                 onBlur={e => { if (e.target.value !== (f.remark || '')) save(d.id, { remark: e.target.value }); }}
                 placeholder="Remark (notes)…"
                 className="mt-2 w-full rounded-xl border border-[#EEF2F7] bg-[#F8FAFC] px-3 py-1.5 text-xs text-text-main outline-none focus:border-primary" />
+              </>}
             </div>
           );
         };
