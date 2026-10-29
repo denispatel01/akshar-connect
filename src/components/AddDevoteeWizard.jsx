@@ -249,6 +249,15 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
       } : {}),
     });
   };
+  // Is this person being added as a family head (their own family) or a member of
+  // an existing family? Chosen up front (step 0) so a member's head can pre-fill
+  // address / area / karyakarta / surname BEFORE the rest of the form is typed.
+  const isMemberMode = form.type === 'Family';
+  const setHeadMode = () => set({ familyId: '', type: 'Primary', relation: 'Self' });
+  const setMemberMode = () => set({ type: 'Family', relation: form.relation === 'Self' ? '' : form.relation });
+  // In member mode, clearing the head picker must keep member mode (don't flip
+  // back to "head"); picking a head runs the full pre-fill.
+  const onHeadChange = (fid) => { if (!fid) { set({ familyId: '' }); return; } pickHead(fid); };
 
   const onPhotoFile = (file) => {
     if (!file) return;
@@ -414,6 +423,37 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           {step === 0 && (
             <div className={CARD.basics}>
               <h3 className="flex items-center gap-2 text-lg font-black text-orange-700">👤 {SECTION_TITLE[0]}</h3>
+
+              {/* FIRST: head or member? A member picks their family head here, which
+                  pre-fills address / area / karyakarta / surname before anything else. */}
+              <div className="rounded-2xl border border-rose-200/70 bg-gradient-to-br from-rose-50 to-pink-50 p-4 space-y-3">
+                <Label>👨‍👩‍👧 Is this a family head or a member?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={setHeadMode}
+                    className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-3 py-2.5 text-sm font-bold transition-all ${!isMemberMode ? 'border-primary bg-primary text-white shadow-md' : 'border-border-light bg-surface text-text-main hover:border-primary/50'}`}>
+                    <span className="text-lg">🏠</span> Family Head
+                  </button>
+                  <button type="button" onClick={setMemberMode}
+                    className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-3 py-2.5 text-sm font-bold transition-all ${isMemberMode ? 'border-primary bg-primary text-white shadow-md' : 'border-border-light bg-surface text-text-main hover:border-primary/50'}`}>
+                    <span className="text-lg">👥</span> Family Member
+                  </button>
+                </div>
+                {isMemberMode && (
+                  <div className="space-y-2">
+                    <Label>Family Head</Label>
+                    <HeadPicker heads={familyHeads} value={form.familyId} onChange={onHeadChange} />
+                    {form.familyId && (
+                      <>
+                        <select value={form.relation} onChange={(e) => set({ relation: e.target.value })} className={inputCls}>
+                          <option value="">— Relation to head —</option>{RELATIONS.filter((r) => r !== 'Self').map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <p className="text-[10px] font-semibold text-text-muted">✓ Address, area, karyakarta &amp; surname were pre-filled from the family head — edit anywhere if needed.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center gap-4">
                 <img src={avatar} alt="" className="h-20 w-20 rounded-2xl object-cover border-2 border-border-light bg-surface" />
                 <div>
@@ -453,6 +493,8 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
 
           {step === 1 && (() => {
             const isBal = form.yuvakType === 'Bal';
+            // A homemaker has no profession field / company — hide those inputs.
+            const isHomemaker = form.profession === 'Homemaker';
             const YT_META = { Ambrish: '🙏', Yuvak: '🧑', Bal: '🧒', New: '🌱' };
             return (
             <div className="space-y-4">
@@ -540,10 +582,10 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
                   <h3 className="flex items-center gap-2 text-lg font-black text-violet-700">💼 Profession</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label>💼 Profession</Label>
-                      <select value={form.profession} onChange={(e) => set({ profession: e.target.value })} className={inputCls}>
+                      <select value={form.profession} onChange={(e) => set(e.target.value === 'Homemaker' ? { profession: e.target.value, professionField: '', companyName: '' } : { profession: e.target.value })} className={inputCls}>
                         <option value="">— Select —</option>{PROFESSIONS.map((o) => <option key={o}>{o}</option>)}</select></div>
-                    <div><Label>🛠️ Field</Label><input value={form.professionField} onChange={setCap('professionField')} placeholder="e.g. Software Developer" className={inputCls} /></div>
-                    <div><Label>🏢 Company</Label><input value={form.companyName} onChange={setCap('companyName')} className={inputCls} /></div>
+                    {!isHomemaker && <div><Label>🛠️ Field</Label><input value={form.professionField} onChange={setCap('professionField')} placeholder="e.g. Software Developer" className={inputCls} /></div>}
+                    {!isHomemaker && <div><Label>🏢 Company</Label><input value={form.companyName} onChange={setCap('companyName')} className={inputCls} /></div>}
                   </div>
                 </div>
               )}
@@ -554,18 +596,11 @@ export default function AddDevoteeWizard({ user, devotees, familyHeads, karyakar
           {step === 2 && (
             <div className={CARD.family}>
               <h3 className="flex items-center gap-2 text-lg font-black text-rose-700">🙏 {SECTION_TITLE[2]}</h3>
-              <div className="rounded-2xl border border-border-light bg-bg-base p-3 space-y-2">
-                <Label>Family Head <span className="font-semibold text-text-muted">(leave blank if this person heads their own family)</span></Label>
-                <HeadPicker heads={familyHeads} value={form.familyId} onChange={pickHead} />
-                {form.familyId && (
-                  <>
-                    <select value={form.relation} onChange={(e) => set({ relation: e.target.value })} className={inputCls}>
-                      <option value="">— Relation to head —</option>{RELATIONS.filter((r) => r !== 'Self').map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                    <p className="text-[10px] font-semibold text-text-muted">Address, area, karyakarta &amp; surname were suggested from the family head — edit anywhere if needed.</p>
-                  </>
-                )}
-              </div>
+              {form.familyId && headName && (
+                <div className="flex items-center gap-2 rounded-2xl border border-rose-200/70 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  <span className="text-base">👨‍👩‍👧</span> {form.relation || 'Member'} of {headName} — set on step 1.
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div><Label>Follow-up Karyakarta</Label>
                   <Combo options={karyakartaOptions} value={form.followupKaryakarta} placeholder="Select or type"
