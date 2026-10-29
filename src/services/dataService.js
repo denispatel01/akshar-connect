@@ -1347,7 +1347,7 @@ export const dataService = {
     const idx = DB.followups.findIndex(f => f.eventId === eventId && f.devoteeId === devoteeId);
     const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     const base = idx >= 0 ? DB.followups[idx]
-      : { id: `FUP-${Date.now()}-${devoteeId}`, eventId, devoteeId, assignedTo: '', call: false, inPerson: false, message: false, outcome: '', remark: '' };
+      : { id: `FUP-${Date.now()}-${devoteeId}`, eventId, devoteeId, assignedTo: '', call: false, inPerson: false, message: false, outcome: '', remark: '', manual: false };
     const rec = { ...base, ...fields, contactedOn: new Date().toISOString(), contactedBy: sess ? sess.name : '' };
     if (idx >= 0) DB.followups[idx] = rec; else DB.followups.push(rec);
     saveCache();
@@ -1355,6 +1355,7 @@ export const dataService = {
       eventId, devoteeId, assignedTo: rec.assignedTo,
       call: rec.call, inPerson: rec.inPerson, message: rec.message,
       outcome: rec.outcome, remark: rec.remark, contactedBy: rec.contactedBy,
+      manual: !!rec.manual,
     });
     const dev = DB.devotees.find(d => d.id === devoteeId);
     const ev = DB.sabhas.find(s => s.id === eventId);

@@ -2443,13 +2443,18 @@ function doSaveFollowup_(p){
     if(last>=2){ var v=sh.getRange(2,1,last-1,H.length).getValues();
       for(var i=0;i<v.length;i++){ if(String(v[i][1])===String(p.eventId) && String(v[i][2])===String(p.devoteeId)){ found=i+2; break; } } }
     var now=new Date().toISOString();
+    // Preserve the "manual" flag: if a later save (e.g. setting an outcome) omits it,
+    // keep whatever the row already had, so a manually-added devotee stays in the drive.
+    var manualIdx=H.indexOf('manual'); var existingManual=false;
+    if(found>0 && manualIdx>=0){ var ev=sh.getRange(found,manualIdx+1).getValue(); existingManual=(ev===true||ev==='true'||ev==='TRUE'||ev==='1'); }
+    var manualVal=(p.manual===undefined||p.manual===null||p.manual==='') ? existingManual : (p.manual===true||p.manual==='true');
     var row={
       id: (found>0 ? (sh.getRange(found,1).getValue()||('FUP-'+Date.now())) : ('FUP-'+Date.now())),
       eventId:p.eventId, devoteeId:p.devoteeId,
       assignedTo:p.assignedTo||'',
       call:(p.call===true||p.call==='true'), inPerson:(p.inPerson===true||p.inPerson==='true'), message:(p.message===true||p.message==='true'),
       outcome:p.outcome||'', remark:p.remark||'',
-      contactedOn:now, contactedBy:p.contactedBy||''
+      contactedOn:now, contactedBy:p.contactedBy||'', manual:manualVal
     };
     if(found>0){ sh.getRange(found,1,1,H.length).setValues([rowFromObj_('Followups',row)]); }
     else appendRows_('Followups',[row]);
