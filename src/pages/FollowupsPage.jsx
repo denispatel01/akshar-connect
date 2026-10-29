@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   PhoneCall, Phone, Users2, Users, ArrowLeft, Search, Filter, X, Check,
-  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, Plus, Pencil, Trash2
+  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, ChevronDown, MapPin, Plus, Pencil, Trash2
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoTextarea from '../components/AutoTextarea';
@@ -160,6 +160,8 @@ export default function FollowupsPage({ user }) {
   const [karyakarta, setKaryakarta] = useState('');
   const [sortBy, setSortBy] = useState(''); // '' = Name A–Z | joinedDesc | joinedAsc | areaAsc | areaDesc
   const [headsOnly, setHeadsOnly] = useState(false); // show only family heads (Primary members)
+  const [collapsedAreas, setCollapsedAreas] = useState(new Set()); // area names collapsed in a family-wise drive
+  const toggleArea = (area) => setCollapsedAreas(prev => { const n = new Set(prev); n.has(area) ? n.delete(area) : n.add(area); return n; });
   // Area name (lowercased) -> assigned number from the Area Master, for area sorting.
   const areaNumMap = useMemo(() => {
     const m = {};
@@ -764,9 +766,9 @@ export default function FollowupsPage({ user }) {
         {karyakartaOptions.map(k => <option key={k} value={k} />)}
       </datalist>
 
-      {/* Roster */}
-      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-        {audience.slice(0, AUDIENCE_CAP).map(d => {
+      {/* Roster — flat grid, or grouped into collapsible areas for a family-wise drive. */}
+      {(() => {
+        const renderCard = (d) => {
           const f = fmap[d.id] || {};
           // All OTHER members of this devotee's family (contacted or not) — so a
           // karyakarta can mark each member coming / not coming right here.
@@ -926,15 +928,71 @@ export default function FollowupsPage({ user }) {
                 className="mt-2 w-full rounded-xl border border-[#EEF2F7] bg-[#F8FAFC] px-3 py-1.5 text-xs text-text-main outline-none focus:border-primary" />
             </div>
           );
-        })}
+        };
 
-        {audience.length === 0 && (
-          <p className="col-span-full text-center text-xs text-text-muted py-8">No devotees match this filter.</p>
-        )}
-        {audience.length > AUDIENCE_CAP && (
-          <p className="col-span-full text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the list.</p>
-        )}
-      </div>
+        const shown = audience.slice(0, AUDIENCE_CAP);
+        const capNote = audience.length > AUDIENCE_CAP
+          ? <p className="text-center text-xs text-text-muted">Showing first {AUDIENCE_CAP} of {audience.length}. Use search or tags to narrow the list.</p>
+          : null;
+        if (audience.length === 0) {
+          return <p className="text-center text-xs text-text-muted py-8">No devotees match this filter.</p>;
+        }
+
+        // Family-wise drive: group the roster by area into expand/collapse sections,
+        // so a karyakarta works through one area (one locality) at a time.
+        if (selectedEvent?.familyWise) {
+          const areaNum = (name) => {
+            const n = areaNumMap[String(name || '').trim().toLowerCase()];
+            return (n === undefined || n === '' || isNaN(parseInt(n, 10))) ? null : parseInt(n, 10);
+          };
+          const groups = new Map();
+          shown.forEach(d => {
+            const a = String(d.area || '').trim() || 'No area';
+            if (!groups.has(a)) groups.set(a, []);
+            groups.get(a).push(d);
+          });
+          const areas = [...groups.keys()].sort((a, b) => {
+            const na = areaNum(a), nb = areaNum(b);
+            if (na !== null && nb !== null) return na - nb;
+            if (na !== null) return -1;
+            if (nb !== null) return 1;
+            return a.localeCompare(b);
+          });
+          return (
+            <div className="space-y-3">
+              {areas.map(area => {
+                const list = groups.get(area);
+                const collapsed = collapsedAreas.has(area);
+                return (
+                  <div key={area} className="overflow-hidden rounded-2xl border border-border-light bg-bg-base">
+                    <button onClick={() => toggleArea(area)}
+                      className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-surface">
+                      <span className="flex items-center gap-2 text-sm font-black text-text-main">
+                        <MapPin className="h-4 w-4 text-primary" /> {area}
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">{list.length}</span>
+                      </span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsed && (
+                      <div className="grid grid-cols-1 gap-2 p-3 pt-0 xl:grid-cols-2 2xl:grid-cols-3">
+                        {list.map(renderCard)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {capNote}
+            </div>
+          );
+        }
+
+        return (
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
+            {shown.map(renderCard)}
+            {capNote && <div className="col-span-full">{capNote}</div>}
+          </div>
+        );
+      })()}
     </div>
     </>
   );
