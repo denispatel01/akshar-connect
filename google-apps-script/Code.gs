@@ -13,7 +13,7 @@ var HEADERS = {
   // give a non-admin access to a specific module like Ghari Seva.
   Users:      ['mobile','pin','password','role','name','modules'],
   Devotees:   ['id','name','firstName','middleName','lastName','gender','dob','bloodGroup','maritalStatus','anniversary','mobile','whatsapp','email','mandal','area','address','education','ambrish','familyId','relation','type','dateOfJoining','attendanceRate','status','tags','qualification','grade','gradeAsOf','educationStatus','school','profession','professionField','companyName','areaRoute','reference','followupKaryakarta','followupKaryakartaMobile','yuvakType','photo','notes','createdBy','createdOn','updatedBy','updatedOn','oldNew'],
-  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags','outcomes'],
+  Sabhas:     ['id','title','date','time','venue','presentCount','totalCount','status','type','description','tags','outcomes','familyWise'],
   Attendance: ['id','sabhaId','devoteeId','present','timestamp','markedBy'],
   Followups:  ['id','eventId','devoteeId','assignedTo','call','inPerson','message','outcome','remark','contactedOn','contactedBy'],
   Thoughts:   ['id','author','thought','date'],
@@ -133,7 +133,7 @@ var HEADERS = {
   DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-28-ghari-split-payment';
+var SCHEMA_VERSION = '2026-10-30-sabha-family-wise';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -145,7 +145,7 @@ var SEED_EMAIL_TEMPLATES = [
 ];
 
 // Columns stored/returned as booleans (coerced on read).
-var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true };
+var BOOL_COLS = { present:true, call:true, inPerson:true, message:true, delivered:true, active:true, familyWise:true };
 // Exceptions: a column named like a bool column above but which is FREE TEXT in a
 // specific sheet, keyed as 'Sheet.column' — these must never be coerced to a
 // boolean. (ErrorLog.message is the error text, not a Followups-style

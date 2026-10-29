@@ -47,7 +47,7 @@ const firstLastName = (full) => {
 const AUDIENCE_CAP = 250;
 const EVENT_TYPES = ['Sabha', 'Seva', 'Event', 'Padhramani', 'Samaiyo', 'Karyakarta Sabha/Shibir'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha', description: '', tags: [], outcomes: [...DEFAULT_OUTCOMES] });
+const emptyEventForm = () => ({ title: '', date: todayStr(), time: '06:00 PM', venue: '', type: 'Sabha', description: '', tags: [], outcomes: [...DEFAULT_OUTCOMES], familyWise: false });
 // Event tags are stored as a pipe-joined string on the backend; parse to an array.
 const parseEventTags = (v) => Array.isArray(v) ? v : String(v || '').split('|').map(s => s.trim()).filter(Boolean);
 
@@ -205,6 +205,10 @@ export default function FollowupsPage({ user }) {
     // the relevant devotees (e.g. an event tagged "Friday Sabha" shows only them).
     const evTags = parseEventTags(ev.tags);
     setSearch(''); setSelectedTags(evTags); setViewFilter('all'); setShowTagPanel(false);
+    // A family-wise drive (e.g. Annakutt Seva) opens showing one card per family
+    // head by default — the seva is logged per household, not per person. The user
+    // can still turn the "Family heads" filter off to see every member.
+    setHeadsOnly(!!ev.familyWise); setOutcomeFilter('');
   };
 
   const contacted = (f) => !!(f && (f.call || f.inPerson || f.message || f.outcome));
@@ -221,6 +225,7 @@ export default function FollowupsPage({ user }) {
       description: eventForm.description || '',
       tags: parseEventTags(eventForm.tags).join('|'),
       outcomes: (eventForm.outcomes && eventForm.outcomes.length ? eventForm.outcomes : DEFAULT_OUTCOMES).join('|'),
+      familyWise: !!eventForm.familyWise,
     };
     const isNew = !editingEventId;
     const saved = editingEventId ? dataService.updateSabha(editingEventId, payload) : dataService.addSabha(payload);
@@ -243,7 +248,7 @@ export default function FollowupsPage({ user }) {
   const openNewEvent = () => { setEditingEventId(null); setEventForm(emptyEventForm()); setShowEventModal(true); };
   const openEditEvent = (ev) => {
     setEditingEventId(ev.id);
-    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags), outcomes: parseOutcomes(ev.outcomes) });
+    setEventForm({ title: ev.title || '', date: ev.date || todayStr(), time: ev.time || '', venue: ev.venue || '', type: ev.type || 'Sabha', description: ev.description || '', tags: parseEventTags(ev.tags), outcomes: parseOutcomes(ev.outcomes), familyWise: !!ev.familyWise });
     setShowEventModal(true);
   };
   const deleteEvent = async (ev) => {
@@ -491,6 +496,17 @@ export default function FollowupsPage({ user }) {
                     {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
+                {/* Family-wise drives (e.g. Annakutt Seva) are tracked per household,
+                    so the drive opens showing one card per family head. */}
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border-light bg-surface px-4 py-3">
+                  <input type="checkbox" checked={!!eventForm.familyWise}
+                    onChange={e => setEventForm(f => ({ ...f, familyWise: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#FF862A]" />
+                  <span>
+                    <span className="block text-sm font-bold text-text-main">👨‍👩‍👧 Family-wise drive</span>
+                    <span className="block text-[11px] font-semibold text-text-muted">The seva is logged per household (e.g. Annakutt Seva). The drive opens showing only family heads — set each family's outcome once. Karyakartas can still turn this off.</span>
+                  </span>
+                </label>
                 {/* Follow-up outcome options — editable per event. A Ghari Seva drive
                     needs order-focused outcomes, not "Coming / Not coming". */}
                 <div>
