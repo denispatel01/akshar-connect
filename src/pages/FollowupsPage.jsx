@@ -855,7 +855,7 @@ export default function FollowupsPage({ user }) {
                 <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleCard(d.id)}>
                   <div className="flex items-center gap-2">
                     <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                    <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
+                    <p className="text-sm font-bold text-text-main break-words">{d.name}</p>
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
                     {f.manual && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">Added</span>}
                     {!expanded && f.outcome && (
