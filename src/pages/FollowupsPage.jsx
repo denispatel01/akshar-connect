@@ -164,6 +164,8 @@ export default function FollowupsPage({ user }) {
   const toggleArea = (area) => setCollapsedAreas(prev => { const n = new Set(prev); n.has(area) ? n.delete(area) : n.add(area); return n; });
   const [collapsedCards, setCollapsedCards] = useState(new Set()); // devotee/family cards collapsed to a one-line header
   const toggleCard = (id) => setCollapsedCards(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const [addPick, setAddPick] = useState(false); // manual "add a devotee to this drive" picker open?
+  const [addQuery, setAddQuery] = useState('');
   // Area name (lowercased) -> assigned number from the Area Master, for area sorting.
   const areaNumMap = useMemo(() => {
     const m = {};
@@ -266,6 +268,15 @@ export default function FollowupsPage({ user }) {
     setFmap(prev => ({ ...prev, [devId]: rec }));
   };
 
+  // Manually add a devotee to THIS drive even if they lack the event's tag — e.g.
+  // someone who was given prasad but isn't tagged "Annakutt Seva". Marks a follow-up
+  // record as manual so they always appear (and persist across reloads).
+  const addToDrive = (devId) => {
+    save(devId, { manual: true });
+    setCollapsedCards(prev => { const n = new Set(prev); n.delete(devId); return n; });
+    setAddPick(false); setAddQuery('');
+  };
+
   // ── Family-aware follow-up ────────────────────────────────────────────────
   // A drive has separate male/female karyakartas, but a family often answers as a
   // unit (the head says "my whole family is coming"). So two things are needed:
@@ -307,10 +318,15 @@ export default function FollowupsPage({ user }) {
       return (n === undefined || n === '' || isNaN(parseInt(n, 10))) ? null : parseInt(n, 10);
     };
     return devotees.filter(d => {
-      if (headsOnly && d.type !== 'Primary') return false;
+      // Manually-added devotees (given prasad / contacted though they lack the event
+      // tag) are always part of the drive — they bypass the tag & family-head filters.
+      const manual = !!fmap[d.id]?.manual;
+      if (!manual) {
+        if (headsOnly && d.type !== 'Primary') return false;
+        if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
+      }
       if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
-      if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
       if (outcomeFilter && (fmap[d.id]?.outcome || '') !== outcomeFilter) return false;
@@ -352,10 +368,13 @@ export default function FollowupsPage({ user }) {
   const summary = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = devotees.filter(d => {
-      if (headsOnly && d.type !== 'Primary') return false;
+      const manual = !!fmap[d.id]?.manual;
+      if (!manual) {
+        if (headsOnly && d.type !== 'Primary') return false;
+        if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
+      }
       if (q && !devoteeMatches(d, search)) return false;
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
-      if (selectedTags.length && !hasAnyTag(d, selectedTags)) return false;
       return true;
     });
     const s = { total: base.length, contacted: 0, pending: 0, byOutcome: {} };
@@ -763,6 +782,53 @@ export default function FollowupsPage({ user }) {
         );
       })()}
 
+      {/* Manually add a devotee who isn't in this drive (e.g. given prasad but not
+          tagged). One tap opens a searchable picker. */}
+      <button onClick={() => { setAddPick(true); setAddQuery(''); }}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/50 bg-primary/5 px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary/10 active:scale-[0.99]">
+        <Plus className="h-4 w-4" /> Add a devotee to this drive
+      </button>
+      {addPick && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setAddPick(false)}>
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+              <h3 className="flex items-center gap-2 text-sm font-black text-text-main"><Plus className="h-4 w-4 text-[#FF862A]" /> Add devotee to drive</h3>
+              <button onClick={() => setAddPick(false)} className="grid h-8 w-8 place-items-center rounded-xl text-text-muted hover:bg-bg-base"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="border-b border-border-light p-3">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-text-muted" />
+                <input autoFocus value={addQuery} onChange={e => setAddQuery(e.target.value)} placeholder="Search name, DOB or mobile…"
+                  className="w-full rounded-2xl border border-border-light bg-surface pl-10 pr-3 py-2.5 text-sm font-semibold text-text-main outline-none focus:border-primary" />
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {(() => {
+                const q = addQuery.trim();
+                if (!q) return <p className="py-6 text-center text-xs text-text-muted">Type a name, DOB or mobile to find a devotee.</p>;
+                const hits = devotees.filter(d => devoteeMatches(d, q)).slice(0, 30);
+                if (!hits.length) return <p className="py-6 text-center text-xs text-text-muted">No devotee matches “{q}”.</p>;
+                return hits.map(d => {
+                  const already = !!fmap[d.id];
+                  return (
+                    <button key={d.id} disabled={already} onClick={() => addToDrive(d.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl border border-border-light bg-surface p-2.5 text-left transition-colors ${already ? 'opacity-50' : 'hover:border-primary'} mb-1.5`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-text-main">{d.name}</p>
+                        <p className="truncate text-[11px] text-text-muted">{d.area || 'No area'}{d.mobile ? ` · 📱 ${d.mobile}` : ''}</p>
+                      </div>
+                      {already ? <span className="shrink-0 text-[11px] font-bold text-emerald-600">In drive ✓</span>
+                        : <span className="shrink-0 rounded-lg bg-[#FF862A] px-2.5 py-1 text-[11px] font-bold text-white">Add</span>}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Shared karyakarta suggestions for the per-card "Assign" inputs. */}
       <datalist id="followup-karyakarta-list">
         {karyakartaOptions.map(k => <option key={k} value={k} />)}
@@ -791,6 +857,7 @@ export default function FollowupsPage({ user }) {
                     <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
                     <p className="text-sm font-bold text-text-main truncate">{d.name}</p>
                     {contacted(f) && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                    {f.manual && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">Added</span>}
                     {!expanded && f.outcome && (
                       <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${outcomeStyle(f.outcome)}`}>{f.outcome}</span>
                     )}
