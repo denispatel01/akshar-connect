@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Database, Search, AlertTriangle, Trash2, Phone, CalendarDays, CheckCircle2,
-  ChevronRight, Copy, X, Users, TrendingUp, ShieldAlert, HeartPulse,
+  ChevronRight, Copy, X, Users, TrendingUp, ShieldAlert, HeartPulse, MapPin, Wand2,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { alertError, alertSuccess } from '../utils/sweetAlert';
@@ -79,6 +79,7 @@ export default function DataQualityPage({ user, setActivePage }) {
   const [version, setVersion] = useState(0); // bump to recompute after a delete
   const [deleting, setDeleting] = useState('');
   const [openBucket, setOpenBucket] = useState(''); // '' | bucket key — drilldown panel
+  const [backfilling, setBackfilling] = useState(false);
 
   // Re-read devotees whenever a background refresh lands, so the review reflects edits.
   useEffect(() => {
@@ -227,6 +228,47 @@ export default function DataQualityPage({ user, setActivePage }) {
       alertError('Could not delete', e.message);
     } finally {
       setDeleting('');
+    }
+  };
+
+  // Members whose address is blank but whose family has an address on file — these
+  // are what the backfiller will fill (mirrors the backend's head-then-any logic).
+  const fillableAddresses = useMemo(() => {
+    const famAddr = new Map();
+    devotees.forEach((d) => {
+      if (!d.familyId) return;
+      const addr = String(d.address || '').trim();
+      if (!addr) return;
+      if (d.type === 'Primary') famAddr.set(d.familyId, addr); // head wins
+      else if (!famAddr.has(d.familyId)) famAddr.set(d.familyId, addr);
+    });
+    return devotees.filter((d) => d.familyId && !String(d.address || '').trim() && famAddr.get(d.familyId)).length;
+  }, [devotees]);
+
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const n = await dataService.backfillFamilyAddresses({ dryRun: true });
+      if (!n) { alertSuccess('Nothing to fill', 'Every family member with a family address already has an address.'); return; }
+      const res = await Swal.fire({
+        icon: 'question',
+        title: 'Backfill addresses?',
+        html: `<div style="text-align:left;font-size:14px">Fill the address of <b>${n}</b> family member${n === 1 ? '' : 's'} from their family head.<br><br>
+          <span style="color:#64748b">Only members with a <b>blank</b> address are touched — existing addresses are never overwritten. A backup of the sheet is saved first.</span></div>`,
+        showCancelButton: true,
+        confirmButtonText: `Fill ${n}`,
+        confirmButtonColor: '#E56F18',
+        cancelButtonText: 'Cancel',
+        customClass: { popup: 'rounded-3xl font-sans', confirmButton: 'rounded-2xl px-6 py-2.5 font-bold', cancelButton: 'rounded-2xl px-6 py-2.5 font-bold' },
+      });
+      if (!res.isConfirmed) return;
+      const done = await dataService.backfillFamilyAddresses({ dryRun: false });
+      setVersion((v) => v + 1);
+      alertSuccess('Addresses filled', `${done} member${done === 1 ? '' : 's'} inherited their family's address.`);
+    } catch (e) {
+      alertError('Could not backfill', e.message);
+    } finally {
+      setBackfilling(false);
     }
   };
 
@@ -451,6 +493,27 @@ export default function DataQualityPage({ user, setActivePage }) {
       {/* ── Insights tab ──────────────────────────────────────────────────────── */}
       {tab === 'insights' && (
         <div className="mt-4 space-y-4">
+          {/* Fix-it: backfill blank family-member addresses from their head. */}
+          <div className="flex flex-col gap-3 rounded-3xl border border-border-light bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-text-main">Backfill family addresses</p>
+                <p className="text-xs text-text-muted">
+                  {fillableAddresses > 0
+                    ? <>Copy the family head's address onto <b>{fillableAddresses}</b> member{fillableAddresses === 1 ? '' : 's'} who have none. Existing addresses are kept.</>
+                    : 'Every family member with a family address already has one on file.'}
+                </p>
+              </div>
+            </div>
+            <button onClick={handleBackfill} disabled={backfilling || fillableAddresses === 0}
+              className="flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#FF862A] px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-[#e06f19] active:scale-95 disabled:opacity-40">
+              <Wand2 className="h-4 w-4" /> {backfilling ? 'Working…' : 'Fill blanks'}
+            </button>
+          </div>
+
           {/* Health score headline */}
           <div className="flex items-center gap-4 rounded-3xl border border-border-light bg-gradient-to-br from-primary/5 to-accent/5 p-5">
             <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full"

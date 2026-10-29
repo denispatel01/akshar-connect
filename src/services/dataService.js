@@ -1091,6 +1091,18 @@ export const dataService = {
     try { await bootstrap(); saveCache(); if (typeof window !== 'undefined') window.dispatchEvent(new Event('ac-data-refreshed')); } catch (e) {}
     return r.restored;
   },
+  // Fill blank family-member addresses from their family head. dryRun first to
+  // preview the count, then run for real. On success the local cache is refreshed
+  // so the directory reflects the change without a reload.
+  backfillFamilyAddresses: async ({ dryRun = false } = {}) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('backfillFamilyAddresses', dryRun ? { dryRun: '1' } : {});
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Could not backfill addresses.');
+    if (!dryRun && r.changed) {
+      try { await bootstrap(); saveCache(); if (typeof window !== 'undefined') window.dispatchEvent(new Event('ac-data-refreshed')); } catch (e) {}
+    }
+    return r.changed || 0;
+  },
 
   // ---- Devotees ----
   getDevotees: () => DB.devotees,

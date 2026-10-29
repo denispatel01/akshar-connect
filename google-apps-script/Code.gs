@@ -335,6 +335,46 @@ function doRemapFamilyIds_(p){
   return json_({ ok:true, changed:changed });
 }
 
+// Backfill blank family-member addresses from their family head (Primary member).
+// Creating a devotee already copies the head's address onto a new member; this does
+// the same for EXISTING members whose address is still empty. Only blank addresses
+// are touched — a member with their own address is never overwritten. A timestamped
+// backup of the Devotees tab is saved first, so it is fully reversible.
+// p.dryRun = '1' returns the count WITHOUT writing (for a confirmation preview).
+function doBackfillFamilyAddresses_(p){
+  var sh = tab_('Devotees');
+  var last = sh.getLastRow(); if(last < 2) return json_({ ok:true, changed:0 });
+  var H = HEADERS.Devotees;
+  var fIdx = H.indexOf('familyId'), aIdx = H.indexOf('address'), tIdx = H.indexOf('type');
+  if(fIdx < 0 || aIdx < 0) return json_({ ok:false, error:'missing familyId/address column' });
+  var rng = sh.getRange(2, 1, last-1, H.length);
+  var vals = rng.getValues();
+  var trim_ = function(v){ return String(v == null ? '' : v).trim(); };
+  // Head address per family: prefer the Primary member's address; fall back to any
+  // non-blank address in the family so members still inherit when the head's is empty.
+  var headAddr = {}, anyAddr = {};
+  for(var i=0;i<vals.length;i++){
+    var fam = trim_(vals[i][fIdx]); if(!fam) continue;
+    var addr = trim_(vals[i][aIdx]); if(!addr) continue;
+    var isHead = tIdx >= 0 ? (trim_(vals[i][tIdx]) === 'Primary') : false;
+    if(isHead && !headAddr[fam]) headAddr[fam] = addr;
+    if(!anyAddr[fam]) anyAddr[fam] = addr;
+  }
+  var changed = 0;
+  for(var j=0;j<vals.length;j++){
+    var f = trim_(vals[j][fIdx]); if(!f) continue;
+    if(trim_(vals[j][aIdx])) continue; // already has an address — never overwrite
+    var src = headAddr[f] || anyAddr[f];
+    if(src){ vals[j][aIdx] = src; changed++; }
+  }
+  if(String(p && p.dryRun || '') === '1') return json_({ ok:true, changed:changed, dryRun:true });
+  if(changed){
+    try { sh.copyTo(ss_()).setName('Devotees_bak_addr_' + Utilities.formatDate(new Date(),'GMT','yyyyMMdd_HHmmss')); } catch(e){}
+    rng.setValues(vals);
+  }
+  return json_({ ok:true, changed:changed });
+}
+
 // ── Push notifications via Firebase Cloud Messaging (HTTP v1) ─────────────────
 // Setup (one time, by the project owner):
 //   1. Firebase console → create project → add Android app id in.aksharmandal.aksharconnect.
@@ -2180,6 +2220,7 @@ function handle_(p){
     if(action==='uploadPhoto') return doUploadPhoto_(p);
     if(action==='uploadChallan') return doUploadChallan_(p);
     if(action==='remapFamilyIds') return doRemapFamilyIds_(p);
+    if(action==='backfillFamilyAddresses') return doBackfillFamilyAddresses_(p);
     if(action==='registerPushToken') return doRegisterPushToken_(p);
     if(action==='getAnnouncements') return doGetAnnouncements_();
     if(action==='createAnnouncement') return doCreateAnnouncement_(p);
