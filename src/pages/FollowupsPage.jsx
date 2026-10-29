@@ -420,7 +420,7 @@ export default function FollowupsPage({ user }) {
         )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {events.map(ev => {
+          {[...events].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map(ev => {
             const done = dataService.getFollowupsForEvent(ev.id).filter(contacted).length;
             return (
               <div key={ev.id} id={`event-card-${ev.id}`}
