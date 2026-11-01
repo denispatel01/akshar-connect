@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2 } from 'lucide-react';
+import { Search, Download, Printer, MessageCircle, Mail, Plus, Filter, QrCode, CheckSquare, X, MapPin, Phone, Trash2, Pencil, Droplet, Briefcase, GraduationCap, User, UserCheck, Users, Home, Calendar, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, ShieldCheck, LayoutGrid, Table2, Navigation } from 'lucide-react';
 import { profileInviteLink } from '../utils/profileInvite';
 import { dataService } from '../services/dataService';
 import AddDevoteeWizard from '../components/AddDevoteeWizard';
@@ -16,6 +16,8 @@ import { ListSkeleton } from '../components/SkeletonLoader';
 import {
   hasAnyTag, deriveAge, QUALIFICATIONS, formatFamilyRecordType, gradeDisplay
 } from '../services/devoteeSchema';
+import { sevaVisitService } from '../services/sevaVisitService';
+import { googleMapsToPoint } from '../utils/geo';
 
 // Age bands for the Divine Devotees filter.
 const AGE_BANDS = {
@@ -853,6 +855,13 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     }
   };
 
+  // Make sure home GPS pins are available for the "Get directions" button even
+  // if the user never opened Seva Route on this device — pull them once if the
+  // local cache is empty.
+  useEffect(() => {
+    try { if (!Object.keys(sevaVisitService.homeLocMap()).length) sevaVisitService.syncDown(''); } catch { /* offline — button falls back to address */ }
+  }, []);
+
   // Open a specific devotee's profile when navigated here from another screen.
   useEffect(() => {
     if (!openDevoteeId) return;
@@ -1578,6 +1587,25 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
                       <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words">{selectedDevotee.address}</span>
                     </div>
                   )}
+                  {(() => {
+                    // Tap to navigate to this home. Prefer the saved GPS pin (exact,
+                    // or approx-from-address via Seva Route); fall back to the written
+                    // address so the button works even before any pin exists.
+                    const pin = sevaVisitService.getHomeLoc(selectedDevotee.id);
+                    const addr = [selectedDevotee.address, selectedDevotee.area, 'Surat'].filter(Boolean).join(', ').trim();
+                    if (!pin && !addr) return null;
+                    const url = pin
+                      ? googleMapsToPoint(pin)
+                      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}&travelmode=driving`;
+                    const approx = pin && pin.source === 'geocoded';
+                    return (
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs sm:text-sm font-bold text-white active:scale-95 hover:bg-emerald-600">
+                        <Navigation className="h-4 w-4" /> Get directions
+                        {pin ? <span className="font-semibold opacity-80">· {approx ? 'approx' : 'GPS'}</span> : <span className="font-semibold opacity-80">· by address</span>}
+                      </a>
+                    );
+                  })()}
                   {selectedDevotee.followupKaryakarta && (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-text-muted">
                       <User className="h-4 w-4 mt-0.5 shrink-0 text-primary/70" /><span className="font-semibold break-words" title={selectedDevotee.followupKaryakarta}><span className="text-text-muted/70">Karyakarta:</span> {firstLastName(selectedDevotee.followupKaryakarta)}</span>
