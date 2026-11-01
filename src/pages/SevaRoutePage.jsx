@@ -5,7 +5,6 @@ import {
   RefreshCw, LocateFixed, ExternalLink, Home, Pencil, CloudOff,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { AREAS } from '../services/devoteeSchema';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess } from '../utils/sweetAlert';
 import {
@@ -172,17 +171,30 @@ export default function SevaRoutePage({ user }) {
   const [busyArea, setBusyArea] = useState('');
   const [picker, setPicker] = useState(null); // { area, initial }
 
+  // The real area list comes from the Areas sheet (loaded at bootstrap), ordered by
+  // its `number` column — NOT a hardcoded list, so adding/renaming an area in the
+  // sheet flows straight through here.
+  const areas = useMemo(() => {
+    const list = (dataService.getAreas() || [])
+      .map((a) => ({ name: String(a.name || '').trim(), number: Number(a.number) || 0 }))
+      .filter((a) => a.name);
+    list.sort((x, y) => (x.number - y.number) || x.name.localeCompare(y.name));
+    // De-duplicate names (keep first), just in case the sheet has repeats.
+    const seen = new Set();
+    return list.map((a) => a.name).filter((n) => { const k = n.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  }, []);
+
   // Home counts per area from the cached devotee directory (active records only).
   const homesByArea = useMemo(() => {
     const out = {};
-    AREAS.forEach((a) => { out[a] = 0; });
+    areas.forEach((a) => { out[a] = 0; });
     (dataService.getDevotees() || []).forEach((d) => {
       if (String(d.status || 'Active') === 'Deceased') return;
       const a = String(d.area || '').trim();
       if (a && out[a] !== undefined) out[a] += 1;
     });
     return out;
-  }, []);
+  }, [areas]);
 
   const refresh = async () => {
     setLoading(true);
@@ -238,8 +250,7 @@ export default function SevaRoutePage({ user }) {
 
   const clearFor = async (area) => { await saveArea(area, '', ''); };
 
-  const pinnedAreas = AREAS.filter((a) => hasCoords(locMap[a]));
-  const pinnedCount = pinnedAreas.length;
+  const pinnedCount = areas.filter((a) => hasCoords(locMap[a])).length;
 
   return (
     <div className="mx-auto max-w-2xl p-3 sm:p-4">
@@ -269,10 +280,10 @@ export default function SevaRoutePage({ user }) {
       {tab === 'pins' && (
         <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
           <div className="border-b border-border-light bg-black/[0.02] px-3 py-2 text-xs text-text-muted">
-            {pinnedCount} of {AREAS.length} areas pinned.
+            {pinnedCount} of {areas.length} areas pinned.
             {!canEdit && ' You have view-only access.'}
           </div>
-          {AREAS.map((area) => (
+          {areas.map((area) => (
             <AreaPinRow key={area} area={area} homes={homesByArea[area] || 0} loc={locMap[area]} canEdit={canEdit}
               busy={busyArea === area}
               onUse={() => useMyLocationFor(area)}
@@ -283,8 +294,8 @@ export default function SevaRoutePage({ user }) {
         </div>
       )}
 
-      {tab === 'plan' && <PlanRoute locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
-      {tab === 'nearest' && <NearestFromHere locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
+      {tab === 'plan' && <PlanRoute areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
+      {tab === 'nearest' && <NearestFromHere areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
 
       {picker && (
         <MapPicker area={picker.area} initial={picker.initial}
@@ -296,8 +307,8 @@ export default function SevaRoutePage({ user }) {
 }
 
 // ── Feature A: plan the full outing (ordered areas → Google Maps) ─────────────
-function PlanRoute({ locMap, homesByArea, onNeedPins }) {
-  const pinned = AREAS.filter((a) => hasCoords(locMap[a]));
+function PlanRoute({ areas, locMap, homesByArea, onNeedPins }) {
+  const pinned = areas.filter((a) => hasCoords(locMap[a]));
   const [selected, setSelected] = useState(() => new Set(pinned));
   const [useGps, setUseGps] = useState(true);
   const [start, setStart] = useState(null);
@@ -307,7 +318,7 @@ function PlanRoute({ locMap, homesByArea, onNeedPins }) {
   const toggle = (a) => setSelected((s) => { const n = new Set(s); n.has(a) ? n.delete(a) : n.add(a); return n; });
 
   const plan = async () => {
-    const stops = AREAS.filter((a) => selected.has(a) && hasCoords(locMap[a])).map((a) => ({ area: a, ...locMap[a] }));
+    const stops = pinned.filter((a) => selected.has(a)).map((a) => ({ area: a, ...locMap[a] }));
     if (stops.length < 2) { alertError('Pick more areas', 'Select at least two pinned areas to plan a route.'); return; }
     setBusy(true);
     let s = null;
@@ -380,8 +391,8 @@ function PlanRoute({ locMap, homesByArea, onNeedPins }) {
 }
 
 // ── Feature B: "Where are you?" → nearest areas, you decide ───────────────────
-function NearestFromHere({ locMap, homesByArea, onNeedPins }) {
-  const pinned = AREAS.filter((a) => hasCoords(locMap[a]));
+function NearestFromHere({ areas, locMap, homesByArea, onNeedPins }) {
+  const pinned = areas.filter((a) => hasCoords(locMap[a]));
   const [from, setFrom] = useState(null); // { area?, lat, lng, label }
   const [busy, setBusy] = useState(false);
 
