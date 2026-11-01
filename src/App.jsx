@@ -19,6 +19,7 @@ const GhariPage = lazy(() => import('./pages/GhariPage'));
 const GhariLeadersPage = lazy(() => import('./pages/GhariLeadersPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const BusPage = lazy(() => import('./pages/BusPage'));
+const SevaRoutePage = lazy(() => import('./pages/SevaRoutePage'));
 const AppUsagePage = lazy(() => import('./pages/AppUsagePage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
 const ActivityPage = lazy(() => import('./pages/ActivityPage'));
@@ -364,6 +365,7 @@ export default function App() {
         {activePage === 'mandal-leaders' && <GhariLeadersPage user={effectiveUser} refreshing={refreshing} />}
         {activePage === 'leaderboard' && <LeaderboardPage user={effectiveUser} />}
         {activePage === 'bus' && <BusPage user={effectiveUser} />}
+        {activePage === 'seva-route' && <SevaRoutePage user={effectiveUser} />}
         {activePage === 'app-usage' && <AppUsagePage user={effectiveUser} />}
         {activePage === 'swadhyay' && <SwadhyayPage user={effectiveUser} />}
         {/* Seva is merged into the Calendar — keep the route as a redirect for any

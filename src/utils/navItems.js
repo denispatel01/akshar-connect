@@ -22,6 +22,7 @@ import {
   Bus,
   Trophy,
   UserCog,
+  Route,
   Activity as ActivityIcon,
 } from 'lucide-react';
 
@@ -112,6 +113,7 @@ export function getNavGroups(user) {
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
               { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
+              { id: 'seva-route', label: 'Seva Route', icon: Route },
             ]
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),

@@ -1104,6 +1104,47 @@ export const dataService = {
     return r.changed || 0;
   },
 
+  // ---- Area GPS locations (Seva Route — Annakut padhramani) ----
+  // One pin {area, lat, lng} per area, cached locally so the Seva Route page paints
+  // instantly (and keeps working offline) while a fresh copy loads in the background.
+  getCachedAreaLocations: () => {
+    try { return JSON.parse(localStorage.getItem('ac_area_locations_v1') || '[]'); } catch { return []; }
+  },
+  getAreaLocations: async () => {
+    if (!hasBackend()) return dataService.getCachedAreaLocations();
+    try {
+      const r = await api('getAreaLocations', {});
+      if (r && Array.isArray(r.locations)) {
+        try { localStorage.setItem('ac_area_locations_v1', JSON.stringify(r.locations)); } catch { /* ignore */ }
+        return r.locations;
+      }
+    } catch { /* offline — fall through to cache */ }
+    return dataService.getCachedAreaLocations();
+  },
+  // Save (or clear, with blank lat/lng) one area's pin. Updates the local cache
+  // immediately so the UI reflects the change even before the backend acks.
+  setAreaLocation: async ({ area, lat, lng }) => {
+    if (!hasBackend()) throw new Error('No backend configured.');
+    const r = await api('setAreaLocation', { area, lat, lng, updatedBy: actorLabel() });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Could not save the area location.');
+    try {
+      const list = dataService.getCachedAreaLocations().filter(a => String(a.area) !== String(area));
+      list.push(r.row);
+      localStorage.setItem('ac_area_locations_v1', JSON.stringify(list));
+    } catch { /* ignore */ }
+    try { logActivity_('area-gps', area, `set GPS pin for area ${area}`); } catch { /* ignore */ }
+    return r.row;
+  },
+
+  // Geocode a free-text address to { lat, lng } via the backend (Apps Script Maps —
+  // no API key needed). Throws with a friendly message if nothing matches.
+  geocodeAddress: async (address) => {
+    if (!hasBackend()) throw new Error('You must be online to look up an address.');
+    const r = await api('geocodeAddress', { address });
+    if (!(r && r.ok)) throw new Error((r && r.error) || 'Could not find that address.');
+    return { lat: r.lat, lng: r.lng, formatted: r.formatted || '' };
+  },
+
   // ---- Devotees ----
   getDevotees: () => DB.devotees,
   getDevoteeById: (id) => DB.devotees.find(d => d.id === id) || null,

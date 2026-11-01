@@ -130,10 +130,15 @@ var HEADERS = {
   Vato: ['SN','Gujarati','English'],
   // ── Devotee edit audit (old↔new on every add/edit/delete, revertible) ───────
   // action ∈ create|update|delete|revert. before/afterJson = full row snapshots.
-  DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson']
+  DevoteeLog: ['id','ts','devoteeId','name','action','actor','changesJson','beforeJson','afterJson'],
+  // ── Area GPS locations (Seva Route — Annakut padhramani) ────────────────────
+  // One pin per area (lat/lng), set once from the app (current location / map pin /
+  // geocode). Used to compute the shortest visiting order and open Google Maps.
+  // Keyed by `area` (matches the AREAS list in src/services/devoteeSchema.js).
+  AreaLocations: ['area','lat','lng','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-10-30-followup-manual';
+var SCHEMA_VERSION = '2026-11-01-area-locations';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1564,7 +1569,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads','AreaLocations'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -2035,6 +2040,39 @@ function handle_(p){
     if(action==='ghariRawDump'){ var _sh=ss_().getSheetByName(p.tab||'GhariOrders'); if(!_sh) return json_({ok:false,error:'no tab'}); var _lc=_sh.getLastColumn(), _lr=_sh.getLastRow(); return json_({ ok:true, rows: _sh.getRange(1,1,_lr,_lc).getValues() }); }
     if(action==='realignGhariOrders') return json_({ ok:true, result: realignGhariOrders_(p && p.apply === true) });
     if(action==='backfillGhariOrderNos') return json_({ ok:true, result: backfillGhariOrderNos_() });
+    // ── Area GPS locations (Seva Route) ──────────────────────────────────────
+    if(action==='getAreaLocations') return json_({ ok:true, locations: readAll_('AreaLocations') });
+    if(action==='setAreaLocation'){
+      var _area = String(p.area||'').trim();
+      if(!_area) return json_({ ok:false, error:'area required' });
+      // A blank lat/lng clears the pin (both are stored empty); otherwise store numbers.
+      var _hasLat = !(p.lat==='' || p.lat==null), _hasLng = !(p.lng==='' || p.lng==null);
+      var _row = {
+        area: _area,
+        lat: _hasLat ? Number(p.lat) : '',
+        lng: _hasLng ? Number(p.lng) : '',
+        updatedBy: p.updatedBy || p.actor || '',
+        updatedOn: new Date().toISOString()
+      };
+      var _rn = findRow_('AreaLocations','area',_area);
+      if(_rn<0) appendRows_('AreaLocations',[_row]);
+      else tab_('AreaLocations').getRange(_rn,1,1,HEADERS.AreaLocations.length).setValues([rowFromObj_('AreaLocations',_row)]);
+      return json_({ ok:true, row:_row });
+    }
+    // Geocode a free-text address to lat/lng using Apps Script's built-in Maps
+    // service — no API key / billing needed (uses the script's Maps quota).
+    if(action==='geocodeAddress'){
+      var _addr = String(p.address||'').trim();
+      if(!_addr) return json_({ ok:false, error:'address required' });
+      try{
+        var _geo = Maps.newGeocoder().setRegion('in').geocode(_addr);
+        if(_geo && _geo.status==='OK' && _geo.results && _geo.results.length){
+          var _loc = _geo.results[0].geometry.location;
+          return json_({ ok:true, lat:_loc.lat, lng:_loc.lng, formatted:_geo.results[0].formatted_address });
+        }
+        return json_({ ok:false, error:'No location found for that address.' });
+      }catch(err){ return json_({ ok:false, error:String(err) }); }
+    }
     if(action==='getLeaderboards') return doGetLeaderboards_(p);
     if(action==='seedMandalLeaders') return json_({ ok:true, leaders: seedMandalLeaders_(p && p.force === true) });
     if(action==='saveLeaderboard') return doSaveLeaderboard_(p);
