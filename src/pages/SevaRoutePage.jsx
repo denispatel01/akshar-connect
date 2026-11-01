@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import {
   MapPin, Crosshair, Map as MapIcon, Navigation, Route, Trash2, X, Check,
   RefreshCw, LocateFixed, ExternalLink, Home, Pencil, CloudOff,
-  CheckCircle2, DoorClosed, Phone, MessageCircle, ClipboardList, ChevronLeft, CloudOff as CloudOffIcon,
+  CheckCircle2, DoorClosed, Phone, MessageCircle, ClipboardList, ChevronLeft, ChevronRight,
+  CloudOff as CloudOffIcon, Plus, Minus, Send, BarChart3, Users, Package,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { sevaVisitService, isCovered } from '../services/sevaVisitService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
-import { alertError, alertSuccess } from '../utils/sweetAlert';
+import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
 import {
   hasCoords, haversineKm, formatKm, nearestNeighborOrder, routeLengthKm, googleMapsDirUrls,
   googleMapsToPoint, googleMapsSearchUrl,
@@ -236,7 +237,7 @@ export default function SevaRoutePage({ user }) {
     finally { setBusyArea(''); }
   };
 
-  const useMyLocationFor = async (area) => {
+  const pinFromMyLocation = async (area) => {
     setBusyArea(area);
     try {
       const p = await getCurrentPosition();
@@ -301,7 +302,7 @@ export default function SevaRoutePage({ user }) {
           {areas.map((area) => (
             <AreaPinRow key={area} area={area} homes={homesByArea[area] || 0} loc={locMap[area]} canEdit={canEdit}
               busy={busyArea === area}
-              onUse={() => useMyLocationFor(area)}
+              onUse={() => pinFromMyLocation(area)}
               onMap={() => setPicker({ area, initial: locMap[area] })}
               onGeocode={() => geocodeFor(area)}
               onClear={() => clearFor(area)} />
@@ -509,7 +510,7 @@ function ProgressBar({ done, total }) {
   );
 }
 
-function HomeCard({ d, status, homeLoc, areaPins, busy, onMark }) {
+function HomeCard({ d, status, boxes, homeLoc, areaPins, busy, onMark, onBoxes }) {
   const call = telLink(d.mobile);
   const wa = waLink(d.mobile, d.name);
   const nav = navUrlFor(d, homeLoc, areaPins);
@@ -547,15 +548,32 @@ function HomeCard({ d, status, homeLoc, areaPins, busy, onMark }) {
           <X className="h-3.5 w-3.5" /> Skip
         </button>
       </div>
+      {/* Prasad box count */}
+      <div className="mt-2 flex items-center justify-between rounded-lg bg-black/[0.03] px-2 py-1">
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-text-muted"><Package className="h-3.5 w-3.5" /> Prasad boxes</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => onBoxes(d, Math.max(0, (Number(boxes) || 0) - 1))} className="flex h-6 w-6 items-center justify-center rounded-full border border-border-light text-text-muted active:scale-90"><Minus className="h-3.5 w-3.5" /></button>
+          <span className="w-5 text-center text-sm font-black text-text">{Number(boxes) || 0}</span>
+          <button onClick={() => onBoxes(d, (Number(boxes) || 0) + 1)} className="flex h-6 w-6 items-center justify-center rounded-full border border-border-light text-emerald-600 active:scale-90"><Plus className="h-3.5 w-3.5" /></button>
+        </div>
+      </div>
     </div>
   );
 }
+
+const TEAM_COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#0891B2', '#DB2777', '#4B5563'];
 
 function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
   const [, setTick] = useState(0);
   const [selected, setSelected] = useState(null); // area name
   const [missedOnly, setMissedOnly] = useState(false);
   const [busyId, setBusyId] = useState('');
+  const [view, setView] = useState('overview'); // overview | report
+  const [teamFilter, setTeamFilter] = useState(''); // '' | teamId | 'unassigned'
+  const [showTeams, setShowTeams] = useState(false);
+  const [guide, setGuide] = useState(false);
+  const [guideIdx, setGuideIdx] = useState(0);
+  const [notifying, setNotifying] = useState(false);
   const season = sevaVisitService.getSeason();
 
   useEffect(() => {
@@ -567,9 +585,11 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
 
   const visits = sevaVisitService.visitsMap(season);
   const homeLocs = sevaVisitService.homeLocMap();
+  const teams = sevaVisitService.getTeams(season);
   const statusOf = (d) => (visits[String(d.id)] ? String(visits[String(d.id)].status) : 'pending');
+  const boxesOf = (d) => { const v = visits[String(d.id)]; return v && v.boxes !== '' && v.boxes != null ? Number(v.boxes) : 0; };
+  const teamForArea = (a) => teams.find((t) => (t.areas || []).includes(a)) || null;
 
-  // Per-area and overall progress.
   const areaProgress = useMemo(() => {
     const out = {};
     let doneT = 0, totalT = 0;
@@ -586,9 +606,7 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
   const mark = async (d, status) => {
     if (!canEdit) { alertError('View only', 'You have view-only access to the seva route.'); return; }
     const next = statusOf(d) === status ? 'pending' : status;
-    // Instant optimistic mark.
     sevaVisitService.markVisit(d.id, { status: next });
-    // For a real visit, capture the home's GPS in the background (auto-pin).
     if (next === 'done' || next === 'not_home') {
       setBusyId(d.id);
       try { const p = await getCurrentPosition(); sevaVisitService.markVisit(d.id, { status: next, lat: p.lat, lng: p.lng }); }
@@ -596,10 +614,45 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
       finally { setBusyId(''); }
     }
   };
+  const setBoxes = (d, n) => {
+    if (!canEdit) { alertError('View only', 'You have view-only access to the seva route.'); return; }
+    // Handing over boxes implies the home was visited — promote a pending home to done.
+    const st = (Number(n) > 0 && statusOf(d) === 'pending') ? 'done' : statusOf(d);
+    sevaVisitService.markVisit(d.id, { status: st, boxes: n });
+  };
+
+  // #6 — push an "on our way" reminder to the not-done homes in an area.
+  const notifyUpcoming = async (areaName) => {
+    const mobiles = (devoteesByArea[areaName] || [])
+      .filter((d) => !isCovered(statusOf(d)))
+      .map((d) => String(d.mobile || '').replace(/\D/g, ''))
+      .filter((m) => m.length >= 10);
+    const uniq = [...new Set(mobiles)];
+    if (!uniq.length) { alertError('No numbers', 'No not-done homes in this area have a mobile number.'); return; }
+    const ok = await confirmDialog({ title: 'Send "on our way"?', text: `Push a padhramani reminder to ${uniq.length} home${uniq.length === 1 ? '' : 's'} in ${areaName}.`, confirmText: 'Send' });
+    if (!ok) return;
+    setNotifying(true);
+    try {
+      const r = await dataService.sendFollowupReminder({
+        title: 'Annakut Prasad padhramani 🙏',
+        body: `Our karyakartas are doing padhramani in ${areaName} today — please be at home to receive Annakut prasad.`,
+        mobiles: uniq,
+      });
+      alertSuccess('Sent', `Reminder sent to ${r.reached || 0} recipient${(r.reached || 0) === 1 ? '' : 's'}.`);
+    } catch (e) { alertError('Could not send', e.message); }
+    finally { setNotifying(false); }
+  };
+
+  // ── Coverage report ──
+  if (view === 'report') {
+    return <VisitReport areas={areas} devoteesByArea={devoteesByArea} visits={visits} season={season} onBack={() => setView('overview')} />;
+  }
 
   // ── Overview: all areas with progress ──
   if (!selected) {
-    const withHomes = areas.filter((a) => (devoteesByArea[a] || []).length > 0);
+    let withHomes = areas.filter((a) => (devoteesByArea[a] || []).length > 0);
+    if (teamFilter === 'unassigned') withHomes = withHomes.filter((a) => !teamForArea(a));
+    else if (teamFilter) { const t = teams.find((x) => x.id === teamFilter); withHomes = withHomes.filter((a) => t && (t.areas || []).includes(a)); }
     return (
       <div className="space-y-3">
         <div className="rounded-2xl border border-border-light bg-surface p-3">
@@ -609,20 +662,34 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
           </div>
           <ProgressBar done={areaProgress.doneT} total={areaProgress.totalT} />
           {!sevaVisitService.isOnline() && <div className="mt-2 flex items-center gap-1 text-[11px] text-amber-600"><CloudOffIcon className="h-3.5 w-3.5" /> Offline — marks are saved on this device and will sync.</div>}
+          <div className="mt-2.5 flex items-center gap-2">
+            <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}
+              className="flex-1 rounded-lg border border-border-light bg-surface px-2 py-1.5 text-xs font-semibold text-text">
+              <option value="">All areas</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name || 'Team'}</option>)}
+              <option value="unassigned">Unassigned areas</option>
+            </select>
+            {canEdit && <button onClick={() => setShowTeams(true)} className="flex items-center gap-1 rounded-lg border border-border-light px-2.5 py-1.5 text-xs font-bold text-text-muted active:scale-95"><Users className="h-3.5 w-3.5" /> Teams</button>}
+            <button onClick={() => setView('report')} className="flex items-center gap-1 rounded-lg border border-border-light px-2.5 py-1.5 text-xs font-bold text-text-muted active:scale-95"><BarChart3 className="h-3.5 w-3.5" /> Report</button>
+          </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
           {withHomes.map((a) => {
             const pr = areaProgress.out[a];
             const complete = pr.total > 0 && pr.done >= pr.total;
+            const team = teamForArea(a);
             return (
-              <button key={a} onClick={() => { setSelected(a); setMissedOnly(false); }}
+              <button key={a} onClick={() => { setSelected(a); setMissedOnly(false); setGuide(false); }}
                 className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 active:bg-black/5">
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${complete ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-black/5 text-text-muted'}`}>
                   {complete ? <Check className="h-5 w-5" /> : <Home className="h-5 w-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-text">{a}</span>
+                    <span className="flex items-center gap-1.5 font-bold text-text">
+                      {team && <span className="h-2.5 w-2.5 rounded-full" style={{ background: team.color || '#999' }} title={team.name} />}
+                      {a}
+                    </span>
                     <span className="text-xs font-semibold text-text-muted">{pr.done}/{pr.total}</span>
                   </div>
                   <div className="mt-1"><ProgressBar done={pr.done} total={pr.total} /></div>
@@ -630,8 +697,9 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
               </button>
             );
           })}
-          {!withHomes.length && <div className="p-6 text-center text-sm text-text-muted">No devotee homes found in any area.</div>}
+          {!withHomes.length && <div className="p-6 text-center text-sm text-text-muted">No areas to show for this filter.</div>}
         </div>
+        {showTeams && <ManageTeamsModal areas={areas} teams={teams} season={season} onClose={() => setShowTeams(false)} />}
       </div>
     );
   }
@@ -640,30 +708,68 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
   const list = devoteesByArea[selected] || [];
   const shown = missedOnly ? list.filter((d) => !isCovered(statusOf(d))) : list;
   const pr = areaProgress.out[selected] || { done: 0, total: 0 };
-  // "Route missed homes": only useful once ≥2 missed homes already have a GPS pin
-  // (e.g. a second pass, or next year). Falls back to per-home Navigate otherwise.
   const missedPinned = list.filter((d) => !isCovered(statusOf(d)) && hasCoords(homeLocs[String(d.id)]))
     .map((d) => ({ area: d.name, ...homeLocs[String(d.id)] }));
   const missedRouteUrl = missedPinned.length >= 2 ? googleMapsDirUrls(nearestNeighborOrder(missedPinned))[0]?.url : null;
+  const guideList = shown;
+  const gi = Math.min(guideIdx, Math.max(0, guideList.length - 1));
+  const guideHome = guideList[gi];
+
+  const header = (
+    <div className="flex items-center gap-2">
+      <button onClick={() => { setSelected(null); setGuide(false); }} className="rounded-lg border border-border-light p-2 text-text-muted active:scale-95"><ChevronLeft className="h-4 w-4" /></button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between">
+          <span className="truncate font-black text-text">{selected}</span>
+          <span className="text-xs font-bold text-emerald-600">{pr.done}/{pr.total}</span>
+        </div>
+        <div className="mt-1"><ProgressBar done={pr.done} total={pr.total} /></div>
+      </div>
+    </div>
+  );
+
+  // #5 — guide (turn-by-turn) mode: one home at a time, in route order.
+  if (guide) {
+    return (
+      <div className="space-y-3">
+        {header}
+        <div className="flex items-center justify-between text-xs text-text-muted">
+          <button onClick={() => setGuide(false)} className="flex items-center gap-1 rounded-full border border-border-light px-3 py-1.5 font-bold active:scale-95"><ClipboardList className="h-3.5 w-3.5" /> List view</button>
+          <span>{guideList.length ? `${gi + 1} of ${guideList.length}` : '0 of 0'}</span>
+        </div>
+        {guideHome ? (
+          <>
+            <HomeCard d={guideHome} status={statusOf(guideHome)} boxes={boxesOf(guideHome)} homeLoc={homeLocs[String(guideHome.id)]} areaPins={areaPins}
+              busy={busyId === guideHome.id}
+              onMark={async (d, s) => { await mark(d, s); if (s === 'done' || s === 'not_home') setGuideIdx((i) => Math.min(guideList.length - 1, i + 1)); }}
+              onBoxes={setBoxes} />
+            <div className="flex gap-2">
+              <button onClick={() => setGuideIdx((i) => Math.max(0, i - 1))} disabled={gi === 0}
+                className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text active:scale-95 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /> Prev</button>
+              <button onClick={() => setGuideIdx((i) => Math.min(guideList.length - 1, i + 1))} disabled={gi >= guideList.length - 1}
+                className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-sky-500 py-2.5 text-sm font-black text-white active:scale-95 disabled:opacity-40">Next <ChevronRight className="h-4 w-4" /></button>
+            </div>
+          </>
+        ) : <div className="rounded-xl border border-dashed border-border-light p-6 text-center text-sm text-text-muted">Every home here is done. 🎉</div>}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <button onClick={() => setSelected(null)} className="rounded-lg border border-border-light p-2 text-text-muted active:scale-95"><ChevronLeft className="h-4 w-4" /></button>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="truncate font-black text-text">{selected}</span>
-            <span className="text-xs font-bold text-emerald-600">{pr.done}/{pr.total}</span>
-          </div>
-          <div className="mt-1"><ProgressBar done={pr.done} total={pr.total} /></div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
+      {header}
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => { setGuide(true); setGuideIdx(0); }} className="flex items-center gap-1.5 rounded-full bg-sky-500 px-3 py-1.5 text-xs font-black text-white active:scale-95">
+          <Navigation className="h-3.5 w-3.5" /> Guide me
+        </button>
         <button onClick={() => setMissedOnly((v) => !v)}
           className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold active:scale-95 ${missedOnly ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300' : 'border-border-light text-text-muted'}`}>
-          <ClipboardList className="h-3.5 w-3.5" /> {missedOnly ? 'Showing not-done' : 'Show not-done only'}
+          <ClipboardList className="h-3.5 w-3.5" /> {missedOnly ? 'Not-done' : 'Not-done only'}
         </button>
+        {canEdit && <button onClick={() => notifyUpcoming(selected)} disabled={notifying}
+          className="flex items-center gap-1.5 rounded-full border border-border-light px-3 py-1.5 text-xs font-bold text-emerald-700 active:scale-95 disabled:opacity-50 dark:text-emerald-300">
+          {notifying ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} On our way
+        </button>}
         {missedRouteUrl && (
           <a href={missedRouteUrl} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-black text-white active:scale-95">
@@ -673,13 +779,177 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
       </div>
 
       <div className="space-y-2">
-        {shown.map((d) => (
-          <HomeCard key={d.id} d={d} status={statusOf(d)} homeLoc={homeLocs[String(d.id)]} areaPins={areaPins}
-            busy={busyId === d.id} onMark={mark} />
+        {shown.map((d, i) => (
+          <HomeCard key={`${d.id}-${i}`} d={d} status={statusOf(d)} boxes={boxesOf(d)} homeLoc={homeLocs[String(d.id)]} areaPins={areaPins}
+            busy={busyId === d.id} onMark={mark} onBoxes={setBoxes} />
         ))}
         {!shown.length && <div className="rounded-xl border border-dashed border-border-light p-6 text-center text-sm text-text-muted">{missedOnly ? 'Every home here is done. 🎉' : 'No homes in this area.'}</div>}
       </div>
     </div>
+  );
+}
+
+// ── #7 Coverage report ────────────────────────────────────────────────────────
+function Stat({ label, value, cls }) {
+  return (
+    <div className="rounded-xl border border-border-light bg-surface p-2.5 text-center">
+      <div className={`text-lg font-black ${cls || 'text-text'}`}>{value}</div>
+      <div className="text-[11px] text-text-muted">{label}</div>
+    </div>
+  );
+}
+function VisitReport({ areas, devoteesByArea, visits, season, onBack }) {
+  const statusOf = (d) => (visits[String(d.id)] ? String(visits[String(d.id)].status) : 'pending');
+  const boxesOf = (d) => { const v = visits[String(d.id)]; return v && v.boxes !== '' && v.boxes != null ? Number(v.boxes) : 0; };
+
+  let done = 0, notHome = 0, skip = 0, pending = 0, total = 0, boxes = 0;
+  const rows = [];
+  const missed = [];
+  areas.forEach((a) => {
+    const list = devoteesByArea[a] || [];
+    if (!list.length) return;
+    let d0 = 0, n0 = 0, s0 = 0, p0 = 0, b0 = 0;
+    list.forEach((d) => {
+      const st = statusOf(d); b0 += boxesOf(d);
+      if (st === 'done') d0++; else if (st === 'not_home') { n0++; missed.push({ ...d, _st: st }); }
+      else if (st === 'skip') { s0++; missed.push({ ...d, _st: st }); }
+      else { p0++; missed.push({ ...d, _st: st }); }
+    });
+    done += d0; notHome += n0; skip += s0; pending += p0; total += list.length; boxes += b0;
+    rows.push({ area: a, total: list.length, done: d0, notHome: n0, skip: s0, pending: p0, boxes: b0 });
+  });
+
+  // New devotees (joined within 120 days) and whether they've been visited.
+  const newOnes = (dataService.getDevotees() || []).filter((d) => {
+    if (String(d.status || 'Active') === 'Deceased') return false;
+    const j = new Date(d.dateOfJoining); if (isNaN(j.getTime())) return false;
+    return (Date.now() - j.getTime()) <= 120 * 24 * 60 * 60 * 1000;
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="rounded-lg border border-border-light p-2 text-text-muted active:scale-95"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="font-black text-text">Coverage report {season}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Done" value={done} cls="text-emerald-600" />
+        <Stat label="Not home" value={notHome} cls="text-amber-600" />
+        <Stat label="Pending" value={pending} cls="text-text-muted" />
+        <Stat label="Skipped" value={skip} cls="text-slate-500" />
+        <Stat label="Homes" value={total} />
+        <Stat label="Prasad boxes" value={boxes} cls="text-sky-600" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+        <div className="border-b border-border-light bg-black/[0.02] px-3 py-2 text-xs font-bold text-text-muted">By area</div>
+        {rows.map((r) => (
+          <div key={r.area} className="flex items-center gap-2 border-b border-border-light px-3 py-2 text-sm last:border-0">
+            <span className="flex-1 truncate font-semibold text-text">{r.area}</span>
+            <span className="w-16 text-right text-emerald-600">{r.done}/{r.total}</span>
+            <span className="w-16 text-right text-xs text-text-muted">{r.boxes} box</span>
+          </div>
+        ))}
+      </div>
+
+      {newOnes.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+          <div className="border-b border-border-light bg-black/[0.02] px-3 py-2 text-xs font-bold text-text-muted">New devotees (joined &lt; 120 days) — {newOnes.length}</div>
+          {newOnes.slice(0, 50).map((d, i) => (
+            <div key={`${d.id}-${i}`} className="flex items-center gap-2 border-b border-border-light px-3 py-2 text-sm last:border-0">
+              <span className="flex-1 truncate font-semibold text-text">{d.name}</span>
+              <span className="text-xs text-text-muted">{d.area || '—'}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${statusOf(d) === 'done' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}`}>{statusOf(d) === 'done' ? 'done' : 'not yet'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-center text-[11px] text-text-muted">{missed.length} home{missed.length === 1 ? '' : 's'} still to cover.</p>
+    </div>
+  );
+}
+
+// ── #4 Manage karyakarta teams (assign areas) ────────────────────────────────
+function ManageTeamsModal({ areas, teams, season, onClose }) {
+  const [editing, setEditing] = useState(null); // { id?, name, color, areas:Set }
+  const [busy, setBusy] = useState(false);
+
+  const startNew = () => setEditing({ name: '', color: TEAM_COLORS[teams.length % TEAM_COLORS.length], areas: new Set() });
+  const startEdit = (t) => setEditing({ id: t.id, name: t.name || '', color: t.color || TEAM_COLORS[0], areas: new Set(t.areas || []) });
+  const toggleArea = (a) => setEditing((e) => { const n = new Set(e.areas); n.has(a) ? n.delete(a) : n.add(a); return { ...e, areas: n }; });
+
+  const save = async () => {
+    if (!editing.name.trim()) { alertError('Name needed', 'Give the team a name.'); return; }
+    setBusy(true);
+    try { await sevaVisitService.saveTeam({ id: editing.id, name: editing.name.trim(), color: editing.color, areas: [...editing.areas] }); setEditing(null); }
+    catch (e) { alertError('Could not save', e.message); }
+    finally { setBusy(false); }
+  };
+  const del = async (t) => {
+    const ok = await confirmDialog({ title: 'Delete team?', text: `Remove "${t.name}"? Its areas become unassigned.`, confirmText: 'Delete', danger: true });
+    if (!ok) return;
+    try { await sevaVisitService.deleteTeam(t.id); } catch (e) { alertError('Could not delete', e.message); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
+      <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <div className="flex items-center gap-2 font-black text-text"><Users className="h-5 w-5 text-sky-500" /> Teams {season}</div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-text-muted hover:bg-black/5"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {!editing && (
+            <>
+              <div className="space-y-2">
+                {teams.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 rounded-xl border border-border-light px-3 py-2">
+                    <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: t.color || '#999' }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-bold text-text">{t.name || 'Team'}</div>
+                      <div className="text-xs text-text-muted">{(t.areas || []).length} area{(t.areas || []).length === 1 ? '' : 's'}</div>
+                    </div>
+                    <button onClick={() => startEdit(t)} className="rounded-lg border border-border-light p-2 text-indigo-600 active:scale-95"><Pencil className="h-4 w-4" /></button>
+                    <button onClick={() => del(t)} className="rounded-lg border border-border-light p-2 text-rose-500 active:scale-95"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                ))}
+                {!teams.length && <p className="py-4 text-center text-sm text-text-muted">No teams yet. Create one to split the areas.</p>}
+              </div>
+              <button onClick={startNew} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-black text-white active:scale-95"><Plus className="h-4 w-4" /> New team</button>
+            </>
+          )}
+          {editing && (
+            <div className="space-y-3">
+              <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Team name (e.g. Team A / Pankaj bhai's car)"
+                className="w-full rounded-xl border border-border-light bg-surface px-3 py-2 text-sm text-text focus:outline-none" />
+              <div className="flex flex-wrap gap-2">
+                {TEAM_COLORS.map((c) => (
+                  <button key={c} onClick={() => setEditing({ ...editing, color: c })}
+                    className={`h-8 w-8 rounded-full border-2 ${editing.color === c ? 'border-text' : 'border-transparent'}`} style={{ background: c }} />
+                ))}
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-bold text-text-muted">Areas for this team</div>
+                <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-border-light p-2">
+                  {areas.map((a) => (
+                    <label key={a} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-text active:bg-black/5">
+                      <input type="checkbox" checked={editing.areas.has(a)} onChange={() => toggleArea(a)} className="h-4 w-4 accent-sky-500" />
+                      {a}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditing(null)} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text active:scale-95">Cancel</button>
+                <button onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-sm font-black text-white active:scale-95 disabled:opacity-50">{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

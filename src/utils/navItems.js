@@ -113,13 +113,14 @@ export function getNavGroups(user) {
               { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
               { id: 'email', label: 'Email', icon: Mail },
               { id: 'bulk-tags', label: 'Bulk Tags', icon: Tag },
-              { id: 'seva-route', label: 'Seva Route', icon: Route },
             ]
           : []),
         ...(canGhari ? [{ id: 'ghari', label: 'Ghari Seva', icon: Cookie }] : []),
         ...(canGhari ? [{ id: 'mandal-leaders', label: 'Mandal Leaders', icon: UserCog }] : []),
         ...(canBus ? [{ id: 'bus', label: 'Bus Seva', icon: Bus }] : []),
         ...(isAdmin ? [{ id: 'leaderboard', label: 'Leaderboard', icon: Trophy, adminOnly: true }] : []),
+        // New modules go at the END of the menu, never inserted between existing items.
+        ...(isAdmin || isSevak ? [{ id: 'seva-route', label: 'Seva Route', icon: Route }] : []),
       ],
     },
     {

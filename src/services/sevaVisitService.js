@@ -14,6 +14,7 @@ import { backendApi, backendOnline, dataService } from './dataService';
 
 const VISITS_KEY = 'ac_seva_visits_v1';
 const HOMES_KEY  = 'ac_home_locations_v1';
+const TEAMS_KEY  = 'ac_seva_teams_v1';
 const OUTBOX_KEY = 'ac_seva_visit_outbox_v1';
 const META_KEY   = 'ac_seva_visit_meta_v1';
 
@@ -30,7 +31,7 @@ function nowISO_() { return new Date().toISOString(); }
 function emit_(name, detail) { try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch { /* ignore */ } }
 function defaultSeason_() { return String(new Date().getFullYear()); }
 
-let MEM = { visits: null, homes: null, meta: null };
+let MEM = { visits: null, homes: null, teams: null, meta: null };
 let flushing = false;
 let inited = false;
 
@@ -41,8 +42,10 @@ function meta_() {
 }
 function visits_() { if (!MEM.visits) MEM.visits = readJSON_(VISITS_KEY, []) || []; return MEM.visits; }
 function homes_() { if (!MEM.homes) MEM.homes = readJSON_(HOMES_KEY, []) || []; return MEM.homes; }
+function teams_() { if (!MEM.teams) MEM.teams = readJSON_(TEAMS_KEY, []) || []; return MEM.teams; }
 function saveVisitsLocal_() { writeJSON_(VISITS_KEY, MEM.visits); }
 function saveHomesLocal_() { writeJSON_(HOMES_KEY, MEM.homes); }
+function saveTeamsLocal_() { writeJSON_(TEAMS_KEY, MEM.teams); }
 function saveMetaLocal_() { writeJSON_(META_KEY, MEM.meta); }
 function outbox_() { return readJSON_(OUTBOX_KEY, []) || []; }
 function setOutbox_(arr) { writeJSON_(OUTBOX_KEY, arr); }
@@ -108,6 +111,13 @@ async function syncDown(season) {
   homes_().forEach(h => { if (!seenH.has(String(h.devoteeId))) { seenH.add(String(h.devoteeId)); mergedH.push(h); } });
   MEM.homes = mergedH; saveHomesLocal_();
 
+  // Teams are admin-managed (no field outbox): server is authoritative for the
+  // scoped season; keep other seasons' cached teams.
+  if (Array.isArray(res.teams)) {
+    const kept = teams_().filter(t => String(t.season) !== scope);
+    MEM.teams = [...kept, ...res.teams]; saveTeamsLocal_();
+  }
+
   MEM.meta = { ...meta_(), lastSyncDown: nowISO_() }; saveMetaLocal_();
   emit_('ac-seva-visit-synced', { pending: outbox_().length, refreshed: true });
   return { ok: true };
@@ -116,7 +126,7 @@ async function syncDown(season) {
 function init() {
   if (inited) return;
   inited = true;
-  visits_(); homes_(); meta_();
+  visits_(); homes_(); teams_(); meta_();
   try {
     window.addEventListener('online', () => { flush().then(() => syncDown()); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
@@ -162,7 +172,7 @@ const sevaVisitService = {
 
   // Mark a home's visit status. Optimistic: saves locally + queues the push, and
   // (when lat/lng are given) captures/updates the home's GPS pin too.
-  markVisit: (devoteeId, { status, lat, lng, note } = {}) => {
+  markVisit: (devoteeId, { status, lat, lng, note, boxes } = {}) => {
     const id = String(devoteeId);
     const season = meta_().season;
     const actor = dataService.currentActor ? dataService.currentActor() : '';
@@ -172,6 +182,7 @@ const sevaVisitService = {
       id: key, devoteeId: id, season,
       status: String(status || 'pending'),
       note: note != null ? String(note) : (prev ? prev.note : ''),
+      boxes: boxes != null && boxes !== '' ? Number(boxes) : (prev && prev.boxes !== '' && prev.boxes != null ? Number(prev.boxes) : ''),
       visitedBy: actor,
       visitedOn: nowISO_(),
     };
@@ -204,6 +215,42 @@ const sevaVisitService = {
     enqueue_('setHomeLocation', 'devoteeId', id, { devoteeId: id, lat: (lat === '' || lat == null) ? '' : Number(lat), lng: (lng === '' || lng == null) ? '' : Number(lng), updatedBy: actor });
     emit_('ac-seva-visit-changed', { devoteeId: id });
     flush();
+  },
+
+  // ── Teams (admin-managed area split) ──────────────────────────────────────
+  getTeams: (season) => {
+    const s = String(season || meta_().season);
+    return teams_().filter(t => String(t.season) === s).map(t => ({
+      ...t,
+      areas: (() => { try { return Array.isArray(t.areas) ? t.areas : JSON.parse(t.areasJson || '[]'); } catch { return []; } })(),
+    }));
+  },
+  // The team a given area is assigned to (for the current season), or null.
+  teamForArea: (area, season) => {
+    const a = String(area || '');
+    return sevaVisitService.getTeams(season).find(t => (t.areas || []).includes(a)) || null;
+  },
+  saveTeam: async ({ id, name, color, areas }) => {
+    const season = meta_().season;
+    const actor = dataService.currentActor ? dataService.currentActor() : '';
+    const tid = id || `TEAM-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+    const prev = teams_().find(t => t.id === tid);
+    const row = {
+      id: tid, season, name: String(name || ''), color: String(color || ''),
+      areasJson: JSON.stringify(areas || []),
+      createdBy: prev ? prev.createdBy : actor, createdOn: prev ? prev.createdOn : nowISO_(),
+      updatedBy: actor, updatedOn: nowISO_(),
+    };
+    // Optimistic local update.
+    MEM.teams = teams_().filter(t => t.id !== tid).concat([row]); saveTeamsLocal_();
+    emit_('ac-seva-visit-changed', { team: tid });
+    if (backendOnline()) { try { await backendApi('upsertSevaTeam', { row }); } catch { /* stays local, will re-save on next edit */ } }
+    return row;
+  },
+  deleteTeam: async (id) => {
+    MEM.teams = teams_().filter(t => t.id !== id); saveTeamsLocal_();
+    emit_('ac-seva-visit-changed', { team: id });
+    if (backendOnline()) { try { await backendApi('deleteSevaTeam', { id }); } catch { /* ignore */ } }
   },
 };
 

@@ -144,10 +144,15 @@ var HEADERS = {
   // ── Annakut seva: per-home visit status for one season (year) ───────────────
   // status ∈ pending|done|not_home|skip. Keyed by `id` = devoteeId|season so a
   // re-mark upserts the same row. `visitedOn` is set when first actioned.
-  SevaVisits: ['id','devoteeId','season','status','note','visitedBy','visitedOn']
+  // `boxes` = prasad boxes handed over at that home (optional count).
+  SevaVisits: ['id','devoteeId','season','status','note','boxes','visitedBy','visitedOn'],
+  // ── Annakut seva: karyakarta teams (split areas so cars don't overlap) ───────
+  // One row per team per season. `areasJson` = JSON array of area names assigned
+  // to the team; `color` tints the team in the UI.
+  SevaTeams: ['id','season','name','color','areasJson','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-11-01-seva-visits';
+var SCHEMA_VERSION = '2026-11-01-seva-teams';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1578,7 +1583,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads','AreaLocations','HomeLocations','SevaVisits'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads','AreaLocations','HomeLocations','SevaVisits','SevaTeams'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -2068,6 +2073,32 @@ function handle_(p){
       else tab_('AreaLocations').getRange(_rn,1,1,HEADERS.AreaLocations.length).setValues([rowFromObj_('AreaLocations',_row)]);
       return json_({ ok:true, row:_row });
     }
+    // ── Annakut seva: karyakarta teams (area split) ──────────────────────────
+    if(action==='getSevaTeams'){
+      var _ts = readAll_('SevaTeams');
+      if(p.season) _ts = _ts.filter(function(t){ return String(t.season)===String(p.season); });
+      return json_({ ok:true, teams:_ts });
+    }
+    if(action==='upsertSevaTeam'){
+      var _tr = p.row||{};
+      if(!_tr.id || !_tr.season) return json_({ ok:false, error:'id and season required' });
+      var _now = new Date().toISOString();
+      var _trow = {
+        id:String(_tr.id), season:String(_tr.season), name:String(_tr.name||''),
+        color:String(_tr.color||''), areasJson:(typeof _tr.areasJson==='string')?_tr.areasJson:JSON.stringify(_tr.areasJson||[]),
+        createdBy:String(_tr.createdBy||''), createdOn:String(_tr.createdOn||_now),
+        updatedBy:String(_tr.updatedBy||''), updatedOn:_now
+      };
+      var _tfr = findRow_('SevaTeams','id',_trow.id);
+      if(_tfr<0) appendRows_('SevaTeams',[_trow]);
+      else tab_('SevaTeams').getRange(_tfr,1,1,HEADERS.SevaTeams.length).setValues([rowFromObj_('SevaTeams',_trow)]);
+      return json_({ ok:true, row:_trow });
+    }
+    if(action==='deleteSevaTeam'){
+      var _dfr = findRow_('SevaTeams','id',String(p.id||''));
+      if(_dfr>0) tab_('SevaTeams').deleteRow(_dfr);
+      return json_({ ok:true });
+    }
     // Geocode a free-text address to lat/lng using Apps Script's built-in Maps
     // service — no API key / billing needed (uses the script's Maps quota).
     if(action==='geocodeAddress'){
@@ -2087,7 +2118,9 @@ function handle_(p){
       var _season = String(p.season||'').trim();
       var _visits = readAll_('SevaVisits');
       if(_season) _visits = _visits.filter(function(v){ return String(v.season)===_season; });
-      return json_({ ok:true, visits:_visits, homeLocations:readAll_('HomeLocations') });
+      var _teams = readAll_('SevaTeams');
+      if(_season) _teams = _teams.filter(function(t){ return String(t.season)===_season; });
+      return json_({ ok:true, visits:_visits, homeLocations:readAll_('HomeLocations'), teams:_teams });
     }
     if(action==='setHomeLocation'){
       var _did = String(p.devoteeId||'').trim();
@@ -2110,6 +2143,7 @@ function handle_(p){
       var _row = {
         id:_vid, devoteeId:String(_r.devoteeId), season:String(_r.season),
         status:String(_r.status||'pending'), note:String(_r.note||''),
+        boxes:(_r.boxes===''||_r.boxes==null)?'':Number(_r.boxes),
         visitedBy:String(_r.visitedBy||''), visitedOn:String(_r.visitedOn||new Date().toISOString())
       };
       var _vr = findRow_('SevaVisits','id',_vid);
