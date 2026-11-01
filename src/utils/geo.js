@@ -81,6 +81,22 @@ export function routeLengthKm(ordered, start = null) {
   return total;
 }
 
+/** A Google Maps directions URL to a single {lat,lng} (optionally from `start`). */
+export function googleMapsToPoint(dest, start = null) {
+  if (!hasCoords(dest)) return '';
+  const d = encodeURIComponent(`${Number(dest.lat)},${Number(dest.lng)}`);
+  const o = start && hasCoords(start) ? `&origin=${encodeURIComponent(`${Number(start.lat)},${Number(start.lng)}`)}` : '';
+  return `https://www.google.com/maps/dir/?api=1&destination=${d}${o}&travelmode=driving`;
+}
+
+/** A Google Maps search URL for a free-text address — the fallback when a home
+ *  has no GPS pin yet. */
+export function googleMapsSearchUrl(query) {
+  const q = String(query || '').trim();
+  if (!q) return '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
 const ll = (p) => `${Number(p.lat)},${Number(p.lng)}`;
 
 /**

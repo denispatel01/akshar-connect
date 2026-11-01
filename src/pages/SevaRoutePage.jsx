@@ -3,12 +3,15 @@ import { createPortal } from 'react-dom';
 import {
   MapPin, Crosshair, Map as MapIcon, Navigation, Route, Trash2, X, Check,
   RefreshCw, LocateFixed, ExternalLink, Home, Pencil, CloudOff,
+  CheckCircle2, DoorClosed, Phone, MessageCircle, ClipboardList, ChevronLeft, CloudOff as CloudOffIcon,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { sevaVisitService, isCovered } from '../services/sevaVisitService';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess } from '../utils/sweetAlert';
 import {
   hasCoords, haversineKm, formatKm, nearestNeighborOrder, routeLengthKm, googleMapsDirUrls,
+  googleMapsToPoint, googleMapsSearchUrl,
 } from '../utils/geo';
 
 // Surat (Adajan) — a sensible default map centre for this mandal's areas.
@@ -165,7 +168,7 @@ function AreaPinRow({ area, homes, loc, canEdit, onUse, onMap, onGeocode, onClea
 
 export default function SevaRoutePage({ user }) {
   const canEdit = isAdminRole(user) || isSevakRole(user);
-  const [tab, setTab] = useState('pins'); // pins | plan | nearest
+  const [tab, setTab] = useState('visit'); // visit | pins | plan | nearest
   const [locMap, setLocMap] = useState({}); // area -> { lat, lng }
   const [loading, setLoading] = useState(true);
   const [busyArea, setBusyArea] = useState('');
@@ -184,17 +187,29 @@ export default function SevaRoutePage({ user }) {
     return list.map((a) => a.name).filter((n) => { const k = n.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
   }, []);
 
-  // Home counts per area from the cached devotee directory (active records only).
-  const homesByArea = useMemo(() => {
+  // Start the offline-first visit sync once.
+  useEffect(() => { try { sevaVisitService.init(); } catch { /* ignore */ } }, []);
+
+  // Active devotee homes grouped by area (deceased excluded), used by home counts
+  // and the Visit checklist. Ordered by Area-Route no., then name.
+  const devoteesByArea = useMemo(() => {
     const out = {};
-    areas.forEach((a) => { out[a] = 0; });
+    areas.forEach((a) => { out[a] = []; });
     (dataService.getDevotees() || []).forEach((d) => {
       if (String(d.status || 'Active') === 'Deceased') return;
       const a = String(d.area || '').trim();
-      if (a && out[a] !== undefined) out[a] += 1;
+      if (a && out[a]) out[a].push(d);
     });
+    Object.values(out).forEach((list) => list.sort((x, y) =>
+      ((Number(x.areaRoute) || 1e9) - (Number(y.areaRoute) || 1e9)) || String(x.name || '').localeCompare(String(y.name || ''))));
     return out;
   }, [areas]);
+
+  const homesByArea = useMemo(() => {
+    const out = {};
+    areas.forEach((a) => { out[a] = (devoteesByArea[a] || []).length; });
+    return out;
+  }, [areas, devoteesByArea]);
 
   const refresh = async () => {
     setLoading(true);
@@ -268,8 +283,8 @@ export default function SevaRoutePage({ user }) {
       </div>
 
       {/* Tabs */}
-      <div className="mb-3 flex gap-1 rounded-2xl bg-black/5 p-1 text-sm font-bold">
-        {[['pins', 'Area pins', MapPin], ['plan', 'Plan route', Route], ['nearest', 'Nearest', Navigation]].map(([id, label, Icon]) => (
+      <div className="mb-3 flex gap-1 rounded-2xl bg-black/5 p-1 text-[13px] font-bold">
+        {[['visit', 'Visit', CheckCircle2], ['pins', 'Pins', MapPin], ['plan', 'Plan', Route], ['nearest', 'Nearest', Navigation]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition-colors ${tab === id ? 'bg-surface text-sky-600 shadow-sm' : 'text-text-muted'}`}>
             <Icon className="h-4 w-4" /> {label}
@@ -294,6 +309,7 @@ export default function SevaRoutePage({ user }) {
         </div>
       )}
 
+      {tab === 'visit' && <VisitTracker areas={areas} devoteesByArea={devoteesByArea} areaPins={locMap} canEdit={canEdit} />}
       {tab === 'plan' && <PlanRoute areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
       {tab === 'nearest' && <NearestFromHere areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
 
@@ -458,6 +474,211 @@ function NearestFromHere({ areas, locMap, homesByArea, onNeedPins }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Feature #1-3: visit tracking, auto home-GPS capture, missed-homes pass ────
+function telLink(mobile) { const m = String(mobile || '').replace(/\D/g, ''); return m ? `tel:${m}` : null; }
+function waLink(mobile, name) {
+  const m = String(mobile || '').replace(/\D/g, '');
+  if (m.length < 10) return null;
+  const num = m.length === 10 ? '91' + m : m;
+  const msg = `Jai Swaminarayan ${String(name || '').split(' ')[0] || ''} 🙏 Annakut prasad padhramani — we are on our way to your home.`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+}
+function navUrlFor(d, homeLoc, areaPins) {
+  if (hasCoords(homeLoc)) return googleMapsToPoint(homeLoc);
+  const ap = areaPins[String(d.area || '').trim()];
+  if (hasCoords(ap)) return googleMapsToPoint(ap);
+  return googleMapsSearchUrl([d.address, d.area, 'Surat'].filter(Boolean).join(', '));
+}
+
+const STATUS_META = {
+  done:     { label: 'Done',     cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300', Icon: CheckCircle2 },
+  not_home: { label: 'Not home', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300', Icon: DoorClosed },
+  skip:     { label: 'Skip',     cls: 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300', Icon: X },
+};
+
+function ProgressBar({ done, total }) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-black/10">
+      <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function HomeCard({ d, status, homeLoc, areaPins, busy, onMark }) {
+  const call = telLink(d.mobile);
+  const wa = waLink(d.mobile, d.name);
+  const nav = navUrlFor(d, homeLoc, areaPins);
+  const meta = STATUS_META[status];
+  const pinned = hasCoords(homeLoc);
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${status === 'done' ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-border-light bg-surface'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 font-bold text-text">
+            {d.areaRoute ? <span className="rounded bg-black/5 px-1.5 text-[11px] text-text-muted">#{d.areaRoute}</span> : null}
+            {d.name}
+            {pinned && <MapPin className="h-3.5 w-3.5 text-emerald-500" title="Home GPS captured" />}
+          </div>
+          {d.address ? <div className="truncate text-xs text-text-muted">{d.address}</div> : null}
+          {meta && <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${meta.cls}`}><meta.Icon className="h-3 w-3" /> {meta.label}</span>}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {call && <a href={call} className="rounded-lg border border-border-light p-2 text-sky-600 active:scale-95"><Phone className="h-4 w-4" /></a>}
+          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-border-light p-2 text-emerald-600 active:scale-95"><MessageCircle className="h-4 w-4" /></a>}
+          {nav && <a href={nav} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-border-light p-2 text-indigo-600 active:scale-95"><Navigation className="h-4 w-4" /></a>}
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <button onClick={() => onMark(d, 'done')} disabled={busy}
+          className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-bold active:scale-95 disabled:opacity-50 ${status === 'done' ? 'bg-emerald-500 text-white' : 'border border-border-light text-emerald-700 dark:text-emerald-300'}`}>
+          {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Done
+        </button>
+        <button onClick={() => onMark(d, 'not_home')} disabled={busy}
+          className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-bold active:scale-95 disabled:opacity-50 ${status === 'not_home' ? 'bg-amber-500 text-white' : 'border border-border-light text-amber-700 dark:text-amber-300'}`}>
+          <DoorClosed className="h-3.5 w-3.5" /> Not home
+        </button>
+        <button onClick={() => onMark(d, 'skip')} disabled={busy}
+          className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-bold active:scale-95 disabled:opacity-50 ${status === 'skip' ? 'bg-slate-500 text-white' : 'border border-border-light text-text-muted'}`}>
+          <X className="h-3.5 w-3.5" /> Skip
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
+  const [, setTick] = useState(0);
+  const [selected, setSelected] = useState(null); // area name
+  const [missedOnly, setMissedOnly] = useState(false);
+  const [busyId, setBusyId] = useState('');
+  const season = sevaVisitService.getSeason();
+
+  useEffect(() => {
+    const on = () => setTick((t) => t + 1);
+    window.addEventListener('ac-seva-visit-changed', on);
+    window.addEventListener('ac-seva-visit-synced', on);
+    return () => { window.removeEventListener('ac-seva-visit-changed', on); window.removeEventListener('ac-seva-visit-synced', on); };
+  }, []);
+
+  const visits = sevaVisitService.visitsMap(season);
+  const homeLocs = sevaVisitService.homeLocMap();
+  const statusOf = (d) => (visits[String(d.id)] ? String(visits[String(d.id)].status) : 'pending');
+
+  // Per-area and overall progress.
+  const areaProgress = useMemo(() => {
+    const out = {};
+    let doneT = 0, totalT = 0;
+    areas.forEach((a) => {
+      const list = devoteesByArea[a] || [];
+      const done = list.filter((d) => isCovered(visits[String(d.id)] && visits[String(d.id)].status)).length;
+      out[a] = { done, total: list.length };
+      doneT += done; totalT += list.length;
+    });
+    return { out, doneT, totalT };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas, devoteesByArea, visits]);
+
+  const mark = async (d, status) => {
+    if (!canEdit) { alertError('View only', 'You have view-only access to the seva route.'); return; }
+    const next = statusOf(d) === status ? 'pending' : status;
+    // Instant optimistic mark.
+    sevaVisitService.markVisit(d.id, { status: next });
+    // For a real visit, capture the home's GPS in the background (auto-pin).
+    if (next === 'done' || next === 'not_home') {
+      setBusyId(d.id);
+      try { const p = await getCurrentPosition(); sevaVisitService.markVisit(d.id, { status: next, lat: p.lat, lng: p.lng }); }
+      catch { /* keep the status; just no pin this time */ }
+      finally { setBusyId(''); }
+    }
+  };
+
+  // ── Overview: all areas with progress ──
+  if (!selected) {
+    const withHomes = areas.filter((a) => (devoteesByArea[a] || []).length > 0);
+    return (
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-border-light bg-surface p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-sm font-bold text-text">Annakut padhramani {season}</div>
+            <div className="text-xs font-bold text-emerald-600">{areaProgress.doneT} / {areaProgress.totalT} homes</div>
+          </div>
+          <ProgressBar done={areaProgress.doneT} total={areaProgress.totalT} />
+          {!sevaVisitService.isOnline() && <div className="mt-2 flex items-center gap-1 text-[11px] text-amber-600"><CloudOffIcon className="h-3.5 w-3.5" /> Offline — marks are saved on this device and will sync.</div>}
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+          {withHomes.map((a) => {
+            const pr = areaProgress.out[a];
+            const complete = pr.total > 0 && pr.done >= pr.total;
+            return (
+              <button key={a} onClick={() => { setSelected(a); setMissedOnly(false); }}
+                className="flex w-full items-center gap-3 border-b border-border-light px-3 py-2.5 text-left last:border-0 active:bg-black/5">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${complete ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-black/5 text-text-muted'}`}>
+                  {complete ? <Check className="h-5 w-5" /> : <Home className="h-5 w-5" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-text">{a}</span>
+                    <span className="text-xs font-semibold text-text-muted">{pr.done}/{pr.total}</span>
+                  </div>
+                  <div className="mt-1"><ProgressBar done={pr.done} total={pr.total} /></div>
+                </div>
+              </button>
+            );
+          })}
+          {!withHomes.length && <div className="p-6 text-center text-sm text-text-muted">No devotee homes found in any area.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ── One area's home checklist ──
+  const list = devoteesByArea[selected] || [];
+  const shown = missedOnly ? list.filter((d) => !isCovered(statusOf(d))) : list;
+  const pr = areaProgress.out[selected] || { done: 0, total: 0 };
+  // "Route missed homes": only useful once ≥2 missed homes already have a GPS pin
+  // (e.g. a second pass, or next year). Falls back to per-home Navigate otherwise.
+  const missedPinned = list.filter((d) => !isCovered(statusOf(d)) && hasCoords(homeLocs[String(d.id)]))
+    .map((d) => ({ area: d.name, ...homeLocs[String(d.id)] }));
+  const missedRouteUrl = missedPinned.length >= 2 ? googleMapsDirUrls(nearestNeighborOrder(missedPinned))[0]?.url : null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <button onClick={() => setSelected(null)} className="rounded-lg border border-border-light p-2 text-text-muted active:scale-95"><ChevronLeft className="h-4 w-4" /></button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <span className="truncate font-black text-text">{selected}</span>
+            <span className="text-xs font-bold text-emerald-600">{pr.done}/{pr.total}</span>
+          </div>
+          <div className="mt-1"><ProgressBar done={pr.done} total={pr.total} /></div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <button onClick={() => setMissedOnly((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold active:scale-95 ${missedOnly ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300' : 'border-border-light text-text-muted'}`}>
+          <ClipboardList className="h-3.5 w-3.5" /> {missedOnly ? 'Showing not-done' : 'Show not-done only'}
+        </button>
+        {missedRouteUrl && (
+          <a href={missedRouteUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-black text-white active:scale-95">
+            <Route className="h-3.5 w-3.5" /> Route not-done
+          </a>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {shown.map((d) => (
+          <HomeCard key={d.id} d={d} status={statusOf(d)} homeLoc={homeLocs[String(d.id)]} areaPins={areaPins}
+            busy={busyId === d.id} onMark={mark} />
+        ))}
+        {!shown.length && <div className="rounded-xl border border-dashed border-border-light p-6 text-center text-sm text-text-muted">{missedOnly ? 'Every home here is done. 🎉' : 'No homes in this area.'}</div>}
+      </div>
     </div>
   );
 }

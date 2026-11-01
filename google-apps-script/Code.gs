@@ -135,10 +135,19 @@ var HEADERS = {
   // One pin per area (lat/lng), set once from the app (current location / map pin /
   // geocode). Used to compute the shortest visiting order and open Google Maps.
   // Keyed by `area` (matches the AREAS list in src/services/devoteeSchema.js).
-  AreaLocations: ['area','lat','lng','updatedBy','updatedOn']
+  AreaLocations: ['area','lat','lng','updatedBy','updatedOn'],
+  // ── Annakut seva: per-home GPS pins (built up as homes are visited) ──────────
+  // One row per devotee home. Captured automatically when a home is marked
+  // visited (the visitor's current GPS), so a full home-level map builds itself
+  // over one seva. Persists across years. Keyed by `devoteeId`.
+  HomeLocations: ['devoteeId','lat','lng','updatedBy','updatedOn'],
+  // ── Annakut seva: per-home visit status for one season (year) ───────────────
+  // status ∈ pending|done|not_home|skip. Keyed by `id` = devoteeId|season so a
+  // re-mark upserts the same row. `visitedOn` is set when first actioned.
+  SevaVisits: ['id','devoteeId','season','status','note','visitedBy','visitedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-11-01-area-locations';
+var SCHEMA_VERSION = '2026-11-01-seva-visits';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -1569,7 +1578,7 @@ function ensureSheets_(){
   var props = PropertiesService.getScriptProperties();
   if(props.getProperty('ensuredSchema') === SCHEMA_VERSION) return;
   var first = ss_().getSheets()[0];
-  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads','AreaLocations'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
+  ['Users','Devotees','Sabhas','Attendance','Followups','Thoughts','Areas','Activity','Changes','GhariProducts','GhariOrders','GhariPurchases','GhariStock','GhariMandalPayments','GhariBuyers','GhariLeaderTargets','MandalLeaders','LeaderBoards','LeaderEntries','LeaderLogs','PushTokens','Announcements','PushStatus','Swadhyay','Seva','CalPlan','FeedPosts','FeedLikes','FeedComments','EmailCampaigns','EmailTemplates','GhariLog','BusEvents','BusBookings','BusTally','Vato','DevoteeLog','NotifReads','AreaLocations','HomeLocations','SevaVisits'].forEach(function(n){ tab_(n); migrateHeaders_(n); });
   // remove default empty "Sheet1" if it isn't one of ours
   if(first && ['Sheet1','Sheet 1'].indexOf(first.getName())>=0 && HEADERS[first.getName()]===undefined){
     try{ ss_().deleteSheet(first); }catch(e){}
@@ -2072,6 +2081,48 @@ function handle_(p){
         }
         return json_({ ok:false, error:'No location found for that address.' });
       }catch(err){ return json_({ ok:false, error:String(err) }); }
+    }
+    // ── Annakut seva: visit tracking + per-home GPS pins ─────────────────────
+    if(action==='sevaVisitsBootstrap'){
+      var _season = String(p.season||'').trim();
+      var _visits = readAll_('SevaVisits');
+      if(_season) _visits = _visits.filter(function(v){ return String(v.season)===_season; });
+      return json_({ ok:true, visits:_visits, homeLocations:readAll_('HomeLocations') });
+    }
+    if(action==='setHomeLocation'){
+      var _did = String(p.devoteeId||'').trim();
+      if(!_did) return json_({ ok:false, error:'devoteeId required' });
+      var _hl = {
+        devoteeId:_did,
+        lat:(p.lat===''||p.lat==null)?'':Number(p.lat),
+        lng:(p.lng===''||p.lng==null)?'':Number(p.lng),
+        updatedBy:p.updatedBy||p.actor||'', updatedOn:new Date().toISOString()
+      };
+      var _hr = findRow_('HomeLocations','devoteeId',_did);
+      if(_hr<0) appendRows_('HomeLocations',[_hl]);
+      else tab_('HomeLocations').getRange(_hr,1,1,HEADERS.HomeLocations.length).setValues([rowFromObj_('HomeLocations',_hl)]);
+      return json_({ ok:true, row:_hl });
+    }
+    if(action==='upsertSevaVisit'){
+      var _r = p.row||{};
+      var _vid = String(_r.id|| (String(_r.devoteeId||'')+'|'+String(_r.season||''))).trim();
+      if(!_r.devoteeId || !_r.season) return json_({ ok:false, error:'devoteeId and season required' });
+      var _row = {
+        id:_vid, devoteeId:String(_r.devoteeId), season:String(_r.season),
+        status:String(_r.status||'pending'), note:String(_r.note||''),
+        visitedBy:String(_r.visitedBy||''), visitedOn:String(_r.visitedOn||new Date().toISOString())
+      };
+      var _vr = findRow_('SevaVisits','id',_vid);
+      if(_vr<0) appendRows_('SevaVisits',[_row]);
+      else tab_('SevaVisits').getRange(_vr,1,1,HEADERS.SevaVisits.length).setValues([rowFromObj_('SevaVisits',_row)]);
+      // Auto-capture the home's GPS pin from the visit, when coordinates are sent.
+      if(!(p.lat===''||p.lat==null) && !(p.lng===''||p.lng==null)){
+        var _hl2 = { devoteeId:String(_r.devoteeId), lat:Number(p.lat), lng:Number(p.lng), updatedBy:_row.visitedBy, updatedOn:new Date().toISOString() };
+        var _hr2 = findRow_('HomeLocations','devoteeId',String(_r.devoteeId));
+        if(_hr2<0) appendRows_('HomeLocations',[_hl2]);
+        else tab_('HomeLocations').getRange(_hr2,1,1,HEADERS.HomeLocations.length).setValues([rowFromObj_('HomeLocations',_hl2)]);
+      }
+      return json_({ ok:true, row:_row });
     }
     if(action==='getLeaderboards') return doGetLeaderboards_(p);
     if(action==='seedMandalLeaders') return json_({ ok:true, leaders: seedMandalLeaders_(p && p.force === true) });
