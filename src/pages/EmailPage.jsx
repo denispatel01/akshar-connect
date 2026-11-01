@@ -4,7 +4,7 @@ import {
   Sparkles, Eye, EyeOff, Loader2, AlertTriangle, UserPlus, FileText, Pencil, Trash2, Plus,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { AREAS, YUVAK_TYPES, GENDERS } from '../services/devoteeSchema';
+import { YUVAK_TYPES, GENDERS } from '../services/devoteeSchema';
 import { devoteeMatches } from '../utils/search';
 import { alertError } from '../utils/sweetAlert';
 import Swal from 'sweetalert2';
@@ -51,6 +51,19 @@ export default function EmailPage({ user }) {
 
   const devotees = useMemo(() => dataService.getDevotees() || [], []);
   const withEmail = useMemo(() => devotees.filter((d) => validEmail(d.email)), [devotees]);
+  // Area filter options come from the live Areas sheet (ordered by number), plus any
+  // area actually present on a devotee record that isn't in the sheet — so the filter
+  // never hides a real area. (The old hardcoded AREAS list only had 8.)
+  const areaOptions = useMemo(() => {
+    const master = (dataService.getAreas() || [])
+      .filter((a) => a && a.name)
+      .sort((a, b) => ((parseInt(a.number, 10) || 1e9) - (parseInt(b.number, 10) || 1e9)) || String(a.name).localeCompare(String(b.name)))
+      .map((a) => String(a.name).trim());
+    const seen = new Set(master.map((n) => n.toLowerCase()));
+    const extra = [...new Set(devotees.map((d) => String(d.area || '').trim()).filter(Boolean))]
+      .filter((n) => !seen.has(n.toLowerCase())).sort((a, b) => a.localeCompare(b));
+    return [...master, ...extra];
+  }, [devotees]);
 
   const [recipients, setRecipients] = useState([]); // { id?, name, email }
   const emailSet = useMemo(() => new Set(recipients.map((r) => r.email.toLowerCase())), [recipients]);
@@ -231,7 +244,7 @@ export default function EmailPage({ user }) {
             <div className="grid grid-cols-3 gap-2">
               <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-xl border border-border-light bg-bg-base px-2 py-2 text-xs font-semibold text-text-main focus:outline-none">
                 <option value="">All areas</option>
-                {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+                {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
               <select value={fYuvak} onChange={(e) => setFYuvak(e.target.value)} className="rounded-xl border border-border-light bg-bg-base px-2 py-2 text-xs font-semibold text-text-main focus:outline-none">
                 <option value="">All types</option>
