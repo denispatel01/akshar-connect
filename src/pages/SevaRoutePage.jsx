@@ -4,10 +4,12 @@ import {
   MapPin, Crosshair, Map as MapIcon, Navigation, Route, Trash2, X, Check,
   RefreshCw, LocateFixed, ExternalLink, Home, Pencil, CloudOff,
   CheckCircle2, DoorClosed, Phone, MessageCircle, ClipboardList, ChevronLeft, ChevronRight,
-  CloudOff as CloudOffIcon, Plus, Minus, Send, BarChart3, Users, Package,
+  CloudOff as CloudOffIcon, Plus, Minus, Send, BarChart3, Users, Package, Search,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { sevaVisitService, isCovered } from '../services/sevaVisitService';
+import { hasAnyTag, hasAllTags } from '../services/devoteeSchema';
+import { tagsByCategory, tagChipStyle, tagLabel } from '../services/tagCatalog';
 import { isAdminRole, isSevakRole } from '../utils/navItems';
 import { alertError, alertSuccess, confirmDialog } from '../utils/sweetAlert';
 import {
@@ -66,6 +68,8 @@ function MapPicker({ area, initial, onSave, onClose }) {
   const [pos, setPos] = useState(hasCoords(initial) ? { lat: Number(initial.lat), lng: Number(initial.lng) } : null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,45 +93,64 @@ function MapPicker({ area, initial, onSave, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const moveTo = (lat, lng, zoom = 16) => {
+    setPos({ lat, lng });
+    if (mapRef.current && markerRef.current) { markerRef.current.setLatLng([lat, lng]); mapRef.current.setView([lat, lng], zoom); }
+  };
   const useMyLocation = async () => {
-    try {
-      const p = await getCurrentPosition();
-      setPos({ lat: p.lat, lng: p.lng });
-      if (mapRef.current && markerRef.current) {
-        markerRef.current.setLatLng([p.lat, p.lng]);
-        mapRef.current.setView([p.lat, p.lng], 16);
-      }
-    } catch (e) { alertError('Location', e.message); }
+    try { const p = await getCurrentPosition(); moveTo(p.lat, p.lng); }
+    catch (e) { alertError('Location', e.message); }
+  };
+  const search = async () => {
+    const q = query.trim();
+    if (!q) return;
+    setSearching(true);
+    try { const r = await dataService.geocodeAddress(q); moveTo(r.lat, r.lng, 17); }
+    catch (e) { alertError('Search', e.message); }
+    finally { setSearching(false); }
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
-      <div className="flex h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:h-[80vh] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
-          <div className="flex items-center gap-2 font-black text-text">
-            <MapIcon className="h-5 w-5 text-sky-500" /> Pin for {area}
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-surface" onClick={(e) => e.stopPropagation()}>
+      {/* Header + search */}
+      <div className="border-b border-border-light px-3 py-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex min-w-0 items-center gap-2 font-black text-text">
+            <MapIcon className="h-5 w-5 shrink-0 text-sky-500" /> <span className="truncate">Pin for {area}</span>
           </div>
           <button onClick={onClose} className="rounded-full p-1.5 text-text-muted hover:bg-black/5"><X className="h-5 w-5" /></button>
         </div>
-        <div className="relative flex-1">
-          {loading && <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-text-muted">Loading map…</div>}
-          {err && <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-rose-600">{err}</div>}
-          <div ref={divRef} className="h-full w-full" />
+        <div className="mt-2 flex gap-2">
+          <div className="flex flex-1 items-center gap-1.5 rounded-xl border border-border-light px-2.5">
+            <Search className="h-4 w-4 shrink-0 text-text-muted" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search(); }}
+              placeholder="Search a place or address…" className="w-full bg-transparent py-2 text-sm text-text focus:outline-none" />
+          </div>
+          <button onClick={search} disabled={searching} className="flex items-center gap-1.5 rounded-xl bg-sky-500 px-3 py-2 text-sm font-bold text-white active:scale-95 disabled:opacity-50">
+            {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          </button>
         </div>
-        <div className="border-t border-border-light px-4 py-3">
-          <div className="mb-2 flex items-center justify-between text-xs text-text-muted">
-            <span>Tap the map or drag the pin to {area}.</span>
-            {pos && <span className="font-mono">{pos.lat.toFixed(5)}, {pos.lng.toFixed(5)}</span>}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={useMyLocation} className="flex items-center gap-1.5 rounded-xl border border-border-light px-3 py-2 text-sm font-bold text-text active:scale-95">
-              <Crosshair className="h-4 w-4 text-sky-500" /> My location
-            </button>
-            <button onClick={() => pos && onSave(pos)} disabled={!pos}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 px-4 py-2 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-40">
-              <Check className="h-4 w-4" /> Save pin
-            </button>
-          </div>
+      </div>
+      {/* Full-screen map */}
+      <div className="relative flex-1">
+        {loading && <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-text-muted">Loading map…</div>}
+        {err && <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-rose-600">{err}</div>}
+        <div ref={divRef} className="h-full w-full" />
+      </div>
+      {/* Footer actions */}
+      <div className="border-t border-border-light px-4 py-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+        <div className="mb-2 flex items-center justify-between text-xs text-text-muted">
+          <span>Tap the map or drag the pin to {area}.</span>
+          {pos && <span className="font-mono">{pos.lat.toFixed(5)}, {pos.lng.toFixed(5)}</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={useMyLocation} className="flex items-center gap-1.5 rounded-xl border border-border-light px-3 py-2.5 text-sm font-bold text-text active:scale-95">
+            <Crosshair className="h-4 w-4 text-sky-500" /> My location
+          </button>
+          <button onClick={() => pos && onSave(pos)} disabled={!pos}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 px-4 py-2.5 text-sm font-black text-white shadow-md active:scale-95 disabled:opacity-40">
+            <Check className="h-4 w-4" /> Save pin
+          </button>
         </div>
       </div>
     </div>,
@@ -174,6 +197,8 @@ export default function SevaRoutePage({ user }) {
   const [loading, setLoading] = useState(true);
   const [busyArea, setBusyArea] = useState('');
   const [picker, setPicker] = useState(null); // { area, initial }
+  const [, setDriveTick] = useState(0);
+  const [showDrives, setShowDrives] = useState(false);
 
   // The real area list comes from the Areas sheet (loaded at bootstrap), ordered by
   // its `number` column — NOT a hardcoded list, so adding/renaming an area in the
@@ -188,23 +213,42 @@ export default function SevaRoutePage({ user }) {
     return list.map((a) => a.name).filter((n) => { const k = n.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
   }, []);
 
-  // Start the offline-first visit sync once.
-  useEffect(() => { try { sevaVisitService.init(); } catch { /* ignore */ } }, []);
+  // Start the offline-first visit sync once; re-render when drives/visits change.
+  useEffect(() => {
+    try { sevaVisitService.init(); } catch { /* ignore */ }
+    const on = () => setDriveTick((t) => t + 1);
+    window.addEventListener('ac-seva-visit-changed', on);
+    window.addEventListener('ac-seva-visit-synced', on);
+    return () => { window.removeEventListener('ac-seva-visit-changed', on); window.removeEventListener('ac-seva-visit-synced', on); };
+  }, []);
 
-  // Active devotee homes grouped by area (deceased excluded), used by home counts
-  // and the Visit checklist. Ordered by Area-Route no., then name.
+  const drives = sevaVisitService.getDrives();
+  const driveId = sevaVisitService.getDriveId();
+  const drive = sevaVisitService.getDrive(driveId);
+
+  // Devotees for the CURRENT seva, chosen by its tags (any/all) — like a Follow-up
+  // event. No drive selected → no homes (the UI prompts to pick a seva). Grouped by
+  // area and ordered by Area-Route no., then name.
   const devoteesByArea = useMemo(() => {
     const out = {};
     areas.forEach((a) => { out[a] = []; });
+    if (!drive) return out;
+    const tags = drive.tags || [];
+    const matches = (d) => {
+      if (!tags.length) return true; // a drive with no tags = everyone
+      return drive.matchMode === 'all' ? hasAllTags(d, tags) : hasAnyTag(d, tags);
+    };
     (dataService.getDevotees() || []).forEach((d) => {
       if (String(d.status || 'Active') === 'Deceased') return;
+      if (!matches(d)) return;
       const a = String(d.area || '').trim();
       if (a && out[a]) out[a].push(d);
     });
     Object.values(out).forEach((list) => list.sort((x, y) =>
       ((Number(x.areaRoute) || 1e9) - (Number(y.areaRoute) || 1e9)) || String(x.name || '').localeCompare(String(y.name || ''))));
     return out;
-  }, [areas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas, driveId, drive && drive.tags && drive.tags.join(','), drive && drive.matchMode]);
 
   const homesByArea = useMemo(() => {
     const out = {};
@@ -276,11 +320,21 @@ export default function SevaRoutePage({ user }) {
           <h1 className="flex items-center gap-2 text-xl font-black text-text">
             <Route className="h-6 w-6 text-sky-500" /> Seva Route
           </h1>
-          <p className="text-xs text-text-muted">Annakut padhramani — shortest path between areas</p>
+          <p className="text-xs text-text-muted">Pick a seva — visit every home & find the shortest path</p>
         </div>
         <button onClick={refresh} className="rounded-full border border-border-light p-2 text-text-muted active:scale-95" title="Refresh">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+
+      {/* Seva (drive) selector */}
+      <div className="mb-3 flex items-center gap-2">
+        <select value={driveId} onChange={(e) => sevaVisitService.setDriveId(e.target.value)}
+          className="min-w-0 flex-1 rounded-xl border border-border-light bg-surface px-3 py-2 text-sm font-bold text-text focus:outline-none">
+          <option value="">— Select a seva —</option>
+          {drives.filter((d) => d.status !== 'archived').map((d) => <option key={d.id} value={d.id}>{d.name || 'Untitled seva'}</option>)}
+        </select>
+        {canEdit && <button onClick={() => setShowDrives(true)} className="flex items-center gap-1 rounded-xl border border-border-light px-3 py-2 text-sm font-bold text-text-muted active:scale-95"><ClipboardList className="h-4 w-4" /> Sevas</button>}
       </div>
 
       {/* Tabs */}
@@ -310,15 +364,25 @@ export default function SevaRoutePage({ user }) {
         </div>
       )}
 
-      {tab === 'visit' && <VisitTracker areas={areas} devoteesByArea={devoteesByArea} areaPins={locMap} canEdit={canEdit} />}
-      {tab === 'plan' && <PlanRoute areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
-      {tab === 'nearest' && <NearestFromHere areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
+      {tab !== 'pins' && !drive && (
+        <div className="rounded-2xl border border-dashed border-border-light bg-surface p-8 text-center">
+          <ClipboardList className="mx-auto mb-2 h-10 w-10 text-text-muted" />
+          <p className="font-bold text-text">Pick a seva first</p>
+          <p className="mt-1 text-sm text-text-muted">Choose a seva above, or create one (e.g. Annakut, Shravan padhramani) and pick its devotees by tag.</p>
+          {canEdit && <button onClick={() => setShowDrives(true)} className="mt-3 rounded-xl bg-sky-500 px-4 py-2 text-sm font-black text-white active:scale-95">Create a seva</button>}
+        </div>
+      )}
+
+      {tab === 'visit' && drive && <VisitTracker key={driveId} areas={areas} devoteesByArea={devoteesByArea} areaPins={locMap} canEdit={canEdit} drive={drive} />}
+      {tab === 'plan' && drive && <PlanRoute areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
+      {tab === 'nearest' && drive && <NearestFromHere areas={areas} locMap={locMap} homesByArea={homesByArea} onNeedPins={() => setTab('pins')} />}
 
       {picker && (
         <MapPicker area={picker.area} initial={picker.initial}
           onClose={() => setPicker(null)}
           onSave={async (p) => { const a = picker.area; setPicker(null); await saveArea(a, p.lat, p.lng); alertSuccess('Pin set', `${a} pin saved.`); }} />
       )}
+      {showDrives && <ManageDrivesModal drives={drives} currentId={driveId} onClose={() => setShowDrives(false)} onSelect={(id) => sevaVisitService.setDriveId(id)} />}
     </div>
   );
 }
@@ -563,7 +627,7 @@ function HomeCard({ d, status, boxes, homeLoc, areaPins, busy, onMark, onBoxes }
 
 const TEAM_COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#0891B2', '#DB2777', '#4B5563'];
 
-function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
+function VisitTracker({ areas, devoteesByArea, areaPins, canEdit, drive }) {
   const [, setTick] = useState(0);
   const [selected, setSelected] = useState(null); // area name
   const [missedOnly, setMissedOnly] = useState(false);
@@ -574,7 +638,8 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
   const [guide, setGuide] = useState(false);
   const [guideIdx, setGuideIdx] = useState(0);
   const [notifying, setNotifying] = useState(false);
-  const season = sevaVisitService.getSeason();
+  const driveId = drive.id;
+  const driveName = drive.name || 'Seva';
 
   useEffect(() => {
     const on = () => setTick((t) => t + 1);
@@ -583,9 +648,9 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
     return () => { window.removeEventListener('ac-seva-visit-changed', on); window.removeEventListener('ac-seva-visit-synced', on); };
   }, []);
 
-  const visits = sevaVisitService.visitsMap(season);
+  const visits = sevaVisitService.visitsMap(driveId);
   const homeLocs = sevaVisitService.homeLocMap();
-  const teams = sevaVisitService.getTeams(season);
+  const teams = sevaVisitService.getTeams(driveId);
   const statusOf = (d) => (visits[String(d.id)] ? String(visits[String(d.id)].status) : 'pending');
   const boxesOf = (d) => { const v = visits[String(d.id)]; return v && v.boxes !== '' && v.boxes != null ? Number(v.boxes) : 0; };
   const teamForArea = (a) => teams.find((t) => (t.areas || []).includes(a)) || null;
@@ -645,7 +710,7 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
 
   // ── Coverage report ──
   if (view === 'report') {
-    return <VisitReport areas={areas} devoteesByArea={devoteesByArea} visits={visits} season={season} onBack={() => setView('overview')} />;
+    return <VisitReport areas={areas} devoteesByArea={devoteesByArea} visits={visits} driveName={driveName} onBack={() => setView('overview')} />;
   }
 
   // ── Overview: all areas with progress ──
@@ -657,7 +722,7 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
       <div className="space-y-3">
         <div className="rounded-2xl border border-border-light bg-surface p-3">
           <div className="mb-1 flex items-center justify-between">
-            <div className="text-sm font-bold text-text">Annakut padhramani {season}</div>
+            <div className="text-sm font-bold text-text">{driveName}</div>
             <div className="text-xs font-bold text-emerald-600">{areaProgress.doneT} / {areaProgress.totalT} homes</div>
           </div>
           <ProgressBar done={areaProgress.doneT} total={areaProgress.totalT} />
@@ -699,7 +764,7 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit }) {
           })}
           {!withHomes.length && <div className="p-6 text-center text-sm text-text-muted">No areas to show for this filter.</div>}
         </div>
-        {showTeams && <ManageTeamsModal areas={areas} teams={teams} season={season} onClose={() => setShowTeams(false)} />}
+        {showTeams && <ManageTeamsModal areas={areas} teams={teams} driveName={driveName} onClose={() => setShowTeams(false)} />}
       </div>
     );
   }
@@ -798,7 +863,7 @@ function Stat({ label, value, cls }) {
     </div>
   );
 }
-function VisitReport({ areas, devoteesByArea, visits, season, onBack }) {
+function VisitReport({ areas, devoteesByArea, visits, driveName, onBack }) {
   const statusOf = (d) => (visits[String(d.id)] ? String(visits[String(d.id)].status) : 'pending');
   const boxesOf = (d) => { const v = visits[String(d.id)]; return v && v.boxes !== '' && v.boxes != null ? Number(v.boxes) : 0; };
 
@@ -830,7 +895,7 @@ function VisitReport({ areas, devoteesByArea, visits, season, onBack }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="rounded-lg border border-border-light p-2 text-text-muted active:scale-95"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="font-black text-text">Coverage report {season}</span>
+        <span className="font-black text-text">Coverage — {driveName}</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Done" value={done} cls="text-emerald-600" />
@@ -871,7 +936,7 @@ function VisitReport({ areas, devoteesByArea, visits, season, onBack }) {
 }
 
 // ── #4 Manage karyakarta teams (assign areas) ────────────────────────────────
-function ManageTeamsModal({ areas, teams, season, onClose }) {
+function ManageTeamsModal({ areas, teams, driveName, onClose }) {
   const [editing, setEditing] = useState(null); // { id?, name, color, areas:Set }
   const [busy, setBusy] = useState(false);
 
@@ -896,7 +961,7 @@ function ManageTeamsModal({ areas, teams, season, onClose }) {
     <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
-          <div className="flex items-center gap-2 font-black text-text"><Users className="h-5 w-5 text-sky-500" /> Teams {season}</div>
+          <div className="flex items-center gap-2 font-black text-text"><Users className="h-5 w-5 text-sky-500" /> Teams — {driveName}</div>
           <button onClick={onClose} className="rounded-full p-1.5 text-text-muted hover:bg-black/5"><X className="h-5 w-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
@@ -940,6 +1005,103 @@ function ManageTeamsModal({ areas, teams, season, onClose }) {
                   ))}
                 </div>
               </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditing(null)} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text active:scale-95">Cancel</button>
+                <button onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-sm font-black text-white active:scale-95 disabled:opacity-50">{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ── Manage sevas (drives): name + devotees by tag, like a Follow-up event ─────
+function ManageDrivesModal({ drives, currentId, onClose, onSelect }) {
+  const [editing, setEditing] = useState(null); // { id?, name, tags:Set, matchMode, status }
+  const [busy, setBusy] = useState(false);
+
+  const startNew = () => setEditing({ name: '', tags: new Set(), matchMode: 'any', status: 'active' });
+  const startEdit = (d) => setEditing({ id: d.id, name: d.name || '', tags: new Set(d.tags || []), matchMode: d.matchMode || 'any', status: d.status || 'active' });
+  const toggleTag = (k) => setEditing((e) => { const n = new Set(e.tags); n.has(k) ? n.delete(k) : n.add(k); return { ...e, tags: n }; });
+
+  const save = async () => {
+    if (!editing.name.trim()) { alertError('Name needed', 'Give the seva a name (e.g. Annakut Prasad).'); return; }
+    setBusy(true);
+    try {
+      const row = await sevaVisitService.saveDrive({ id: editing.id, name: editing.name.trim(), tags: [...editing.tags], matchMode: editing.matchMode, status: editing.status });
+      if (!editing.id) onSelect(row.id); // auto-select a newly created seva
+      setEditing(null);
+    } catch (e) { alertError('Could not save', e.message); }
+    finally { setBusy(false); }
+  };
+  const del = async (d) => {
+    const ok = await confirmDialog({ title: 'Delete seva?', text: `Remove "${d.name}"? Its visit progress stays in the sheet but it disappears from the list.`, confirmText: 'Delete', danger: true });
+    if (!ok) return;
+    try { await sevaVisitService.deleteDrive(d.id); } catch (e) { alertError('Could not delete', e.message); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+          <div className="flex items-center gap-2 font-black text-text"><ClipboardList className="h-5 w-5 text-sky-500" /> {editing ? (editing.id ? 'Edit seva' : 'New seva') : 'Sevas'}</div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-text-muted hover:bg-black/5"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {!editing && (
+            <>
+              <div className="space-y-2">
+                {drives.map((d) => (
+                  <div key={d.id} className={`rounded-xl border px-3 py-2.5 ${d.id === currentId ? 'border-sky-300 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20' : 'border-border-light'}`}>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => { onSelect(d.id); onClose(); }} className="min-w-0 flex-1 text-left">
+                        <div className="flex items-center gap-1.5 font-bold text-text">{d.name || 'Untitled'}{d.status === 'archived' && <span className="rounded bg-black/10 px-1.5 text-[10px] text-text-muted">archived</span>}</div>
+                        <div className="truncate text-xs text-text-muted">{(d.tags || []).length ? (d.tags.map((k) => tagLabel(k)).join(d.matchMode === 'all' ? ' + ' : ', ')) : 'All devotees'}</div>
+                      </button>
+                      <button onClick={() => startEdit(d)} className="rounded-lg border border-border-light p-2 text-indigo-600 active:scale-95"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => del(d)} className="rounded-lg border border-border-light p-2 text-rose-500 active:scale-95"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                ))}
+                {!drives.length && <p className="py-4 text-center text-sm text-text-muted">No sevas yet. Create one and choose its devotees by tag.</p>}
+              </div>
+              <button onClick={startNew} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-black text-white active:scale-95"><Plus className="h-4 w-4" /> New seva</button>
+            </>
+          )}
+          {editing && (
+            <div className="space-y-3">
+              <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Seva name (e.g. Annakut Prasad, Shravan Padhramani)"
+                className="w-full rounded-xl border border-border-light bg-surface px-3 py-2 text-sm text-text focus:outline-none" />
+              <div>
+                <div className="mb-1.5 text-xs font-bold text-text-muted">Devotees — pick tags</div>
+                <div className="max-h-64 space-y-3 overflow-y-auto rounded-xl border border-border-light p-2.5">
+                  {tagsByCategory().map(({ category, tags }) => (
+                    <div key={category.key}>
+                      <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">{category.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tags.map((t) => {
+                          const on = editing.tags.has(t.key);
+                          return (
+                            <button type="button" key={t.key} onClick={() => toggleTag(t.key)}
+                              style={on ? tagChipStyle(t.key) : undefined}
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? '' : 'border border-border-light text-slate-500'}`}>{t.label}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-text-muted">No tags = every devotee. The route uses their saved Area.</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-bold text-text-muted">Match:</span>
+                <button onClick={() => setEditing({ ...editing, matchMode: 'any' })} className={`rounded-full px-3 py-1 font-bold ${editing.matchMode !== 'all' ? 'bg-sky-500 text-white' : 'border border-border-light text-text-muted'}`}>Any tag</button>
+                <button onClick={() => setEditing({ ...editing, matchMode: 'all' })} className={`rounded-full px-3 py-1 font-bold ${editing.matchMode === 'all' ? 'bg-sky-500 text-white' : 'border border-border-light text-text-muted'}`}>All tags</button>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={editing.status === 'archived'} onChange={(e) => setEditing({ ...editing, status: e.target.checked ? 'archived' : 'active' })} className="h-4 w-4 accent-sky-500" /> Archived (hide from the picker)</label>
               <div className="flex gap-2">
                 <button onClick={() => setEditing(null)} className="flex-1 rounded-xl border border-border-light py-2.5 text-sm font-bold text-text active:scale-95">Cancel</button>
                 <button onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-sm font-black text-white active:scale-95 disabled:opacity-50">{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</button>

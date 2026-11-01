@@ -1,11 +1,14 @@
 // ===========================================================================
-// Akshar Connect — Annakut Seva visit tracking (OFFLINE-FIRST)
+// Akshar Connect — Seva visit tracking (OFFLINE-FIRST, DRIVE-BASED)
 // ---------------------------------------------------------------------------
-// Padhramani is done in the field where mobile signal is often poor, so every
-// mark lands in localStorage instantly AND in a durable outbox that drains to
-// the backend with retries. Marking a home visited also captures the visitor's
-// current GPS as that home's permanent pin — so one normal seva quietly builds
-// a full home-level map for next year, with zero extra effort.
+// A "seva drive" is a named seva (Annakut prasad, Shravan padhramani…) whose
+// devotee set is chosen by tags — exactly like a Follow-up event. Each drive
+// tracks its OWN visit progress, so different sevas don't share status.
+//
+// Padhramani happens in the field with poor signal, so every mark lands in
+// localStorage instantly AND in a durable outbox that drains to the backend
+// with retries. Marking a home visited captures the visitor's current GPS as
+// that home's permanent pin (home pins are GLOBAL — shared across every drive).
 //
 // Shares dataService's deployed /exec backend + retrying api().
 // ===========================================================================
@@ -15,11 +18,11 @@ import { backendApi, backendOnline, dataService } from './dataService';
 const VISITS_KEY = 'ac_seva_visits_v1';
 const HOMES_KEY  = 'ac_home_locations_v1';
 const TEAMS_KEY  = 'ac_seva_teams_v1';
+const DRIVES_KEY = 'ac_seva_drives_v1';
 const OUTBOX_KEY = 'ac_seva_visit_outbox_v1';
 const META_KEY   = 'ac_seva_visit_meta_v1';
 
 export const VISIT_STATUSES = ['pending', 'done', 'not_home', 'skip'];
-// Anything that isn't "done" still needs a visit — used by the "missed homes" pass.
 export const isCovered = (status) => String(status || 'pending') === 'done';
 
 function readJSON_(key, fallback) {
@@ -29,30 +32,29 @@ function readJSON_(key, fallback) {
 function writeJSON_(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
 function nowISO_() { return new Date().toISOString(); }
 function emit_(name, detail) { try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch { /* ignore */ } }
-function defaultSeason_() { return String(new Date().getFullYear()); }
 
-let MEM = { visits: null, homes: null, teams: null, meta: null };
+let MEM = { visits: null, homes: null, teams: null, drives: null, meta: null };
 let flushing = false;
 let inited = false;
 
-function meta_() {
-  if (!MEM.meta) MEM.meta = readJSON_(META_KEY, { season: defaultSeason_() });
-  if (!MEM.meta.season) MEM.meta.season = defaultSeason_();
-  return MEM.meta;
-}
+function meta_() { if (!MEM.meta) MEM.meta = readJSON_(META_KEY, { driveId: '' }); return MEM.meta; }
 function visits_() { if (!MEM.visits) MEM.visits = readJSON_(VISITS_KEY, []) || []; return MEM.visits; }
 function homes_() { if (!MEM.homes) MEM.homes = readJSON_(HOMES_KEY, []) || []; return MEM.homes; }
 function teams_() { if (!MEM.teams) MEM.teams = readJSON_(TEAMS_KEY, []) || []; return MEM.teams; }
+function drives_() { if (!MEM.drives) MEM.drives = readJSON_(DRIVES_KEY, []) || []; return MEM.drives; }
 function saveVisitsLocal_() { writeJSON_(VISITS_KEY, MEM.visits); }
 function saveHomesLocal_() { writeJSON_(HOMES_KEY, MEM.homes); }
 function saveTeamsLocal_() { writeJSON_(TEAMS_KEY, MEM.teams); }
+function saveDrivesLocal_() { writeJSON_(DRIVES_KEY, MEM.drives); }
 function saveMetaLocal_() { writeJSON_(META_KEY, MEM.meta); }
 function outbox_() { return readJSON_(OUTBOX_KEY, []) || []; }
 function setOutbox_(arr) { writeJSON_(OUTBOX_KEY, arr); }
 
-// ── Durable outbox — keep an op until the server acks it ──────────────────────
-// Only the LATEST state of a given (action,key) matters, so collapse duplicates.
-function enqueue_(action, keyField, keyVal, payload) {
+function driveId_() { return String(meta_().driveId || ''); }
+function visitKey_(devoteeId, driveId) { return `${driveId}|${devoteeId}`; }
+
+// ── Durable outbox ───────────────────────────────────────────────────────────
+function enqueue_(action, keyVal, payload) {
   const box = outbox_().filter(op => !(op.action === action && op.key === keyVal));
   box.push({ opId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, key: keyVal, payload, tries: 0, queuedAt: nowISO_() });
   setOutbox_(box);
@@ -80,26 +82,26 @@ async function flush() {
   }
 }
 
-// ── Pull the server's copy, keeping any un-synced local marks ─────────────────
-async function syncDown(season) {
+// ── Pull the server's copy for one drive, keeping un-synced local marks ────────
+async function syncDown(driveId) {
   if (!backendOnline() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return { ok: false, offline: true };
-  const scope = String(season || meta_().season || '');
+  const scope = String(driveId || driveId_() || '');
   let res;
-  try { res = await backendApi('sevaVisitsBootstrap', { season: scope }); } catch (e) { return { ok: false, error: e.message }; }
+  try { res = await backendApi('sevaVisitsBootstrap', { driveId: scope }); } catch (e) { return { ok: false, error: e.message }; }
 
   const box = outbox_();
   const pendingVisitIds = new Set(box.filter(o => o.action === 'upsertSevaVisit').map(o => o.key));
   const pendingHomeIds = new Set(box.filter(o => o.action === 'setHomeLocation').map(o => o.key));
 
-  // Visits: server is authoritative for the scoped season, except rows with a
-  // pending local mark; other seasons' local rows are preserved.
+  // Visits: server authoritative for the scoped drive, except rows with a pending
+  // local mark; other drives' local rows are preserved.
   const serverVisits = (res.visits || []);
   const seen = new Set();
   const merged = [];
   serverVisits.forEach(v => { if (!pendingVisitIds.has(v.id) && !seen.has(v.id)) { seen.add(v.id); merged.push(v); } });
   visits_().forEach(v => {
     if (seen.has(v.id)) return;
-    if (String(v.season) !== scope || pendingVisitIds.has(v.id)) { seen.add(v.id); merged.push(v); }
+    if (String(v.driveId) !== scope || pendingVisitIds.has(v.id)) { seen.add(v.id); merged.push(v); }
   });
   MEM.visits = merged; saveVisitsLocal_();
 
@@ -111,55 +113,86 @@ async function syncDown(season) {
   homes_().forEach(h => { if (!seenH.has(String(h.devoteeId))) { seenH.add(String(h.devoteeId)); mergedH.push(h); } });
   MEM.homes = mergedH; saveHomesLocal_();
 
-  // Teams are admin-managed (no field outbox): server is authoritative for the
-  // scoped season; keep other seasons' cached teams.
+  // Teams: server authoritative for the scoped drive; keep other drives' teams.
   if (Array.isArray(res.teams)) {
-    const kept = teams_().filter(t => String(t.season) !== scope);
+    const kept = teams_().filter(t => String(t.driveId) !== scope);
     MEM.teams = [...kept, ...res.teams]; saveTeamsLocal_();
   }
+  // Drives: the full list is small and admin-managed — server is authoritative.
+  if (Array.isArray(res.drives)) { MEM.drives = res.drives; saveDrivesLocal_(); }
 
   MEM.meta = { ...meta_(), lastSyncDown: nowISO_() }; saveMetaLocal_();
   emit_('ac-seva-visit-synced', { pending: outbox_().length, refreshed: true });
   return { ok: true };
 }
 
+async function loadDrives() {
+  if (!backendOnline()) return drives_();
+  try { const r = await backendApi('getSevaDrives', {}); if (r && Array.isArray(r.drives)) { MEM.drives = r.drives; saveDrivesLocal_(); emit_('ac-seva-visit-changed', { drives: true }); } }
+  catch { /* offline — keep cache */ }
+  return drives_();
+}
+
 function init() {
   if (inited) return;
   inited = true;
-  visits_(); homes_(); teams_(); meta_();
+  visits_(); homes_(); teams_(); drives_(); meta_();
   try {
     window.addEventListener('online', () => { flush().then(() => syncDown()); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
   } catch { /* non-browser */ }
-  flush().then(() => syncDown()).catch(() => {});
+  flush().then(() => { loadDrives(); if (driveId_()) return syncDown(); }).catch(() => {});
 }
 
-// ── Lookups ───────────────────────────────────────────────────────────────
-function visitKey_(devoteeId, season) { return `${devoteeId}|${season}`; }
-
 const sevaVisitService = {
-  init, flush, syncDown,
+  init, flush, syncDown, loadDrives,
 
-  getSeason: () => meta_().season,
-  setSeason: (s) => { MEM.meta = { ...meta_(), season: String(s) }; saveMetaLocal_(); emit_('ac-seva-visit-changed'); return MEM.meta.season; },
+  // ── Drives ────────────────────────────────────────────────────────────────
+  getDriveId: () => driveId_(),
+  setDriveId: (id) => { MEM.meta = { ...meta_(), driveId: String(id || '') }; saveMetaLocal_(); emit_('ac-seva-visit-changed', { drive: id }); if (id) syncDown(String(id)); return driveId_(); },
+  // All drives (active first). Each has `tags` (parsed array).
+  getDrives: () => drives_().map(d => ({
+    ...d,
+    tags: (() => { try { return Array.isArray(d.tags) ? d.tags : JSON.parse(d.tagsJson || '[]'); } catch { return []; } })(),
+    matchMode: d.matchMode === 'all' ? 'all' : 'any',
+    status: d.status === 'archived' ? 'archived' : 'active',
+  })).sort((a, b) => (a.status === b.status ? String(a.name).localeCompare(String(b.name)) : (a.status === 'active' ? -1 : 1))),
+  getDrive: (id) => sevaVisitService.getDrives().find(d => d.id === String(id)) || null,
+  saveDrive: async ({ id, name, tags, matchMode, status }) => {
+    const actor = dataService.currentActor ? dataService.currentActor() : '';
+    const did = id || `SVD-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+    const prev = drives_().find(d => d.id === did);
+    const row = {
+      id: did, name: String(name || ''), tagsJson: JSON.stringify(tags || []),
+      matchMode: matchMode === 'all' ? 'all' : 'any', status: status === 'archived' ? 'archived' : 'active',
+      createdBy: prev ? prev.createdBy : actor, createdOn: prev ? prev.createdOn : nowISO_(),
+      updatedBy: actor, updatedOn: nowISO_(),
+    };
+    MEM.drives = drives_().filter(d => d.id !== did).concat([row]); saveDrivesLocal_();
+    emit_('ac-seva-visit-changed', { drive: did });
+    if (backendOnline()) { try { await backendApi('upsertSevaDrive', { row }); } catch { /* stays local */ } }
+    return row;
+  },
+  deleteDrive: async (id) => {
+    MEM.drives = drives_().filter(d => d.id !== id); saveDrivesLocal_();
+    if (driveId_() === String(id)) sevaVisitService.setDriveId('');
+    emit_('ac-seva-visit-changed', { drive: id });
+    if (backendOnline()) { try { await backendApi('deleteSevaDrive', { id }); } catch { /* ignore */ } }
+  },
 
-  // A { devoteeId -> visit } map for the current (or given) season.
-  visitsMap: (season) => {
-    const s = String(season || meta_().season);
+  // ── Visits (scoped to the current drive) ───────────────────────────────────
+  visitsMap: (driveId) => {
+    const s = String(driveId || driveId_());
     const m = {};
-    visits_().forEach(v => { if (String(v.season) === s) m[String(v.devoteeId)] = v; });
+    visits_().forEach(v => { if (String(v.driveId) === s) m[String(v.devoteeId)] = v; });
     return m;
   },
-  getVisit: (devoteeId, season) => {
-    const s = String(season || meta_().season);
-    return visits_().find(v => String(v.devoteeId) === String(devoteeId) && String(v.season) === s) || null;
+  getVisit: (devoteeId, driveId) => {
+    const s = String(driveId || driveId_());
+    return visits_().find(v => String(v.devoteeId) === String(devoteeId) && String(v.driveId) === s) || null;
   },
-  getStatus: (devoteeId, season) => {
-    const v = sevaVisitService.getVisit(devoteeId, season);
-    return v ? String(v.status || 'pending') : 'pending';
-  },
+  getStatus: (devoteeId, driveId) => { const v = sevaVisitService.getVisit(devoteeId, driveId); return v ? String(v.status || 'pending') : 'pending'; },
 
-  // A { devoteeId -> {lat,lng} } map of home pins.
   homeLocMap: () => {
     const m = {};
     homes_().forEach(h => { if (h.lat !== '' && h.lng !== '' && h.lat != null && h.lng != null) m[String(h.devoteeId)] = { lat: Number(h.lat), lng: Number(h.lng) }; });
@@ -170,23 +203,20 @@ const sevaVisitService = {
   pendingCount: () => outbox_().length,
   isOnline: () => backendOnline() && (typeof navigator === 'undefined' || navigator.onLine !== false),
 
-  // Mark a home's visit status. Optimistic: saves locally + queues the push, and
-  // (when lat/lng are given) captures/updates the home's GPS pin too.
   markVisit: (devoteeId, { status, lat, lng, note, boxes } = {}) => {
+    const drive = driveId_();
+    if (!drive) return null;
     const id = String(devoteeId);
-    const season = meta_().season;
     const actor = dataService.currentActor ? dataService.currentActor() : '';
-    const key = visitKey_(id, season);
-    const prev = sevaVisitService.getVisit(id, season);
+    const key = visitKey_(id, drive);
+    const prev = sevaVisitService.getVisit(id, drive);
     const row = {
-      id: key, devoteeId: id, season,
+      id: key, driveId: drive, devoteeId: id,
       status: String(status || 'pending'),
       note: note != null ? String(note) : (prev ? prev.note : ''),
       boxes: boxes != null && boxes !== '' ? Number(boxes) : (prev && prev.boxes !== '' && prev.boxes != null ? Number(prev.boxes) : ''),
-      visitedBy: actor,
-      visitedOn: nowISO_(),
+      visitedBy: actor, visitedOn: nowISO_(),
     };
-    // Upsert the visit in the local cache.
     const list = visits_().filter(v => v.id !== key);
     list.push(row);
     MEM.visits = list; saveVisitsLocal_();
@@ -197,54 +227,49 @@ const sevaVisitService = {
       h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), updatedBy: actor, updatedOn: nowISO_() });
       MEM.homes = h; saveHomesLocal_();
     }
-
-    // Queue the backend write (visit + optional pin in one call).
-    enqueue_('upsertSevaVisit', 'id', key, hasCoords ? { row, lat: Number(lat), lng: Number(lng) } : { row });
+    enqueue_('upsertSevaVisit', key, hasCoords ? { row, lat: Number(lat), lng: Number(lng) } : { row });
     emit_('ac-seva-visit-changed', { devoteeId: id, status: row.status });
     flush();
     return row;
   },
 
-  // Save/overwrite a home pin on its own (e.g. drop-pin on a map), no visit change.
   setHomeLocation: (devoteeId, lat, lng) => {
     const id = String(devoteeId);
     const actor = dataService.currentActor ? dataService.currentActor() : '';
     const h = homes_().filter(x => String(x.devoteeId) !== id);
     if (!(lat === '' || lat == null) && !(lng === '' || lng == null)) h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), updatedBy: actor, updatedOn: nowISO_() });
     MEM.homes = h; saveHomesLocal_();
-    enqueue_('setHomeLocation', 'devoteeId', id, { devoteeId: id, lat: (lat === '' || lat == null) ? '' : Number(lat), lng: (lng === '' || lng == null) ? '' : Number(lng), updatedBy: actor });
+    enqueue_('setHomeLocation', id, { devoteeId: id, lat: (lat === '' || lat == null) ? '' : Number(lat), lng: (lng === '' || lng == null) ? '' : Number(lng), updatedBy: actor });
     emit_('ac-seva-visit-changed', { devoteeId: id });
     flush();
   },
 
-  // ── Teams (admin-managed area split) ──────────────────────────────────────
-  getTeams: (season) => {
-    const s = String(season || meta_().season);
-    return teams_().filter(t => String(t.season) === s).map(t => ({
+  // ── Teams (scoped to the current drive) ────────────────────────────────────
+  getTeams: (driveId) => {
+    const s = String(driveId || driveId_());
+    return teams_().filter(t => String(t.driveId) === s).map(t => ({
       ...t,
       areas: (() => { try { return Array.isArray(t.areas) ? t.areas : JSON.parse(t.areasJson || '[]'); } catch { return []; } })(),
     }));
   },
-  // The team a given area is assigned to (for the current season), or null.
-  teamForArea: (area, season) => {
+  teamForArea: (area, driveId) => {
     const a = String(area || '');
-    return sevaVisitService.getTeams(season).find(t => (t.areas || []).includes(a)) || null;
+    return sevaVisitService.getTeams(driveId).find(t => (t.areas || []).includes(a)) || null;
   },
   saveTeam: async ({ id, name, color, areas }) => {
-    const season = meta_().season;
+    const drive = driveId_();
     const actor = dataService.currentActor ? dataService.currentActor() : '';
-    const tid = id || `TEAM-${season}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+    const tid = id || `TEAM-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
     const prev = teams_().find(t => t.id === tid);
     const row = {
-      id: tid, season, name: String(name || ''), color: String(color || ''),
+      id: tid, driveId: drive, name: String(name || ''), color: String(color || ''),
       areasJson: JSON.stringify(areas || []),
       createdBy: prev ? prev.createdBy : actor, createdOn: prev ? prev.createdOn : nowISO_(),
       updatedBy: actor, updatedOn: nowISO_(),
     };
-    // Optimistic local update.
     MEM.teams = teams_().filter(t => t.id !== tid).concat([row]); saveTeamsLocal_();
     emit_('ac-seva-visit-changed', { team: tid });
-    if (backendOnline()) { try { await backendApi('upsertSevaTeam', { row }); } catch { /* stays local, will re-save on next edit */ } }
+    if (backendOnline()) { try { await backendApi('upsertSevaTeam', { row }); } catch { /* stays local */ } }
     return row;
   },
   deleteTeam: async (id) => {
