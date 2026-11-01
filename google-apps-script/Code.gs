@@ -140,7 +140,10 @@ var HEADERS = {
   // One row per devotee home. Captured automatically when a home is marked
   // visited (the visitor's current GPS), so a full home-level map builds itself
   // over one seva. Persists across years. Keyed by `devoteeId`.
-  HomeLocations: ['devoteeId','lat','lng','updatedBy','updatedOn'],
+  // `source` ∈ gps (exact — captured on a visit / map pin) | geocoded (approx —
+  // auto-derived from the devotee's address). A gps pin is never overwritten by
+  // a geocoded one, so field-captured accuracy always wins.
+  HomeLocations: ['devoteeId','lat','lng','source','updatedBy','updatedOn'],
   // ── Annakut seva: per-home visit status for one season (year) ───────────────
   // status ∈ pending|done|not_home|skip. Keyed by `id` = driveId|devoteeId so a
   // re-mark upserts the same row. `visitedOn` is set when first actioned.
@@ -156,7 +159,7 @@ var HEADERS = {
   SevaTeams: ['id','driveId','name','color','areasJson','createdBy','createdOn','updatedBy','updatedOn']
 };
 // Bump when HEADERS change so ensureSheets_ re-runs the schema migration once.
-var SCHEMA_VERSION = '2026-11-01-seva-drives';
+var SCHEMA_VERSION = '2026-11-01-home-geocode';
 
 // Default email templates — seeded once when the EmailTemplates tab is empty.
 var SEED_EMAIL_TEMPLATES = [
@@ -2141,6 +2144,44 @@ function handle_(p){
         return json_({ ok:false, error:'No location found for that address.' });
       }catch(err){ return json_({ ok:false, error:String(err) }); }
     }
+    // Batch geocode home pins from devotee addresses. The frontend sends a chunk
+    // of { devoteeId, address } rows (to stay under the 6-min execution limit);
+    // each missing home gets an approximate 'geocoded' pin. A real 'gps' pin is
+    // never overwritten; an existing 'geocoded' pin is kept unless `force` is set.
+    if(action==='geocodeHomes'){
+      var _rows = p.rows;
+      if(typeof _rows==='string'){ try{ _rows=JSON.parse(_rows); }catch(e){ _rows=[]; } }
+      if(!_rows || !_rows.length) return json_({ ok:false, error:'rows required' });
+      var _force = (p.force===true||p.force==='true');
+      var _ghActor = p.updatedBy||p.actor||'';
+      var _existing = {};
+      readAll_('HomeLocations').forEach(function(h){ _existing[String(h.devoteeId)] = h; });
+      var _gcoder = Maps.newGeocoder().setRegion('in');
+      var _done=0, _skipped=0, _failed=0, _results=[];
+      for(var i=0;i<_rows.length;i++){
+        var _gr = _rows[i]||{};
+        var _gid = String(_gr.devoteeId||'').trim();
+        var _gaddr = String(_gr.address||'').trim();
+        if(!_gid || !_gaddr){ _skipped++; continue; }
+        var _ex = _existing[_gid];
+        // Keep exact GPS pins always; keep existing geocoded pins unless forcing.
+        if(_ex && _ex.lat!=='' && _ex.lat!=null && (String(_ex.source)==='gps' || !_force)){ _skipped++; continue; }
+        try{
+          var _gg = _gcoder.geocode(_gaddr);
+          if(_gg && _gg.status==='OK' && _gg.results && _gg.results.length){
+            var _gl = _gg.results[0].geometry.location;
+            var _ghl = { devoteeId:_gid, lat:_gl.lat, lng:_gl.lng, source:'geocoded', updatedBy:_ghActor, updatedOn:new Date().toISOString() };
+            var _ghr = findRow_('HomeLocations','devoteeId',_gid);
+            if(_ghr<0) appendRows_('HomeLocations',[_ghl]);
+            else tab_('HomeLocations').getRange(_ghr,1,1,HEADERS.HomeLocations.length).setValues([rowFromObj_('HomeLocations',_ghl)]);
+            _existing[_gid]=_ghl; _done++;
+            _results.push({ devoteeId:_gid, ok:true, lat:_gl.lat, lng:_gl.lng, source:'geocoded' });
+          } else { _failed++; _results.push({ devoteeId:_gid, ok:false }); }
+        }catch(err){ _failed++; _results.push({ devoteeId:_gid, ok:false, error:String(err) }); }
+        Utilities.sleep(80); // be gentle on the geocoder quota
+      }
+      return json_({ ok:true, geocoded:_done, skipped:_skipped, failed:_failed, results:_results });
+    }
     // ── Seva drive: visit tracking + per-home GPS pins ───────────────────────
     if(action==='sevaVisitsBootstrap'){
       var _drvId = String(p.driveId||'').trim();
@@ -2157,6 +2198,7 @@ function handle_(p){
         devoteeId:_did,
         lat:(p.lat===''||p.lat==null)?'':Number(p.lat),
         lng:(p.lng===''||p.lng==null)?'':Number(p.lng),
+        source:String(p.source||'gps'),
         updatedBy:p.updatedBy||p.actor||'', updatedOn:new Date().toISOString()
       };
       var _hr = findRow_('HomeLocations','devoteeId',_did);
@@ -2179,7 +2221,7 @@ function handle_(p){
       else tab_('SevaVisits').getRange(_vr,1,1,HEADERS.SevaVisits.length).setValues([rowFromObj_('SevaVisits',_row)]);
       // Auto-capture the home's GPS pin from the visit, when coordinates are sent.
       if(!(p.lat===''||p.lat==null) && !(p.lng===''||p.lng==null)){
-        var _hl2 = { devoteeId:String(_r.devoteeId), lat:Number(p.lat), lng:Number(p.lng), updatedBy:_row.visitedBy, updatedOn:new Date().toISOString() };
+        var _hl2 = { devoteeId:String(_r.devoteeId), lat:Number(p.lat), lng:Number(p.lng), source:'gps', updatedBy:_row.visitedBy, updatedOn:new Date().toISOString() };
         var _hr2 = findRow_('HomeLocations','devoteeId',String(_r.devoteeId));
         if(_hr2<0) appendRows_('HomeLocations',[_hl2]);
         else tab_('HomeLocations').getRange(_hr2,1,1,HEADERS.HomeLocations.length).setValues([rowFromObj_('HomeLocations',_hl2)]);

@@ -4,7 +4,7 @@ import {
   MapPin, Crosshair, Map as MapIcon, Navigation, Route, Trash2, X, Check,
   RefreshCw, LocateFixed, ExternalLink, Home, Pencil, CloudOff,
   CheckCircle2, DoorClosed, Phone, MessageCircle, ClipboardList, ChevronLeft, ChevronRight,
-  CloudOff as CloudOffIcon, Plus, Minus, Send, BarChart3, Users, Package, Search,
+  CloudOff as CloudOffIcon, Plus, Minus, Send, BarChart3, Users, Package, Search, Loader2,
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { sevaVisitService, isCovered } from '../services/sevaVisitService';
@@ -661,6 +661,7 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit, drive }) {
   const [guide, setGuide] = useState(false);
   const [guideIdx, setGuideIdx] = useState(0);
   const [notifying, setNotifying] = useState(false);
+  const [geoBusy, setGeoBusy] = useState('');
   const driveId = drive.id;
   const driveName = drive.name || 'Seva';
 
@@ -731,6 +732,42 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit, drive }) {
     finally { setNotifying(false); }
   };
 
+  // Devotees in this seva that have an address but no pin yet (candidates for
+  // auto-geocoding). A real GPS pin or an existing geocoded pin is left alone.
+  const homesMissingPin = useMemo(() => {
+    const out = [];
+    areas.forEach((a) => (devoteesByArea[a] || []).forEach((d) => {
+      const addr = [d.address, d.area, 'Surat'].filter(Boolean).join(', ').trim();
+      if (!String(d.address || '').trim()) return;          // no address to geocode
+      if (homeLocs[String(d.id)]) return;                   // already pinned (gps or geocoded)
+      out.push({ devoteeId: String(d.id), address: addr });
+    }));
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas, devoteesByArea, homeLocs]);
+
+  // Auto-fill home pins from addresses, in chunks (keeps each backend call short).
+  const autoLocateHomes = async () => {
+    if (!canEdit) { alertError('View only', 'You have view-only access to the seva route.'); return; }
+    if (!sevaVisitService.isOnline()) { alertError('Offline', 'Connect to the internet to auto-locate homes from addresses.'); return; }
+    const todo = homesMissingPin;
+    if (!todo.length) { alertSuccess('All set', 'Every home in this seva that has an address already has a pin.'); return; }
+    const ok = await confirmDialog({ title: 'Auto-locate homes?', text: `Find approximate map pins for ${todo.length} home${todo.length === 1 ? '' : 's'} from their addresses. These refine automatically to exact GPS as you visit.`, confirmText: 'Locate' });
+    if (!ok) return;
+    const CHUNK = 40;
+    let done = 0, failed = 0;
+    try {
+      for (let i = 0; i < todo.length; i += CHUNK) {
+        setGeoBusy(`Locating ${Math.min(i + CHUNK, todo.length)} / ${todo.length}…`);
+        const r = await sevaVisitService.geocodeHomes(todo.slice(i, i + CHUNK));
+        done += (r && r.geocoded) || 0; failed += (r && r.failed) || 0;
+      }
+      setTick((t) => t + 1);
+      alertSuccess('Homes located', `${done} home${done === 1 ? '' : 's'} pinned from addresses${failed ? `, ${failed} couldn't be found` : ''}.`);
+    } catch (e) { alertError('Could not finish', e.message); }
+    finally { setGeoBusy(''); }
+  };
+
   // ── Coverage report ──
   if (view === 'report') {
     return <VisitReport areas={areas} devoteesByArea={devoteesByArea} visits={visits} driveName={driveName} onBack={() => setView('overview')} />;
@@ -760,6 +797,13 @@ function VisitTracker({ areas, devoteesByArea, areaPins, canEdit, drive }) {
             {canEdit && <button onClick={() => setShowTeams(true)} className="flex items-center gap-1 rounded-lg border border-border-light px-2.5 py-1.5 text-xs font-bold text-text-muted active:scale-95"><Users className="h-3.5 w-3.5" /> Teams</button>}
             <button onClick={() => setView('report')} className="flex items-center gap-1 rounded-lg border border-border-light px-2.5 py-1.5 text-xs font-bold text-text-muted active:scale-95"><BarChart3 className="h-3.5 w-3.5" /> Report</button>
           </div>
+          {canEdit && (
+            <button onClick={autoLocateHomes} disabled={!!geoBusy}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs font-bold text-sky-700 active:scale-[0.99] disabled:opacity-60 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300">
+              {geoBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {geoBusy}</>
+                : <><MapPin className="h-3.5 w-3.5" /> {homesMissingPin.length ? `Auto-locate ${homesMissingPin.length} home${homesMissingPin.length === 1 ? '' : 's'} from addresses` : 'All homes located ✓'}</>}
+            </button>
+          )}
         </div>
         <div className="overflow-hidden rounded-2xl border border-border-light bg-surface">
           {withHomes.map((a) => {

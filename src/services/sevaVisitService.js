@@ -195,10 +195,34 @@ const sevaVisitService = {
 
   homeLocMap: () => {
     const m = {};
-    homes_().forEach(h => { if (h.lat !== '' && h.lng !== '' && h.lat != null && h.lng != null) m[String(h.devoteeId)] = { lat: Number(h.lat), lng: Number(h.lng) }; });
+    homes_().forEach(h => { if (h.lat !== '' && h.lng !== '' && h.lat != null && h.lng != null) m[String(h.devoteeId)] = { lat: Number(h.lat), lng: Number(h.lng), source: String(h.source || 'gps') }; });
     return m;
   },
   getHomeLoc: (devoteeId) => sevaVisitService.homeLocMap()[String(devoteeId)] || null,
+
+  // Auto-fill approximate home pins from devotee addresses. `rows` = [{devoteeId,
+  // address}] (the page chooses which — typically devotees with no pin yet). The
+  // backend geocodes each (keyless) and writes a 'geocoded' pin; a real 'gps' pin
+  // is never overwritten. Returns { geocoded, skipped, failed }. Online-only.
+  geocodeHomes: async (rows, { force = false } = {}) => {
+    const list = (rows || []).filter(r => r && r.devoteeId && String(r.address || '').trim());
+    if (!list.length) return { ok: true, geocoded: 0, skipped: 0, failed: 0 };
+    if (!backendOnline() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return { ok: false, offline: true };
+    const actor = dataService.currentActor ? dataService.currentActor() : '';
+    const res = await backendApi('geocodeHomes', { rows: JSON.stringify(list), force: !!force, updatedBy: actor });
+    if (res && Array.isArray(res.results) && res.results.length) {
+      const byId = {}; homes_().forEach(h => { byId[String(h.devoteeId)] = h; });
+      res.results.forEach(r => {
+        if (!r.ok) return;
+        const ex = byId[String(r.devoteeId)];
+        if (ex && String(ex.source) === 'gps' && ex.lat !== '' && ex.lat != null) return; // never clobber a GPS pin
+        byId[String(r.devoteeId)] = { devoteeId: String(r.devoteeId), lat: Number(r.lat), lng: Number(r.lng), source: 'geocoded', updatedBy: actor, updatedOn: nowISO_() };
+      });
+      MEM.homes = Object.values(byId); saveHomesLocal_();
+      emit_('ac-seva-visit-changed', { geocoded: res.geocoded });
+    }
+    return res || { ok: false };
+  },
 
   pendingCount: () => outbox_().length,
   isOnline: () => backendOnline() && (typeof navigator === 'undefined' || navigator.onLine !== false),
@@ -224,7 +248,7 @@ const sevaVisitService = {
     const hasCoords = !(lat === '' || lat == null) && !(lng === '' || lng == null);
     if (hasCoords) {
       const h = homes_().filter(x => String(x.devoteeId) !== id);
-      h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), updatedBy: actor, updatedOn: nowISO_() });
+      h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), source: 'gps', updatedBy: actor, updatedOn: nowISO_() });
       MEM.homes = h; saveHomesLocal_();
     }
     enqueue_('upsertSevaVisit', key, hasCoords ? { row, lat: Number(lat), lng: Number(lng) } : { row });
@@ -237,9 +261,9 @@ const sevaVisitService = {
     const id = String(devoteeId);
     const actor = dataService.currentActor ? dataService.currentActor() : '';
     const h = homes_().filter(x => String(x.devoteeId) !== id);
-    if (!(lat === '' || lat == null) && !(lng === '' || lng == null)) h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), updatedBy: actor, updatedOn: nowISO_() });
+    if (!(lat === '' || lat == null) && !(lng === '' || lng == null)) h.push({ devoteeId: id, lat: Number(lat), lng: Number(lng), source: 'gps', updatedBy: actor, updatedOn: nowISO_() });
     MEM.homes = h; saveHomesLocal_();
-    enqueue_('setHomeLocation', id, { devoteeId: id, lat: (lat === '' || lat == null) ? '' : Number(lat), lng: (lng === '' || lng == null) ? '' : Number(lng), updatedBy: actor });
+    enqueue_('setHomeLocation', id, { devoteeId: id, lat: (lat === '' || lat == null) ? '' : Number(lat), lng: (lng === '' || lng == null) ? '' : Number(lng), source: 'gps', updatedBy: actor });
     emit_('ac-seva-visit-changed', { devoteeId: id });
     flush();
   },
