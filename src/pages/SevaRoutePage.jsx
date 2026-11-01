@@ -70,16 +70,25 @@ function MapPicker({ area, initial, onSave, onClose }) {
   const [err, setErr] = useState('');
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  const [basemap, setBasemap] = useState('satellite'); // streets | satellite
+  const layersRef = useRef({});
 
   useEffect(() => {
     let cancelled = false;
     loadLeaflet().then((L) => {
       if (cancelled || !divRef.current) return;
       const start = pos || DEFAULT_CENTER;
-      const map = L.map(divRef.current).setView([start.lat, start.lng], pos ? 16 : 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '© OpenStreetMap',
-      }).addTo(map);
+      const map = L.map(divRef.current, { zoomControl: true, attributionControl: false }).setView([start.lat, start.lng], pos ? 18 : 14);
+      // Clean street tiles (Esri World Street Map) — keyless, far less cluttered than raw OSM.
+      const streets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 });
+      // Satellite = Esri aerial imagery + a place/road label overlay (a "hybrid" view),
+      // so you can spot the exact house by its rooftop and still read society/road names.
+      const satellite = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 }),
+      ]);
+      satellite.addTo(map);
+      layersRef.current = { streets, satellite };
       const marker = L.marker([start.lat, start.lng], { draggable: true }).addTo(map);
       marker.on('dragend', () => { const ll = marker.getLatLng(); setPos({ lat: ll.lat, lng: ll.lng }); });
       map.on('click', (e) => { marker.setLatLng(e.latlng); setPos({ lat: e.latlng.lat, lng: e.latlng.lng }); });
@@ -92,6 +101,15 @@ function MapPicker({ area, initial, onSave, onClose }) {
     return () => { cancelled = true; try { mapRef.current && mapRef.current.remove(); } catch { /* ignore */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const switchBasemap = (which) => {
+    const { streets, satellite } = layersRef.current;
+    const map = mapRef.current;
+    if (!map || !streets || !satellite) return;
+    if (which === 'satellite') { map.removeLayer(streets); satellite.addTo(map); }
+    else { map.removeLayer(satellite); streets.addTo(map); }
+    setBasemap(which);
+  };
 
   const moveTo = (lat, lng, zoom = 16) => {
     setPos({ lat, lng });
@@ -136,6 +154,11 @@ function MapPicker({ area, initial, onSave, onClose }) {
         {loading && <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-text-muted">Loading map…</div>}
         {err && <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-rose-600">{err}</div>}
         <div ref={divRef} className="h-full w-full" />
+        {/* Map / Satellite toggle */}
+        <div className="pointer-events-none absolute right-2 top-2 z-[500] flex overflow-hidden rounded-lg border border-black/10 bg-white text-xs font-bold shadow">
+          <button onClick={() => switchBasemap('streets')} className={`pointer-events-auto px-3 py-1.5 ${basemap === 'streets' ? 'bg-sky-500 text-white' : 'text-slate-700'}`}>Map</button>
+          <button onClick={() => switchBasemap('satellite')} className={`pointer-events-auto px-3 py-1.5 ${basemap === 'satellite' ? 'bg-sky-500 text-white' : 'text-slate-700'}`}>Satellite</button>
+        </div>
       </div>
       {/* Footer actions */}
       <div className="border-t border-border-light px-4 py-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
