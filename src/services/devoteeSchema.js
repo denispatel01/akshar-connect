@@ -18,7 +18,7 @@ export const EDUCATION_STATUS = ['Pursuing', 'Completed'];
 export const PROFESSIONS = ['Job', 'Business', 'Retired', 'Homemaker', 'Student'];
 export const MARITAL_STATUS = ['Single', 'Married', 'Engaged'];
 export const RELATIONS = ['Self', 'Head', 'Father', 'Mother', 'Son', 'Daughter', 'Brother', 'Sister', 'Spouse', 'Wife', 'Other'];
-export const YUVAK_TYPES = ['Ambrish', 'Yuvak', 'Bal', 'New'];
+export const YUVAK_TYPES = ['Yuvak', 'Ambrish', 'Vadil', 'Bal'];
 // School grades for Bal (children) — from pre-primary up to Grade 12 (#111).
 export const GRADES = [
   'Nursery', 'Jr. KG', 'Sr. KG',

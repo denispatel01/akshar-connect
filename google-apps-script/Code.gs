@@ -2269,6 +2269,7 @@ function handle_(p){
     }
     if(action==='bulkUpdateTags') return doBulkUpdateTags_(p);
     if(action==='bulkSetTags') return doBulkSetTags_(p);
+    if(action==='migrateYuvakTypeNew') return doMigrateYuvakTypeNew_(p);
     if(action==='update'){
       var rn=findRow_(p.collection, p.keyField||'id', p.key);
       if(rn<0) return json_({ ok:false, error:'not found' });
@@ -3392,6 +3393,26 @@ function doBulkSetTags_(p){
       }
     }
     if(n>0) sh.getRange(2,1,last-1,H.length).setValues(data);
+    return json_({ ok:true, count:n });
+  } finally { lock.releaseLock(); }
+}
+
+// One-time data fix: the yuvakType option "New" was retired. Rewrite every
+// devotee whose yuvakType is "New" to "Yuvak" directly in the sheet. Safe to
+// re-run (idempotent) — only touches rows that still say "New".
+function doMigrateYuvakTypeNew_(p){
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try{
+    var sh = tab_('Devotees'); var H = HEADERS.Devotees; var last = sh.getLastRow();
+    var yI = H.indexOf('yuvakType');
+    if(last < 2 || yI < 0) return json_({ ok:true, count:0 });
+    var col = sh.getRange(2, yI+1, last-1, 1);
+    var vals = col.getValues();
+    var n = 0;
+    for(var i=0;i<vals.length;i++){
+      if(String(vals[i][0]).trim().toLowerCase() === 'new'){ vals[i][0] = 'Yuvak'; n++; }
+    }
+    if(n>0) col.setValues(vals);
     return json_({ ok:true, count:n });
   } finally { lock.releaseLock(); }
 }
