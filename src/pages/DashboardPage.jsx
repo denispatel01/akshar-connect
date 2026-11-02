@@ -177,7 +177,6 @@ function TagCounts({ devotees, onOpenTag }) {
       <div className="space-y-2.5">
         {groups.map(({ category, tags }) => {
           const isOpen = !!open[category.key];
-          const catFamilies = (() => { const s = new Set(); tags.forEach((t) => (stats[t.key]?.fam || new Set()).forEach((f) => s.add(f))); return s.size; })();
           return (
             <div key={category.key} className="overflow-hidden rounded-2xl border border-border-light bg-surface">
               <button type="button" onClick={() => setOpen((o) => ({ ...o, [category.key]: !o[category.key] }))}
@@ -186,10 +185,7 @@ function TagCounts({ devotees, onOpenTag }) {
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: category.color.dot }} />
                   <span className="truncate text-sm font-bold text-text-main">{category.label}</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary" title="Families with any tag in this group">{catFamilies}</span>
-                  <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </button>
               {isOpen && (
                 <div className="divide-y divide-border-light border-t border-border-light">
