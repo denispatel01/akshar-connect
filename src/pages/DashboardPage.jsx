@@ -287,7 +287,11 @@ export default function DashboardPage({ setActivePage, user }) {
     });
     const male = [], female = [], other = [];
     [...groups.entries()].forEach(([name, info]) => {
-      const gender = (info.mobile && genderByMobile.get(info.mobile)) || genderByName.get(norm(name)) || '';
+      // Resolve the karyakarta's gender from THEIR OWN devotee record (by name)
+      // first — the follow-up mobile is often a shared/household number (e.g. a
+      // wife listed with her husband's phone), so trusting it mis-sorts women
+      // into the male list. Mobile is only a fallback when the name doesn't match.
+      const gender = genderByName.get(norm(name)) || (info.mobile && genderByMobile.get(info.mobile)) || '';
       const row = { name, count: info.count };
       if (gender === 'Female') female.push(row); else if (gender === 'Male') male.push(row); else other.push(row);
     });
