@@ -153,10 +153,16 @@ function TagCounts({ devotees, onOpenTag }) {
   const [open, setOpen] = useState(() => ({ seva: true, attendance: true })); // seva & attendance expanded first
   const stats = React.useMemo(() => {
     const m = {};
+    const isMale = (d) => /^m/i.test(String(d.gender || '').trim());
+    const isFemale = (d) => /^f/i.test(String(d.gender || '').trim());
     devotees.forEach((d) => {
       const tags = Array.isArray(d.tags) ? d.tags : [];
       const fk = famKey(d);
-      tags.forEach((t) => { (m[t] || (m[t] = { fam: new Set(), dev: 0 })).fam.add(fk); m[t].dev++; });
+      const male = isMale(d), female = isFemale(d);
+      tags.forEach((t) => {
+        const s = m[t] || (m[t] = { fam: new Set(), dev: 0, m: 0, f: 0 });
+        s.fam.add(fk); s.dev++; if (male) s.m++; else if (female) s.f++;
+      });
     });
     return m;
   }, [devotees]);
@@ -167,7 +173,7 @@ function TagCounts({ devotees, onOpenTag }) {
       <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
         <Users className="h-4 w-4" /> Families by tag
       </h3>
-      <p className="mb-3 -mt-1 text-[11px] font-semibold text-text-muted">Big number = families · small = devotees. Tap a tag to open that list.</p>
+      <p className="mb-3 -mt-1 text-[11px] font-semibold text-text-muted">Big = families · small = devotees · <span className="text-blue-600">♂</span> male <span className="text-pink-600">♀</span> female. Tap a tag to open that list.</p>
       <div className="space-y-2.5">
         {groups.map(({ category, tags }) => {
           const isOpen = !!open[category.key];
@@ -188,11 +194,11 @@ function TagCounts({ devotees, onOpenTag }) {
               {isOpen && (
                 <div className="divide-y divide-border-light border-t border-border-light">
                   {tags.map((t) => {
-                    const st = stats[t.key] || { fam: new Set(), dev: 0 };
+                    const st = stats[t.key] || { fam: new Set(), dev: 0, m: 0, f: 0 };
                     const fam = st.fam.size;
                     return (
                       <button key={t.key} type="button" onClick={() => onOpenTag(t.key)}
-                        title={`Open ${fam} famil${fam === 1 ? 'y' : 'ies'} tagged ${t.label}`}
+                        title={`Open ${fam} famil${fam === 1 ? 'y' : 'ies'} tagged ${t.label} · ${st.dev} devotees (${st.m} male, ${st.f} female)`}
                         className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-base active:bg-black/5">
                         <span className="min-w-0 flex items-center gap-2">
                           <span style={tagChipStyle(t.key)} className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold">{t.label}</span>
@@ -200,6 +206,8 @@ function TagCounts({ devotees, onOpenTag }) {
                         <span className="flex shrink-0 items-baseline gap-1.5">
                           <span className="text-lg font-extrabold text-text-main tabular-nums">{fam}</span>
                           <span className="text-[11px] font-semibold text-text-muted tabular-nums">· {st.dev}</span>
+                          <span className="ml-0.5 text-[11px] font-bold tabular-nums text-blue-600">♂{st.m}</span>
+                          <span className="text-[11px] font-bold tabular-nums text-pink-600">♀{st.f}</span>
                           <ChevronRight className="ml-0.5 h-4 w-4 text-text-muted" />
                         </span>
                       </button>
