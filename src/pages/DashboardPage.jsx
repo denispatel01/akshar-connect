@@ -437,7 +437,7 @@ export default function DashboardPage({ setActivePage, user }) {
         const amberCls = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
         // Separate male / female chips so each list goes to the right karyakarta.
         if (isAdmin && nMissingMobileM) chips.push({ key: 'mob-m', label: `${nMissingMobileM} missing mobile (male)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
-        if (isAdmin && nMissingMobileF) chips.push({ key: 'mob-f', label: `${nMissingMobileF} missing mobile (female)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
+        // Female mobiles are intentionally not collected — don't flag them as missing.
         if (isAdmin && nMissingMobileU) chips.push({ key: 'mob-u', label: `${nMissingMobileU} missing mobile (unspecified)`, icon: Phone, cls: roseCls, onClick: () => setActivePage('data') });
         if (isAdmin && nMissingDobM) chips.push({ key: 'dob-m', label: `${nMissingDobM} missing DOB (male)`, icon: Star, cls: amberCls, onClick: () => setActivePage('data') });
         if (isAdmin && nMissingDobF) chips.push({ key: 'dob-f', label: `${nMissingDobF} missing DOB (female)`, icon: Star, cls: amberCls, onClick: () => setActivePage('data') });
