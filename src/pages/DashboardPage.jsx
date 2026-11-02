@@ -173,7 +173,7 @@ function TagCounts({ devotees, onOpenTag }) {
       <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
         <Users className="h-4 w-4" /> Families by tag
       </h3>
-      <p className="mb-3 -mt-1 text-[11px] font-semibold text-text-muted">Big = families · small = devotees · <span className="text-blue-600">♂</span> male <span className="text-pink-600">♀</span> female. Tap a tag to open that list.</p>
+      <p className="mb-3 -mt-1 text-xs font-semibold text-text-muted">The big number is how many families have each tag. Tap a tag to open its list.</p>
       <div className="space-y-2.5">
         {groups.map(({ category, tags }) => {
           const isOpen = !!open[category.key];
@@ -194,18 +194,23 @@ function TagCounts({ devotees, onOpenTag }) {
                     const fam = st.fam.size;
                     return (
                       <button key={t.key} type="button" onClick={() => onOpenTag(t.key)}
-                        title={`Open ${fam} famil${fam === 1 ? 'y' : 'ies'} tagged ${t.label} · ${st.dev} devotees (${st.m} male, ${st.f} female)`}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-base active:bg-black/5">
-                        <span className="min-w-0 flex items-center gap-2">
-                          <span style={tagChipStyle(t.key)} className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold">{t.label}</span>
-                        </span>
-                        <span className="flex shrink-0 items-baseline gap-1.5">
-                          <span className="text-lg font-extrabold text-text-main tabular-nums">{fam}</span>
-                          <span className="text-[11px] font-semibold text-text-muted tabular-nums">· {st.dev}</span>
-                          <span className="ml-0.5 text-[11px] font-bold tabular-nums text-blue-600">♂{st.m}</span>
-                          <span className="text-[11px] font-bold tabular-nums text-pink-600">♀{st.f}</span>
-                          <ChevronRight className="ml-0.5 h-4 w-4 text-text-muted" />
-                        </span>
+                        title={`Open ${t.label}`}
+                        className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-bg-base active:bg-black/5">
+                        {/* Top line: tag name + the headline family count */}
+                        <div className="flex items-center justify-between gap-3">
+                          <span style={tagChipStyle(t.key)} className="rounded-full px-3 py-1 text-sm font-bold">{t.label}</span>
+                          <span className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-extrabold text-text-main tabular-nums">{fam}</span>
+                            <span className="text-xs font-semibold text-text-muted">families</span>
+                            <ChevronRight className="ml-1 h-4 w-4 text-text-muted" />
+                          </span>
+                        </div>
+                        {/* Second line: plain, spaced breakdown */}
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pl-1 text-sm">
+                          <span className="font-semibold text-text-muted"><span className="font-extrabold text-text-main tabular-nums">{st.dev}</span> devotees</span>
+                          <span className="font-semibold text-blue-600"><span className="font-extrabold tabular-nums">{st.m}</span> male</span>
+                          <span className="font-semibold text-pink-600"><span className="font-extrabold tabular-nums">{st.f}</span> female</span>
+                        </div>
                       </button>
                     );
                   })}
