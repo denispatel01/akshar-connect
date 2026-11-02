@@ -385,6 +385,10 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
   const [showAddModal, setShowAddModal] = useState(false);
   const [editWizard, setEditWizard] = useState(null); // devotee being edited in the gradient wizard
   const [selectedDevotee, setSelectedDevotee] = useState(null);
+  // Always open a devotee profile (and any switch between family members) at the
+  // very top, not wherever the previous profile was scrolled to.
+  const profileScrollRef = useRef(null);
+  useEffect(() => { if (selectedDevotee && profileScrollRef.current) profileScrollRef.current.scrollTop = 0; }, [selectedDevotee]);
   // Which profile sections are expanded. Defaults to the most useful ones open;
   // resets each time a different profile is opened.
   const DEFAULT_OPEN_SECS = { Personal: true, Contact: true, Seva: true };
@@ -540,7 +544,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
     if (filterPreset) {
       setFilterKaryakartas(filterPreset.karyakarta ? [filterPreset.karyakarta] : []);
       setFilterAreas(filterPreset.area ? [filterPreset.area] : []);
-      setSelectedTags([]); // clear tags when applying these filters
+      setSelectedTags(Array.isArray(filterPreset.tags) ? filterPreset.tags : []);
       setSearchQuery('');
       setShowTagFilter(true);
     }
@@ -1511,7 +1515,7 @@ export default function DevoteesPage({ user, devoteesPreset, filterPreset, onCle
             </button>
 
             {/* Everything scrolls — nothing is pinned */}
-            <div className="flex-1 min-h-0 overflow-y-auto bg-bg-base">
+            <div ref={profileScrollRef} className="flex-1 min-h-0 overflow-y-auto bg-bg-base">
             {/* Header: cover banner, overlapping avatar, headline, quick actions */}
             <div className="relative border-b border-border-light">
 

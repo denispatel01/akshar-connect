@@ -29,7 +29,7 @@ import {
 import { dataService } from '../services/dataService';
 import { ghariService } from '../services/ghariService';
 import DarshanSlider from '../components/DarshanSlider';
-import { tagLabel, tagChipStyle } from '../services/tagCatalog';
+import { tagLabel, tagChipStyle, tagsByCategory } from '../services/tagCatalog';
 
 import { pickRotatingThought, displayThoughtDate } from '../utils/thoughtRotation';
 import { isBirthdayToday, upcomingBirthdays, birthdayLabel, birthdayDate } from '../utils/birthdays';
@@ -142,6 +142,79 @@ function FeedPreview({ setActivePage }) {
   );
 }
 
+// A devotee's family key — members share their head's familyId; a head uses its
+// own id. Distinct keys = distinct families (matches the directory's count).
+const famKey = (d) => String(d.familyId || d.id);
+
+// Counts per tag — how many FAMILIES (and, secondarily, devotees) carry each tag.
+// A family counts once for a tag if any of its members has it. This is what the
+// seva team needs: padhramani / annakut / ghaari are done per home, not per person.
+function TagCounts({ devotees, onOpenTag }) {
+  const [open, setOpen] = useState(() => ({ seva: true, attendance: true })); // seva & attendance expanded first
+  const stats = React.useMemo(() => {
+    const m = {};
+    devotees.forEach((d) => {
+      const tags = Array.isArray(d.tags) ? d.tags : [];
+      const fk = famKey(d);
+      tags.forEach((t) => { (m[t] || (m[t] = { fam: new Set(), dev: 0 })).fam.add(fk); m[t].dev++; });
+    });
+    return m;
+  }, [devotees]);
+  const groups = tagsByCategory();
+
+  return (
+    <section>
+      <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
+        <Users className="h-4 w-4" /> Families by tag
+      </h3>
+      <p className="mb-3 -mt-1 text-[11px] font-semibold text-text-muted">Big number = families · small = devotees. Tap a tag to open that list.</p>
+      <div className="space-y-2.5">
+        {groups.map(({ category, tags }) => {
+          const isOpen = !!open[category.key];
+          const catFamilies = (() => { const s = new Set(); tags.forEach((t) => (stats[t.key]?.fam || new Set()).forEach((f) => s.add(f))); return s.size; })();
+          return (
+            <div key={category.key} className="overflow-hidden rounded-2xl border border-border-light bg-surface">
+              <button type="button" onClick={() => setOpen((o) => ({ ...o, [category.key]: !o[category.key] }))}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left active:bg-black/5">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: category.color.dot }} />
+                  <span className="truncate text-sm font-bold text-text-main">{category.label}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary" title="Families with any tag in this group">{catFamilies}</span>
+                  <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </span>
+              </button>
+              {isOpen && (
+                <div className="divide-y divide-border-light border-t border-border-light">
+                  {tags.map((t) => {
+                    const st = stats[t.key] || { fam: new Set(), dev: 0 };
+                    const fam = st.fam.size;
+                    return (
+                      <button key={t.key} type="button" onClick={() => onOpenTag(t.key)}
+                        title={`Open ${fam} famil${fam === 1 ? 'y' : 'ies'} tagged ${t.label}`}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-base active:bg-black/5">
+                        <span className="min-w-0 flex items-center gap-2">
+                          <span style={tagChipStyle(t.key)} className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold">{t.label}</span>
+                        </span>
+                        <span className="flex shrink-0 items-baseline gap-1.5">
+                          <span className="text-lg font-extrabold text-text-main tabular-nums">{fam}</span>
+                          <span className="text-[11px] font-semibold text-text-muted tabular-nums">· {st.dev}</span>
+                          <ChevronRight className="ml-0.5 h-4 w-4 text-text-muted" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function DashboardPage({ setActivePage, user }) {
   const [devotees, setDevotees] = useState([]);
   const [thoughts, setThoughts] = useState([]);
@@ -249,6 +322,7 @@ export default function DashboardPage({ setActivePage, user }) {
     'rounded-2xl border border-border-light bg-surface p-5 shadow-xs transition-all hover:shadow-md hover:border-primary/30 text-left w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003158]';
 
   const openDevotees = (devoteesPreset) => setActivePage('devotees', { devoteesPreset });
+  const openByTag = (key) => setActivePage('devotees', { filterPreset: { tags: [key] } });
   const scrollToKaryakartas = () => { try { document.getElementById('kk-panes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} };
 
   const isDevotee = user?.role === 'Devotee';
@@ -415,36 +489,6 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-[11px] font-semibold text-emerald-600 mt-1">Tap to view primary family members</p>
         </button>
 
-        <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Today's Birthdays</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <Cake className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{birthdaysToday.length}</p>
-          <p className="text-[11px] font-semibold text-purple-600 mt-1">Tap to view celebrating today</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('old')} className={statCardCls} title="View Old devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Old Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950">
-              <Star className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{oldCount}</p>
-          <p className="text-[11px] font-semibold text-indigo-600 mt-1">Tap to view old devotees</p>
-        </button>
-          </div>
-        </section>
-
-        {/* Male */}
-        <section>
-          <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
-            <User className="h-4 w-4" /> Male
-          </h3>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button type="button" onClick={() => openDevotees('ambrish')} className={statCardCls} title="View Ambrish devotees">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Ambrish</span>
@@ -455,93 +499,11 @@ export default function DashboardPage({ setActivePage, user }) {
           <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
           <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
         </button>
-
-        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View male karyakartas">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakartas</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
-              <UserCheck className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.male.length}</p>
-          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view the list</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('male-head')} className={statCardCls} title="View male family heads">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Heads</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
-              <Home className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{maleHeadCount}</p>
-          <p className="text-[11px] font-semibold text-blue-600 mt-1">Primary family members</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('male')} className={statCardCls} title="View male devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
-              <User className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{maleCount}</p>
-          <p className="text-[11px] font-semibold text-blue-600 mt-1">Tap to view the list</p>
-        </button>
           </div>
         </section>
 
-        {/* Female */}
-        <section>
-          <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF862A]">
-            <User className="h-4 w-4" /> Female
-          </h3>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <button type="button" onClick={() => openDevotees('sahradyi')} className={statCardCls} title="View Sahradyi devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Sahradyi</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-[#FF862A]">
-              <Award className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{sahradyiCount}</p>
-          <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Sahradyi</p>
-        </button>
-
-        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View female karyakartas">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Karyakartas</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
-              <UserCheck className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.female.length}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view the list</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('female-head')} className={statCardCls} title="View female family heads">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Heads</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
-              <Home className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{femaleHeadCount}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Primary family members</p>
-        </button>
-
-        <button type="button" onClick={() => openDevotees('female')} className={statCardCls} title="View female devotees">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Devotees</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-950">
-              <User className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-text-main">{femaleCount}</p>
-          <p className="text-[11px] font-semibold text-pink-600 mt-1">Tap to view the list</p>
-        </button>
-          </div>
-        </section>
+        {/* Families by tag — every tag, categorized + collapsible, family count */}
+        <TagCounts devotees={devotees} onOpenTag={openByTag} />
         </>) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           <button type="button" onClick={() => setShowTodayBdays(true)} className={statCardCls} title="View birthdays today">

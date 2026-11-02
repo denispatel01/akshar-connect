@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, lazy, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import GlobalInputClear from './components/GlobalInputClear';
 import Sidebar from './components/Sidebar';
@@ -172,6 +172,16 @@ export default function App() {
   const [devoteesPreset, setDevoteesPreset] = useState(null);
   const [filterPreset, setFilterPreset] = useState(null);
   const [openDevoteeId, setOpenDevoteeId] = useState(null);
+  // The desktop scroll happens inside this content column (not the window), so
+  // every navigation resets BOTH so a new page always opens at the top.
+  const scrollRef = useRef(null);
+  const scrollTopNow = () => {
+    try { window.scrollTo(0, 0); document.scrollingElement && (document.scrollingElement.scrollTop = 0); } catch { /* noop */ }
+    try { if (scrollRef.current) scrollRef.current.scrollTop = 0; } catch { /* noop */ }
+  };
+  // After a page swap re-renders, pin the content column back to the top (the
+  // in-navigate reset runs before the new, shorter page has laid out).
+  useLayoutEffect(() => { scrollTopNow(); }, [activePage]);
 
   // NOTE: the background live-refresh (ac-data-refreshed) intentionally does NOT
   // bump refreshKey anymore — remounting the active page here wiped the user's
@@ -184,7 +194,7 @@ export default function App() {
   const navigate = (page, options) => {
     // Always jump back to the top — lets Home/logo act as a "scroll to top"
     // even when you're already on that page.
-    try { window.scrollTo(0, 0); document.scrollingElement && (document.scrollingElement.scrollTop = 0); } catch (e) {}
+    scrollTopNow();
     if (page === activePage && !options?.devoteesPreset && !options?.openDevoteeId && !options?.filterPreset) return;
     if (page !== activePage) {
       try { dataService.breadcrumb(`open ${page}`); } catch (e) {}
@@ -335,7 +345,7 @@ export default function App() {
 
         {/* Content column reserves the fixed sidebar's width on desktop (so the
             sidebar stays put while the page scrolls). */}
-        <div className={`flex-1 flex flex-col min-w-0 min-h-0 md:overflow-y-auto transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
+        <div ref={scrollRef} className={`flex-1 flex flex-col min-w-0 min-h-0 md:overflow-y-auto transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-60'}`}>
       <main className="flex-1 pb-24 sm:pb-12 animate-fade-in transition-all duration-300" key={`${activePage}-${refreshKey}`}>
         <ErrorBoundary key={activePage} page={activePage}>
         <Suspense fallback={<PageLoading />}>
