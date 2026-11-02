@@ -430,7 +430,9 @@ export default function DashboardPage({ setActivePage, user }) {
         const isAdmin = user?.role === 'Admin';
         const chips = [];
         if (birthdaysToday.length) chips.push({ key: 'bday', label: `${birthdaysToday.length} birthday${birthdaysToday.length === 1 ? '' : 's'} today`, icon: Cake, cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900', onClick: () => setShowTodayBdays(true) });
-        if (ghariPendingKg > 0) chips.push({ key: 'ghari', label: `${fmtKg(ghariPendingKg)} Ghari to collect`, icon: TrendingUp, cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900', onClick: () => setActivePage('ghari') });
+        // Ghari seva season is over — the "to collect" chip is hidden. Re-enable
+        // by restoring this push when Ghari collection is active again.
+        // if (ghariPendingKg > 0) chips.push({ key: 'ghari', label: `${fmtKg(ghariPendingKg)} Ghari to collect`, icon: TrendingUp, cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900', onClick: () => setActivePage('ghari') });
         const roseCls = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900';
         const amberCls = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
         // Separate male / female chips so each list goes to the right karyakarta.
@@ -502,6 +504,17 @@ export default function DashboardPage({ setActivePage, user }) {
           </div>
           <p className="text-2xl font-extrabold text-text-main">{ambrishCount}</p>
           <p className="text-[11px] font-semibold text-amber-600 mt-1">Tap to view tagged Ambrish</p>
+        </button>
+
+        <button type="button" onClick={scrollToKaryakartas} className={statCardCls} title="View male karyakartas">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Male Karyakartas</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-text-main">{karyakartaPanes.male.length}</p>
+          <p className="text-[11px] font-semibold text-teal-600 mt-1">Tap to view the list</p>
         </button>
           </div>
         </section>
