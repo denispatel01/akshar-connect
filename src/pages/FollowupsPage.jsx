@@ -310,6 +310,19 @@ export default function FollowupsPage({ user }) {
     setSelectedTags(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
+  // For a prasad/seva drive the outcomes include a "Seva Received" one. "Seva
+  // pending" = prasad was given (a positive, done-type outcome) but the seva has
+  // not been received yet. The chip only appears when the event has such an outcome.
+  const sevaReceivedOutcome = useMemo(
+    () => parseOutcomes(selectedEvent?.outcomes).find(o => /seva\s*received|received\s*seva/i.test(o)) || '',
+    [selectedEvent]);
+  const isNegativeOutcome = (o) => /not |unable|no\s*response|refus|skip|no\b/i.test(String(o || ''));
+  const isSevaPending = (f) => {
+    if (!sevaReceivedOutcome) return false;
+    const o = String(f?.outcome || '');
+    return !!o && o !== sevaReceivedOutcome && !isNegativeOutcome(o);
+  };
+
   // Audience = devotees matching search + tag filter (+ pending filter)
   const audience = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -329,6 +342,7 @@ export default function FollowupsPage({ user }) {
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
+      if (viewFilter === 'sevaPending' && !isSevaPending(fmap[d.id])) return false;
       if (outcomeFilter && (fmap[d.id]?.outcome || '') !== outcomeFilter) return false;
       return true;
     }).sort((a, b) => {
@@ -343,7 +357,7 @@ export default function FollowupsPage({ user }) {
       }
       return String(a.name || '').localeCompare(String(b.name || '')); // A→Z
     });
-  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter, sortBy, headsOnly, areaNumMap]);
+  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter, sortBy, headsOnly, areaNumMap, sevaReceivedOutcome]);
 
   // Name → mobile for karyakartas (so a reminder can reach the karyakartas, not
   // only the devotees). Matches the assigned/default karyakarta name to a devotee
@@ -377,14 +391,15 @@ export default function FollowupsPage({ user }) {
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       return true;
     });
-    const s = { total: base.length, contacted: 0, pending: 0, byOutcome: {} };
+    const s = { total: base.length, contacted: 0, pending: 0, sevaPending: 0, byOutcome: {} };
     base.forEach(d => {
       const f = fmap[d.id];
       if (contacted(f)) s.contacted++; else s.pending++;
+      if (isSevaPending(f)) s.sevaPending++;
       if (f?.outcome) s.byOutcome[f.outcome] = (s.byOutcome[f.outcome] || 0) + 1;
     });
     return s;
-  }, [devotees, search, selectedTags, fmap, karyakarta, headsOnly]);
+  }, [devotees, search, selectedTags, fmap, karyakarta, headsOnly, sevaReceivedOutcome]);
 
   // This event's own outcome options (Ghari Seva drives differ from attendance).
   const eventOutcomes = useMemo(() => parseOutcomes(selectedEvent?.outcomes), [selectedEvent]);
@@ -623,6 +638,9 @@ export default function FollowupsPage({ user }) {
       active: !outcomeFilter && viewFilter === 'contacted', apply: () => { setOutcomeFilter(''); setViewFilter('contacted'); } },
     ...eventOutcomes.map(o => ({ label: o, value: summary.byOutcome[o] || 0, cls: outcomeChipCls(o),
       active: outcomeFilter === o, apply: () => { setOutcomeFilter(o); setViewFilter('all'); } })),
+    // Prasad given but seva not yet received — only for drives with a "Seva Received" outcome.
+    ...(sevaReceivedOutcome ? [{ label: 'Seva pending', value: summary.sevaPending, cls: 'text-orange-600',
+      active: !outcomeFilter && viewFilter === 'sevaPending', apply: () => { setOutcomeFilter(''); setViewFilter('sevaPending'); } }] : []),
     { label: 'Pending', value: summary.pending, cls: 'text-slate-500',
       active: !outcomeFilter && viewFilter === 'pending', apply: () => { setOutcomeFilter(''); setViewFilter('pending'); } },
   ];
@@ -657,7 +675,7 @@ export default function FollowupsPage({ user }) {
       {canManage && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border-light bg-surface px-3 py-2.5">
           <span className="text-xs font-bold text-text-muted">
-            Send push reminder{outcomeFilter ? ` · ${outcomeFilter}` : viewFilter !== 'all' ? ` · ${viewFilter}` : ''}:
+            Send push reminder{outcomeFilter ? ` · ${outcomeFilter}` : viewFilter === 'sevaPending' ? ' · seva pending' : viewFilter !== 'all' ? ` · ${viewFilter}` : ''}:
           </span>
           <button onClick={() => setReminder({ who: 'devotees' })}
             className="flex items-center gap-1.5 rounded-xl bg-[#FF862A] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#e06f19] active:scale-95">
