@@ -723,15 +723,37 @@ export default function FollowupsPage({ user }) {
     try {
       const XLSX = await import('xlsx');
       const mob = (d) => String(d.mobile || d.whatsapp || '').replace(/\D/g, '');
+      const fmtDate = (iso) => { const dt = new Date(iso); return isNaN(dt.getTime()) ? '' : dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+      const sevaStatus = (f) => {
+        if (!sevaReceivedOutcome) return '';
+        if ((f?.outcome || '') === sevaReceivedOutcome) return 'Received';
+        return contacted(f) ? 'Not received' : '';
+      };
+      const header = ['#', 'Name', 'Mobile', 'Address', 'Area', 'Karyakarta', 'Contact status', 'Outcome', 'Seva', 'Remark', 'Contacted on'];
       const aoa = [
         [selectedEvent.title || 'Seva'],
         [`Filter: ${activeFilterLabel}`, `Total: ${audience.length}`],
         [],
-        ['#', 'Name', 'Mobile', 'Address', 'Area'],
-        ...audience.map((d, i) => [i + 1, d.name || '', mob(d) || '', d.address || '', d.area || '']),
+        header,
+        ...audience.map((d, i) => {
+          const f = fmap[d.id] || {};
+          return [
+            i + 1,
+            d.name || '',
+            mob(d) || '',
+            d.address || '',
+            d.area || '',
+            f.assignedTo || d.followupKaryakarta || '',
+            contacted(f) ? 'Contacted' : 'Pending',
+            f.outcome || '',
+            sevaStatus(f),
+            f.remark || '',
+            fmtDate(f.contactedOn),
+          ];
+        }),
       ];
       const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{ wch: 4 }, { wch: 28 }, { wch: 14 }, { wch: 40 }, { wch: 18 }];
+      ws['!cols'] = [{ wch: 4 }, { wch: 28 }, { wch: 14 }, { wch: 40 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 20 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
       const slug = String(selectedEvent.title || 'seva').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').slice(0, 40);
