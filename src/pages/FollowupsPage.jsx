@@ -176,6 +176,10 @@ export default function FollowupsPage({ user }) {
   // tapping an outcome summary chip, so each count drills into its devotee list.
   const [outcomeFilter, setOutcomeFilter] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [xlsxBusy, setXlsxBusy] = useState(false);
+  // Layer 2 (seva drives only): within contacted, split by whether seva was
+  // received. '' = both, 'received', 'notReceived'.
+  const [sevaLayer, setSevaLayer] = useState('');
   const [reminder, setReminder] = useState(null); // { who:'devotees'|'karyakartas' } while composing
   // Which roster cards have their call/in-person/message log expanded. Collapsed by
   // default — a karyakarta opens it only when they actually want to log a contact.
@@ -317,12 +321,6 @@ export default function FollowupsPage({ user }) {
   const sevaReceivedOutcome = useMemo(
     () => parseOutcomes(selectedEvent?.outcomes).find(o => /seva\s*received|received\s*seva/i.test(o)) || '',
     [selectedEvent]);
-  const isNegativeOutcome = (o) => /not |unable|no\s*response|refus|skip|no\b/i.test(String(o || ''));
-  const isSevaPending = (f) => {
-    if (!sevaReceivedOutcome) return false;
-    const o = String(f?.outcome || '');
-    return !!o && o !== sevaReceivedOutcome && !isNegativeOutcome(o);
-  };
 
   // Audience = devotees matching search + tag filter (+ pending filter)
   const audience = useMemo(() => {
@@ -343,7 +341,9 @@ export default function FollowupsPage({ user }) {
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       if (viewFilter === 'pending' && contacted(fmap[d.id])) return false;
       if (viewFilter === 'contacted' && !contacted(fmap[d.id])) return false;
-      if (viewFilter === 'sevaPending' && !isSevaPending(fmap[d.id])) return false;
+      // Layer 2 — seva received / not received (both imply we contacted them).
+      if (sevaLayer === 'received' && (fmap[d.id]?.outcome || '') !== sevaReceivedOutcome) return false;
+      if (sevaLayer === 'notReceived' && !(contacted(fmap[d.id]) && (fmap[d.id]?.outcome || '') !== sevaReceivedOutcome)) return false;
       if (outcomeFilter && (fmap[d.id]?.outcome || '') !== outcomeFilter) return false;
       return true;
     }).sort((a, b) => {
@@ -358,7 +358,7 @@ export default function FollowupsPage({ user }) {
       }
       return String(a.name || '').localeCompare(String(b.name || '')); // A→Z
     });
-  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter, sortBy, headsOnly, areaNumMap, sevaReceivedOutcome]);
+  }, [devotees, search, selectedTags, viewFilter, fmap, karyakarta, outcomeFilter, sortBy, headsOnly, areaNumMap, sevaReceivedOutcome, sevaLayer]);
 
   // Name → mobile for karyakartas (so a reminder can reach the karyakartas, not
   // only the devotees). Matches the assigned/default karyakarta name to a devotee
@@ -392,11 +392,15 @@ export default function FollowupsPage({ user }) {
       if (karyakarta && (d.followupKaryakarta || '').trim() !== karyakarta) return false;
       return true;
     });
-    const s = { total: base.length, contacted: 0, pending: 0, sevaPending: 0, byOutcome: {} };
+    const s = { total: base.length, contacted: 0, pending: 0, sevaReceived: 0, sevaNotReceived: 0, byOutcome: {} };
     base.forEach(d => {
       const f = fmap[d.id];
-      if (contacted(f)) s.contacted++; else s.pending++;
-      if (isSevaPending(f)) s.sevaPending++;
+      const isContacted = contacted(f);
+      if (isContacted) s.contacted++; else s.pending++;
+      if (sevaReceivedOutcome) {
+        if ((f?.outcome || '') === sevaReceivedOutcome) s.sevaReceived++;
+        else if (isContacted) s.sevaNotReceived++;
+      }
       if (f?.outcome) s.byOutcome[f.outcome] = (s.byOutcome[f.outcome] || 0) + 1;
     });
     return s;
@@ -633,13 +637,16 @@ export default function FollowupsPage({ user }) {
   // below (so a count is never a dead end — you can see WHO is coming, etc.).
   const applyChip = (fn) => { fn(); try { requestAnimationFrame(() => window.scrollTo({ top: 400, behavior: 'smooth' })); } catch { /* ignore */ } };
 
-  // A short label for whatever filter is active — used in the PDF header.
-  const activeFilterLabel = outcomeFilter
-    ? outcomeFilter
-    : viewFilter === 'sevaPending' ? 'Prasad given · seva pending'
-    : viewFilter === 'pending' ? 'Not contacted'
-    : viewFilter === 'contacted' ? 'Contacted'
-    : 'All';
+  // A short label for whatever filter is active — used in the PDF/Excel header.
+  const activeFilterLabel = (() => {
+    if (outcomeFilter) return outcomeFilter;
+    const parts = [];
+    if (viewFilter === 'pending') parts.push('Not contacted');
+    else if (viewFilter === 'contacted') parts.push('Contacted');
+    if (sevaLayer === 'received') parts.push('Seva received');
+    else if (sevaLayer === 'notReceived') parts.push('Contacted · seva not received');
+    return parts.length ? parts.join(' · ') : 'All';
+  })();
 
   // Export the currently-listed devotees (respects every active filter) to a PDF
   // with Name, Mobile and Address — so the pending-seva list can be printed or
@@ -706,6 +713,35 @@ export default function FollowupsPage({ user }) {
       setPdfBusy(false);
     }
   };
+
+  // Excel export of the same currently-listed devotees (Name, Mobile, Address),
+  // respecting every active filter.
+  const exportListExcel = async () => {
+    if (xlsxBusy) return;
+    if (!audience.length) { alertError('Nothing to export', 'No devotees match the current filter.'); return; }
+    setXlsxBusy(true);
+    try {
+      const XLSX = await import('xlsx');
+      const mob = (d) => String(d.mobile || d.whatsapp || '').replace(/\D/g, '');
+      const aoa = [
+        [selectedEvent.title || 'Seva'],
+        [`Filter: ${activeFilterLabel}`, `Total: ${audience.length}`],
+        [],
+        ['#', 'Name', 'Mobile', 'Address', 'Area'],
+        ...audience.map((d, i) => [i + 1, d.name || '', mob(d) || '', d.address || '', d.area || '']),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 4 }, { wch: 28 }, { wch: 14 }, { wch: 40 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
+      const slug = String(selectedEvent.title || 'seva').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').slice(0, 40);
+      XLSX.writeFile(wb, `${slug}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) {
+      alertError('Could not create Excel', e?.message || 'Please try again.');
+    } finally {
+      setXlsxBusy(false);
+    }
+  };
   const chips = [
     { label: 'Devotees', value: summary.total, cls: 'text-text-main',
       active: !outcomeFilter && viewFilter === 'all', apply: () => { setOutcomeFilter(''); setViewFilter('all'); } },
@@ -713,9 +749,6 @@ export default function FollowupsPage({ user }) {
       active: !outcomeFilter && viewFilter === 'contacted', apply: () => { setOutcomeFilter(''); setViewFilter('contacted'); } },
     ...eventOutcomes.map(o => ({ label: o, value: summary.byOutcome[o] || 0, cls: outcomeChipCls(o),
       active: outcomeFilter === o, apply: () => { setOutcomeFilter(o); setViewFilter('all'); } })),
-    // Prasad given but seva not yet received — only for drives with a "Seva Received" outcome.
-    ...(sevaReceivedOutcome ? [{ label: 'Seva pending', value: summary.sevaPending, cls: 'text-orange-600',
-      active: !outcomeFilter && viewFilter === 'sevaPending', apply: () => { setOutcomeFilter(''); setViewFilter('sevaPending'); } }] : []),
     { label: 'Pending', value: summary.pending, cls: 'text-slate-500',
       active: !outcomeFilter && viewFilter === 'pending', apply: () => { setOutcomeFilter(''); setViewFilter('pending'); } },
   ];
@@ -814,6 +847,7 @@ export default function FollowupsPage({ user }) {
             </button>
             {/* Segmented filter takes its own full-width row on mobile with equal-width
                 buttons so "Contacted" never clips off the screen edge. */}
+            {/* Layer 1 — contact status */}
             <div className="col-span-2 sm:col-auto flex w-full sm:w-auto overflow-hidden rounded-2xl border border-border-light">
               {[['all', 'All'], ['pending', 'Pending'], ['contacted', 'Contacted']].map(([v, label]) => (
                 <button key={v} onClick={() => setViewFilter(v)}
@@ -822,10 +856,26 @@ export default function FollowupsPage({ user }) {
                 </button>
               ))}
             </div>
+            {/* Layer 2 — seva received / not received (seva drives only) */}
+            {sevaReceivedOutcome && (
+              <div className="col-span-2 sm:col-auto flex w-full sm:w-auto overflow-hidden rounded-2xl border border-border-light">
+                {[['', 'Seva: All'], ['received', `Received (${summary.sevaReceived})`], ['notReceived', `Not received (${summary.sevaNotReceived})`]].map(([v, label]) => (
+                  <button key={v || 'all'} onClick={() => setSevaLayer(v)}
+                    className={`flex-1 sm:flex-none px-2.5 sm:px-3.5 py-2.5 text-xs sm:text-sm font-bold transition-colors ${sevaLayer === v ? (v === 'received' ? 'bg-emerald-600 text-white' : v === 'notReceived' ? 'bg-orange-500 text-white' : 'bg-primary text-white') : 'bg-surface text-text-muted'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <button onClick={exportListPdf} disabled={pdfBusy}
               title="Download the listed devotees (name, mobile, address) as PDF"
-              className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-emerald-500 bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">
-              <Download className="h-4 w-4" /> {pdfBusy ? 'Preparing…' : 'PDF'}
+              className="col-span-1 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-rose-500 bg-rose-500 px-4 py-2.5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">
+              <Download className="h-4 w-4" /> {pdfBusy ? '…' : 'PDF'}
+            </button>
+            <button onClick={exportListExcel} disabled={xlsxBusy}
+              title="Download the listed devotees (name, mobile, address) as Excel"
+              className="col-span-1 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">
+              <Download className="h-4 w-4" /> {xlsxBusy ? '…' : 'Excel'}
             </button>
           </div>
         </div>
