@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   PhoneCall, Phone, Users2, Users, ArrowLeft, Search, Filter, X, Check,
-  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, ChevronDown, MapPin, Plus, Pencil, Trash2
+  CalendarCheck, ClipboardList, MessageSquare, UserRound, ChevronRight, ChevronDown, MapPin, Plus, Pencil, Trash2, Download
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import AutoTextarea from '../components/AutoTextarea';
@@ -175,6 +175,7 @@ export default function FollowupsPage({ user }) {
   // When set, the roster is filtered to devotees with this exact outcome — set by
   // tapping an outcome summary chip, so each count drills into its devotee list.
   const [outcomeFilter, setOutcomeFilter] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [reminder, setReminder] = useState(null); // { who:'devotees'|'karyakartas' } while composing
   // Which roster cards have their call/in-person/message log expanded. Collapsed by
   // default — a karyakarta opens it only when they actually want to log a contact.
@@ -631,6 +632,80 @@ export default function FollowupsPage({ user }) {
   // Each chip is a filter: tapping it shows exactly those devotees in the roster
   // below (so a count is never a dead end — you can see WHO is coming, etc.).
   const applyChip = (fn) => { fn(); try { requestAnimationFrame(() => window.scrollTo({ top: 400, behavior: 'smooth' })); } catch { /* ignore */ } };
+
+  // A short label for whatever filter is active — used in the PDF header.
+  const activeFilterLabel = outcomeFilter
+    ? outcomeFilter
+    : viewFilter === 'sevaPending' ? 'Prasad given · seva pending'
+    : viewFilter === 'pending' ? 'Not contacted'
+    : viewFilter === 'contacted' ? 'Contacted'
+    : 'All';
+
+  // Export the currently-listed devotees (respects every active filter) to a PDF
+  // with Name, Mobile and Address — so the pending-seva list can be printed or
+  // shared. Same jsPDF + autoTable pattern as the Devotee Directory export.
+  const exportListPdf = async () => {
+    if (pdfBusy) return;
+    if (!audience.length) { alertError('Nothing to export', 'No devotees match the current filter.'); return; }
+    setPdfBusy(true);
+    try {
+      let jsPDF, autoTableMod;
+      try { [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]); }
+      catch {
+        try { if (!sessionStorage.getItem('ac-pdf-reloaded')) { sessionStorage.setItem('ac-pdf-reloaded', '1'); location.reload(); } } catch { /* ignore */ }
+        throw new Error('The app was updated in the background. Reloading — please tap export again.');
+      }
+      const autoTable = autoTableMod.default || autoTableMod.autoTable;
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const NAVY = [0, 49, 88];
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+
+      doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+      doc.text(selectedEvent.title || 'Seva', 40, 44);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(90, 100, 115);
+      doc.text('Adajan Satsang Mandal · Swaminarayan Hariprabodham Foundation, Adajan, Surat', 40, 58);
+      doc.text(`Printed: ${dateStr}  ·  Jai Swaminarayan`, pageW - 40, 44, { align: 'right' });
+      doc.setTextColor(60, 70, 85); doc.setFontSize(9);
+      doc.text(`Filter: ${activeFilterLabel}     Total: ${audience.length}`, 40, 74);
+
+      const mob = (d) => String(d.mobile || d.whatsapp || '').replace(/\D/g, '');
+      const body = audience.map((d, i) => [
+        i + 1,
+        d.name || '',
+        mob(d) || '—',
+        [d.address, d.area].filter(Boolean).join(', ') || '—',
+      ]);
+      autoTable(doc, {
+        startY: 84,
+        head: [['#', 'Name', 'Mobile', 'Address']],
+        body,
+        styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+        headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [244, 247, 251] },
+        columnStyles: {
+          0: { cellWidth: 24, halign: 'right' },
+          1: { cellWidth: 150, textColor: NAVY, fontStyle: 'bold' },
+          2: { cellWidth: 80 },
+          3: { cellWidth: 'auto' },
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: () => {
+          const h = doc.internal.pageSize.getHeight();
+          doc.setFontSize(7.5); doc.setTextColor(150, 160, 175); doc.setFont('helvetica', 'normal');
+          doc.text('Akshar Connect · akshar-connect.web.app', 40, h - 18);
+          doc.text('Confidential — for internal satsang use only', pageW - 40, h - 18, { align: 'right' });
+        },
+      });
+      const slug = String(selectedEvent.title || 'seva').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').slice(0, 40);
+      doc.save(`${slug}_${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      alertError('Could not create PDF', e?.message || 'Please try again.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
   const chips = [
     { label: 'Devotees', value: summary.total, cls: 'text-text-main',
       active: !outcomeFilter && viewFilter === 'all', apply: () => { setOutcomeFilter(''); setViewFilter('all'); } },
@@ -747,6 +822,11 @@ export default function FollowupsPage({ user }) {
                 </button>
               ))}
             </div>
+            <button onClick={exportListPdf} disabled={pdfBusy}
+              title="Download the listed devotees (name, mobile, address) as PDF"
+              className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-emerald-500 bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">
+              <Download className="h-4 w-4" /> {pdfBusy ? 'Preparing…' : 'PDF'}
+            </button>
           </div>
         </div>
 
